@@ -1,0 +1,938 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relay: workflow orchestrator (UI mock)</title>
+<style>
+:root{
+  --bg:#ffffff; --bg-subtle:#f8fafc; --bg-muted:#f1f5f9;
+  --border:#e2e8f0; --border-strong:#cbd5e1;
+  --text:#0f172a; --text-2:#475569; --text-3:#94a3b8;
+  --accent:#4f46e5; --accent-hover:#4338ca; --accent-soft:#eef2ff; --accent-border:#c7d2fe;
+  --green:#047857; --green-soft:#ecfdf5; --amber:#b45309; --amber-soft:#fffbeb;
+  --red:#b91c1c; --red-soft:#fef2f2; --blue:#0369a1; --blue-soft:#f0f9ff;
+  --shadow-sm:0 1px 2px rgba(15,23,42,.06); --shadow-md:0 4px 14px rgba(15,23,42,.10);
+  --backdrop:rgba(15,23,42,.38);
+  --font:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+[data-theme=dark]{
+  --bg:#0f1012; --bg-subtle:#141518; --bg-muted:#1b1c20;
+  --border:#26282d; --border-strong:#383b42;
+  --text:#eceef1; --text-2:#a3a8b1; --text-3:#6c717b;
+  --accent:#818cf8; --accent-hover:#a5b4fc; --accent-soft:rgba(129,140,248,.14); --accent-border:rgba(129,140,248,.4);
+  --green:#34d399; --green-soft:rgba(52,211,153,.12); --amber:#fbbf24; --amber-soft:rgba(251,191,36,.12);
+  --red:#f87171; --red-soft:rgba(248,113,113,.12); --blue:#38bdf8; --blue-soft:rgba(56,189,248,.12);
+  --shadow-sm:none; --shadow-md:0 8px 24px rgba(0,0,0,.45); --backdrop:rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font:13px/1.45 var(--font);color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased;overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+h1,h2,h3{margin:0;letter-spacing:-.012em}
+h1{font-size:20px;font-weight:600} h2{font-size:15px;font-weight:600} h3{font-size:13px;font-weight:600}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+p{margin:0}
+.muted{color:var(--text-2)} .faint{color:var(--text-3)} .mono{font-family:var(--mono);font-size:12px}
+.row{display:flex;align-items:center;gap:8px} .col{display:flex;flex-direction:column;gap:8px}
+.grow{flex:1;min-width:0} .sp{flex:1} .wrap{flex-wrap:wrap}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px} .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.ic{flex:none;display:inline-block;vertical-align:middle}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
+/* shell */
+#app{display:grid;grid-template-columns:244px 1fr;height:100vh}
+.sb{background:var(--bg-subtle);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.sb-top{padding:10px 10px 4px;display:flex;flex-direction:column;gap:8px}
+.ws{display:flex;align-items:center;gap:8px;padding:4px 6px;font-weight:600}
+.logo{width:20px;height:20px;border-radius:5px;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700}
+.sb-search{display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;border:1px solid var(--border);background:var(--bg);border-radius:6px;color:var(--text-3);cursor:pointer;box-shadow:var(--shadow-sm);width:100%;text-align:left}
+.sb-search:hover{border-color:var(--border-strong)}
+.sb-nav{padding:4px 8px;overflow:auto;flex:1}
+.nav-item{display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;border-radius:6px;color:var(--text-2);cursor:pointer;white-space:nowrap}
+.nav-item:hover{background:var(--bg-muted);color:var(--text)}
+.nav-item.active{background:var(--bg-muted);color:var(--text);font-weight:500}
+.nav-item .nm{overflow:hidden;text-overflow:ellipsis}
+.nav-sec{display:flex;align-items:center;margin:14px 8px 4px;color:var(--text-3);font-size:12px;font-weight:500}
+.nav-sec .btn{margin-left:auto}
+.nav-kids{margin-left:15px;border-left:1px solid var(--border);padding-left:6px}
+.badge-n{margin-left:auto;background:var(--accent);color:#fff;border-radius:9px;font-size:11px;padding:0 6px;height:16px;line-height:16px;font-weight:500}
+.sb-foot{border-top:1px solid var(--border);padding:8px 10px;display:flex;flex-direction:column;gap:6px}
+.prov{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-2)}
+.prov .bar{flex:1;max-width:64px}
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+.topbar{height:48px;flex:none;display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid var(--border);background:var(--bg)}
+.crumbs{display:flex;align-items:center;gap:6px;color:var(--text-2);min-width:0}
+.crumbs a{color:var(--text-2)} .crumbs a:hover{color:var(--text);text-decoration:none}
+.crumbs b{color:var(--text);font-weight:600}
+.content{flex:1;overflow:auto;min-height:0}
+.page{max-width:1080px;margin:0 auto;padding:28px 32px 72px}
+.page-h{display:flex;align-items:flex-start;gap:12px;margin-bottom:20px}
+.page-h p{margin-top:4px;color:var(--text-2)}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);padding:0 16px;background:var(--bg);flex:none}
+.tabs.pad{padding:0;margin-bottom:20px}
+.tab{padding:9px 10px;color:var(--text-2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:500;display:flex;align-items:center;gap:6px;background:none;border-top:0;border-left:0;border-right:0}
+.tab:hover{color:var(--text)} .tab.active{color:var(--text);border-bottom-color:var(--accent)}
+.tab .cnt{color:var(--text-3);font-weight:400}
+
+/* controls */
+.btn{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:1px solid var(--border);background:var(--bg);border-radius:6px;cursor:pointer;font-weight:500;box-shadow:var(--shadow-sm);white-space:nowrap}
+.btn:hover{background:var(--bg-muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:none}
+[data-theme=dark] .btn.primary{color:#0f1012}
+.btn.primary:hover{background:var(--accent-hover)}
+.btn.ghost{border-color:transparent;background:transparent;box-shadow:none}
+.btn.ghost:hover{background:var(--bg-muted)}
+.btn.danger{color:var(--red)}
+.btn.sm{height:24px;padding:0 8px;font-size:12px}
+.btn.icon{width:28px;padding:0;justify-content:center} .btn.icon.sm{width:24px}
+.btn[disabled]{opacity:.45;pointer-events:none}
+.input,.select,.textarea{width:100%;height:28px;border:1px solid var(--border);border-radius:6px;background:var(--bg);padding:0 8px;color:var(--text)}
+.input:focus,.select:focus,.textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.textarea{height:auto;padding:6px 8px;resize:vertical;line-height:1.5}
+.textarea.code-t{font:12px/1.55 var(--mono)}
+.select{appearance:none;padding-right:24px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 7px center}
+.input.sm,.select.sm{height:24px;font-size:12px}
+.field{margin-bottom:12px} .field>label,.lbl{display:block;color:var(--text-2);font-size:12px;margin-bottom:4px;font-weight:500}
+.hint{color:var(--text-3);font-size:12px;margin-top:4px}
+.seg{display:inline-flex;background:var(--bg-muted);padding:2px;border-radius:6px;gap:2px}
+.seg button{border:0;background:transparent;height:24px;padding:0 10px;border-radius:4px;color:var(--text-2);cursor:pointer;font-weight:500;display:inline-flex;align-items:center;gap:6px}
+.seg button.on{background:var(--bg);color:var(--text);box-shadow:var(--shadow-sm)}
+[data-theme=dark] .seg button.on{background:var(--border)}
+.sw{position:relative;width:28px;height:16px;border-radius:8px;background:var(--border-strong);cursor:pointer;flex:none;border:0;padding:0}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:left .12s}
+.sw.on{background:var(--accent)} .sw.on::after{left:14px}
+.range{width:100%;accent-color:var(--accent)}
+.kbd{font:11px var(--mono);border:1px solid var(--border);border-bottom-width:2px;border-radius:4px;padding:0 5px;background:var(--bg);color:var(--text-2)}
+.pill{display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 8px;border-radius:10px;font-size:12px;font-weight:500;background:var(--bg-muted);color:var(--text-2);white-space:nowrap}
+.pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.green{background:var(--green-soft);color:var(--green)} .pill.amber{background:var(--amber-soft);color:var(--amber)}
+.pill.red{background:var(--red-soft);color:var(--red)} .pill.blue{background:var(--blue-soft);color:var(--blue)} .pill.accent{background:var(--accent-soft);color:var(--accent)}
+.chip{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--bg);color:var(--text-2)}
+.chip.on{border-color:var(--accent-border);background:var(--accent-soft);color:var(--accent)}
+button.chip{cursor:pointer} button.chip:hover{border-color:var(--border-strong)}
+.chip .x{cursor:pointer;color:var(--text-3)}
+.bar{height:4px;border-radius:2px;background:var(--bg-muted);overflow:hidden} .bar i{display:block;height:100%;background:var(--accent)} .bar.green i{background:var(--green)} .bar.amber i{background:var(--amber)}
+.sep{height:1px;background:var(--border);margin:12px 0}
+.vsep{width:1px;height:16px;background:var(--border)}
+.avatar{width:20px;height:20px;border-radius:50%;background:var(--bg-muted);color:var(--text-2);display:grid;place-items:center;font-size:11px;font-weight:600;flex:none}
+.avatar.agent{background:var(--accent-soft);color:var(--accent)}
+.spin{width:12px;height:12px;border:2px solid var(--border-strong);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin,.edge.live{animation:none}}
+
+/* surfaces */
+.card{border:1px solid var(--border);border-radius:8px;background:var(--bg)}
+.card-h{padding:11px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-weight:600}
+.card-b{padding:14px}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{text-align:left;font-weight:500;color:var(--text-3);font-size:12px;padding:8px 14px;border-bottom:1px solid var(--border);white-space:nowrap}
+.tbl td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:0}
+.tbl tr.click{cursor:pointer} .tbl tr.click:hover td{background:var(--bg-subtle)}
+.tbl .sub{color:var(--text-3);font-size:12px}
+.code{font:12px/1.6 var(--mono);background:var(--bg-subtle);border:1px solid var(--border);border-radius:6px;padding:10px 12px;overflow:auto;white-space:pre;margin:0}
+.code .k{color:var(--accent)} .code .s{color:var(--green)} .code .n{color:var(--amber)} .code .c{color:var(--text-3)}
+.banner{display:flex;gap:10px;align-items:center;padding:9px 16px;border-bottom:1px solid var(--border);font-size:13px;flex:none}
+.banner.amber{background:var(--amber-soft);color:var(--amber)} .banner.blue{background:var(--blue-soft);color:var(--blue)} .banner.red{background:var(--red-soft);color:var(--red)} .banner.green{background:var(--green-soft);color:var(--green)}
+.banner b{font-weight:600} .banner .sp{flex:1}
+.note{display:flex;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-subtle);color:var(--text-2)}
+.note.amber{border-color:transparent;background:var(--amber-soft);color:var(--amber)} .note.red{border-color:transparent;background:var(--red-soft);color:var(--red)} .note.accent{border-color:var(--accent-border);background:var(--accent-soft);color:var(--text)}
+.empty{padding:40px 20px;text-align:center;color:var(--text-2)}
+.stat{padding:14px;border:1px solid var(--border);border-radius:8px}
+.stat .v{font-size:20px;font-weight:600;letter-spacing:-.015em;margin-top:2px}
+.list-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border)}
+.list-row:last-child{border-bottom:0}
+.list-row.click{cursor:pointer} .list-row.click:hover{background:var(--bg-subtle)}
+.kv{display:grid;grid-template-columns:120px 1fr;gap:6px 12px;font-size:12.5px} .kv dt{color:var(--text-3)} .kv dd{margin:0;word-break:break-word}
+
+/* overlays */
+.backdrop{position:fixed;inset:0;background:var(--backdrop);display:grid;place-items:start center;padding-top:9vh;z-index:60}
+.modal{width:560px;max-width:92vw;background:var(--bg);border:1px solid var(--border);border-radius:10px;box-shadow:0 16px 48px rgba(0,0,0,.22);max-height:82vh;display:flex;flex-direction:column}
+.modal.wide{width:720px}
+.modal-h{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.modal-h h2{flex:1}
+.modal-b{padding:16px 18px;overflow:auto}
+.modal-f{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;align-items:center}
+.pal{width:560px;max-width:92vw;background:var(--bg);border:1px solid var(--border);border-radius:10px;box-shadow:0 16px 48px rgba(0,0,0,.22);overflow:hidden}
+.pal input{width:100%;border:0;border-bottom:1px solid var(--border);padding:14px 16px;font-size:14px;background:transparent;outline:none}
+.pal-list{max-height:340px;overflow:auto;padding:6px}
+.pal-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;cursor:pointer;color:var(--text-2)}
+.pal-item.sel,.pal-item:hover{background:var(--bg-muted);color:var(--text)}
+.pal-item .hintr{margin-left:auto;color:var(--text-3);font-size:12px}
+.toasts{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;z-index:90;align-items:center}
+.toast{background:var(--text);color:var(--bg);padding:8px 14px;border-radius:8px;box-shadow:var(--shadow-md);display:flex;gap:8px;align-items:center;font-weight:500}
+.menu{position:absolute;z-index:40;background:var(--bg);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md);padding:4px;min-width:200px}
+.menu .mi{display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:5px;cursor:pointer;color:var(--text-2)}
+.menu .mi:hover{background:var(--bg-muted);color:var(--text)}
+.menu .mi.err{color:var(--red)}
+.menu .mh{padding:6px 8px;color:var(--text-3);font-size:12px}
+
+/* canvas */
+.cv-wrap{display:flex;flex:1;min-height:0;min-width:0;position:relative}
+.cv{position:relative;flex:1;overflow:hidden;background:var(--bg-subtle);cursor:grab;min-width:0}
+.cv.panning{cursor:grabbing}
+.cv .grid{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.world{position:absolute;left:0;top:0;transform-origin:0 0}
+.edges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none;width:1px;height:1px}
+.edge{fill:none;stroke:var(--border-strong);stroke-width:1.5}
+.edge.done{stroke:var(--accent)} .edge.skip{stroke-dasharray:4 4;opacity:.55} .edge.sel{stroke:var(--accent);stroke-width:2.2}
+.edge.live{stroke:var(--accent);stroke-dasharray:6 4;animation:dash .8s linear infinite}
+@keyframes dash{to{stroke-dashoffset:-10}}
+.edge-hit{fill:none;stroke:transparent;stroke-width:14;pointer-events:stroke;cursor:pointer}
+.edge-lbl{font-size:11px;fill:var(--text-3)}
+.node{position:absolute;background:var(--bg);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-sm);user-select:none}
+.node:hover{border-color:var(--border-strong)}
+.node.sel{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.n-head{display:flex;align-items:center;gap:8px;padding:9px 10px 0}
+.n-ic{width:22px;height:22px;border-radius:5px;display:grid;place-items:center;background:var(--bg-muted);flex:none}
+.n-title{font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+.n-sub{padding:3px 10px 0 40px;color:var(--text-3);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.n-st{width:16px;height:16px;display:grid;place-items:center;flex:none}.n-st:empty{display:none}
+.n-rows{margin-top:8px;border-top:1px solid var(--border)}
+.n-row{height:22px;display:flex;align-items:center;padding:0 10px;font-size:11.5px;color:var(--text-2);position:relative;gap:6px}
+.n-row .ex{margin-left:auto;font:10.5px var(--mono);color:var(--text-3);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.n-foot{position:absolute;left:0;right:0;bottom:0;padding:0 10px;height:22px;display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--accent);cursor:pointer;border-top:1px solid var(--border);background:var(--bg);border-radius:0 0 7px 7px}
+.n-foot .sp{flex:1} .n-foot .cnt{color:var(--text-2)}
+.n-row.taken{color:var(--text);font-weight:500}
+.h{position:absolute;width:10px;height:10px;border-radius:50%;background:var(--bg);border:1.5px solid var(--border-strong);margin:-5px 0 0 -5px;cursor:crosshair;z-index:2}
+.h.in{left:0} .h.out{left:100%}
+.h:hover,.h.hot{border-color:var(--accent);background:var(--accent)}
+.node.st-running{border-color:var(--blue)} .node.st-succeeded{border-color:var(--border-strong)}
+.node.st-failed,.node.st-rejected{border-color:var(--red)}
+.node.st-waiting_approval,.node.st-waiting_quota{border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-soft)}
+.node.st-skipped{opacity:.5} .node.st-pending{opacity:.85}
+.node.run{cursor:pointer}
+.cv-ctl{position:absolute;left:12px;bottom:12px;display:flex;align-items:center;gap:2px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:3px;box-shadow:var(--shadow-sm);z-index:5}
+.cv-ctl .z{min-width:40px;text-align:center;color:var(--text-2);font-size:12px}
+.pal-box{position:absolute;left:12px;top:12px;width:176px;background:var(--bg);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-sm);z-index:5;padding:6px;max-height:calc(100% - 80px);overflow:auto}
+.pal-box .nav-sec{margin:8px 6px 4px}
+.pi{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:6px;cursor:grab;color:var(--text-2)}
+.pi:hover{background:var(--bg-muted);color:var(--text)}
+.pi .n-ic{width:20px;height:20px}
+.insp{position:absolute;right:12px;top:12px;bottom:12px;width:352px;background:var(--bg);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-md);display:flex;flex-direction:column;overflow:hidden;z-index:6}
+.insp-h{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.insp-b{overflow:auto;padding:4px 14px 14px;flex:1}
+.insp-f{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px}
+details.sec{border-bottom:1px solid var(--border);padding:0}
+details.sec:last-child{border-bottom:0}
+details.sec>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;padding:11px 0;font-weight:600;color:var(--text)}
+details.sec>summary::-webkit-details-marker{display:none}
+details.sec>summary .ic.chev{transition:transform .12s;color:var(--text-3)}
+details.sec[open]>summary .ic.chev{transform:rotate(90deg)}
+details.sec>.sec-b{padding:0 0 12px}
+.cv-bar{position:relative;height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--border);background:var(--bg)}
+.rp{width:360px;flex:none;border-left:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg);min-height:0}
+.rp-b{overflow:auto;padding:14px;flex:1}
+.scrub{height:58px;border-top:1px solid var(--border);display:flex;align-items:center;gap:14px;padding:0 16px;background:var(--bg);flex:none}
+.track{position:relative;flex:1;height:24px;display:flex;align-items:center}
+.track .ln{position:absolute;left:0;right:0;height:2px;background:var(--border);border-radius:1px}
+.track .fl{position:absolute;left:0;height:2px;background:var(--accent);border-radius:1px}
+.track .tk{position:absolute;width:12px;height:12px;margin-left:-6px;border-radius:50%;background:var(--bg);border:2px solid var(--border-strong);cursor:pointer;padding:0}
+.track .tk.done{border-color:var(--accent);background:var(--accent)} .track .tk.cur{box-shadow:0 0 0 4px var(--accent-soft)}
+.track .tk.warn{border-color:var(--amber)} .track .tk.warn.done{background:var(--amber)}
+.ev{display:grid;grid-template-columns:58px 1fr;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12.5px}
+.ev:last-child{border-bottom:0}
+.ev .t{color:var(--text-3);font:11.5px var(--mono);padding-top:1px}
+.ev .p{color:var(--text-3);font:11.5px var(--mono)}
+.tr{font:11.5px/1.65 var(--mono);color:var(--text-2);background:var(--bg-subtle);border:1px solid var(--border);border-radius:6px;padding:8px 10px;max-height:220px;overflow:auto}
+.tr div{white-space:pre-wrap;word-break:break-word} .tr .tm{color:var(--text-3)} .tr .tl{color:var(--accent)} .tr .er{color:var(--red)} .tr .ok{color:var(--green)}
+.item-row{display:grid;grid-template-columns:18px 1fr auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:6px;cursor:pointer;background:var(--bg)}
+.item-row:hover{border-color:var(--border-strong)}
+.segbar{display:flex;gap:2px;height:6px}
+.segbar i{flex:1;border-radius:2px;background:var(--bg-muted)}
+.segbar i.succeeded{background:var(--green)} .segbar i.running{background:var(--blue)} .segbar i.failed{background:var(--red)} .segbar i.waiting_quota{background:var(--amber)}
+.split{display:grid;grid-template-columns:320px 1fr;min-height:0;flex:1}
+.split>.l{border-right:1px solid var(--border);overflow:auto;min-height:0} .split>.r{overflow:auto;min-height:0}
+.topic{padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer}
+.topic:hover{background:var(--bg-subtle)} .topic.on{background:var(--accent-soft)}
+.sn{display:grid;grid-template-columns:200px 1fr;min-height:0;flex:1}
+.sn>.l{border-right:1px solid var(--border);padding:12px 8px;background:var(--bg-subtle)}
+.sn>.r{overflow:auto}
+.hist{border-left:2px solid var(--border);margin-left:6px;padding-left:14px}
+.hist .h-i{position:relative;padding-bottom:14px}
+.hist .h-i::before{content:"";position:absolute;left:-20px;top:5px;width:8px;height:8px;border-radius:50%;background:var(--bg);border:2px solid var(--border-strong)}
+.hist .h-i.cur::before{border-color:var(--accent);background:var(--accent)}
+.hist .h-i.old{opacity:.7}
+.hide{display:none!important}
+.nosb{grid-template-columns:1fr!important}.nosb .sb{display:none}
+[data-theme=dark] .n-ic,[data-theme=dark] .pi .n-ic{filter:brightness(1.7)}
+</style>
+</head>
+<body>
+<div id="app"><aside class="sb" id="sb"></aside><main class="main" id="main"></main></div>
+<div id="overlay"></div><div class="toasts" id="toasts"></div>
+<script>
+/* ===== utilities ===== */
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const P={
+ 'panel':'<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>','play-circle':'<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>','play':'<polygon points="6 3 20 12 6 21 6 3"/>',
+ 'plus':'<path d="M5 12h14"/><path d="M12 5v14"/>','minus':'<path d="M5 12h14"/>','chev':'<path d="m9 18 6-6-6-6"/>','chevd':'<path d="m6 9 6 6 6-6"/>',
+ 'search':'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>','check':'<path d="M20 6 9 17l-5-5"/>','x':'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+ 'clock':'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>','pause':'<rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/>',
+ 'folder':'<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+ 'branch':'<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+ 'warn':'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+ 'file':'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
+ 'db':'<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>',
+ 'term':'<polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/>',
+ 'bot':'<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>',
+ 'split':'<path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-8.3a4 4 0 0 0-1.172-2.872L3 3"/><path d="m15 9 6-6"/>',
+ 'repeat':'<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
+ 'layers':'<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
+ 'merge':'<path d="m8 6 4-4 4 4"/><path d="M12 2v10.3a4 4 0 0 1-1.172 2.872L4 22"/><path d="m20 22-5-5"/>',
+ 'ucheck':'<path d="m16 11 2 2 4-4"/><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>',
+ 'flag':'<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/>',
+ 'zap':'<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
+ 'bell':'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+ 'sliders':'<line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/>',
+ 'dots':'<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+ 'copy':'<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+ 'down':'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+ 'up':'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
+ 'eye':'<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+ 'lock':'<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+ 'shield':'<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+ 'refresh':'<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>',
+ 'history':'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
+ 'sun':'<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+ 'moon':'<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>','stop':'<rect width="14" height="14" x="5" y="5" rx="2"/>',
+ 'list':'<line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/>',
+ 'pin':'<line x1="12" x2="12" y1="17" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/>',
+ 'trash':'<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
+ 'edit':'<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>',
+ 'inbox':'<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+ 'info':'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>','cok':'<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>','cx':'<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>',
+ 'arrow':'<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>','dollar':'<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+ 'fit':'<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
+ 'home':'<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+ 'cmd':'<path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"/>','user':'<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+ 'back':'<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>','skip':'<polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/>',
+ 'link':'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>'
+};
+const ic=(n,s=16,c='')=>`<svg class="ic ${c}" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${P[n]||''}</svg>`;
+function jhl(o){const s=typeof o==='string'?o:JSON.stringify(o,null,2);return esc(s).replace(/(&quot;[^&]*?&quot;)(\s*:)?|\b(true|false|null)\b|(-?\b\d+\.?\d*\b)/g,(m,a,b,c,d)=>a?(b?`<span class="k">${a}</span>${b}`:`<span class="s">${a}</span>`):`<span class="n">${c||d}</span>`);}
+const NT={start:{l:'Start',i:'play-circle',c:'#059669',d:'Declares run parameters'},agent:{l:'Agent',i:'bot',c:'#4f46e5',d:'A full CLI agent session'},shell:{l:'Shell',i:'term',c:'#64748b',d:'Deterministic command'},
+ decision:{l:'Decision',i:'zap',c:'#7c3aed',d:'Fast model picks an option'},gate:{l:'Gate',i:'split',c:'#d97706',d:'Branch on an expression'},loop:{l:'Loop',i:'repeat',c:'#0284c7',d:'Repeat until a condition'},
+ map:{l:'Map',i:'layers',c:'#0284c7',d:'Run once per array item'},join:{l:'Join',i:'merge',c:'#0d9488',d:'Merge converging branches'},approval:{l:'Approval',i:'ucheck',c:'#e11d48',d:'Pause for a person'},end:{l:'End',i:'flag',c:'#475569',d:'Declares the run result'}};
+const CLI={'claude-code':'Claude Code',codex:'Codex',opencode:'OpenCode',pi:'Pi'};
+const SC={f:(n,t,r=1)=>({n,t,r})};
+
+/* ===== sample data ===== */
+const PROJECTS=[
+ {id:'orbit-web',name:'orbit-web',kind:'git',path:'~/code/orbit-web',branch:'main',dirty:false,sha:'a1b2c3d',wfs:['tool-research','bug-triage','release-notes']},
+ {id:'docs-site',name:'docs-site',kind:'git',path:'~/code/docs-site',branch:'main',dirty:true,sha:'9f8e7d6',wfs:['changelog-digest']},
+ {id:'research-notes',name:'research-notes',kind:'folder',path:'~/Documents/research',wfs:['weekly-brief']}];
+const WF={
+ 'tool-research':{name:'Tool research',desc:'Research a tool, triage it, trial it on real code, and write up a verdict.',nodes:10,last:'Running now',st:'live',cost:'$3.07'},
+ 'bug-triage':{name:'Bug triage',desc:'Classify new issues and route each to a fix, a person, or a close.',nodes:7,last:'2 hours ago',st:'succeeded',cost:'$0.38'},
+ 'release-notes':{name:'Release notes',desc:'Draft notes from merged pull requests and loop until the editor agent approves.',nodes:6,last:'Yesterday',st:'failed',cost:'$1.12'},
+ 'changelog-digest':{name:'Changelog digest',desc:'Summarize dependency changelogs into a weekly digest.',nodes:5,last:'3 days ago',st:'succeeded',cost:'$0.61'},
+ 'weekly-brief':{name:'Weekly brief',desc:'Collect notes from the week and write a one-page brief.',nodes:4,last:'6 days ago',st:'succeeded',cost:'$0.27'}};
+const RUNS=[
+ {id:42,wf:'tool-research',p:'orbit-web',input:'topic: JS bundlers',st:'live',when:'Today 12:01',cost:'$3.07',dur:'56m active'},
+ {id:41,wf:'release-notes',p:'orbit-web',input:'range: v2.3.0..v2.4.0',st:'failed',when:'Yesterday 17:40',cost:'$1.12',dur:'22m'},
+ {id:40,wf:'bug-triage',p:'orbit-web',input:'label: needs-triage',st:'succeeded',when:'Yesterday 09:12',cost:'$0.38',dur:'6m'},
+ {id:39,wf:'tool-research',p:'orbit-web',input:'topic: E2E test runners',st:'rejected',when:'Oct 22 15:30',cost:'$0.95',dur:'14m'},
+ {id:38,wf:'tool-research',p:'orbit-web',input:'topic: Schema validators',st:'succeeded',when:'Oct 20 11:02',cost:'$2.68',dur:'35m'},
+ {id:37,wf:'bug-triage',p:'orbit-web',input:'label: needs-triage',st:'succeeded',when:'Oct 19 09:10',cost:'$0.41',dur:'7m'},
+ {id:36,wf:'changelog-digest',p:'docs-site',input:'week: 42',st:'succeeded',when:'Oct 23 08:00',cost:'$0.61',dur:'9m'}];
+
+const TOOLS=['Vite','Rspack','esbuild','Rollup','Parcel','Turbopack','Webpack'];
+const G={
+ main:{title:'Tool research',nodes:[
+  {id:'start',type:'start',name:'Start',x:24,y:150,params:[{n:'topic',t:'string',d:'JS bundlers',r:1},{n:'depth',t:'enum',d:'standard',r:0}]},
+  {id:'research',type:'agent',name:'Research',x:220,y:150,cli:'claude-code',model:'sonnet',prompt:'Research {{start.topic}} and compare the main options.\nReturn a short summary, the tools worth trialing (at most 12) and the main risks.',
+   out:[SC.f('summary','string'),SC.f('tools','string[]'),SC.f('risks','string[]')],net:true,write:['workspace'],ws:'scratch',base:'HEAD',setup:'',from:'',access:'read',timeout:30,rv:2,rc:1,ctxP:'read',ctxW:'readwrite',sup:'default',quota:'wait',maxWait:12},
+  {id:'triage',type:'decision',name:'Triage',x:416,y:150,provider:'openai-default',state:'{{research.summary}}',qk:'choice',opts:['adopt','skip','unsure'],shadow:true,sup:'default'},
+  {id:'route',type:'gate',name:'Route',x:612,y:128,branches:[{id:'go',expr:"triage.choice == 'adopt' && triage.confidence >= 0.8"},{id:'skip',expr:"triage.choice == 'skip' && triage.confidence >= 0.8"},{id:'human',otherwise:true}]},
+  {id:'endrej',type:'end',name:'Rejected',x:808,y:30,status:'rejected',result:'{ reason: triage.choice }'},
+  {id:'approval',type:'approval',name:'Approve',x:808,y:290,msg:'Triage was not confident enough. Approve trialing the shortlisted tools?',irrev:false,auto:false,minConf:0.85,sup:'checkpoint'},
+  {id:'join',type:'join',name:'Continue',x:1004,y:150,mode:'first',ins:['go','approved']},
+  {id:'evaluate',type:'map',name:'Trial tools',x:24,y:450,items:'research.tools',conc:3,max:12,onFail:'continue',label:'{{item}}',body:'evaluate',sup:'notify'},
+  {id:'refine',type:'loop',name:'Review loop',x:220,y:450,maxIter:4,exit:'critic.approved == true',onMax:'exit',carry:['draft','feedback'],body:'refine',resume:false},
+  {id:'endok',type:'end',name:'Done',x:416,y:450,status:'success',result:'{ report: refine.draft }'}],
+ edges:[{id:'e1',from:'start',to:'research'},{id:'e2',from:'research',to:'triage'},{id:'e3',from:'triage',to:'route'},{id:'e4',from:'route.go',to:'join.go'},{id:'e5',from:'route.skip',to:'endrej'},
+  {id:'e6',from:'route.human',to:'approval'},{id:'e7',from:'approval',to:'join.approved'},{id:'e8',from:'join',to:'evaluate',wrap:400},{id:'e9',from:'evaluate',to:'refine'},{id:'e10',from:'refine',to:'endok'}]},
+ evaluate:{title:'Trial tools (map body)',parent:'evaluate',nodes:[
+  {id:'item',type:'start',pseudo:1,name:'Item',x:24,y:80,note:'Receives item and index for each copy of the body.'},
+  {id:'try',type:'agent',name:'Try tool',x:220,y:80,cli:'codex',model:'default',prompt:'Trial {{item}} on this repo: install it, port the build config, run the build and tests, and report timings.',out:[SC.f('verdict','string'),SC.f('buildMs','number')],net:true,write:['workspace'],ws:'worktree',base:'HEAD',setup:'pnpm install',from:'',access:'write',timeout:25,rv:2,rc:1,ctxP:'read',ctxW:'none',sup:'default',quota:'wait',maxWait:12},
+  {id:'checks',type:'shell',name:'Run checks',x:416,y:80,cmd:'pnpm build && pnpm test --run',ws:'try'},
+  {id:'result',type:'end',pseudo:1,name:'Result',x:612,y:80,status:'success',result:'{ tool: item, verdict, buildMs }'}],
+  edges:[{id:'b1',from:'item',to:'try'},{id:'b2',from:'try',to:'checks'},{id:'b3',from:'checks',to:'result'}]},
+ refine:{title:'Review loop (loop body)',parent:'refine',nodes:[
+  {id:'carry',type:'start',pseudo:1,name:'Carry',x:24,y:80,note:'Receives only the latest draft and the critic feedback, never earlier rounds.'},
+  {id:'writer',type:'agent',name:'Writer',x:220,y:80,cli:'claude-code',model:'sonnet',prompt:'Write the verdict document from the trial results.\nAddress this feedback if present: {{carry.feedback}}',out:[SC.f('draft','string')],net:false,write:['workspace'],ws:'scratch',base:'HEAD',setup:'',from:'',access:'read',timeout:15,rv:2,rc:1,ctxP:'read',ctxW:'readwrite',sup:'default',quota:'wait',maxWait:12},
+  {id:'critic',type:'agent',name:'Critic',x:416,y:80,cli:'codex',model:'default',prompt:'Review the draft against the rubric. Give your reasoning first, then decide.',out:[SC.f('reasoning','string'),SC.f('approved','boolean'),SC.f('feedback','string',0)],net:false,write:[],ws:'scratch',base:'HEAD',setup:'',from:'',access:'read',timeout:10,rv:2,rc:1,ctxP:'read',ctxW:'read',sup:'default',quota:'wait',maxWait:12},
+  {id:'exit',type:'end',pseudo:1,name:'Exit when approved',x:612,y:80,status:'success',result:'{ draft: writer.draft }'}],
+  edges:[{id:'l1',from:'carry',to:'writer'},{id:'l2',from:'writer',to:'critic'},{id:'l3',from:'critic',to:'exit'}]}};
+const NW=168;
+const nodeById=(g,id)=>g.nodes.find(n=>n.id===id);
+const isCont=n=>n.type==='map'||n.type==='loop';
+const nh=n=>n.type==='gate'?44+n.branches.length*22:n.type==='join'?44+n.ins.length*22:isCont(n)?80:60;
+const inPos=(n,p)=>n.type==='join'?[n.x,n.y+44+Math.max(0,n.ins.indexOf(p))*22+11]:[n.x,n.y+30];
+const outPos=(n,h)=>n.type==='gate'?[n.x+NW,n.y+44+Math.max(0,n.branches.findIndex(b=>b.id===h))*22+11]:[n.x+NW,n.y+30];
+function sumOf(n){switch(n.type){case'start':return(n.params||[]).length+' parameters';case'agent':return CLI[n.cli]+', '+n.ws;case'shell':return n.cmd;case'decision':return n.provider+', pick 1 of '+n.opts.length;
+ case'end':return 'Ends as '+n.status;case'approval':return n.auto?'Supervisor may approve':'Waits for a person';case'map':return 'Over '+n.items+', '+n.conc+' at a time';case'loop':return 'Up to '+n.maxIter+' rounds';default:return''}}
+function rpath(p,r){let d=`M${p[0][0]} ${p[0][1]}`;for(let i=1;i<p.length-1;i++){const[x0,y0]=p[i-1],[x1,y1]=p[i],[x2,y2]=p[i+1],l1=Math.hypot(x1-x0,y1-y0),l2=Math.hypot(x2-x1,y2-y1),k=Math.min(r,l1/2,l2/2);
+ d+=` L${x1-(x1-x0)/l1*k} ${y1-(y1-y0)/l1*k} Q${x1} ${y1} ${x1+(x2-x1)/l2*k} ${y1+(y2-y1)/l2*k}`}const l=p[p.length-1];return d+` L${l[0]} ${l[1]}`}
+function epath(g,e){const[fn,fh]=e.from.split('.'),[tn,tp]=e.to.split('.'),a=outPos(nodeById(g,fn),fh),b=inPos(nodeById(g,tn),tp);
+ if(e.wrap)return rpath([a,[a[0]+26,a[1]],[a[0]+26,e.wrap],[b[0]-26,e.wrap],[b[0]-26,b[1]],b],10);
+ const dx=Math.max(40,Math.abs(b[0]-a[0])/2);return `M${a[0]} ${a[1]} C${a[0]+dx} ${a[1]},${b[0]-dx} ${b[1]},${b[0]} ${b[1]}`}
+function stIcon(s){return {running:'<span class="spin"></span>',succeeded:`<span style="color:var(--green)">${ic('cok',15)}</span>`,failed:`<span style="color:var(--red)">${ic('cx',15)}</span>`,rejected:`<span style="color:var(--red)">${ic('cx',15)}</span>`,
+ waiting_approval:`<span style="color:var(--amber)">${ic('clock',15)}</span>`,waiting_quota:`<span style="color:var(--amber)">${ic('pause',14)}</span>`,skipped:`<span class="faint">${ic('minus',14)}</span>`}[s]||''}
+function nodeHTML(n,o){const T=NT[n.type],h=nh(n),st=o.st?o.st(n.id):null,tk=o.taken&&n.type==='gate'?o.taken:null;
+ let inner=`<div class="n-head"><span class="n-ic" style="color:${T.c}">${ic(T.i,14)}</span><div class="n-title">${esc(n.name)}</div><span class="n-st">${st?stIcon(st):''}</span></div>`;
+ if(n.type==='gate')inner+='<div class="n-rows">'+n.branches.map(b=>`<div class="n-row ${tk===b.id?'taken':''}"><span>${b.id}</span><span class="ex">${b.otherwise?'otherwise':esc(b.expr||'')}</span></div>`).join('')+'</div>';
+ else if(n.type==='join')inner+='<div class="n-rows">'+n.ins.map(i=>`<div class="n-row"><span>${i}</span><span class="ex">${n.mode==='first'?'exclusive':'all'}</span></div>`).join('')+'</div>';
+ else inner+=`<div class="n-sub">${esc(n.pseudo?(n.note?'Implicit '+(n.type==='start'?'entry':'exit'):''):sumOf(n))}</div>`;
+ if(isCont(n))inner+=`<div class="n-foot" data-act="open-body" data-id="${n.id}">${ic(n.type==='map'?'layers':'repeat',12)}Open body<span class="sp"></span><span class="cnt">${o.badge?esc(o.badge(n)):G[n.body].nodes.filter(x=>!x.pseudo).length+' nodes'}</span></div>`;
+ let hs='';if(n.type!=='start')hs+=n.type==='join'?n.ins.map((p,i)=>`<i class="h in" data-h="in:${p}" style="top:${44+i*22+11}px"></i>`).join(''):`<i class="h in" data-h="in:in" style="top:30px"></i>`;
+ if(n.type!=='end')hs+=n.type==='gate'?n.branches.map((b,i)=>`<i class="h out" data-h="out:${b.id}" style="top:${44+i*22+11}px"></i>`).join(''):`<i class="h out" data-h="out:out" style="top:30px"></i>`;
+ return `<div class="node ${o.run?'run':''} ${o.sel===n.id?'sel':''} ${st?'st-'+st:''} ${isCont(n)?'cont':''}" data-n="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${NW}px;height:${h}px">${inner}${hs}</div>`}
+function edgesHTML(g,o){return g.edges.map(e=>{const d=epath(g,e),cl=o.es?o.es(e):'';return `<path class="edge ${cl} ${o.selEdge===e.id?'sel':''}" d="${d}"/><path class="edge-hit" data-e="${e.id}" d="${d}"/>`}).join('')}
+function worldHTML(g,o){return `<svg class="edges">${edgesHTML(g,o)}</svg>`+g.nodes.map(n=>nodeHTML(n,o)).join('')}
+
+/* ===== canvas engine ===== */
+const VIEWS={};
+function fitView(key,g,box,inset=0){const xs=g.nodes.map(n=>n.x),ys=g.nodes.map(n=>n.y),x2=g.nodes.map(n=>n.x+NW),y2=g.nodes.map(n=>n.y+nh(n));
+ const x0=Math.min(...xs)-40,y0=Math.min(...ys)-40,w=Math.max(...x2)-x0+60,h=Math.max(...y2)-y0+60,W=(box.clientWidth||900)-inset,H=box.clientHeight||600;
+ const s=Math.min(1.1,Math.max(.4,Math.min(W/w,H/h)));VIEWS[key]={s,tx:inset+(W-w*s)/2-x0*s,ty:(H-h*s)/2-y0*s}}
+const CV={key:null,g:null,o:null,mode:'edit'};
+function applyView(){const v=VIEWS[CV.key],w=$('.world');if(!w)return;w.style.transform=`translate(${v.tx}px,${v.ty}px) scale(${v.s})`;const z=$('.cv-ctl .z');if(z)z.textContent=Math.round(v.s*100)+'%';
+ const pt=$('#gp');if(pt){pt.setAttribute('width',24*v.s);pt.setAttribute('height',24*v.s);pt.setAttribute('patternTransform',`translate(${v.tx} ${v.ty})`);const c=pt.firstElementChild;c.setAttribute('cx',1*v.s);c.setAttribute('cy',1*v.s);c.setAttribute('r',Math.max(.8,v.s))}}
+function cvHTML(){return `<svg class="grid"><defs><pattern id="gp" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="var(--border-strong)"/></pattern></defs><rect width="100%" height="100%" fill="url(#gp)"/></svg><div class="world"></div>`}
+function paint(){const w=$('.world');if(!w||!CV.g)return;const sc=w.parentNode.scrollTop;w.innerHTML=worldHTML(CV.g,CV.o());applyView()}
+function mountCanvas(box,key,g,o,mode){CV.key=key;CV.g=g;CV.o=o;CV.mode=mode;box.innerHTML=cvHTML()+ctlHTML();if(!VIEWS[key])fitView(key,g,box,mode==='edit'?196:0);paint();bindCanvas(box)}
+function ctlHTML(){return `<div class="cv-ctl"><button class="btn ghost icon sm" data-act="zoom" data-d="-1" title="Zoom out">${ic('minus',14)}</button><span class="z"></span><button class="btn ghost icon sm" data-act="zoom" data-d="1" title="Zoom in">${ic('plus',14)}</button><span class="vsep"></span><button class="btn ghost icon sm" data-act="fit" title="Fit to view">${ic('fit',14)}</button></div>`}
+function zoomAt(f,cx,cy){const v=VIEWS[CV.key],s=Math.min(1.6,Math.max(.35,v.s*f));v.tx=cx-(cx-v.tx)*(s/v.s);v.ty=cy-(cy-v.ty)*(s/v.s);v.s=s;applyView()}
+function toWorld(box,ev){const r=box.getBoundingClientRect(),v=VIEWS[CV.key];return[(ev.clientX-r.left-v.tx)/v.s,(ev.clientY-r.top-v.ty)/v.s]}
+function bindCanvas(box){
+ box.onwheel=e=>{e.preventDefault();const r=box.getBoundingClientRect();if(e.ctrlKey||e.metaKey)zoomAt(e.deltaY<0?1.08:.92,e.clientX-r.left,e.clientY-r.top);else{const v=VIEWS[CV.key];v.tx-=e.deltaX;v.ty-=e.deltaY;applyView()}};
+ box.onmousedown=e=>{if(e.button!==0)return;const hEl=e.target.closest('.h'),nEl=e.target.closest('.node'),v=VIEWS[CV.key];
+  if(e.target.closest('.n-foot')||e.target.closest('.cv-ctl'))return;
+  if(hEl&&CV.mode==='edit'&&hEl.classList.contains('out')){startWire(box,hEl,e);return}
+  if(nEl){const n=nodeById(CV.g,nEl.dataset.n),sx=e.clientX,sy=e.clientY,ox=n.x,oy=n.y;let moved=false;
+   const mm=ev=>{const dx=ev.clientX-sx,dy=ev.clientY-sy;if(!moved&&Math.hypot(dx,dy)<4)return;moved=true;if(CV.mode!=='edit')return;n.x=Math.round((ox+dx/v.s)/8)*8;n.y=Math.round((oy+dy/v.s)/8)*8;
+     nEl.style.left=n.x+'px';nEl.style.top=n.y+'px';$('.edges',box).innerHTML=edgesHTML(CV.g,CV.o())};
+   const mu=()=>{window.removeEventListener('mousemove',mm);window.removeEventListener('mouseup',mu);if(!moved)CV.o().onSel&&CV.o().onSel(n.id);else if(CV.mode==='edit')touched()};
+   window.addEventListener('mousemove',mm);window.addEventListener('mouseup',mu);return}
+  const eh=e.target.closest('.edge-hit');if(eh&&CV.mode==='edit'){CV.o().onEdge&&CV.o().onEdge(eh.dataset.e);return}
+  const sx=e.clientX,sy=e.clientY,tx=v.tx,ty=v.ty;box.classList.add('panning');let moved=false;
+  const mm=ev=>{moved=true;v.tx=tx+ev.clientX-sx;v.ty=ty+ev.clientY-sy;applyView()};
+  const mu=()=>{box.classList.remove('panning');window.removeEventListener('mousemove',mm);window.removeEventListener('mouseup',mu);if(!moved)CV.o().onSel&&CV.o().onSel(null)};
+  window.addEventListener('mousemove',mm);window.addEventListener('mouseup',mu)};
+ box.ondragover=e=>{if(CV.mode==='edit'){e.preventDefault()}};
+ box.ondrop=e=>{const t=e.dataTransfer.getData('text/node');if(!t||CV.mode!=='edit')return;e.preventDefault();const[x,y]=toWorld(box,e);addNode(t,Math.round((x-NW/2)/8)*8,Math.round((y-30)/8)*8)};
+}
+function startWire(box,hEl,e){const nEl=hEl.closest('.node'),n=nodeById(CV.g,nEl.dataset.n),h=hEl.dataset.h.split(':')[1],a=outPos(n,h),svg=$('.edges',box);
+ const tmp=document.createElementNS('http://www.w3.org/2000/svg','path');tmp.setAttribute('class','edge live');svg.appendChild(tmp);
+ const mm=ev=>{const[x,y]=toWorld(box,ev);const dx=Math.max(40,Math.abs(x-a[0])/2);tmp.setAttribute('d',`M${a[0]} ${a[1]} C${a[0]+dx} ${a[1]},${x-dx} ${y},${x} ${y}`);$$('.h.in',box).forEach(i=>i.classList.remove('hot'));const t=document.elementFromPoint(ev.clientX,ev.clientY);t&&t.classList&&t.classList.contains('in')&&t.classList.add('hot')};
+ const mu=ev=>{window.removeEventListener('mousemove',mm);window.removeEventListener('mouseup',mu);tmp.remove();const t=document.elementFromPoint(ev.clientX,ev.clientY);
+  if(t&&t.classList&&t.classList.contains('in')){const tn=t.closest('.node').dataset.n,tp=t.dataset.h.split(':')[1];connect(n.id,h,tn,tp)}else paint()};
+ window.addEventListener('mousemove',mm);window.addEventListener('mouseup',mu)}
+function connect(fn,fh,tn,tp){const g=CV.g,tNode=nodeById(g,tn);if(fn===tn)return toast('A node cannot connect to itself');
+ const to=tn+(tNode.type==='join'?'.'+tp:''),from=fn+(nodeById(g,fn).type==='gate'?'.'+fh:'');
+ if(g.edges.some(e=>e.from===from&&e.to===to))return paint();
+ if(tNode.type!=='join'&&g.edges.some(e=>e.to===to))return toast('That input already has a connection. Use a Join node to merge branches.');
+ g.edges.push({id:'e'+Date.now()%100000,from,to});paint();touched();toast('Connected '+nodeById(g,fn).name+' to '+tNode.name)}
+const FR={cli:'claude-code'};
+function newNode(t,x,y){const g=CV.g,id=t+(g.nodes.filter(n=>n.type===t).length+1)+Math.floor(Math.random()*9),b={id,type:t,name:NT[t].l+' '+(g.nodes.filter(n=>n.type===t).length+1),x,y};
+ const d={agent:{cli:'claude-code',model:'sonnet',prompt:'',out:[],net:false,write:['workspace'],ws:'scratch',base:'HEAD',setup:'',from:'',access:'read',timeout:30,rv:2,rc:1,ctxP:'read',ctxW:'read',sup:'default',quota:'wait',maxWait:12},
+  shell:{cmd:'echo "hello"',ws:'scratch'},decision:{provider:'openai-default',state:'',qk:'choice',opts:['yes','no'],shadow:false},gate:{branches:[{id:'a',expr:''},{id:'otherwise',otherwise:true}]},
+  loop:{maxIter:3,exit:'',onMax:'fail',carry:[],body:'refine',resume:false},map:{items:'',conc:3,max:10,onFail:'fail',label:'{{item}}',body:'evaluate'},join:{mode:'first',ins:['a','b']},
+  approval:{msg:'Approve to continue?',irrev:false,auto:false,minConf:.85},end:{status:'success',result:'{ }'},start:{params:[]}}[t];return Object.assign(b,JSON.parse(JSON.stringify(d||{})))}
+function addNode(t,x,y){const n=newNode(t,x,y);CV.g.nodes.push(n);S.ed.sel=n.id;S.ed.selEdge=null;paint();refreshInspector();touched()}
+/* ===== state ===== */
+const S={theme:'light',sbHide:false,open:{'orbit-web':true,'docs-site':false,'research-notes':false},r:{},
+ ed:{path:['main'],sel:null,selEdge:null,saved:'Saved',json:false,pinned:{research:true},menu:null,testOut:{}},
+ run:{id:42,stage:0,play:false,sel:null,path:['main'],tab:'detail',rej:false,retried:false,sup:{},evf:'all',itemF:'all',item:null,iter:null,tmr:null},
+ ctx:{scope:'project',sel:'stack',q:'',f:'all'},set:{tab:'general'},sbq:''};
+const STP={live:['blue','Running'],running:['blue','Running'],succeeded:['green','Succeeded'],failed:['red','Failed'],rejected:['red','Rejected'],paused:['amber','Paused for quota'],waiting_approval:['amber','Waiting for approval']};
+const pill=s=>{const[c,l]=STP[s]||['','Pending'];return `<span class="pill ${c}"><span class="dot"></span>${l}</span>`};
+const ENF={'claude-code':['green','Enforced through its sandbox and tool allowlist'],codex:['green','Enforced through Landlock, seccomp and Seatbelt'],opencode:['amber','Advisory only: declared permissions are not enforced'],pi:['amber','Advisory only: declared permissions are not enforced']};
+const DPROV=['openai-default','jev','vllm-local'];
+const proj=id=>PROJECTS.find(p=>p.id===id)||PROJECTS[0];
+const wfOf=pid=>proj(pid).wfs;
+function runStatus(){const s=S.run.stage;if(S.run.rej&&s>=2)return 'rejected';return s===2?'waiting_approval':s===4?'paused':s>=8?'succeeded':'live'}
+function statusOfRun(r){return r.id===42?runStatus():r.st}
+const TIME=['12:01','12:19','12:20','12:24','12:31','15:31','15:44','15:50','15:57'];
+function needs(){const s=S.run.stage,a=[];if(s===2&&!S.run.rej)a.push('approval');if(s===4)a.push('quota');if(s===6&&!S.run.retried)a.push('retry');return a}
+function toast(m,i='check'){const t=document.createElement('div');t.className='toast';t.innerHTML=ic(i,14)+esc(m);$('#toasts').appendChild(t);setTimeout(()=>t.remove(),2600)}
+const crumbs=a=>`<div class="crumbs">${a.map((c,i)=>i===a.length-1?`<b>${esc(c[0])}</b>`:`<a href="${c[1]}">${esc(c[0])}</a>${ic('chev',12,'faint')}`).join('')}</div>`;
+const topbar=(cr,act='')=>`<div class="topbar">${S.sbHide?`<button class="btn ghost icon sm" data-act="sb-toggle" title="Show sidebar">${ic('panel',15)}</button>`:''}${crumbs(cr)}<span class="sp"></span>${act}</div>`;
+
+/* ===== sidebar ===== */
+const CLLOAD=[1,0,0,0,0,0,1,0,0],CXLOAD=[0,0,0,3,0,3,0,1,0];
+function renderSidebar(){const r=S.r,n=needs().length,st=S.run.stage,paused=st===4;
+ const prj=PROJECTS.map(p=>{const open=S.open[p.id];return `<div class="nav-item ${r.v==='project'&&r.pid===p.id&&!r.wid?'active':''}" data-act="toggle-proj" data-id="${p.id}"><span class="faint">${ic(open?'chevd':'chev',12)}</span>${ic(p.kind==='git'?'branch':'folder',14)}<span class="nm">${esc(p.name)}</span></div>`+
+  (open?`<div class="nav-kids">${p.wfs.map(w=>`<a class="nav-item ${r.wid===w&&r.pid===p.id?'active':''}" href="#/p/${p.id}/w/${w}"><span class="nm">${esc(WF[w].name)}</span>${w==='tool-research'?`<span class="pill ${paused?'amber':st>=8?'green':'blue'}" style="height:16px;font-size:11px;padding:0 6px;margin-left:auto">${paused?'paused':st>=8?'done':'live'}</span>`:''}</a>`).join('')}<a class="nav-item faint" href="#/p/${p.id}/workflows" data-act="new-wf">${ic('plus',13)}New workflow</a></div>`:'')}).join('');
+ $('#sb').innerHTML=`<div class="sb-top"><div class="ws"><span class="logo">R</span>Relay<span class="sp"></span><button class="btn ghost icon sm" data-act="sb-toggle" title="Hide sidebar">${ic('panel',15)}</button><button class="btn ghost icon sm" data-act="theme" title="Toggle theme">${ic(S.theme==='dark'?'sun':'moon',14)}</button></div>
+ <button class="sb-search" data-act="palette">${ic('search',14)}<span class="grow">Search or jump to</span><span class="kbd">⌘K</span></button></div>
+ <div class="sb-nav"><a class="nav-item ${r.v==='inbox'?'active':''}" href="#/inbox">${ic('inbox',15)}Inbox${n?`<span class="badge-n">${n}</span>`:''}</a>
+ <div class="nav-sec">Projects<button class="btn ghost icon sm" data-act="new-proj" title="Add project">${ic('plus',14)}</button></div>${prj}</div>
+ <div class="sb-foot"><div class="prov"><span style="width:52px">Claude</span><div class="bar"><i style="width:${CLLOAD[st]*25}%"></i></div><span class="faint">${CLLOAD[st]}/4</span></div>
+ <div class="prov"><span style="width:52px">Codex</span><div class="bar ${paused?'amber':''}"><i style="width:${paused?100:CXLOAD[st]*25}%"></i></div><span class="${paused?'':'faint'}" style="${paused?'color:var(--amber)':''}">${paused?'paused':CXLOAD[st]+'/4'}</span></div>
+ <a class="nav-item ${r.v==='settings'?'active':''}" href="#/settings/general" style="margin:0 -8px">${ic('sliders',15)}Settings</a></div>`}
+
+/* ===== router ===== */
+function parse(){const h=location.hash.replace(/^#\/?/,'').split('?')[0],p=h.split('/').filter(Boolean);
+ if(!p.length)return{v:'redirect',to:'#/p/orbit-web/w/tool-research'};
+ if(p[0]==='inbox')return{v:'inbox'};if(p[0]==='settings')return{v:'settings',tab:p[1]||'general'};
+ if(p[0]==='p'){const pid=p[1];if(p[2]==='w')return{v:'workflow',pid,wid:p[3],tab:p[4]||'editor'};if(p[2]==='r')return{v:'run',pid,rid:+p[3]};return{v:'project',pid,tab:p[2]||'workflows'}}
+ return{v:'redirect',to:'#/inbox'}}
+function render(){const r=S.r=parse();if(r.v==='redirect'){location.hash=r.to;return}clearInterval(S.run.tmr);S.run.play=false;S.ed.menu=null;
+ const other=r.v==='run'&&r.rid!==42;if(S.bak&&!other){Object.assign(S.run,S.bak);S.bak=null}
+ if(other){const run=RUNS.find(x=>x.id===r.rid)||RUNS[0];if(!S.bak)S.bak={...S.run,sup:{...S.run.sup},path:['main']};Object.assign(S.run,{path:['main'],sel:null,tab:'detail',item:null,iter:null,retried:false,sup:{},rej:run.st==='rejected',stage:run.st==='failed'?6:run.st==='rejected'?2:8})}
+ const m=$('#main');$('#app').classList.toggle('nosb',!!S.sbHide);renderSidebar();
+ ({inbox:viewInbox,project:viewProject,workflow:viewWorkflow,run:viewRun,settings:viewSettings})[r.v](m,r);
+ if(r.v==='workflow'&&r.tab==='editor')mountEditor();if(r.v==='run')mountRun();$('.content')&&($('.content').scrollTop=0);
+ if(S.auto&&r.v==='run'){S.auto=false;S.run.play=true;rr();autoplay()}}
+window.addEventListener('hashchange',render);
+
+/* ===== inbox ===== */
+function viewInbox(m){const n=needs(),s=S.run.stage;
+ const card=(ic_,tone,title,body,acts)=>`<div class="list-row" style="align-items:flex-start"><span class="pill ${tone}" style="padding:0;width:28px;height:28px;justify-content:center;border-radius:6px">${ic(ic_,15)}</span><div class="grow"><div style="font-weight:600">${title}</div><div class="muted" style="margin-top:2px">${body}</div><div class="row" style="margin-top:10px">${acts}</div></div></div>`;
+ const need=[];
+ if(n.includes('approval'))need.push(card('ucheck','amber','Approve trial in Tool research, run 42','Triage said adopt at 0.72 confidence, under the 0.8 threshold. The supervisor recommends approving: the research meets all three rubric checks.',`<button class="btn primary sm" data-act="approve">Approve</button><button class="btn sm danger" data-act="reject">Reject</button><a class="btn sm" href="#/p/orbit-web/r/42">Open run</a>`));
+ if(n.includes('quota'))need.push(card('pause','amber','Run 42 is paused for Codex quota','The Codex usage window is exhausted. Three item sessions are waiting and resume by session ID when it resets at about 3:30 PM. Paused time does not count toward your budget.',`<button class="btn primary sm" data-act="resume-now">Resume now</button><a class="btn sm" href="#/p/orbit-web/r/42">Open run</a>`));
+ if(n.includes('retry'))need.push(card('warn','red','Turbopack failed validation 3 times in run 42','buildMs came back as a string, and the schema requires a number. The supervisor recommends retrying this item with that guidance.',`<button class="btn primary sm" data-act="retry-item">Retry item with guidance</button><a class="btn sm" href="#/p/orbit-web/r/42">Open run</a>`));
+ const upd=[card('cok','green','Run 40 succeeded','Bug triage routed 6 issues: 2 to fix, 3 to a person, 1 closed.','<a class="btn sm" href="#/p/orbit-web/r/40">Open run</a>'),
+  card('cx','red','Run 41 failed in Release notes','The critic loop reached 4 rounds without approval and onMax is set to fail.','<a class="btn sm" href="#/p/orbit-web/r/41">Open run</a><a class="btn sm" href="#/p/orbit-web/w/release-notes">Edit workflow</a>'),
+  card('refresh','blue','Codex usage window reset','Paused work resumed automatically on Oct 22 at 15:40.','')];
+ if(s>2)upd.unshift(card('cok','green','Approval handled in run 42',S.run.rej?'You rejected the trial. The run ended as rejected.':'You approved the trial. Evaluation started on 7 tools.',''));
+ m.innerHTML=topbar([['Inbox']])+`<div class="content"><div class="page" style="max-width:760px"><div class="page-h"><div class="grow"><h1>Inbox</h1><p>Approvals, pauses and escalations that need a decision.</p></div></div>
+ <div class="card" style="margin-bottom:24px"><div class="card-h">Needs you <span class="pill ${n.length?'accent':''}">${n.length}</span></div>${need.length?need.join(''):`<div class="empty">${ic('cok',22,'faint')}<div style="margin-top:8px;font-weight:600;color:var(--text)">You are all caught up</div><div>Start a run to see approvals appear here.</div></div>`}</div>
+ <div class="card"><div class="card-h">Recent updates</div>${upd.join('')}</div></div></div>`}
+
+/* ===== project ===== */
+const PTABS=[['workflows','Workflows'],['runs','Runs'],['context','Context'],['settings','Settings']];
+function ptabs(pid,a){return `<div class="tabs">${PTABS.map(t=>`<a class="tab ${a===t[0]?'active':''}" href="#/p/${pid}/${t[0]}">${t[1]}</a>`).join('')}</div>`}
+function viewProject(m,r){const p=proj(r.pid),tab=r.tab;
+ const acts=`<button class="btn sm" data-act="import">${ic('up',14)}Import workflow</button><button class="btn primary sm" data-act="new-wf">${ic('plus',14)}New workflow</button>`;
+ const head=`<div class="page-h"><div class="grow"><h1>${esc(p.name)}</h1><p class="row"><span class="mono">${esc(p.path)}</span></p></div>${p.kind==='git'?`<span class="pill">${ic('branch',12)}${p.branch} at ${p.sha}</span>${p.dirty?'<span class="pill amber">Uncommitted changes</span>':'<span class="pill green">Clean</span>'}`:'<span class="pill">Plain folder</span>'}</div>`;
+ let body='';
+ if(tab==='workflows')body=`<div class="card"><table class="tbl"><thead><tr><th>Workflow</th><th>Nodes</th><th>Last run</th><th>Status</th><th>Cost</th><th></th></tr></thead><tbody>${p.wfs.map(w=>{const x=WF[w],st=w==='tool-research'?runStatus():x.st;
+  return `<tr class="click" data-act="go" data-to="#/p/${p.id}/w/${w}"><td><div style="font-weight:600">${esc(x.name)}</div><div class="sub">${esc(x.desc)}</div></td><td>${x.nodes}</td><td>${x.last}</td><td>${pill(st)}</td><td>${x.cost}</td><td style="text-align:right"><button class="btn sm" data-act="run-modal" data-wf="${w}">${ic('play',12)}Run</button></td></tr>`}).join('')}</tbody></table></div>
+  <p class="hint" style="margin-top:12px">Workflows are JSON files in <span class="mono">${p.kind==='git'?'.relay/workflows/':p.path+'/.relay/workflows/'}</span>${p.kind==='git'?' and can be committed with your code.':'.'}</p>`;
+ if(tab==='runs')body=runsTable(RUNS.filter(x=>x.p===p.id));
+ if(tab==='settings')body=projSettings(p);
+ if(tab==='context'){m.innerHTML=topbar([['Projects','#/p/'+p.id],[p.name,'#/p/'+p.id],['Context']],acts)+ptabs(p.id,'context')+`<div class="content" style="display:flex;flex-direction:column">${ctxView('project',p)}</div>`;return}
+ m.innerHTML=topbar([['Projects','#/p/'+p.id],[p.name]],acts)+ptabs(p.id,tab)+`<div class="content"><div class="page">${tab==='settings'?'':head}${body}</div></div>`}
+function runsTable(rs){return `<div class="card"><table class="tbl"><thead><tr><th>Run</th><th>Workflow</th><th>Input</th><th>Status</th><th>Started</th><th>Cost</th></tr></thead><tbody>${rs.map(x=>`<tr class="click" data-act="go" data-to="#/p/${x.p}/r/${x.id}"><td style="font-weight:600">#${x.id}</td><td>${esc(WF[x.wf].name)}</td><td class="muted">${esc(x.input)}</td><td>${pill(statusOfRun(x))}</td><td class="muted">${x.when}</td><td>${x.id===42?'$'+RB[S.run.stage].c.toFixed(2):x.cost}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">No runs yet.</td></tr>'}</tbody></table></div>`}
+function projSettings(p){return `<div class="page-h"><div class="grow"><h1>Project settings</h1><p>Defaults every workflow in ${esc(p.name)} starts from.</p></div></div>
+ <div class="card"><div class="card-h">Defaults</div><div class="card-b"><div class="grid2"><div class="field"><label>Decision provider</label><select class="select"><option>openai-default</option><option>jev</option><option>vllm-local</option></select></div><div class="field"><label>Budget cap per run</label><input class="input" value="$5.00"></div></div>
+ ${p.kind==='git'?`<div class="field"><label>Worktree setup command</label><input class="input mono" value="pnpm install"><div class="hint">Runs once when a worktree is created, because untracked files such as node_modules do not come along.</div></div>`:`<div class="field"><div class="row"><button class="sw on"></button><div><div style="font-weight:500">Snapshot before write nodes</div><div class="hint" style="margin:0">Plain folders have no undo. Relay copies the folder before any node that can write to it.</div></div></div></div>`}</div></div>
+ <div class="card" style="margin-top:16px"><div class="card-h">Context for every agent</div><div class="card-b"><div class="row" style="margin-bottom:10px">${ic('file',15)}<span class="grow"><b>AGENTS.md</b> and <b>CLAUDE.md</b> detected at the project root. The CLIs read them on their own.</span><span class="pill green">Found</span></div>
+ <div class="field"><label>Extra notes pinned to every node</label><textarea class="textarea" rows="3">Prefer pnpm. Never touch the payments package.</textarea></div></div></div>
+ <div class="card" style="margin-top:16px"><div class="card-h">Environment variables <span class="faint" style="font-weight:400">available to shell and agent nodes</span></div><div>${[['GITHUB_TOKEN','Set'],['NPM_TOKEN','Set'],['SENTRY_DSN','Missing']].map(v=>`<div class="list-row"><span class="mono grow">${v[0]}</span><span class="pill ${v[1]==='Set'?'green':'amber'}">${v[1]}</span><button class="btn ghost sm">Edit</button></div>`).join('')}<div class="list-row"><div class="row grow"><button class="sw on"></button>Redact known secrets from transcripts, logs and banks</div></div></div></div>
+ <div class="card" style="margin-top:16px"><div class="card-h" style="color:var(--red)">Remove project</div><div class="card-b row"><span class="muted grow">Removes ${esc(p.name)} from Relay. Your files, branches and workflows stay where they are.</span><button class="btn danger sm">Remove project</button></div></div>`}
+
+/* ===== workflow ===== */
+const WTABS=[['editor','Editor'],['runs','Runs'],['context','Context'],['settings','Settings']];
+function wtabs(pid,wid,a){return `<div class="tabs">${WTABS.map(t=>`<a class="tab ${a===t[0]?'active':''}" href="#/p/${pid}/w/${wid}/${t[0]}">${t[1]}</a>`).join('')}</div>`}
+function viewWorkflow(m,r){const p=proj(r.pid),w=WF[r.wid]||WF['tool-research'],tab=r.tab;
+ const cr=[['Projects','#/p/'+p.id],[p.name,'#/p/'+p.id],[w.name]];
+ const acts=`<button class="btn sm" data-act="import">${ic('up',14)}Import</button><button class="btn sm" data-act="export">${ic('down',14)}Export</button><button class="btn primary sm" data-act="run-modal" data-wf="${r.wid}">${ic('play',12)}Run</button>`;
+ let body='';
+ if(tab==='editor'){S.ed.path=['main'];S.ed.sel=null;S.ed.selEdge=null;
+  m.innerHTML=topbar(cr,acts)+wtabs(p.id,r.wid,tab)+`<div class="cv-bar" id="cvbar"></div><div class="cv-wrap"><div class="cv" id="cv"></div><div id="pal"></div><div id="insp"></div><div id="mnu"></div></div>`;return}
+ if(tab==='runs')body=`<div class="page"><div class="page-h"><div class="grow"><h1>Runs</h1><p>Every run keeps a frozen copy of the workflow it started with.</p></div></div>${runsTable(RUNS.filter(x=>x.wf===r.wid))}</div>`;
+ if(tab==='settings')body=`<div class="page">${wfSettings(w)}</div>`;
+ if(tab==='context'){m.innerHTML=topbar(cr,acts)+wtabs(p.id,r.wid,tab)+`<div class="content" style="display:flex;flex-direction:column">${ctxView('workflow',p)}</div>`;return}
+ m.innerHTML=topbar(cr,acts)+wtabs(p.id,r.wid,tab)+`<div class="content">${body}</div>`}
+function graph(){return G[S.ed.path[S.ed.path.length-1]]}
+function mountEditor(){const g=graph(),box=$('#cv');renderCvBar();
+ const o=()=>({sel:S.ed.sel,selEdge:S.ed.selEdge,onSel:id=>{S.ed.sel=id;S.ed.selEdge=null;paint();refreshInspector()},onEdge:id=>{S.ed.selEdge=id;S.ed.sel=null;paint();refreshInspector()}});
+ mountCanvas(box,'ed:'+S.ed.path.join('/'),g,o,'edit');renderPalette();refreshInspector()}
+function touched(){S.ed.saved='Saving';clearTimeout(S.ed.tmr);const c=$('#savechip');renderValid();S.ed.tmr=setTimeout(()=>{S.ed.saved='Saved';renderValid()},700)}
+function validate(g){const iss=[],ns=g.nodes,main=S.ed.path.length===1;if(main){if(ns.filter(n=>n.type==='start').length!==1)iss.push(['error','A workflow needs exactly one Start node']);if(!ns.some(n=>n.type==='end'))iss.push(['error','A workflow needs at least one End node'])}
+ const st=ns.find(n=>n.type==='start'),seen=new Set(),q=st?[st.id]:[];while(q.length){const c=q.pop();if(seen.has(c))continue;seen.add(c);g.edges.filter(e=>e.from.split('.')[0]===c).forEach(e=>q.push(e.to.split('.')[0]))}
+ ns.filter(n=>!seen.has(n.id)).forEach(n=>iss.push(['error',`${n.name} is not reachable from Start`,n.id]));
+ const ends=ns.filter(n=>n.type==='end').map(n=>n.id),back=new Set(),q2=[...ends];while(q2.length){const c=q2.pop();if(back.has(c))continue;back.add(c);g.edges.filter(e=>e.to.split('.')[0]===c).forEach(e=>q2.push(e.from.split('.')[0]))}
+ ns.filter(n=>seen.has(n.id)&&!back.has(n.id)&&n.type!=='end').forEach(n=>iss.push(['error',`${n.name} cannot reach an End node`,n.id]));
+ ns.forEach(n=>{if(n.type==='gate'&&n.branches.some(b=>!b.otherwise&&!b.expr))iss.push(['error',`${n.name} has a branch with no expression`,n.id]);
+  if(n.type==='agent'&&!n.out.length)iss.push(['warn',`${n.name} has no output schema, so downstream nodes cannot read its result`,n.id]);
+  if(n.type==='agent'&&n.net&&(n.ws==='project'||n.write.includes('project')))iss.push(['warn',`${n.name} has network access and can write to the project. A page it reads could steer it.`,n.id]);
+  if(n.type==='agent'&&!n.prompt.trim())iss.push(['warn',`${n.name} has an empty prompt`,n.id]);
+  if(n.type==='map'&&!n.items)iss.push(['error',`${n.name} needs an items expression`,n.id])});return iss}
+function renderValid(){const el=$('#vchip');if(!el)return;const iss=validate(graph()),er=iss.filter(i=>i[0]==='error').length;
+ el.innerHTML=`<button class="btn sm ${er?'danger':''}" data-act="valid">${er?ic('cx',14):iss.length?ic('warn',14):ic('cok',14)}${iss.length?iss.length+' issue'+(iss.length>1?'s':''):'Valid'}</button>`;
+ const sc=$('#savechip');if(sc)sc.innerHTML=S.ed.saved==='Saving'?'<span class="spin"></span>Saving':`${ic('check',13)}Saved`}
+function renderCvBar(){const bc=S.ed.path.map((p,i)=>i===S.ed.path.length-1?`<b>${esc(G[p].title)}</b>`:`<a href="#" data-act="crumb" data-i="${i}">${esc(G[p].title)}</a>${ic('chev',12,'faint')}`).join('');
+ const np=Object.keys(S.ed.pinned).filter(k=>S.ed.pinned[k]).length;
+ $('#cvbar').innerHTML=`<div class="crumbs">${S.ed.path.length>1?`<button class="btn ghost icon sm" data-act="crumb" data-i="0" title="Back to workflow">${ic('back',14)}</button>`:''}${bc}</div><span class="sp"></span>
+ <span class="row muted" id="savechip" style="font-size:12px"></span><span class="vsep"></span><span id="vchip"></span>
+ <button class="btn sm" data-act="pins" title="Pinned outputs let you rerun one node without rerunning the graph">${ic('pin',13)}${np} pinned</button><span class="vsep"></span><span class="faint" style="font-size:12px">Schema v1</span>`;renderValid()}
+function renderPalette(){const g=graph(),main=S.ed.path.length===1,types=main?['start','agent','shell','decision','gate','approval','join','loop','map','end']:['agent','shell','decision','gate','approval','join'];
+ const grp=[['Work',['agent','shell']],['Decide',['decision','gate','approval']],['Control',['loop','map','join']],['Flow',['start','end']]];
+ $('#pal').innerHTML=`<div class="pal-box"><div class="nav-sec" style="margin-top:4px">Add a node</div>${grp.map(([t,l])=>{const ls=l.filter(x=>types.includes(x));return ls.length?`<div class="nav-sec" style="font-size:11px;margin-top:6px">${t}</div>`+ls.map(x=>`<div class="pi" draggable="true" data-act="add" data-t="${x}" title="${NT[x].d}"><span class="n-ic" style="color:${NT[x].c}">${ic(NT[x].i,13)}</span>${NT[x].l}</div>`).join(''):''}).join('')}
+ <div class="nav-sec" style="margin-top:10px">Templates</div><div class="pi" data-act="tpl-judge"><span class="n-ic" style="color:#d97706">${ic('split',13)}</span>Judge with gate</div><div class="pi" data-act="tpl-loop"><span class="n-ic" style="color:#0284c7">${ic('repeat',13)}</span>Review loop</div></div>`}
+document.addEventListener('dragstart',e=>{const p=e.target.closest&&e.target.closest('.pi[data-t]');if(p){e.dataTransfer.setData('text/node',p.dataset.t)}});
+function addTemplateJudge(){const g=graph(),y=Math.max(...g.nodes.map(n=>n.y+nh(n)))+40,a=newNode('agent',24,y),b=newNode('gate',232,y-8);a.name='Judge';a.prompt='Review the artifact against the rubric. Give your reasoning first, then your verdict.';a.out=[SC.f('reasoning','string'),SC.f('verdict','string')];
+ b.name='Judge gate';b.branches=[{id:'pass',expr:"judge.verdict == 'approve'"},{id:'revise',expr:"judge.verdict == 'revise'"},{id:'otherwise',otherwise:true}];g.nodes.push(a,b);g.edges.push({id:'t'+Date.now()%9999,from:a.id,to:b.id});S.ed.sel=a.id;paint();refreshInspector();touched();toast('Added a judge and its gate. Connect them to your graph.')}
+/* ===== inspector ===== */
+const selNode=()=>S.ed.sel?nodeById(graph(),S.ed.sel):null;
+const sec=(t,o,h,x='')=>`<details class="sec" ${o?'open':''}><summary>${ic('chev',12,'chev')}${t}<span class="sp"></span>${x}</summary><div class="sec-b">${h}</div></details>`;
+const fIn=(l,f,v,o={})=>`<div class="field"><label>${l}</label><input class="input ${o.m?'mono':''}" ${o.t?`type="${o.t}"`:''} data-f="${f}" value="${esc(v)}" ${o.ph?`placeholder="${esc(o.ph)}"`:''}>${o.h?`<div class="hint">${o.h}</div>`:''}</div>`;
+const fSel=(l,f,v,opts,o={})=>`<div class="field"><label>${l}</label><select class="select" data-f="${f}" ${o.re?'data-re="1"':''}>${opts.map(x=>{const a=Array.isArray(x)?x:[x,x];return `<option value="${a[0]}" ${a[0]===v?'selected':''}>${a[1]}</option>`}).join('')}</select>${o.h?`<div class="hint">${o.h}</div>`:''}</div>`;
+const fTx=(l,f,v,r,o={})=>`<div class="field"><label>${l}</label><textarea class="textarea ${o.m?'code-t':''}" rows="${r}" data-f="${f}" ${o.ph?`placeholder="${esc(o.ph)}"`:''}>${esc(v)}</textarea>${o.h?`<div class="hint">${o.h}</div>`:''}</div>`;
+const fSw=(l,f,v,h)=>`<div class="field"><div class="row"><div class="grow"><div style="font-weight:500">${l}</div>${h?`<div class="hint" style="margin:0">${h}</div>`:''}</div><button class="sw ${v?'on':''}" data-act="sw" data-f="${f}"></button></div></div>`;
+const fSeg=(l,f,v,opts,h)=>`<div class="field"><label>${l}</label><div class="seg">${opts.map(o=>`<button class="${o[0]===v?'on':''}" data-act="seg" data-f="${f}" data-v="${o[0]}">${o[1]}</button>`).join('')}</div>${h?`<div class="hint">${h}</div>`:''}</div>`;
+const toSchema=f=>({type:'object',properties:Object.fromEntries(f.map(x=>[x.n,x.t.endsWith('[]')?{type:'array',items:{type:x.t.slice(0,-2)},maxItems:12}:{type:x.t}])),required:f.filter(x=>x.r).map(x=>x.n),additionalProperties:false});
+function schemaEd(n){const rows=n.out.map((f,i)=>`<div class="row" style="margin-bottom:6px"><input class="input sm" style="flex:1.3" data-sf="${i}:n" value="${esc(f.n)}"><select class="select sm" style="flex:1" data-sf="${i}:t">${['string','number','boolean','string[]','object'].map(t=>`<option ${f.t===t?'selected':''}>${t}</option>`).join('')}</select><button class="chip ${f.r?'on':''}" data-act="sf-req" data-i="${i}" title="Required field">req</button><button class="btn ghost icon sm" data-act="sf-del" data-i="${i}">${ic('x',13)}</button></div>`).join('');
+ return `<p class="hint" style="margin:0 0 8px">The agent finishes by calling submit-result with this schema. Invalid output goes back to it as a tool error, so it fixes the result in the same session.</p>${rows}<div class="row"><button class="btn sm" data-act="sf-add">${ic('plus',13)}Add field</button><span class="sp"></span><button class="btn ghost sm" data-act="sf-json">${S.ed.json?'Hide':'View'} JSON Schema</button></div>${S.ed.json?`<pre class="code" style="margin-top:8px">${jhl(toSchema(n.out))}</pre>`:''}`}
+function varChips(){const g=graph(),v=[];g.nodes.forEach(n=>{if(n.type==='start'&&!n.pseudo)(n.params||[]).forEach(p=>v.push(`${n.id}.${p.n}`));if(n.type==='agent')n.out.slice(0,2).forEach(f=>v.push(`${n.id}.${f.n}`));if(n.pseudo&&n.type==='start')v.push('item','carry.feedback')});return [...new Set(v)].slice(0,6)}
+function inEdges(n){const g=graph();return g.edges.filter(e=>e.to.split('.')[0]===n.id).map(e=>{const f=nodeById(g,e.from.split('.')[0]);return `<div class="row" style="margin-bottom:4px"><span class="chip">${esc(f.name)}</span>${ic('arrow',12,'faint')}<span class="muted">${esc(n.name)}${e.to.includes('.')?' ('+e.to.split('.')[1]+')':''}</span></div>`}).join('')||'<div class="hint">No incoming connection yet. Drag from another node\'s output handle to this node.</div>'}
+function agentBody(n){const en=ENF[n.cli],mods={'claude-code':['sonnet','opus','haiku'],codex:['default'],opencode:['default'],pi:['default']}[n.cli];
+ const wsh={scratch:'A new empty folder under the run. Safest, and it works without git.',worktree:'A git worktree on its own branch from a pinned commit. Work is auto-committed when the node ends.',project:'Edits your real project folder. Only one writing node can run in a project at a time.'}[n.ws];
+ return sec('Task',1,fSel('Agent CLI','cli',n.cli,Object.entries(CLI),{re:1})+fSel('Model','model',n.model,mods)+fTx('Prompt','prompt',n.prompt,5,{h:'Variables:',ph:'Describe the task'})+`<div class="row wrap" style="margin:-6px 0 4px">${varChips().map(v=>`<button class="chip" data-act="ins-var" data-v="${v}">${'{{'+v+'}}'}</button>`).join('')}</div>`)+
+ sec('Inputs',0,inEdges(n))+sec('Output schema',1,schemaEd(n),`<span class="pill ${n.out.length?'green':'amber'}">${n.out.length} field${n.out.length===1?'':'s'}</span>`)+
+ sec('Workspace',1,fSeg('Where it works','ws',n.ws,[['scratch','Scratch'],['worktree','Worktree'],['project','Project']],wsh)+(n.ws==='worktree'?fIn('Base commit','base',n.base,{m:1,h:'Pinned to a1b2c3d when the run starts, so every node sees the same snapshot.'})+fIn('Setup command','setup',n.setup,{m:1,ph:'pnpm install',h:'Runs once when the worktree is created.'}):'')+(n.ws==='project'?`<div class="note amber" style="margin-bottom:8px">${ic('warn',15)}<span>This node edits your real directory. Commit or stash first: the project has${proj(S.r.pid).dirty?'':' no'} uncommitted changes.</span></div>`:''))+
+ sec('Permissions',0,fSw('Network access','net',n.net,'Lets the agent browse and call APIs.')+`<div class="field"><label>Can write to</label><div class="row">${['workspace','project'].map(w=>`<button class="chip ${n.write.includes(w)?'on':''}" data-act="tog" data-f="write" data-v="${w}">${w}</button>`).join('')}</div></div>`+
+  `<div class="note ${en[0]==='green'?'':'amber'}">${ic(en[0]==='green'?'shield':'warn',15)}<span>${en[1]}.</span></div>`+(n.net&&(n.ws==='project'||n.write.includes('project'))?`<div class="note amber" style="margin-top:8px">${ic('warn',15)}<span>Network plus project write access means a web page the agent reads could steer it. Consider splitting this into two nodes.</span></div>`:''))+
+ sec('Context banks',0,`<div class="grid2">${fSel('Project bank','ctxP',n.ctxP,[['none','No access'],['read','Read'],['readwrite','Read and write']])}${fSel('Workflow bank','ctxW',n.ctxW,[['none','No access'],['read','Read'],['readwrite','Read and write']])}</div><div class="hint">Agents reach banks through the shared MCP server, so writes land in the real bank even from a worktree.</div>`)+
+ sec('Reliability',0,`<div class="grid2">${fIn('Timeout (min)','timeout',n.timeout,{t:'number'})}${fIn('Validation retries','rv',n.rv,{t:'number'})}</div><div class="grid2">${fIn('Crash retries','rc',n.rc,{t:'number'})}${fIn('Max quota wait (h)','maxWait',n.maxWait,{t:'number'})}</div><div class="hint">When a usage limit hits, the node waits and resumes. Waiting never uses up retries.</div>`)+
+ sec('Supervisor',0,fSeg('When this node finishes','sup',n.sup,[['default','Default'],['checkpoint','Checkpoint'],['notify','Notify'],['skip','Skip']],{default:'Follows the workflow setting.',checkpoint:'The supervisor reviews first, and downstream nodes wait for it.',notify:'The supervisor reviews, but the run keeps going.',skip:'Routine completion is silent. Failures still wake it.'}[n.sup]))+
+ sec('Advanced',0,fTx('CLI options (JSON)','cliOpts',n.cliOpts||'',3,{m:1,ph:'{ "allowedTools": ["Read", "Grep"] }',h:'Passed straight to the CLI, for features not covered above.'}))}
+function gateBody(n){const s=S.ed.gs||'{\n  "triage": { "choice": "adopt", "confidence": 0.72 }\n}';let res='';
+ if(S.ed.gres){res=`<div class="note ${S.ed.gres.err?'red':'accent'}" style="margin-top:8px">${S.ed.gres.err?ic('warn',15)+esc(S.ed.gres.err):ic('split',15)+'<span>Takes branch <b>'+S.ed.gres.take+'</b>. '+S.ed.gres.rows+'</span>'}</div>`}
+ return sec('Branches',1,`<p class="hint" style="margin:0 0 8px">Branches are checked in order. The first match wins, and the otherwise branch always catches the rest so a run can never stall.</p>`+n.branches.map((b,i)=>`<div class="row" style="margin-bottom:6px;align-items:flex-start"><input class="input sm" style="width:76px" data-br="${i}:id" value="${esc(b.id)}" ${b.otherwise?'disabled':''}><textarea class="textarea code-t" rows="${b.otherwise?1:2}" style="font-size:11.5px;padding:4px 8px" data-br="${i}:expr" ${b.otherwise?'disabled':''}>${b.otherwise?'otherwise':esc(b.expr)}</textarea>${b.otherwise?'<span style="width:24px"></span>':`<button class="btn ghost icon sm" data-act="br-del" data-i="${i}">${ic('x',13)}</button>`}</div>`).join('')+`<button class="btn sm" data-act="br-add">${ic('plus',13)}Add branch</button>`)+
+ sec('Test an expression',1,`<textarea class="textarea code-t" rows="5" id="gsample">${esc(s)}</textarea><div class="row" style="margin-top:8px"><button class="btn sm" data-act="gate-test">${ic('play',12)}Check branches</button><span class="hint" style="margin:0">Expressions use a sandboxed language, never eval.</span></div>${res}`)}
+function bodyFor(n){
+ if(n.pseudo)return `<div class="note" style="margin-top:12px">${ic('info',15)}<span>${esc(n.note||'Implicit node. It carries the container\'s data in and out and has no settings.')}</span></div>`;
+ switch(n.type){
+ case'start':return sec('Parameters',1,`<p class="hint" style="margin:0 0 8px">The run form is generated from these.</p>`+(n.params||[]).map((p,i)=>`<div class="row" style="margin-bottom:6px"><input class="input sm" style="flex:1.2" data-pm="${i}:n" value="${esc(p.n)}"><select class="select sm" style="flex:1" data-pm="${i}:t">${['string','number','boolean','enum'].map(t=>`<option ${p.t===t?'selected':''}>${t}</option>`).join('')}</select><input class="input sm" style="flex:1" data-pm="${i}:d" value="${esc(p.d)}" placeholder="default"><button class="chip ${p.r?'on':''}" data-act="pm-req" data-i="${i}">req</button><button class="btn ghost icon sm" data-act="pm-del" data-i="${i}">${ic('x',13)}</button></div>`).join('')+`<button class="btn sm" data-act="pm-add">${ic('plus',13)}Add parameter</button>`);
+ case'agent':return agentBody(n);
+ case'shell':return sec('Command',1,fTx('Command','cmd',n.cmd,3,{m:1,h:'Runs in the same workspace as the upstream agent. Output is wrapped as a structured result with exitCode, stdout and stderr.'}))+sec('Supervisor',0,fSeg('When this node finishes','sup',n.sup||'default',[['default','Default'],['checkpoint','Checkpoint'],['notify','Notify'],['skip','Skip']]));
+ case'decision':{const pr=n.provider;return sec('Decision',1,fSel('Provider profile','provider',pr,DPROV,{h:'Profiles live in your local config. Workflows only store the name, so exports never contain keys.'})+fTx('State to evaluate','state',n.state,2,{m:1})+fSeg('Question','qk',n.qk,[['choice','Choice'],['yesno','Yes or no'],['score','Score']])+(n.qk==='choice'?`<div class="field"><label>Options</label><div class="row wrap">${n.opts.map((o,i)=>`<span class="chip">${esc(o)}<span class="x" data-act="opt-del" data-i="${i}">${ic('x',11)}</span></span>`).join('')}<input class="input sm" id="optin" style="width:90px" placeholder="Add option"><button class="btn sm icon" data-act="opt-add">${ic('plus',13)}</button></div></div>`:''))+
+  sec('Confidence',1,`<div class="note accent">${ic('info',15)}<span>Returns probabilities and a confidence value. Gates after this node should branch on both. A refused question counts as low confidence.</span></div><div class="note amber" style="margin-top:8px">${ic('warn',15)}<span>Thresholds are not portable between models. The 0.8 in Route was tuned on ${pr}. Re-check it if you switch.</span></div>`)+
+  sec('Shadow checks',0,fSw('Sample an agent judge','shadow',n.shadow,'Occasionally runs an agent on the same input and logs disagreements, so you can see how reliable this decision is.')+(n.shadow?`<label class="lbl">Sample rate: 10%</label><input type="range" class="range" min="1" max="50" value="10">`:''))+
+  sec('Backend capabilities',0,`<dl class="kv"><dt>Max options</dt><dd>255 per question</dd><dt>Image input</dt><dd>Supported</dd><dt>Question types</dt><dd>choice, yes/no, score</dd></dl>`)}
+ case'gate':return gateBody(n);
+ case'loop':return sec('Loop',1,fIn('Max rounds','maxIter',n.maxIter,{t:'number',h:'The budget cap applies to the whole loop, not to each round.'})+fTx('Exit when','exit',n.exit,2,{m:1})+fSeg('When max rounds is reached','onMax',n.onMax,[['fail','Fail the run'],['exit','Exit with last result']])+
+  `<div class="field"><label>Carry to the next round</label><div class="row wrap">${n.carry.map((c,i)=>`<span class="chip">${esc(c)}<span class="x" data-act="carry-del" data-i="${i}">${ic('x',11)}</span></span>`).join('')}<input class="input sm" id="carryin" style="width:90px" placeholder="Add field"><button class="btn sm icon" data-act="carry-add">${ic('plus',13)}</button></div><div class="hint">Only these fields move forward. History from earlier rounds is dropped, so cost and confusion do not grow.</div></div>`+
+  fSeg('Each round starts','resume',n.resume?'resume':'fresh',[['fresh','Fresh with carry'],['resume','Resume session']],n.resume?'Cheaper at first, but the agent accumulates baggage.':'Cleaner and more reproducible.'))+sec('Body',1,`<button class="btn" data-act="open-body" data-id="${n.id}">${ic('repeat',14)}Open loop body</button>`);
+ case'map':return sec('Map',1,fIn('Items','items',n.items,{m:1,h:'An array from an upstream output. Declare maxItems in that schema.'})+fIn('Item label','label',n.label,{m:1,h:'Names each row in the run view.'})+`<div class="grid2">${fIn('At a time','conc',n.conc,{t:'number'})}${fIn('Max items','max',n.max,{t:'number'})}</div>`+fSeg('When one item fails','onFail',n.onFail,[['fail','Fail the run'],['continue','Continue']],n.onFail==='continue'?'Failures are collected in the output so a later node can see which items did not work.':'The whole run stops on the first failed item.')+`<div class="note">${ic('info',15)}<span>Items beyond the cap are not started. Maps cannot be nested in v1.</span></div>`)+sec('Body',1,`<button class="btn" data-act="open-body" data-id="${n.id}">${ic('layers',14)}Open map body</button><div class="hint">Output: an ordered array of the body's results, one per item.</div>`);
+ case'join':return sec('Join',1,fSeg('Mode','mode',n.mode,[['first','First (exclusive)'],['all','All (fan-in)']],n.mode==='first'?'Branches are exclusive, so one ran. The join outputs what that branch produced.':'Waits for every input and outputs an object keyed by input name. Skipped inputs are null.')+`<div class="field"><label>Inputs</label><div class="row wrap">${n.ins.map(i=>`<span class="chip">${esc(i)}</span>`).join('')}</div></div><div class="note" style="color:var(--green);background:var(--green-soft);border-color:transparent">${ic('cok',15)}<span>All incoming branches produce output compatible with this node.</span></div>`);
+ case'approval':return sec('Approval',1,fTx('Message for the reviewer','msg',n.msg,3)+fSw('Irreversible action','irrev',n.irrev,'Merges, external side effects and deletions. A person must always approve, and the supervisor cannot override this.')+
+  `<div style="${n.irrev?'opacity:.45;pointer-events:none':''}">${fSw('Let the supervisor approve','auto',n.auto,'Off means it can only recommend.')}${n.auto?`<label class="lbl">Minimum confidence: ${n.minConf}</label><input type="range" class="range" min="50" max="99" value="${n.minConf*100}" data-rng="minConf">`:''}</div>`)+
+  sec('What the reviewer sees',1,`<div class="card"><div class="card-b"><div style="font-weight:600;margin-bottom:4px">${esc(n.name)}</div><div class="muted" style="margin-bottom:10px">${esc(n.msg)}</div><div class="row"><span class="btn primary sm">Approve</span><span class="btn sm">Reject</span><span class="btn sm">Edit</span></div></div></div>`)+sec('Supervisor',0,fSeg('At this node','sup',n.sup,[['checkpoint','Checkpoint'],['notify','Notify']]));
+ case'end':return sec('Result',1,fSeg('Ends the run as','status',n.status,[['success','Success'],['failed','Failed'],['rejected','Rejected']],'Add extra End nodes only for genuinely different outcomes, such as a rejection. A failed node ends the run as failed automatically.')+fTx('Result mapping','result',n.result,3,{m:1}))}}
+function refreshInspector(){const box=$('#insp');if(!box)return;const g=graph();
+ if(S.ed.selEdge){const e=g.edges.find(x=>x.id===S.ed.selEdge);if(!e){box.innerHTML='';return}const f=nodeById(g,e.from.split('.')[0]),t=nodeById(g,e.to.split('.')[0]);
+  box.innerHTML=`<div class="insp" style="bottom:auto"><div class="insp-h"><span class="n-ic">${ic('link',14)}</span><div class="grow"><div style="font-weight:600">Connection</div><div class="muted">${esc(f.name)}${e.from.includes('.')?' ('+e.from.split('.')[1]+')':''} to ${esc(t.name)}${e.to.includes('.')?' ('+e.to.split('.')[1]+')':''}</div></div><button class="btn ghost icon sm" data-act="desel">${ic('x',14)}</button></div><div class="insp-f"><button class="btn danger sm" data-act="del-edge">${ic('trash',13)}Delete connection</button></div></div>`;return}
+ const n=selNode();if(!n){box.innerHTML='';return}const T=NT[n.type];
+ box.innerHTML=`<div class="insp"><div class="insp-h"><span class="n-ic" style="color:${T.c}">${ic(T.i,14)}</span><div class="grow">${n.pseudo?`<div style="font-weight:600">${esc(n.name)}</div>`:`<input class="input" style="border-color:transparent;font-weight:600;padding:0 4px;margin-left:-4px;height:24px" data-f="name" value="${esc(n.name)}">`}<div class="faint" style="font-size:12px">${T.l} <span class="mono">${n.id}</span></div></div><button class="btn ghost icon sm" data-act="desel">${ic('x',14)}</button></div>
+ <div class="insp-b">${bodyFor(n)}${S.ed.testOut[n.id]?`<div class="note accent" style="margin:8px 0">${ic('cok',15)}<span><b>Tested with pinned inputs.</b> ${S.ed.testOut[n.id]}</span></div>`:''}</div>
+ ${n.pseudo?'':`<div class="insp-f">${['agent','shell','decision'].includes(n.type)?`<button class="btn sm" data-act="test-node">${ic('play',12)}Test this node</button>`:''}<span class="sp"></span><button class="btn ghost sm" data-act="dup-node" title="Duplicate">${ic('copy',13)}</button><button class="btn ghost sm danger" data-act="del-node" title="Delete node">${ic('trash',13)}</button></div>`}</div>`}
+function evalExpr(expr,ctx){return expr.split('&&').every(cl=>{const m=cl.trim().match(/^([\w.]+)\s*(==|!=|>=|<=|>|<)\s*(.+)$/);if(!m)throw new Error('Unsupported expression: '+cl.trim());let[,p,op,lit]=m;const v=p.split('.').reduce((a,k)=>a==null?a:a[k],ctx);lit=lit.trim();
+ const L=/^'.*'$|^".*"$/.test(lit)?lit.slice(1,-1):lit==='true'?true:lit==='false'?false:Number(lit);return{'==':v==L,'!=':v!=L,'>=':v>=L,'<=':v<=L,'>':v>L,'<':v<L}[op]})}
+function gateTest(){const n=selNode(),ta=$('#gsample');S.ed.gs=ta.value;try{const ctx=JSON.parse(ta.value);let take=null;const rows=[];n.branches.forEach(b=>{if(b.otherwise){rows.push('otherwise matches the rest');if(!take)take=b.id;return}const ok=evalExpr(b.expr,ctx);rows.push(b.id+(ok?' matched':' did not match'));if(ok&&!take)take=b.id});S.ed.gres={take,rows:rows.join(', ')+'.'}}catch(e){S.ed.gres={err:e.message}}refreshInspector()}
+/* inspector field handlers (called from global input listener) */
+function onField(el){const n=selNode();if(!n)return;
+ if(el.dataset.f){const f=el.dataset.f;n[f]=el.type==='number'?Number(el.value):el.value;if(el.dataset.re)refreshInspector();paint();touched();return}
+ if(el.dataset.br){const[i,k]=el.dataset.br.split(':');n.branches[+i][k]=el.value;paint();touched();return}
+ if(el.dataset.sf){const[i,k]=el.dataset.sf.split(':');n.out[+i][k]=el.value;paint();touched();if(k==='t')refreshInspector();return}
+ if(el.dataset.pm){const[i,k]=el.dataset.pm.split(':');n.params[+i][k]=el.value;paint();touched();return}
+ if(el.dataset.rng){n[el.dataset.rng]=el.value/100;el.previousElementSibling.textContent='Minimum confidence: '+n[el.dataset.rng];touched()}}
+/* ===== run view ===== */
+const SN=['start','research','triage','route','endrej','approval','join','evaluate','refine','endok'];
+const mk=o=>Object.assign(Object.fromEntries(SN.map(k=>[k,'pending'])),o);
+const A={start:'succeeded',research:'succeeded',triage:'succeeded',route:'succeeded',endrej:'skipped'};
+const SS=[mk({start:'succeeded',research:'running'}),mk({start:'succeeded',research:'succeeded',triage:'running'}),mk({...A,approval:'waiting_approval'}),mk({...A,approval:'succeeded',join:'succeeded',evaluate:'running'}),
+ mk({...A,approval:'succeeded',join:'succeeded',evaluate:'waiting_quota'}),mk({...A,approval:'succeeded',join:'succeeded',evaluate:'running'}),mk({...A,approval:'succeeded',join:'succeeded',evaluate:'succeeded',refine:'running'}),
+ mk({...A,approval:'succeeded',join:'succeeded',evaluate:'succeeded',refine:'running'}),mk({...A,approval:'succeeded',join:'succeeded',evaluate:'succeeded',refine:'succeeded',endok:'succeeded'})];
+const STN=['Started','Research done','Awaiting approval','Approved','Paused for quota','Resumed','Map finished','Round 2','Succeeded'];
+const RB=[{c:.12,m:1,t:'31k',s:0},{c:.86,m:19,t:'440k',s:0},{c:.90,m:20,t:'445k',s:.04},{c:1.30,m:23,t:'900k',s:.04},{c:1.52,m:30,t:'1.1M',s:.05},{c:2.31,m:30,t:'1.6M',s:.05},{c:2.60,m:43,t:'1.9M',s:.09},{c:2.95,m:49,t:'2.2M',s:.10},{c:3.07,m:56,t:'2.4M',s:.11}];
+const IT=[['running','running','running','queued','queued','queued','queued'],['succeeded','succeeded','waiting_quota','waiting_quota','waiting_quota','queued','queued'],['succeeded','succeeded','succeeded','succeeded','running','running','running'],['succeeded','succeeded','succeeded','succeeded','succeeded','failed','succeeded']];
+const RES=[['adopt',4200],['adopt',3100],['skip',2800],['adopt',6900],['skip',7400],['fail',0],['skip',21000]];
+const mx=()=>S.run.rej?2:8;
+const stg=()=>Math.min(S.run.stage,mx());
+function mainSt(id){const s=stg();if(S.run.rej&&s>=2){if(id==='approval')return 'rejected';if(id==='endrej')return 'succeeded';if(['join','evaluate','refine','endok'].includes(id))return 'skipped'}return SS[s][id]}
+function itemSt(i){const s=stg();if(s<3)return 'pending';let st=IT[Math.min(s,6)-3][i];if(s>=6&&i===5&&S.run.retried)st='succeeded';return st}
+function rounds(){const s=stg();return s<6?[]:s===6?[{n:1,st:'running'}]:s===7?[{n:1,st:'succeeded',ok:false},{n:2,st:'running'}]:[{n:1,st:'succeeded',ok:false},{n:2,st:'succeeded',ok:true}]}
+function evalSt(id,i){const s=itemSt(i);if(id==='item')return s==='queued'||s==='pending'?'pending':'succeeded';
+ if(s==='succeeded')return 'succeeded';if(s==='running')return id==='try'?'running':'pending';if(s==='waiting_quota')return id==='try'?'waiting_quota':'pending';if(s==='failed')return id==='try'?'failed':'pending';return 'pending'}
+function loopSt(id,it){const s=stg();if(id==='carry')return 'succeeded';if(it===1){if(s===6)return id==='writer'?'running':'pending';return id==='exit'?'skipped':'succeeded'}if(it===2){if(s===7)return id==='writer'?'succeeded':id==='critic'?'running':'pending';if(s>=8)return 'succeeded'}return 'pending'}
+function curSt(id){const p=S.run.path;return p.length===1?mainSt(id):p[1]==='evaluate'?evalSt(id,S.run.item):loopSt(id,S.run.iter)}
+function itemCounts(){const a=TOOLS.map((_,i)=>itemSt(i));return{done:a.filter(x=>x==='succeeded').length,fail:a.filter(x=>x==='failed').length,run:a.filter(x=>x==='running').length,wait:a.filter(x=>x==='waiting_quota').length}}
+function edgeState(e){const g=G[S.run.path[S.run.path.length-1]],[fn,fh]=e.from.split('.'),tn=e.to.split('.')[0],fs=curSt(fn),ts=curSt(tn),f=nodeById(g,fn);
+ if(fs==='skipped'||ts==='skipped')return 'skip';if(f.type==='gate'&&fs==='succeeded')return fh==='human'?(ts==='running'||ts==='waiting_quota'?'live':'done'):'skip';
+ if(fs==='succeeded')return ts==='running'||ts==='waiting_quota'?'live':'done';return ''}
+const TR={research:[['12:01:04','tool','web_search "JS bundler benchmarks"'],['12:03:20','tool','fetch rspack.dev/guide/compare'],['12:09:11','tool','context_read project/stack'],['12:18:02','tool','submit_result'],['12:18:02','er','Validation error: risks[2] must be a string'],['12:18:30','tool','submit_result'],['12:18:30','ok','Accepted. Output validated']],
+ try:[['15:31:02','tool','pnpm install'],['15:34:40','tool','port build config'],['15:41:15','tool','pnpm build'],['15:43:20','tool','submit_result'],['15:43:20','er','Validation error: buildMs must be a number']],
+ writer:[['15:44:10','tool','context_read workflow/preferences'],['15:48:02','tool','submit_result'],['15:48:02','ok','Accepted. Output validated']],critic:[['15:49:11','tool','submit_result'],['15:49:11','ok','Accepted. approved: false']]};
+const EVT=[[0,'12:01','start','state','Run started with topic: JS bundlers'],[0,'12:01','research','session','Session cc_8f3a91 started in a scratch workspace'],[1,'12:19','research','retry','Output failed validation: risks[2] must be a string. Resumed the same session with the error.'],
+ [1,'12:19','research','state','Output validated against the schema'],[1,'12:19','triage','decision','Asked openai-default to choose adopt, skip or unsure'],[2,'12:20','triage','decision','adopt at 0.72 confidence'],[2,'12:20','route','gate','No branch matched at 0.8, so it took otherwise: human'],
+ [2,'12:20','approval','approval','Waiting for approval'],[2,'12:20','supervisor','supervisor','Woke on approval. Recommends approving.'],[3,'12:24','approval','approval','Approved by you'],[3,'12:24','join','state','Join received approved and passed it on'],[3,'12:24','evaluate','map','Started 7 items, 3 at a time'],
+ [4,'12:31','evaluate[2]','quota','Codex usage window exhausted. Items 2, 3 and 4 are waiting.'],[4,'12:31','scheduler','quota','Provider codex blocked until 15:30, parsed from CLI output. Run paused.'],[5,'15:30','scheduler','quota','Window reset. Released waiting nodes with a short stagger.'],
+ [5,'15:31','evaluate[2]','session','Resumed session by ID. No retry used.'],[6,'15:43','evaluate[5]','error','Turbopack output failed validation 3 times. Item marked failed.'],[6,'15:44','evaluate','map','6 of 7 done and 1 failed. Continuing because onItemFail is continue.'],
+ [6,'15:44','supervisor','supervisor','Woke on node_failed. Recommends retrying item 5 with guidance.'],[6,'15:44','refine#1','loop','Round 1 started'],[7,'15:50','refine#1/critic','judge','approved: false. Asked for migration cost and build times.'],[7,'15:50','refine#2','loop','Round 2 started. Carried: draft, feedback'],
+ [8,'15:57','refine#2/critic','judge','approved: true'],[8,'15:57','refine','loop','Exited on exitWhen after 2 rounds'],[8,'15:57','endok','state','Run succeeded. $3.07, 56 min active, 3h 00m paused.']];
+const SUP=[{s:2,t:'12:20',h:'Recommends approving the trial',b:'Triage said adopt at 0.72, under the 0.8 threshold. The research meets all three rubric checks and lists no blocking risks.',a:'approve',cta:'Apply: approve'},
+ {s:4,t:'12:31',h:'Noted the quota pause',b:'Codex resets at about 3:30 PM. Three sessions resume by ID, and the pause does not count against the budget. No action needed.'},
+ {s:6,t:'15:44',h:'Recommends retrying Turbopack',b:'The item failed validation 3 times because buildMs came back as text and the schema requires a number. Retry it with that guidance.',a:'retry',cta:'Apply: retry with guidance'},
+ {s:8,t:'15:57',h:'Run complete',b:'All checks passed. 1 intervention used of 6, $0.11 spent of $1.00.'}];
+const IC_EV={state:'check',session:'term',retry:'refresh',decision:'zap',gate:'split',approval:'ucheck',supervisor:'eye',map:'layers',quota:'pause',error:'cx',loop:'repeat',judge:'bot'};
+function detailOf(id){const g=G[S.run.path[S.run.path.length-1]],n=nodeById(g,id),st=curSt(id),inb=S.run.path.length>1,it=S.run.item,tool=TOOLS[it]||'';
+ const base={start:{out:{topic:'JS bundlers',depth:'standard'},dur:'1s',cost:'$0.00'},
+  research:{ag:1,cli:'Claude Code',sess:'cc_8f3a91',dur:'18m 22s',cost:'$0.84',tok:'412k',ws:{m:'scratch',p:'~/.relay/orbit-web/runs/42/research'},bank:'#412',in:{topic:'JS bundlers',depth:'standard'},out:{summary:'Rspack and Vite lead on speed. Webpack stays the safest migration path.',tools:TOOLS,risks:['Plugin gaps for our SVG loader','Rspack config drift from webpack','Turbopack is still maturing']},
+   att:[['Fresh session','Output failed validation: risks[2] must be a string','er'],['Resumed the same session with the error','Output validated','ok']]},
+  triage:{dur:'0.4s',cost:'$0.001',in:{state:'research.summary'},out:{choice:'adopt',confidence:0.72,probabilities:{adopt:0.72,unsure:0.2,skip:0.08}},note:'Shadow check: the agent judge agreed.'},
+  route:{dur:'2ms',cost:'$0',in:{'triage.choice':'adopt','triage.confidence':0.72},out:{branch:'human'},note:'go needs confidence 0.8 or more, so it did not match. Took otherwise.'},
+  approval:{dur:st==='waiting_approval'?'waiting':'4m 12s',cost:'$0',out:{decision:S.run.rej?'rejected':'approved',by:'you'}},join:{dur:'1ms',cost:'$0',out:{from:'approved'}},
+  endrej:{dur:'1ms',cost:'$0',out:{reason:'adopt'}},endok:{dur:'1ms',cost:'$0',out:{report:'Verdict: adopt Rspack for the build, keep Vite for tooling.'}}};
+ let d=base[id];
+ if(inb&&S.run.path[1]==='evaluate'){const r=RES[it];d={ag:id==='try',cli:'Codex',sess:'cx_'+(1000+it*37),dur:id==='try'?(5+it)+'m 10s':'42s',cost:id==='try'?'$0.'+(18+it*3):'$0',tok:'180k',ws:{m:'worktree',p:'~/.relay/orbit-web/runs/42/evaluate-'+it+'/try',br:'relay/42/evaluate-'+it},bank:'#412',in:{item:tool,index:it},
+  out:id==='try'?(st==='failed'?null:{tool,verdict:r[0],buildMs:r[1]}):{exitCode:0,stdout:'build ok, 38 tests passed'},att:id==='try'&&st==='failed'?[['Fresh session','buildMs must be a number','er'],['Resumed with the error','buildMs must be a number','er'],['Resumed with the error','buildMs must be a number','er']]:id==='try'&&it===2?[['Fresh session','Usage window exhausted. Waiting.','wait'],['Resumed by session ID after reset','Output validated','ok']]:[]};if(id==='item')d={out:{item:tool,index:it},dur:'0s',cost:'$0'};if(id==='result')d={out:{tool,verdict:RES[it][0],buildMs:RES[it][1]},dur:'1ms',cost:'$0'};
+  if(id==='try')d.tr=TR.try}
+ if(inb&&S.run.path[1]==='refine'){const k=S.run.iter;d={ag:id==='writer'||id==='critic',cli:id==='critic'?'Codex':'Claude Code',sess:(id==='critic'?'cx_':'cc_')+'a'+k+'91',dur:'5m 40s',cost:'$0.'+(id==='critic'?'09':'31'),tok:'96k',ws:{m:'scratch',p:'~/.relay/orbit-web/runs/42/refine-'+k+'/'+id},bank:'#412',
+  in:id==='writer'?{carry:{draft:k===1?'(none)':'First draft ...',feedback:k===1?'(none)':'Add migration cost and build times.'}}:{draft:'...'},out:id==='writer'?{draft:'Verdict: adopt Rspack ...'}:{reasoning:k===1?'Missing migration cost.':'Covers cost, timing and risk.',approved:k===2,feedback:k===1?'Add migration cost and build times.':''},att:[]};
+  if(id==='carry')d={out:{draft:'...',feedback:'...'},dur:'0s',cost:'$0'};if(id==='exit')d={out:{draft:'Verdict: adopt Rspack ...'},dur:'1ms',cost:'$0'};d.tr=TR[id]}
+ if(!inb&&id==='research')d.tr=TR.research;return d||{out:{},dur:'-',cost:'-'}}
+function nodeDetail(id){const g=G[S.run.path[S.run.path.length-1]],n=nodeById(g,id),T=NT[n.type],st=curSt(id),d=detailOf(id),[c,l]=({running:['blue','Running'],succeeded:['green','Succeeded'],failed:['red','Failed'],rejected:['red','Rejected'],waiting_approval:['amber','Waiting for approval'],waiting_quota:['amber','Waiting for quota'],skipped:['','Skipped'],pending:['','Pending']})[st];
+ const live=st==='pending'||st==='skipped';
+ return `<div class="row" style="margin-bottom:12px"><span class="n-ic" style="color:${T.c}">${ic(T.i,14)}</span><div class="grow"><div style="font-weight:600;font-size:14px">${esc(n.name)}</div><div class="faint" style="font-size:12px">${T.l} <span class="mono">${S.run.path.length>1?(S.run.path[1]==='evaluate'?'evaluate['+S.run.item+']/':'refine#'+S.run.iter+'/'):''}${n.id}</span></div></div><span class="pill ${c}">${st==='running'?'<span class="spin" style="width:9px;height:9px;border-width:1.5px"></span>':'<span class="dot"></span>'}${l}</span></div>
+ ${live?`<div class="note">${ic('info',15)}<span>${st==='skipped'?'This path was not taken.':'Has not started yet.'}</span></div>`:`<dl class="kv" style="margin-bottom:14px"><dt>Duration</dt><dd>${d.dur}</dd><dt>Cost</dt><dd>${d.cost}</dd>${d.tok?`<dt>Tokens</dt><dd>${d.tok}</dd>`:''}${d.sess?`<dt>Session</dt><dd class="row"><span class="mono">${d.sess}</span><button class="btn ghost icon sm" data-act="copy" title="Copy session ID">${ic('copy',12)}</button></dd><dt>CLI</dt><dd>${d.cli}</dd>`:''}${d.bank?`<dt>Bank reads</dt><dd>Up to entry <span class="mono">${d.bank}</span></dd>`:''}</dl>
+ ${d.att&&d.att.length?`<h3 style="margin-bottom:6px">Attempts</h3><div style="margin-bottom:14px">${d.att.map((a,i)=>`<div class="row" style="padding:5px 0;align-items:flex-start"><span style="color:var(--${a[2]==='ok'?'green':a[2]==='wait'?'amber':'red'});margin-top:1px">${ic(a[2]==='ok'?'cok':a[2]==='wait'?'pause':'cx',14)}</span><div><div>${i+1}. ${a[0]}</div><div class="faint" style="font-size:12px">${a[1]}</div></div></div>`).join('')}</div>`:''}
+ ${d.in?`<h3 style="margin-bottom:6px">Input</h3><pre class="code" style="margin-bottom:14px">${jhl(d.in)}</pre>`:''}${d.out?`<h3 style="margin-bottom:6px" class="row">Output${d.ag?'<span class="pill green">Schema valid</span>':''}</h3><pre class="code" style="margin-bottom:14px">${jhl(d.out)}</pre>`:''}${d.note?`<div class="note" style="margin-bottom:14px">${ic('info',15)}<span>${d.note}</span></div>`:''}
+ ${d.tr?`<h3 style="margin-bottom:6px">Transcript</h3><div class="tr" style="margin-bottom:14px">${d.tr.map(t=>`<div><span class="tm">${t[0]}</span> ${t[1]==='tool'?'<span class="tl">'+esc(t[2])+'</span>':`<span class="${t[1]}">${esc(t[2])}</span>`}</div>`).join('')}</div>`:''}
+ ${d.ws?`<h3 style="margin-bottom:6px">Workspace</h3><dl class="kv" style="margin-bottom:14px"><dt>Mode</dt><dd>${d.ws.m}</dd><dt>Path</dt><dd class="mono" style="font-size:11.5px">${d.ws.p}</dd>${d.ws.br?`<dt>Branch</dt><dd class="mono">${d.ws.br}</dd><dt>Changes</dt><dd>3 files changed, +48 -12 <a href="#" data-act="toast" data-m="Opening diff">View diff</a></dd>`:''}</dl>`:''}`}
+ <div class="row wrap" style="padding-top:4px"><button class="btn sm" data-act="retry-node">${ic('refresh',13)}Retry from this node</button>${d.ag?`<button class="btn sm" data-act="toast" data-m="Opening workspace">${ic('folder',13)}Open workspace</button>`:''}<button class="btn sm" data-act="toast" data-m="Pinned this output for single-node runs">${ic('pin',13)}Pin output</button>${st==='running'?`<button class="btn sm danger" data-act="toast" data-m="Cancelled. The process group was stopped.">${ic('stop',12)}Cancel</button>`:''}</div>`}
+function itemsPanel(n){const c=itemCounts(),s=stg(),f=S.run.itemF,rows=TOOLS.map((t,i)=>({t,i,st:itemSt(i)})).filter(r=>f==='all'||(f==='failed'?r.st==='failed':f==='running'?r.st==='running':r.st==='waiting_quota'||r.st==='queued'));
+ return `<div class="row" style="margin-bottom:10px"><span class="n-ic" style="color:#0284c7">${ic('layers',14)}</span><div class="grow"><div style="font-weight:600;font-size:14px">${esc(n.name)}</div><div class="faint" style="font-size:12px">Map over research.tools, 3 at a time</div></div></div>
+ ${s<3?`<div class="note">${ic('info',15)}<span>The map starts after the join. It will run one copy of the body for each of the 7 tools.</span></div>`:`<div class="segbar" style="margin-bottom:8px">${TOOLS.map((_,i)=>`<i class="${itemSt(i)}"></i>`).join('')}</div><div class="muted" style="margin-bottom:10px">${c.done} of 7 done${c.fail?', '+c.fail+' failed':''}${c.run?', '+c.run+' running':''}${c.wait?', '+c.wait+' waiting for quota':''}</div>
+ <div class="row wrap" style="margin-bottom:10px">${[['all','All'],['running','Running'],['failed','Failed'],['wait','Waiting']].map(x=>`<button class="chip ${f===x[0]?'on':''}" data-act="itemf" data-v="${x[0]}">${x[1]}</button>`).join('')}</div>
+ ${rows.map(r=>`<div class="item-row" data-act="drill" data-i="${r.i}">${stIcon(r.st)||'<span class="faint">'+ic('minus',14)+'</span>'}<div><div style="font-weight:500">${r.t}</div><div class="faint" style="font-size:12px">${r.st==='succeeded'?RES[r.i][0]+', '+(RES[r.i][1]/1000).toFixed(1)+'s build':r.st==='failed'?'Output failed validation 3 times':r.st==='running'?'Trying in a worktree':r.st==='waiting_quota'?'Waiting for Codex quota':'Queued'}</div></div><span class="faint">${ic('chev',14)}</span></div>`).join('')||'<div class="empty">No items match.</div>'}
+ ${s>=6?`<h3 style="margin:14px 0 6px">Results</h3><div class="card"><table class="tbl"><thead><tr><th>Tool</th><th>Verdict</th><th>Build</th></tr></thead><tbody>${TOOLS.map((t,i)=>{const st=itemSt(i);return `<tr><td>${t}</td><td>${st==='failed'?'<span class="pill red">failed</span>':RES[i][0]}</td><td>${st==='failed'?'-':(RES[i][1]/1000).toFixed(1)+'s'}</td></tr>`}).join('')}</tbody></table></div><p class="hint">The output of the map is this array, in order.</p>`:''}`}
+ <div class="row wrap" style="margin-top:12px">${s>=6&&itemSt(5)==='failed'?`<button class="btn sm primary" data-act="retry-item">${ic('refresh',13)}Retry Turbopack only</button>`:''}</div>`}
+function roundsPanel(n){const r=rounds();return `<div class="row" style="margin-bottom:10px"><span class="n-ic" style="color:#0284c7">${ic('repeat',14)}</span><div class="grow"><div style="font-weight:600;font-size:14px">${esc(n.name)}</div><div class="faint" style="font-size:12px">Until critic.approved is true, at most 4 rounds</div></div></div>
+ ${r.length?r.map(x=>`<div class="item-row" data-act="drill-round" data-i="${x.n}">${stIcon(x.st)}<div><div style="font-weight:500">Round ${x.n}</div><div class="faint" style="font-size:12px">${x.st==='running'?'In progress':x.ok?'Approved':'Not approved. Added: migration cost and build times.'}</div></div><span class="faint">${ic('chev',14)}</span></div>`).join(''):`<div class="note">${ic('info',15)}<span>The loop starts after the map finishes.</span></div>`}
+ <div class="note" style="margin-top:8px">${ic('info',15)}<span>Each round starts fresh with only the latest draft and the critic's feedback. The budget cap covers the whole loop.</span></div>`}
+function runSummary(){const s=stg(),b=RB[s];return `<h3 style="margin-bottom:8px">Run 42 summary</h3><dl class="kv" style="margin-bottom:14px"><dt>Workflow</dt><dd>Tool research, snapshot v14</dd><dt>Input</dt><dd>topic: JS bundlers, depth: standard</dd><dt>Workspace base</dt><dd class="mono">a1b2c3d</dd><dt>Started</dt><dd>Today 12:01</dd><dt>Status</dt><dd>${pill(runStatus())}</dd></dl>
+ ${s>=8?`<h3 style="margin-bottom:6px">Result</h3><pre class="code">${jhl({status:'success',report:'Verdict: adopt Rspack for the build, keep Vite for tooling.'})}</pre>`:S.run.rej?`<h3 style="margin-bottom:6px">Result</h3><pre class="code">${jhl({status:'rejected',reason:'Rejected at the Approve step'})}</pre>`:`<div class="note">${ic('info',15)}<span>Click any node on the canvas to see its input, output, transcript and attempts. Drag the scrubber below to replay the run from its event log.</span></div>`}`}
+function evPanel(){const f=S.run.evf,s=stg(),rows=EVT.filter(e=>e[0]<=s&&(f==='all'||(f==='errors'?['error','retry'].includes(e[3]):f==='supervisor'?e[3]==='supervisor':e[3]==='quota'))).reverse();
+ return `<div class="row wrap" style="margin-bottom:8px">${[['all','All'],['errors','Errors'],['supervisor','Supervisor'],['quota','Quota']].map(x=>`<button class="chip ${f===x[0]?'on':''}" data-act="evf" data-v="${x[0]}">${x[1]}</button>`).join('')}</div>${rows.map(e=>`<div class="ev"><span class="t">${e[1]}</span><div><div class="p">${e[2]}</div><div>${esc(e[4])}</div></div></div>`).join('')||'<div class="empty">No events yet.</div>'}<p class="hint" style="margin-top:10px">Every event carries its execution path, so this list, the canvas and retries all read from one log.</p>`}
+function supPanel(){const s=stg(),feed=SUP.filter(x=>x.s<=s).reverse(),iv=(S.run.sup.approve?1:0)+(S.run.retried?1:0);
+ return `<div class="card" style="margin-bottom:12px"><div class="card-b"><div class="row" style="margin-bottom:8px"><span class="avatar agent">${ic('eye',12)}</span><b>Supervisor</b><span class="pill accent">Advisory</span><span class="sp"></span><span class="faint">Wakes on events</span></div><div class="muted" style="margin-bottom:10px">Goal: produce a vetted tool comparison the user can act on.</div>
+ <div class="grid2"><div><div class="faint" style="font-size:12px">Interventions</div><div style="font-weight:600">${iv} of 6</div></div><div><div class="faint" style="font-size:12px">Spend</div><div style="font-weight:600">$${RB[s].s.toFixed(2)} of $1.00</div></div></div></div></div>
+ ${feed.map((x,i)=>{const open=x.a&&!(x.a==='approve'&&(s>2||S.run.rej))&&!(x.a==='retry'&&S.run.retried);return `<div class="card" style="margin-bottom:10px"><div class="card-b"><div class="row" style="margin-bottom:4px"><b>${x.h}</b><span class="sp"></span><span class="faint mono" style="font-size:11.5px">${x.t}</span></div><div class="muted">${x.b}</div>${x.a?`<div class="row" style="margin-top:10px">${open?`<button class="btn primary sm" data-act="sup-${x.a}">${x.cta}</button><button class="btn sm" data-act="toast" data-m="Dismissed">Dismiss</button>`:`<span class="pill green">${ic('check',12)}Applied</span>`}</div>`:''}</div></div>`}).join('')||'<div class="empty">The supervisor is idle. It wakes at node boundaries and on events like approvals, failures and budget thresholds.</div>'}
+ <div class="note accent" style="margin-top:8px">${ic('shield',15)}<span>Everything the supervisor reads is treated as untrusted data. Irreversible approvals always need a person.</span></div>`}
+function budPanel(){const s=stg(),b=RB[s],bar=(v,m,t='')=>`<div class="bar ${v/m>.8?'amber':''}"><i style="width:${Math.min(100,v/m*100)}%"></i></div>`;
+ return [['Cost',`$${b.c.toFixed(2)} of $5.00`,bar(b.c,5)],['Active time',`${b.m} of 90 min`,bar(b.m,90)],['Tokens',b.t,''],['Supervisor spend',`$${b.s.toFixed(2)} of $1.00`,bar(b.s,1)]].map(r=>`<div style="margin-bottom:14px"><div class="row"><span class="muted">${r[0]}</span><span class="sp"></span><b>${r[1]}</b></div>${r[2]}</div>`).join('')+
+ `<div class="note" style="margin-bottom:14px">${ic('clock',15)}<span>Active time excludes paused time${s>=5?'. This run paused for <b>3h 00m</b> waiting for quota.':'.'}</span></div><h3 style="margin-bottom:6px">Providers</h3><div class="card"><table class="tbl"><thead><tr><th>Provider</th><th>In use</th><th>State</th></tr></thead><tbody>
+ <tr><td>Claude</td><td>${CLLOAD[s]} of 4</td><td><span class="pill green">Available</span></td></tr><tr><td>Codex</td><td>${s===4?'Paused':CXLOAD[s]+' of 4'}</td><td>${s===4?'<span class="pill amber">Blocked until 15:30</span>':'<span class="pill green">Available</span>'}</td></tr></tbody></table></div>
+ <p class="hint" style="margin-top:8px">Concurrency caps are global across projects and counted per provider.</p>`}
+function viewRun(m,r){const p=proj(r.pid),run=RUNS.find(x=>x.id===r.rid)||RUNS[0],isLive=run.id===42;if(!isLive&&!S.run.fixed)S.run.fixed=1;const s=stg(),b=RB[s],tab=S.run.tab,st=runStatus();
+ const cr=[['Projects','#/p/'+p.id],[p.name,'#/p/'+p.id],[WF[run.wf].name,`#/p/${p.id}/w/${run.wf}`],['Run #'+run.id]];
+ const act=`<a class="btn sm" href="#/p/${p.id}/w/${run.wf}">Open workflow</a>${isLive&&st!=='succeeded'&&st!=='rejected'?`<button class="btn sm danger" data-act="cancel-run">${ic('stop',12)}Cancel run</button>`:`<button class="btn sm" data-act="rerun">${ic('refresh',13)}Rerun</button>`}`;
+ let ban='';if(st==='waiting_approval')ban=`<div class="banner amber">${ic('ucheck',16)}<span><b>Waiting for you.</b> Triage was not confident enough to continue on its own, so the run needs your approval.</span><span class="sp"></span><button class="btn sm primary" data-act="approve">Approve</button><button class="btn sm" data-act="reject">Reject</button></div>`;
+ if(st==='paused')ban=`<div class="banner amber">${ic('pause',16)}<span><b>Paused for Codex quota.</b> Resumes about 3:30 PM, parsed from the CLI output. Paused time does not count toward your budget.</span><span class="sp"></span><button class="btn sm" data-act="resume-now">Resume now</button></div>`;
+ if(st==='rejected')ban=`<div class="banner red">${ic('cx',16)}<span><b>Rejected at the Approve step.</b> The run ended on the rejected path. Nothing was changed.</span></div>`;
+ if(st==='succeeded')ban=`<div class="banner green">${ic('cok',16)}<span><b>Run succeeded.</b> 56 minutes active, 3 hours paused for quota.</span></div>`;
+ const pth=S.run.path,bc=pth.map((x,i)=>i===pth.length-1?`<b>${esc(i===0?'Workflow':x==='evaluate'?TOOLS[S.run.item]:'Round '+S.run.iter)}</b>`:`<a href="#" data-act="rcrumb" data-i="${i}">${i===0?'Workflow':'x'}</a>${ic('chev',12,'faint')}${x==='evaluate'&&i===0?'':''}`).join('');
+ const bread=pth.length===1?'<b>Workflow</b>':`<a href="#" data-act="rcrumb">Workflow</a>${ic('chev',12,'faint')}<a href="#" data-act="rcrumb">${pth[1]==='evaluate'?'Trial tools':'Review loop'}</a>${ic('chev',12,'faint')}<b>${pth[1]==='evaluate'?TOOLS[S.run.item]:'Round '+S.run.iter}</b>`;
+ const sel=S.run.sel,g=G[pth[pth.length-1]],sn=sel&&nodeById(g,sel);let panel='';
+ if(tab==='detail')panel=sn?(isCont(sn)&&pth.length===1?(sn.type==='map'?itemsPanel(sn):roundsPanel(sn)):nodeDetail(sel)):runSummary();if(tab==='events')panel=evPanel();if(tab==='sup')panel=supPanel();if(tab==='budget')panel=budPanel();
+ const mxs=mx(),ticks=Array.from({length:mxs+1},(_,i)=>i);
+ if(!isLive)ban=`<div class="banner blue">${ic('info',16)}<span>Sample data: this mock replays the same graph and events for every run.</span></div>`+ban;
+ m.innerHTML=topbar(cr,act)+ban+`<div class="cv-bar"><div class="crumbs">${bread}</div><span class="sp"></span>${pill(st)}<span class="chip">${ic('dollar',12)}$${b.c.toFixed(2)} of $5.00</span><span class="chip">${ic('clock',12)}${b.m} min active</span><span class="chip">${ic('file',12)}Snapshot v14</span></div>
+ <div class="cv-wrap"><div class="cv" id="cv"></div><aside class="rp"><div class="tabs" style="padding:0 8px">${[['detail','Details'],['events','Events'],['sup','Supervisor'],['budget','Budget']].map(t=>`<button class="tab ${tab===t[0]?'active':''}" data-act="rtab" data-v="${t[0]}">${t[1]}${t[0]==='sup'&&SUP.some(x=>x.a&&x.s<=s&&!((x.a==='approve'&&(s>2||S.run.rej))||(x.a==='retry'&&S.run.retried)))?'<span class="badge-n" style="margin-left:2px">1</span>':''}</button>`).join('')}</div><div class="rp-b">${panel}</div></aside></div>
+ <div class="scrub"><button class="btn icon sm" data-act="step" data-d="-1" title="Step back">${ic('back',14)}</button><button class="btn sm ${S.run.play?'':'primary'}" data-act="play" style="min-width:76px">${ic(S.run.play?'pause':'play',12)}${S.run.play?'Pause':'Replay'}</button><button class="btn icon sm" data-act="step" data-d="1" title="Step forward">${ic('skip',13)}</button>
+ <div class="track"><div class="ln"></div><div class="fl" style="width:${s/8*100}%"></div>${ticks.map(i=>`<button class="tk ${i<=s?'done':''} ${i===s?'cur':''} ${i===2||i===4?'warn':''}" style="left:${i/8*100}%" data-act="stage" data-i="${i}" title="${STN[i]}"></button>`).join('')}${S.run.rej?`<span class="faint" style="position:absolute;left:${2/8*100+4}%;top:22px;font-size:11.5px;color:var(--red)">Rejected path ends here</span>`:''}</div>
+ <div style="width:230px;text-align:right"><div style="font-weight:600">${S.run.rej&&s>=2?'Rejected':STN[s]}</div><div class="faint" style="font-size:12px">${TIME[s]}, from the event log</div></div></div>`}
+function mountRun(){const box=$('#cv'),pth=S.run.path,key='run:'+pth.join('/'),g=G[pth[pth.length-1]],s=stg();
+ const o=()=>({run:1,sel:S.run.sel,st:curSt,taken:s>=2&&pth.length===1?'human':null,es:edgeState,badge:n=>n.type==='map'?(s<3?'7 items':itemCounts().done+' of 7'):(s<6?'up to 4':'round '+rounds().length),onSel:id=>{S.run.sel=id;S.run.tab='detail';rr()}});
+ mountCanvas(box,key,g,o,'run')}
+function rr(){renderSidebar();const sc=$('.rp-b')?$('.rp-b').scrollTop:0;viewRun($('#main'),S.r);mountRun();const b=$('.rp-b');if(b)b.scrollTop=sc}
+function setStage(i){S.run.stage=Math.max(0,Math.min(mx(),i));if(S.run.stage<3&&S.run.path.length>1){S.run.path=['main'];S.run.sel=null}rr()}
+function autoplay(){clearInterval(S.run.tmr);if(!S.run.play)return;S.run.tmr=setInterval(()=>{const s=stg();if(s===mx()){S.run.play=false;clearInterval(S.run.tmr);rr();return}if(s===2||s===4){return}setStage(s+1)},1800)}
+/* ===== context banks ===== */
+const V=(seq,by,when,body,st='active',x={})=>Object.assign({seq,by,when,body,st},x);
+const BANK={project:[
+ {t:'stack',desc:'Frontend stack and build constraints',pin:1,vers:[V(233,'user','Oct 21','Next.js 15, pnpm workspaces, Node 22.\nCI budget: 90 seconds per build.\nThe monorepo uses Turborepo.'),V(18,'user','Oct 12','Next.js 15, pnpm workspaces, Node 22.\nCI budget: 90 seconds per build.','superseded')]},
+ {t:'conventions',desc:'Code style and layout rules',pin:1,vers:[V(40,'user','Oct 12','Use named exports. Tests live next to the code. Shared packages never use default exports.')]},
+ {t:'bundler-notes',desc:'What research learned about bundlers',vers:[V(411,'agent','Today 12:19','Rspack has the closest webpack config compatibility. Vite needs plugin work for our SVG loader.','proposed',{run:42,node:'research'})]},
+ {t:'decisions',desc:'Decisions made in past runs',vers:[V(301,'agent','Oct 20','Chose zod over valibot for schema validation. The migration is smaller and the team already knows it.','active',{run:38,node:'refine/writer'})]},
+ {t:'glossary',desc:'Terms used in this codebase',vers:[V(7,'user','Oct 12','Orbit: the design system package.\nSpine: the shared data layer.')]},
+ {t:'flaky-tests',desc:'Known flaky tests',vers:[V(372,'agent','Oct 22','','retracted',{run:39,node:'research',note:'Retracted by you: the claim was wrong.'}),V(366,'agent','Oct 22','checkout.spec.ts is flaky on CI.','superseded',{run:39,node:'research'})]}],
+ workflow:[
+ {t:'processed-tools',desc:'Tools already evaluated, so reruns skip them',log:1,vers:[V(398,'agent','Oct 20','Schema validators: zod, valibot, arktype','active',{run:38,node:'endok'}),V(312,'agent','Oct 14','E2E runners: Playwright, Cypress','active',{run:35,node:'endok'}),V(255,'agent','Oct 8','Linters: Biome, ESLint','active',{run:31,node:'endok'})]},
+ {t:'preferences',desc:'What good looks like for this workflow',pin:1,vers:[V(120,'user','Oct 12','Prefer tools with an actively maintained TypeScript plugin.\nAvoid anything that needs a native build step on CI.')]},
+ {t:'last-run-learnings',desc:'Notes the agent left for the next run',vers:[V(401,'agent','Oct 22','Ask for build times on our repo, not published numbers. Benchmarks varied by 3x.','active',{run:39,node:'refine/writer'})]}]};
+const bank=()=>BANK[S.ctx.scope];
+function ctxView(scope,p){if(scope==='project')S.ctx.scope='project';else if(S.ctx.scope==='project'&&!S.ctx.keep)S.ctx.scope='workflow';S.ctx.wf=scope==='workflow';
+ const b=bank(),prop=BANK.project.filter(x=>x.vers[0].st==='proposed').length;if(!b.find(x=>x.t===S.ctx.sel))S.ctx.sel=b[0].t;
+ return `<div class="cv-bar" style="height:auto;padding:10px 16px"><div class="grow"><div class="row"><b>${S.ctx.scope==='project'?'Project bank':'Workflow bank'}</b>${S.ctx.wf?`<div class="seg" style="margin-left:8px"><button class="${S.ctx.scope==='workflow'?'on':''}" data-act="ctx-scope" data-v="workflow">Workflow</button><button class="${S.ctx.scope==='project'?'on':''}" data-act="ctx-scope" data-v="project">Project</button></div>`:''}</div>
+ <div class="muted" style="margin-top:2px">${S.ctx.scope==='project'?'Shared by every workflow in this project. Stored in .relay/context/project.jsonl so it diffs cleanly in git.':'Shared across runs of this workflow. Stored in the app data folder.'}</div></div>
+ <button class="btn sm" data-act="ctx-compact">${ic('layers',13)}Compact</button><button class="btn primary sm" data-act="ctx-add">${ic('plus',13)}Add entry</button></div>
+ <div class="split"><div class="l"><div style="padding:10px 14px;border-bottom:1px solid var(--border)"><input class="input" id="ctxq" placeholder="Search entries (full-text)" value="${esc(S.ctx.q)}"><div class="row wrap" style="margin-top:8px">${[['all','All'],['pinned','Pinned'],['agent','Written by agents'],['proposed','Proposed'+(prop&&S.ctx.scope==='project'?' ('+prop+')':'')]].map(f=>`<button class="chip ${S.ctx.f===f[0]?'on':''}" data-act="ctx-f" data-v="${f[0]}">${f[1]}</button>`).join('')}</div></div><div id="ctxlist">${ctxList()}</div></div><div class="r" id="ctxdet">${ctxDetail()}</div></div>`}
+function ctxList(){const q=S.ctx.q.toLowerCase(),f=S.ctx.f,rows=bank().filter(x=>{const v=x.vers[0];return(!q||(x.t+x.desc+x.vers.map(y=>y.body).join(' ')).toLowerCase().includes(q))&&(f==='all'||(f==='pinned'?x.pin:f==='agent'?x.vers.some(y=>y.by==='agent'):v.st==='proposed'))});
+ return rows.map(x=>{const v=x.vers[0];return `<div class="topic ${S.ctx.sel===x.t?'on':''}" data-act="ctx-sel" data-t="${x.t}"><div class="row"><span class="mono" style="font-weight:600">${x.t}</span>${x.pin?`<span class="faint">${ic('pin',12)}</span>`:''}<span class="sp"></span>${v.st==='proposed'?'<span class="pill amber">Proposed</span>':v.st==='retracted'?'<span class="pill">Retracted</span>':''}</div><div class="muted" style="margin:2px 0 4px">${esc(x.desc)}</div><div class="row faint" style="font-size:12px"><span class="avatar ${v.by==='agent'?'agent':''}" style="width:16px;height:16px;font-size:10px">${v.by==='agent'?'A':'U'}</span>${v.by==='agent'?'Agent':'You'}, ${v.when}</div></div>`}).join('')||'<div class="empty">No entries match.</div>'}
+function ctxDetail(){const x=bank().find(t=>t.t===S.ctx.sel);if(!x)return '';const v=x.vers[0];
+ return `<div style="padding:20px 28px;max-width:760px"><div class="row" style="margin-bottom:4px"><h2 class="mono">${x.t}</h2>${x.pin?'<span class="pill accent">Pinned</span>':''}<span class="pill ${v.st==='proposed'?'amber':v.st==='retracted'?'':'green'}">${v.st==='proposed'?'Proposed':v.st==='retracted'?'Retracted':'Active'}</span><span class="sp"></span>
+ <button class="btn sm" data-act="ctx-edit">${ic('edit',13)}Edit</button><button class="btn sm" data-act="ctx-pin">${ic('pin',13)}${x.pin?'Unpin':'Pin'}</button><button class="btn sm danger" data-act="ctx-retract" ${v.st==='retracted'?'disabled':''}>Retract</button></div>
+ <p class="muted" style="margin-bottom:14px">${esc(x.desc)}${x.log?' This topic is a log: every appended entry stays active.':''}</p>
+ ${v.st==='proposed'?`<div class="note amber" style="margin-bottom:14px;align-items:center">${ic('info',16)}<span class="grow">An agent proposed this entry. Agents' writes to the project bank stay proposed until you approve them, so a wrong claim cannot quietly shape later runs.</span><button class="btn primary sm" data-act="ctx-approve">Approve</button><button class="btn sm" data-act="ctx-reject">Reject</button></div>`:''}
+ ${v.st==='retracted'?`<div class="note" style="margin-bottom:14px">${ic('info',16)}<span>${v.note}. The earlier entry stays in history but is out of the active view.</span></div>`:`<div class="card" style="margin-bottom:18px"><div class="card-b" style="white-space:pre-wrap">${esc(v.body)}</div></div>`}
+ <dl class="kv" style="margin-bottom:18px"><dt>Entry</dt><dd class="mono">#${v.seq}</dd><dt>Written by</dt><dd class="row"><span class="avatar ${v.by==='agent'?'agent':''}">${v.by==='agent'?'A':'U'}</span>${v.by==='agent'?`Agent in <a href="#/p/orbit-web/r/${v.run}">run ${v.run}</a>, node <span class="mono">${v.node}</span>`:'You, in the app'}</dd><dt>Written</dt><dd>${v.when}</dd><dt>Read by</dt><dd>Research, Writer, Critic</dd></dl>
+ <h3 style="margin-bottom:10px">History</h3><div class="hist">${x.vers.map((y,i)=>`<div class="h-i ${i===0?'cur':'old'}"><div class="row"><b>#${y.seq}</b><span class="muted">${y.by==='agent'?'Agent':'You'}, ${y.when}</span>${i===0?'<span class="pill green">Current</span>':y.st==='superseded'?'<span class="pill">Superseded</span>':'<span class="pill">Log entry</span>'}</div><div class="muted" style="margin-top:2px;white-space:pre-wrap">${y.body?esc(y.body.split('\n')[0])+(y.body.includes('\n')?' ...':''):'Retraction (empty entry)'}</div></div>`).join('')}</div>
+ <div class="note" style="margin-top:6px">${ic('lock',15)}<span>Append-only. Edits add a new entry that supersedes the old one, and history stays intact. Agents can append and supersede but never edit or delete.</span></div>
+ <div class="row" style="margin-top:14px"><button class="btn sm danger" data-act="ctx-purge">${ic('trash',13)}Purge permanently</button><span class="hint" style="margin:0">Only you can purge, for secrets or private material.</span></div></div>`}
+function ctxRefresh(){const l=$('#ctxlist'),d=$('#ctxdet');if(l)l.innerHTML=ctxList();if(d)d.innerHTML=ctxDetail();$$('.tab .cnt')}
+
+/* ===== workflow settings ===== */
+function wfSettings(w){const chips=(a,on)=>a.map(x=>`<button class="chip ${on.includes(x)?'on':''}" data-act="chip">${x}</button>`).join('');
+ return `<div class="page-h"><div class="grow"><h1>Workflow settings</h1><p>${esc(w.name)}: supervisor, budgets and the portable file.</p></div></div>
+ <div class="card"><div class="card-h">${ic('eye',16)}Supervisor</div><div class="card-b"><div class="field"><label>Goal</label><textarea class="textarea" rows="2">Produce a vetted tool comparison the user can act on.</textarea><div class="hint">The supervisor watches every run toward this goal. It is configured here and never drawn on the canvas.</div></div>
+ <div class="grid2"><div class="field"><label>Agent CLI</label><select class="select"><option>Claude Code</option><option>Codex</option></select></div><div class="field"><label>Budget</label><input class="input" value="$1.00"></div></div>
+ <div class="field"><label>Autonomy</label><div class="seg" id="aut">${['Observe','Advisory','Bounded','Full'].map((x,i)=>`<button class="${i===1?'on':''}" data-act="seg-local">${x}</button>`).join('')}</div><div class="hint">Advisory: it recommends and you apply with one click. Merges, external side effects and deletions always need a person.</div></div>
+ <div class="field"><label>Watch</label><div class="seg"><button class="on" data-act="seg-local">Events only</button><button data-act="seg-local">Every node</button></div><div class="hint">Every node uses more tokens. Override it per node with Checkpoint, Notify or Skip.</div></div>
+ <div class="field"><label>Wake on</label><div class="row wrap">${chips(['approval','node_failed','low_confidence','loop_stalled','budget_80','watchdog'],['approval','node_failed','low_confidence','budget_80','watchdog'])}</div></div>
+ <div class="field"><label>Allowed actions</label><div class="row wrap">${chips(['approve','retry','steer','pause','write_context'],['retry','steer','pause','write_context'])}</div><div class="hint">Steering applies at the next turn boundary: guidance is queued for the next resume, or the node is cancelled and resumed with it.</div></div></div></div>
+ <div class="card" style="margin-top:16px"><div class="card-h">${ic('dollar',16)}Budgets</div><div class="card-b"><div class="grid3"><div class="field"><label>Cost cap</label><input class="input" value="$5.00"></div><div class="field"><label>Token cap</label><input class="input" value="6M"></div><div class="field"><label>Active time cap</label><input class="input" value="90 min"></div></div><div class="hint">Caps cover loops and maps as a whole. Active time excludes time paused for quota, and token caps suit subscription plans that do not report cost.</div></div></div>
+ <div class="card" style="margin-top:16px"><div class="card-h">${ic('file',16)}Workflow file</div><div class="card-b"><dl class="kv" style="margin-bottom:12px"><dt>Path</dt><dd class="mono">.relay/workflows/tool-research.json</dd><dt>Schema version</dt><dd>1</dd><dt>Requires</dt><dd>Claude Code, Codex, 1 decision provider, network access on 2 nodes, 1 worktree node</dd></dl><div class="row"><button class="btn sm" data-act="export">${ic('down',13)}Export</button><button class="btn sm" data-act="import">${ic('up',13)}Replace from file</button></div></div></div>
+ <div class="card" style="margin-top:16px"><div class="card-h" style="color:var(--red)">Delete workflow</div><div class="card-b row"><span class="muted grow">Deletes the workflow file. Past runs keep their frozen snapshots.</span><button class="btn danger sm">Delete workflow</button></div></div>`}
+
+/* ===== settings ===== */
+const STABS=[['general','General'],['providers','Agent CLIs and providers'],['limits','Limits and budgets'],['security','Security'],['data','Data and cleanup']];
+function viewSettings(m,r){const t=r.tab;let b='';const row=(a,h,sw)=>`<div class="list-row"><div class="grow"><div style="font-weight:500">${a}</div><div class="muted">${h}</div></div><button class="sw ${sw?'on':''}" data-act="sw-local"></button></div>`;
+ if(t==='general')b=`<h1>General</h1><p class="muted" style="margin:4px 0 20px">Appearance, notifications and shortcuts.</p><div class="card"><div class="list-row"><div class="grow"><div style="font-weight:500">Theme</div><div class="muted">Relay follows your system by default.</div></div><div class="seg"><button class="${S.theme==='light'?'on':''}" data-act="theme-set" data-v="light">Light</button><button class="${S.theme==='dark'?'on':''}" data-act="theme-set" data-v="dark">Dark</button></div></div></div>
+ <h2 style="margin:24px 0 10px">Desktop notifications</h2><div class="card">${row('Approval needed','A run is waiting for you at an approval node.',1)}${row('Supervisor escalations','The supervisor hit its intervention cap or wants a decision.',1)}${row('Paused for quota','A provider hit its usage limit and the run is waiting.',1)}${row('Resumed after quota reset','Paused work started again.',0)}</div>
+ <h2 style="margin:24px 0 10px">Shortcuts</h2><div class="card">${[['Search and jump to anything','⌘K'],['Delete the selected node or connection','⌫'],['Zoom the canvas','⌘ scroll'],['Pan the canvas','Drag or scroll']].map(s=>`<div class="list-row"><span class="grow">${s[0]}</span><span class="kbd">${s[1]}</span></div>`).join('')}</div>`;
+ if(t==='providers')b=`<h1>Agent CLIs and providers</h1><p class="muted" style="margin:4px 0 20px">Agent CLIs keep their own sign-in. Decision providers are bring-your-own-key profiles stored in a JSON file in your config folder.</p>
+ <h2 style="margin-bottom:10px">Agent CLIs</h2><div class="card"><table class="tbl"><thead><tr><th>CLI</th><th>Sign-in</th><th>Structured output</th><th>Permissions</th><th>Concurrency</th></tr></thead><tbody>${[['Claude Code','Signed in','submit-result tool','green','Enforced',4],['Codex','Signed in','Schema flag and submit-result','green','Enforced',4],['OpenCode','Not signed in','submit-result via SDK','amber','Advisory',2],['Pi','Signed in','submit-result via extension','amber','Advisory',2]].map(c=>`<tr><td style="font-weight:600">${c[0]}</td><td><span class="pill ${c[1]==='Signed in'?'green':'amber'}"><span class="dot"></span>${c[1]}</span></td><td class="muted">${c[2]}</td><td><span class="pill ${c[3]}">${c[4]}</span></td><td><input class="input sm" style="width:56px" value="${c[5]}"></td></tr>`).join('')}</tbody></table></div>
+ <p class="hint" style="margin:8px 0 24px">Advisory means the CLI cannot enforce a node's declared permissions, so the editor warns on risky combinations.</p>
+ <div class="row" style="margin-bottom:10px"><h2 class="grow">Decision providers</h2><button class="btn sm" data-act="add-prov">${ic('plus',13)}Add profile</button></div><div class="card"><table class="tbl"><thead><tr><th>Profile</th><th>Wire format</th><th>Model</th><th>Key</th><th>Status</th><th></th></tr></thead><tbody>${[['openai-default','OpenAI Decisions','gpt-6-luna','$OPENAI_API_KEY','Connected'],['jev','System One','jev','$TYPESAFE_API_KEY','Connected'],['vllm-local','System One','qwen-decision','none (local)','Not tested']].map(p=>`<tr><td style="font-weight:600" class="mono">${p[0]}</td><td>${p[1]}</td><td class="mono">${p[2]}</td><td class="mono muted">${p[3]}</td><td><span class="pill ${p[4]==='Connected'?'green':''}"><span class="dot"></span>${p[4]}</span></td><td style="text-align:right"><button class="btn sm" data-act="test-prov" data-p="${p[0]}">Test</button></td></tr>`).join('')}</tbody></table></div>
+ <div class="note" style="margin-top:12px">${ic('info',15)}<span>Sample profiles. Workflows reference a profile by name, so exported files never contain keys or endpoints.</span></div>`;
+ if(t==='limits')b=`<h1>Limits and budgets</h1><p class="muted" style="margin:4px 0 20px">Global caps protect your machine and your rate limits across all projects.</p><div class="card"><div class="card-h">Default budgets</div><div class="card-b"><div class="grid3"><div class="field"><label>Cost per run</label><input class="input" value="$5.00"></div><div class="field"><label>Tokens per run</label><input class="input" value="6M"></div><div class="field"><label>Active time per run</label><input class="input" value="90 min"></div></div><div class="hint">Dollar budgets alone do not suit subscription plans, so tokens and time are tracked as well.</div></div></div>
+ <div class="card" style="margin-top:16px"><div class="card-h">When a usage limit is hit</div><div class="card-b"><div class="field"><label>Default behavior</label><div class="seg"><button class="on" data-act="seg-local">Wait and resume</button><button data-act="seg-local">Fail the node</button></div></div><div class="field"><label>Stop waiting and ask me after</label><div class="row"><input class="input" style="width:80px" value="12"><span class="muted">hours</span></div><div class="hint">Waiting does not use up retries or active time. Past this limit the node escalates to you.</div></div></div></div>
+ <div class="card" style="margin-top:16px"><div class="card-h">Write lock</div><div class="card-b row"><span class="muted grow">Only one node that writes to a project folder can run at a time. Read-only, worktree and scratch nodes are not limited.</span><span class="pill green">Always on</span></div></div>`;
+ if(t==='security')b=`<h1>Security</h1><p class="muted" style="margin:4px 0 20px">Relay runs shell commands and agents, so the local server is locked down.</p><div class="card"><div class="list-row"><div class="grow"><div style="font-weight:500">Listening address</div><div class="muted">Never exposed beyond this machine.</div></div><span class="mono">127.0.0.1:4821</span></div><div class="list-row"><div class="grow"><div style="font-weight:500">Session token</div><div class="muted">Required on every API call. Regenerated each time Relay starts.</div></div><span class="mono muted">rly_••••••••••3f9a</span><button class="btn sm" data-act="toast" data-m="Token rotated. Reopen Relay from your terminal.">Rotate</button></div><div class="list-row"><div class="grow"><div style="font-weight:500">Host and Origin checks</div><div class="muted">Blocks websites from reaching the server through DNS rebinding.</div></div><span class="pill green">On</span></div></div>
+ <h2 style="margin:24px 0 10px">Registered projects</h2><div class="card">${PROJECTS.map(p=>`<div class="list-row"><span class="faint">${ic(p.kind==='git'?'branch':'folder',15)}</span><span class="grow"><b>${p.name}</b> <span class="mono muted">${p.path}</span></span></div>`).join('')}</div><p class="hint" style="margin-top:8px">The server only touches registered project paths. Requests that resolve outside them, including through symlinks, are rejected.</p>
+ <h2 style="margin:24px 0 10px">Secrets</h2><div class="card">${row('Redact known secrets','Removes keys and tokens from transcripts, logs and banks.',1)}<div class="list-row"><div class="grow"><div style="font-weight:500">Config file permissions</div><div class="muted mono">~/.config/relay/providers.json</div></div><span class="pill green">Owner only (600)</span></div></div>`;
+ if(t==='data')b=`<h1>Data and cleanup</h1><p class="muted" style="margin:4px 0 20px">Worktrees, branches and transcripts add up. Pick how long to keep them.</p><div class="card"><div class="card-h">Storage</div><table class="tbl"><tbody>${[['Event logs','84 MB'],['Run worktrees and branches','1.2 GB'],['Transcripts','310 MB'],['Workflow banks','4 MB']].map(x=>`<tr><td>${x[0]}</td><td style="text-align:right" class="muted">${x[1]}</td></tr>`).join('')}</tbody></table></div>
+ <div class="card" style="margin-top:16px"><div class="card-h">Retention</div><div class="card-b"><div class="field"><label>Keep finished runs for</label><select class="select" style="width:180px"><option>30 days</option><option>90 days</option><option>Forever</option></select><div class="hint">Run history and event logs are kept. Worktrees and transcripts are removed.</div></div><button class="btn sm" data-act="toast" data-m="Cleaned up 1.0 GB from 14 runs">${ic('trash',13)}Clean up now</button></div></div>
+ <div class="card" style="margin-top:16px"><div class="card-h">Locations</div><div class="card-b"><dl class="kv"><dt>Config</dt><dd class="mono">~/.config/relay/</dd><dt>Run data</dt><dd class="mono">~/.relay/projects/</dd><dt>Workflows</dt><dd class="mono">&lt;project&gt;/.relay/workflows/</dd></dl></div></div>`;
+ m.innerHTML=topbar([['Settings']])+`<div class="sn"><div class="l">${STABS.map(s=>`<a class="nav-item ${t===s[0]?'active':''}" href="#/settings/${s[0]}">${s[1]}</a>`).join('')}</div><div class="r"><div class="page" style="max-width:820px">${b}</div></div></div>`}
+/* ===== modals ===== */
+const modal=(h,c='')=>{$('#overlay').innerHTML=`<div class="backdrop" data-act="close-bg"><div class="modal ${c}">${h}</div></div>`};
+const closeModal=()=>{$('#overlay').innerHTML=''};
+const mh=t=>`<div class="modal-h"><h2>${t}</h2><button class="btn ghost icon sm" data-act="close">${ic('x',15)}</button></div>`;
+const mf=(b)=>`<div class="modal-f">${b}</div>`;
+function runModal(wf){const st=G.main.nodes.find(n=>n.type==='start'),p=proj(S.r.pid||'orbit-web');
+ modal(`${mh('Run '+(WF[wf]||WF['tool-research']).name)}<div class="modal-b"><p class="muted" style="margin-bottom:14px">This form is generated from the Start node's parameters.</p>${st.params.map(pm=>`<div class="field"><label>${pm.n}${pm.r?' (required)':''}</label>${pm.t==='enum'?'<select class="select"><option>standard</option><option>deep</option></select>':`<input class="input" value="${esc(pm.d)}">`}</div>`).join('')}
+ <div class="sep"></div><div class="grid2"><div class="field"><label>Cost cap</label><input class="input" value="$5.00"></div><div class="field"><label>Active time cap</label><input class="input" value="90 min"></div></div>
+ <dl class="kv"><dt>Workspace base</dt><dd>${p.branch||'main'} at <span class="mono">${p.sha||'a1b2c3d'}</span>, pinned for every node in this run</dd><dt>Supervisor</dt><dd>Advisory, watching events</dd><dt>Snapshot</dt><dd>Workflow v14 is frozen for this run</dd></dl>
+ ${p.dirty?`<div class="note amber" style="margin-top:12px">${ic('warn',15)}<span>${p.name} has uncommitted changes. Worktree nodes start from the last commit and will not see them.</span></div>`:''}</div>${mf(`<button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="do-run">${ic('play',12)}Run workflow</button>`)}`)}
+function startRun(){Object.assign(S.run,{stage:0,play:false,sel:null,path:['main'],rej:false,retried:false,sup:{},item:null,iter:null,tab:'detail'});S.auto=true;closeModal();if(location.hash==='#/p/orbit-web/r/42')render();else location.hash='#/p/orbit-web/r/42'}
+function importModal(){const rows=[['cok','green','Agent CLIs','Claude Code and Codex. Both are installed and signed in.'],['warn','amber','Network access','2 nodes can browse the web: Research and Try tool.'],['term','amber','Runs shell commands','1 shell node runs: pnpm build && pnpm test --run'],['shield','green','Writes to your project','Worktree workspaces only. No node edits your project folder directly.']];
+ modal(`${mh('Import workflow')}<div class="modal-b"><div class="note" style="margin-bottom:16px;align-items:center">${ic('file',16)}<span class="grow mono">tool-research.relay.json</span><span class="faint">12 KB</span></div><h3 style="margin-bottom:8px">Review before importing</h3><p class="muted" style="margin-bottom:10px">Workflow files can run commands on your machine. Here is what this one asks for.</p>
+ <div class="card">${rows.map(r=>`<div class="list-row" style="align-items:flex-start"><span class="pill ${r[1]}" style="width:24px;padding:0;justify-content:center;height:24px;border-radius:6px">${ic(r[0],13)}</span><div><b>${r[2]}</b><div class="muted">${r[3]}</div></div></div>`).join('')}
+ <div class="list-row" style="align-items:flex-start"><span class="pill amber" style="width:24px;padding:0;justify-content:center;height:24px;border-radius:6px">${ic('zap',13)}</span><div class="grow"><b>Decision providers</b><div class="muted" style="margin-bottom:8px">Needs 2 profiles. <span class="mono">openai-default</span> was found. <span class="mono">gpt-decisions</span> is not on this machine.</div><select class="select" id="impmap" style="max-width:260px"><option value="">Use my profile for gpt-decisions...</option>${DPROV.map(d=>`<option>${d}</option>`).join('')}</select></div></div></div></div>
+ ${mf(`<span class="hint grow" style="margin:0">Choose a profile to continue.</span><button class="btn" data-act="close">Cancel</button><button class="btn primary" id="impgo" data-act="do-import" disabled>Import workflow</button>`)}`,'wide')}
+function exportModal(){modal(`${mh('Export workflow')}<div class="modal-b"><dl class="kv" style="margin-bottom:12px"><dt>File</dt><dd class="mono">tool-research.relay.json</dd></dl><pre class="code" style="max-height:200px">${jhl({schemaVersion:1,name:'tool-research',budget:{maxUsd:5,maxMinutes:90},nodes:[{id:'research',type:'agent',cli:'claude-code',ws:'scratch',prompt:'Research {{start.topic}} ...'},{id:'triage',type:'decision',provider:'openai-default'}],edges:['...']})}</pre>
+ <div class="sep"></div>${[['Include canvas layout',1],['Include pinned outputs',0],['Include seed context from the workflow bank',0]].map(x=>`<div class="list-row" style="padding:8px 0;border:0"><span class="grow">${x[0]}</span><button class="sw ${x[1]?'on':''}" data-act="sw-local"></button></div>`).join('')}
+ <div class="note" style="margin-top:8px">${ic('lock',15)}<span>API keys, endpoints and absolute paths are never included. Providers are referenced by name.</span></div></div>${mf(`<button class="btn" data-act="toast" data-m="Copied JSON">${ic('copy',13)}Copy JSON</button><button class="btn primary" data-act="do-export">${ic('down',13)}Download file</button>`)}`)}
+function projModal(){modal(`${mh('Add project')}<div class="modal-b"><p class="muted" style="margin-bottom:14px">A project is a git repository or a plain folder. Each one keeps its own workflows and context.</p><div class="field"><label>Folder path</label><div class="row"><input class="input mono" id="pp" value="~/code/payments-api"><button class="btn" data-act="detect">Detect</button></div></div><div id="pdet"></div></div>${mf('<button class="btn" data-act="close">Cancel</button><button class="btn primary" id="padd" data-act="do-proj" disabled>Add project</button>')}`)}
+function wfModal(){const T=[['Blank','Start with a Start and End node.'],['Research, then judge','An agent researches, a decision picks a path, a person approves.'],['Triage and route','Classify items and branch with a gate.'],['Map over items','Run the same steps for every item in a list.']];
+ modal(`${mh('New workflow')}<div class="modal-b"><div class="field"><label>Name</label><input class="input" id="wn" value="Untitled workflow"></div><label class="lbl">Start from</label><div class="grid2">${T.map((t,i)=>`<div class="card tpl" data-act="tpl-pick" style="padding:12px;cursor:pointer;${i===1?'border-color:var(--accent);background:var(--accent-soft)':''}"><div style="font-weight:600">${t[0]}</div><div class="muted" style="margin-top:2px">${t[1]}</div></div>`).join('')}</div></div>${mf('<button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="do-wf">Create workflow</button>')}`)}
+function entryModal(edit){const x=bank().find(t=>t.t===S.ctx.sel),v=x&&x.vers[0];
+ modal(`${mh(edit?'Edit '+x.t:'Add entry')}<div class="modal-b"><div class="field"><label>Topic</label><input class="input mono" id="et" value="${edit?x.t:''}" ${edit?'disabled':''} placeholder="short-topic-name"></div><div class="field"><label>Description</label><input class="input" id="ed" value="${edit?esc(x.desc):''}" placeholder="What this entry is for"></div><div class="field"><label>Body</label><textarea class="textarea" id="eb" rows="6">${edit?esc(v.body):''}</textarea></div>
+ <div class="note">${ic('lock',15)}<span>${edit?`This appends entry #${Math.max(...BANK.project.concat(BANK.workflow).map(t=>t.vers[0].seq))+1} that supersedes #${v.seq}. The old text stays in history.`:'Entries are append-only. Agents can read this through the context tools.'}</span></div></div>${mf(`<button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="do-entry" data-e="${edit?1:0}">${edit?'Save as new entry':'Add entry'}</button>`)}`)}
+function provModal(){modal(`${mh('Add decision provider')}<div class="modal-b"><div class="grid2"><div class="field"><label>Profile name</label><input class="input mono" value="cloudflare-clef"></div><div class="field"><label>Wire format</label><select class="select"><option>OpenAI Decisions</option><option>System One</option></select></div></div><div class="field"><label>Base URL</label><input class="input mono" value="https://api.example.com/v1"></div><div class="grid2"><div class="field"><label>Model</label><input class="input mono" value="clef"></div><div class="field"><label>API key</label><input class="input mono" value="$CLOUDFLARE_API_TOKEN"><div class="hint">Use an environment variable or paste a key. It is saved to your local config only.</div></div></div></div>${mf(`<button class="btn" data-act="test-prov" data-p="new">Test connection</button><span class="sp"></span><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="toast" data-m="Profile saved to providers.json">Save profile</button>`)}`)}
+function testModal(p){const ok=p!=='vllm-local';modal(`${mh('Connection test: '+p)}<div class="modal-b"><div class="card">${[['Reachable','142 ms',1],['Yes or no question','Passed',1],['Choice question, 3 options','Passed',1],['Score question','Passed',1],['Image input',ok?'Supported':'Not supported by this model',ok]].map(r=>`<div class="list-row"><span style="color:var(--${r[2]?'green':'amber'})">${ic(r[2]?'cok':'warn',16)}</span><span class="grow">${r[0]}</span><span class="muted">${r[1]}</span></div>`).join('')}</div><p class="hint" style="margin-top:10px">Capability flags are checked again when a workflow loads, so a node never asks a backend for something it cannot do.</p></div>${mf('<button class="btn primary" data-act="close">Done</button>')}`)}
+/* ===== palette ===== */
+const PAL={q:'',i:0};
+function palItems(){const a=[{t:'Go to Inbox',i:'inbox',h:'',go:'#/inbox'},{t:'Run Tool research',i:'play',h:'Action',fn:()=>runModal('tool-research')},{t:'Open run #42',i:'history',h:'Run',go:'#/p/orbit-web/r/42'},{t:'Add project',i:'plus',h:'Action',fn:projModal},{t:'New workflow',i:'plus',h:'Action',fn:wfModal},{t:'Toggle theme',i:'moon',h:'Action',fn:toggleTheme},{t:'Open settings',i:'sliders',h:'',go:'#/settings/general'}];
+ PROJECTS.forEach(p=>{a.push({t:p.name,i:p.kind==='git'?'branch':'folder',h:'Project',go:'#/p/'+p.id});p.wfs.forEach(w=>a.push({t:WF[w].name,i:'split',h:p.name,go:`#/p/${p.id}/w/${w}`}))});return a}
+function openPalette(){PAL.q='';PAL.i=0;modal(`<div class="pal"><input id="palq" placeholder="Search projects, workflows and actions" autocomplete="off"><div class="pal-list" id="pall"></div></div>`);$('#overlay .modal').className='';$('#palq').focus();palRender()}
+function palFiltered(){const q=PAL.q.toLowerCase();return palItems().filter(x=>!q||x.t.toLowerCase().includes(q))}
+function palRender(){$('#pall').innerHTML=palFiltered().map((x,i)=>`<div class="pal-item ${i===PAL.i?'sel':''}" data-act="pal-pick" data-i="${i}">${ic(x.i,15)}<span>${esc(x.t)}</span><span class="hintr">${x.h}</span></div>`).join('')||'<div class="empty">Nothing matches.</div>'}
+function palPick(i){const x=palFiltered()[i];if(!x)return;closeModal();x.fn?x.fn():location.hash=x.go}
+function toggleTheme(){S.theme=S.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=S.theme;renderSidebar();if(S.r.v==='settings')render()}
+/* ===== editor menus ===== */
+function renderMenu(){const el=$('#mnu');if(!el)return;if(!S.ed.menu){el.innerHTML='';return}
+ if(S.ed.menu==='valid'){const iss=validate(graph());el.innerHTML=`<div class="menu" style="right:12px;top:6px;width:360px"><div class="mh">${iss.length?iss.length+' issue'+(iss.length>1?'s':'')+' found while checking the workflow':'No issues'}</div>${iss.map(i=>`<div class="mi" data-act="goto-issue" data-id="${i[2]||''}"><span style="color:var(--${i[0]==='error'?'red':'amber'})">${ic(i[0]==='error'?'cx':'warn',15)}</span><span>${esc(i[1])}</span></div>`).join('')||`<div class="mi">${ic('cok',15)}The workflow can run. Every node is reachable and every gate has an otherwise branch.</div>`}</div>`}
+ if(S.ed.menu==='pins'){const ks=Object.keys(S.ed.pinned).filter(k=>S.ed.pinned[k]);el.innerHTML=`<div class="menu" style="right:12px;top:6px;width:340px"><div class="mh">Pinned outputs let you rerun one node against saved upstream results instead of rerunning the whole graph.</div>${ks.map(k=>`<div class="mi"><span class="grow">${esc(nodeById(G.main,k).name)} <span class="faint">from run 38</span></span><button class="btn sm" data-act="unpin" data-k="${k}">Unpin</button></div>`).join('')||'<div class="mi faint">Nothing pinned. Pin an output from a run, then use Test this node.</div>'}</div>`}}
+/* ===== dispatcher ===== */
+function refreshView(){S.r.v==='run'?rr():render()}
+function act(a,t,e){const d=t.dataset,n=S.r.v==='workflow'?selNode():null;
+ switch(a){
+ case'theme':toggleTheme();break;case'sb-toggle':S.sbHide=!S.sbHide;Object.keys(VIEWS).forEach(k=>delete VIEWS[k]);render();break;case'theme-set':S.theme=d.v==='dark'?'dark':'light';document.documentElement.dataset.theme=S.theme;render();break;
+ case'palette':openPalette();break;case'pal-pick':palPick(+d.i);break;case'close':closeModal();break;case'close-bg':if(e.target===t)closeModal();break;
+ case'go':location.hash=d.to;break;case'toggle-proj':S.open[d.id]=!S.open[d.id];renderSidebar();if(S.open[d.id])location.hash='#/p/'+d.id;break;
+ case'new-proj':projModal();break;case'new-wf':e.preventDefault();wfModal();break;case'import':importModal();break;case'export':exportModal();break;case'run-modal':e.stopPropagation();runModal(d.wf);break;case'do-run':startRun();break;
+ case'do-import':closeModal();toast('Imported tool-research. Review the nodes before running.');break;case'do-export':closeModal();toast('Saved tool-research.relay.json');break;
+ case'detect':{const v=$('#pp').value,git=!/notes|folder|docs\/|Documents/.test(v);$('#pdet').innerHTML=git?`<div class="note accent">${ic('branch',16)}<div><b>Git repository detected</b><div class="muted">Branch main, clean. All three workspace modes are available: scratch, worktree and project.</div></div></div>`:`<div class="note amber">${ic('folder',16)}<div><b>Plain folder</b><div>No git history here, so only scratch and project workspaces are available. Relay can snapshot the folder before any node that writes to it.</div></div></div>`;$('#padd').disabled=false;break}
+ case'do-proj':{const v=$('#pp').value,id=v.split('/').filter(Boolean).pop(),git=!/notes|folder|docs\/|Documents/.test(v);PROJECTS.push({id,name:id,kind:git?'git':'folder',path:v,branch:'main',dirty:false,sha:'c4d5e6f',wfs:[]});S.open[id]=true;closeModal();toast('Added '+id);location.hash='#/p/'+id;break}
+ case'tpl-pick':$$('.tpl').forEach(x=>{x.style.borderColor='';x.style.background=''});t.style.borderColor='var(--accent)';t.style.background='var(--accent-soft)';break;
+ case'do-wf':{const nm=$('#wn').value.trim()||'Untitled workflow',id=nm.toLowerCase().replace(/[^a-z0-9]+/g,'-'),pid=S.r.pid||'orbit-web';WF[id]={name:nm,desc:'New workflow.',nodes:2,last:'Never run',st:'pending',cost:'$0.00'};proj(pid).wfs.push(id);closeModal();toast('Created '+nm+'. This mock opens the sample graph.');location.hash=`#/p/${pid}/w/${id}`;break}
+ case'zoom':{const b=$('#cv');zoomAt(d.d>0?1.15:.87,b.clientWidth/2,b.clientHeight/2);break}case'fit':{const b=$('#cv');fitView(CV.key,CV.g,b,CV.mode==='edit'?196:0);applyView();break}
+ case'open-body':e.stopPropagation();if(S.r.v==='run'){S.run.sel=d.id;S.run.tab='detail';rr()}else{S.ed.path.push(nodeById(graph(),d.id).body);S.ed.sel=null;S.ed.selEdge=null;mountEditor()}break;
+ case'crumb':e.preventDefault();S.ed.path=S.ed.path.slice(0,(+d.i)+1);S.ed.sel=null;mountEditor();break;
+ case'add':{const b=$('#cv'),v=VIEWS[CV.key],k=graph().nodes.length%4;addNode(d.t,Math.round(((b.clientWidth/2-v.tx)/v.s-NW/2+k*16)/8)*8,Math.round(((b.clientHeight/2-v.ty)/v.s-30+k*16)/8)*8);break}
+ case'tpl-judge':addTemplateJudge();break;case'tpl-loop':toast('Opens the Review loop loop. Open it from the canvas to edit its body.');break;
+ case'desel':S.ed.sel=null;S.ed.selEdge=null;paint();refreshInspector();break;
+ case'del-edge':{const g=graph();g.edges=g.edges.filter(x=>x.id!==S.ed.selEdge);CV.g=g;S.ed.selEdge=null;paint();refreshInspector();touched();toast('Connection deleted');break}
+ case'del-node':{const g=graph();g.nodes=g.nodes.filter(x=>x.id!==n.id);g.edges=g.edges.filter(x=>x.from.split('.')[0]!==n.id&&x.to.split('.')[0]!==n.id);S.ed.sel=null;paint();refreshInspector();touched();toast('Deleted '+n.name);break}
+ case'dup-node':{const c=JSON.parse(JSON.stringify(n));c.id=n.type+Math.floor(Math.random()*900+100);c.name=n.name+' copy';c.x+=24;c.y+=24;graph().nodes.push(c);S.ed.sel=c.id;paint();refreshInspector();touched();break}
+ case'sw':n[d.f]=!n[d.f];refreshInspector();paint();touched();break;
+ case'seg':n[d.f]=d.f==='resume'?d.v==='resume':d.v;refreshInspector();paint();touched();break;
+ case'tog':{const a=n[d.f];a.includes(d.v)?a.splice(a.indexOf(d.v),1):a.push(d.v);refreshInspector();paint();touched();break}
+ case'ins-var':{const ta=$('#insp [data-f=prompt]');ta.value+=(ta.value&&!ta.value.endsWith(' ')?' ':'')+'{{'+d.v+'}}';n.prompt=ta.value;paint();touched();break}
+ case'sf-add':n.out.push({n:'field'+(n.out.length+1),t:'string',r:1});refreshInspector();paint();touched();break;case'sf-del':n.out.splice(+d.i,1);refreshInspector();paint();touched();break;case'sf-req':n.out[+d.i].r=n.out[+d.i].r?0:1;refreshInspector();touched();break;case'sf-json':S.ed.json=!S.ed.json;refreshInspector();break;
+ case'br-add':n.branches.splice(n.branches.length-1,0,{id:'branch'+n.branches.length,expr:''});refreshInspector();paint();touched();break;case'br-del':n.branches.splice(+d.i,1);S.ed.gres=null;refreshInspector();paint();touched();break;
+ case'pm-add':n.params.push({n:'param'+(n.params.length+1),t:'string',d:'',r:0});refreshInspector();paint();touched();break;case'pm-del':n.params.splice(+d.i,1);refreshInspector();paint();touched();break;case'pm-req':n.params[+d.i].r=n.params[+d.i].r?0:1;refreshInspector();touched();break;
+ case'opt-add':{const v=$('#optin').value.trim();if(v){n.opts.push(v);refreshInspector();paint();touched()}break}case'opt-del':n.opts.splice(+d.i,1);refreshInspector();paint();touched();break;
+ case'carry-add':{const v=$('#carryin').value.trim();if(v){n.carry.push(v);refreshInspector();touched()}break}case'carry-del':n.carry.splice(+d.i,1);refreshInspector();touched();break;
+ case'gate-test':gateTest();break;
+ case'test-node':S.ed.testOut[n.id]='Used pinned outputs from Start'+(n.id==='research'?'':' and Research')+'. Finished in 2.3s for about $0.04. Output matched the schema.';refreshInspector();toast('Ran '+n.name+' against pinned inputs');break;
+ case'valid':S.ed.menu=S.ed.menu==='valid'?null:'valid';renderMenu();break;case'pins':S.ed.menu=S.ed.menu==='pins'?null:'pins';renderMenu();break;
+ case'goto-issue':if(d.id){S.ed.sel=d.id;S.ed.menu=null;paint();refreshInspector();renderMenu()}break;case'unpin':S.ed.pinned[d.k]=false;renderCvBar();renderMenu();break;
+ /* run */
+ case'rtab':S.run.tab=d.v;rr();break;case'evf':S.run.evf=d.v;rr();break;case'itemf':S.run.itemF=d.v;rr();break;
+ case'drill':S.run.path=['main','evaluate'];S.run.item=+d.i;S.run.sel=null;S.run.tab='detail';rr();break;case'drill-round':S.run.path=['main','refine'];S.run.iter=+d.i;S.run.sel=null;S.run.tab='detail';rr();break;
+ case'rcrumb':e.preventDefault();S.run.path=['main'];S.run.sel=null;rr();break;
+ case'stage':setStage(+d.i);break;case'step':setStage(stg()+(+d.d));break;
+ case'play':if(S.run.play){S.run.play=false;clearInterval(S.run.tmr);rr()}else{if(stg()>=mx())S.run.stage=0;S.run.play=true;rr();autoplay()}break;
+ case'approve':if(S.run.stage===2){S.run.stage=3;toast('Approved. Evaluation started on 7 tools.');refreshView()}break;
+ case'reject':S.run.rej=true;S.run.stage=2;toast('Rejected. The run ended on the rejected path.');refreshView();break;
+ case'sup-approve':S.run.sup.approve=1;S.run.stage=3;toast('Applied the supervisor recommendation: approved.');refreshView();break;
+ case'resume-now':if(S.run.stage===4){S.run.stage=5;toast('Resumed. Waiting sessions continue by ID.');refreshView()}break;
+ case'retry-item':case'sup-retry':S.run.retried=true;toast('Retrying Turbopack with guidance. Other items are untouched.');refreshView();break;
+ case'retry-node':toast('Retrying from here. Cached upstream outputs are reused.');break;
+ case'cancel-run':S.run.play=false;clearInterval(S.run.tmr);toast('Run cancelled. Process groups were stopped.','stop');break;case'rerun':runModal('tool-research');break;
+ case'copy':toast('Copied session ID');break;case'toast':e.preventDefault();toast(d.m);break;
+ /* context */
+ case'ctx-scope':S.ctx.scope=d.v;S.ctx.keep=1;S.ctx.sel=bank()[0].t;render();break;case'ctx-f':S.ctx.f=d.v;render();break;case'ctx-sel':S.ctx.sel=d.t;ctxRefresh();break;
+ case'ctx-add':entryModal(false);break;case'ctx-edit':entryModal(true);break;
+ case'do-entry':{const x=bank().find(q=>q.t===S.ctx.sel),seq=Math.max(...BANK.project.concat(BANK.workflow).map(q=>q.vers[0].seq))+1,body=$('#eb').value;
+  if(d.e==='1'){x.vers[0].st='superseded';x.vers.unshift(V(seq,'user','Just now',body))}else{const tp=$('#et').value.trim()||'new-topic';bank().unshift({t:tp,desc:$('#ed').value||'New entry',vers:[V(seq,'user','Just now',body)]});S.ctx.sel=tp}
+  closeModal();render();toast('Appended entry #'+seq);break}
+ case'ctx-pin':{const x=bank().find(q=>q.t===S.ctx.sel);x.pin=!x.pin;ctxRefresh();toast(x.pin?'Pinned. It will be injected into every node prompt.':'Unpinned');break}
+ case'ctx-retract':{const x=bank().find(q=>q.t===S.ctx.sel),seq=Math.max(...BANK.project.concat(BANK.workflow).map(q=>q.vers[0].seq))+1;x.vers[0].st='superseded';x.vers.unshift(V(seq,'user','Just now','','retracted',{note:'Retracted by you'}));ctxRefresh();toast('Retracted. History is kept.');break}
+ case'ctx-approve':{const x=bank().find(q=>q.t===S.ctx.sel);x.vers[0].st='active';render();toast('Approved. Future runs can now read it.');break}
+ case'ctx-reject':{const x=bank().find(q=>q.t===S.ctx.sel),seq=Math.max(...BANK.project.concat(BANK.workflow).map(q=>q.vers[0].seq))+1;x.vers[0].st='superseded';x.vers.unshift(V(seq,'user','Just now','','retracted',{note:'Rejected by you'}));render();toast('Rejected');break}
+ case'ctx-purge':modal(`${mh('Purge this entry permanently?')}<div class="modal-b"><div class="note red">${ic('warn',16)}<span>This removes the content of every version of <b class="mono">${S.ctx.sel}</b> from disk. The log keeps a record that a purge happened, but not what was in it. This cannot be undone.</span></div><p class="muted" style="margin-top:12px">Use this for secrets or private material. To correct a mistake, edit or retract the entry instead, which keeps history.</p></div>${mf(`<button class="btn" data-act="close">Cancel</button><button class="btn danger" data-act="do-purge">Purge permanently</button>`)}`);break;
+ case'do-purge':{const b=bank();b.splice(b.findIndex(q=>q.t===S.ctx.sel),1);closeModal();render();toast('Purged');break}
+ case'ctx-compact':modal(`${mh('Compact entries')}<div class="modal-b"><p class="muted" style="margin-bottom:12px">Replace a topic's older entries with one summary. History stays intact, and the active view gets shorter.</p><div class="field"><label>Topic</label><select class="select"><option>processed-tools (3 entries)</option></select></div><div class="field"><label>Summary entry</label><textarea class="textarea" rows="4">Evaluated so far: schema validators (zod, valibot, arktype), E2E runners (Playwright, Cypress), linters (Biome, ESLint).</textarea><div class="hint">Drafted by an agent from the 3 entries. Edit it before saving.</div></div></div>${mf(`<button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="toast" data-m="Appended summary and superseded 3 entries">Append summary and supersede 3</button>`)}`);break;
+ case'add-prov':provModal();break;case'test-prov':testModal(d.p);break;
+ case'chip':t.classList.toggle('on');break;case'seg-local':$$('button',t.parentNode).forEach(b=>b.classList.remove('on'));t.classList.add('on');break;case'sw-local':t.classList.toggle('on');break;
+ }}
+document.addEventListener('click',e=>{const t=e.target.closest('[data-act]');if(!t)return;if(t.tagName==='A'&&t.dataset.act!=='new-wf'&&t.getAttribute('href')==='#')e.preventDefault();act(t.dataset.act,t,e)});
+document.addEventListener('input',e=>{const el=e.target;if(el.closest&&el.closest('#insp'))return onField(el);
+ if(el.id==='ctxq'){S.ctx.q=el.value;const l=$('#ctxlist');l.innerHTML=ctxList()}else if(el.id==='palq'){PAL.q=el.value;PAL.i=0;palRender()}else if(el.id==='impmap'){$('#impgo').disabled=!el.value}});
+document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openPalette();return}
+ if(e.key==='Escape'){closeModal();if(S.ed.menu){S.ed.menu=null;renderMenu()}return}
+ if(e.target.id==='palq'){const n=palFiltered().length;if(e.key==='ArrowDown'){PAL.i=(PAL.i+1)%n;palRender();e.preventDefault()}if(e.key==='ArrowUp'){PAL.i=(PAL.i-1+n)%n;palRender();e.preventDefault()}if(e.key==='Enter')palPick(PAL.i);return}
+ if((e.key==='Delete'||e.key==='Backspace')&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)&&S.r.v==='workflow'&&S.r.tab==='editor'){const fk=S.ed.selEdge?$('[data-act=del-edge]'):$('[data-act=del-node]');if(fk){e.preventDefault();fk.click()}}});
+document.addEventListener('click',e=>{if(S.ed.menu&&!e.target.closest('.menu')&&!e.target.closest('[data-act=valid]')&&!e.target.closest('[data-act=pins]')){S.ed.menu=null;renderMenu()}},true);
+/* ===== boot ===== */
+document.documentElement.dataset.theme=S.theme;render();
+</script>
+</body>
+</html>

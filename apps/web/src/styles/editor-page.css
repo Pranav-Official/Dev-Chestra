@@ -1,0 +1,266 @@
+/* Workflow editor page shell, controls and dialogs. Canvas/inspector own their CSS. */
+.editor-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.editor-header {
+  flex: none;
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto auto;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.editor-meta {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.editor-meta input {
+  width: 100%;
+  min-width: 0;
+}
+.editor-meta-name input {
+  font-weight: 600;
+  font-size: 15px;
+}
+.editor-meta-description input {
+  color: var(--text-2);
+}
+.editor-status,
+.editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.editor-status button.pill {
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.editor-actions .btn {
+  white-space: nowrap;
+}
+.editor-banner-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--red);
+  font-size: 12.5px;
+}
+.editor-issues {
+  grid-column: 1 / -1;
+  max-height: 190px;
+  overflow: auto;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.editor-issues h2 {
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.editor-issue-list {
+  list-style: none;
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+}
+.editor-issue-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.editor-subnav {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  margin: 0 0 16px;
+}
+
+.editor-workspace {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+}
+.editor-canvas-host {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+.editor-canvas-host > .editor-canvas {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Dialogs */
+dialog.editor-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(84vh, 760px);
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+dialog.editor-dialog.wide {
+  width: min(760px, calc(100vw - 32px));
+}
+dialog.editor-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.38);
+}
+[data-theme="dark"] dialog.editor-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+.editor-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.editor-dialog-head h2 {
+  font-size: 15px;
+  margin: 0;
+  flex: 1;
+}
+.editor-dialog-description {
+  margin: 0;
+  padding: 10px 14px 0;
+  color: var(--text-2);
+}
+.editor-dialog-body {
+  padding: 14px;
+  overflow: auto;
+  max-height: min(58vh, 540px);
+}
+.editor-dialog-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 11px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-subtle);
+}
+
+/* Forms */
+.editor-form {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+.editor-field {
+  display: grid;
+  gap: 5px;
+}
+.editor-field-label {
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.editor-field-hint {
+  color: var(--text-3);
+  font-size: 12px;
+}
+.editor-field-error,
+.editor-form-error {
+  color: var(--red);
+  font-size: 12.5px;
+  margin: 0;
+}
+.editor-field input[aria-invalid="true"] {
+  border-color: var(--red);
+}
+.contents {
+  display: contents;
+}
+
+.btn.danger {
+  border-color: var(--red);
+  color: var(--red);
+}
+.btn.danger:hover {
+  background: var(--red-soft);
+}
+
+/* Run review */
+.run-review {
+  display: grid;
+  gap: 16px;
+}
+.run-review section {
+  display: grid;
+  gap: 8px;
+}
+.run-review h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  margin: 0;
+}
+.run-review-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.run-review-list li {
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-subtle);
+}
+.run-review-list .code {
+  margin: 0;
+  max-height: 120px;
+}
+
+@media (max-width: 1000px) {
+  .editor-header {
+    grid-template-columns: minmax(180px, 1fr) auto;
+  }
+  .editor-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+@media (max-width: 760px) {
+  .editor-workspace {
+    flex-direction: column;
+  }
+  .editor-workspace .editor-palette {
+    width: 100%;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .editor-workspace .editor-palette-list {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+  .editor-workspace .inspector {
+    width: 100%;
+    max-height: 46%;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+  .editor-canvas-host {
+    min-height: 260px;
+  }
+}

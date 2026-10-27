@@ -1,0 +1,41 @@
+{
+  "name": "@relay/store",
+  "version": "0.1.0",
+  "description": "Relay SQLite event store, transactional projections and durable agent receipts",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./driver-node-sqlite": {
+      "types": "./dist/driver-node-sqlite.d.ts",
+      "import": "./dist/driver-node-sqlite.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@relay/core": "workspace:*",
+    "better-sqlite3": "13.0.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "9.6.0",
+    "@types/node": "22.20.5",
+    "typescript": "5.9.3",
+    "vitest": "5.0.4"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

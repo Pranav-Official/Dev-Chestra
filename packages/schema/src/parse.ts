@@ -1,0 +1,308 @@
+import { err, ok, RelayError, type Result } from "@relay/core";
+import { MAX_WORKFLOW_FILE_BYTES } from "./ids.js";
+import type { WorkflowFile } from "./types.js";
+import { z } from "./zod.js";
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function cloneJsonValue(value: unknown): unknown {
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map((item) => cloneJsonValue(item));
+  if (!isPlainRecord(value)) return value;
+  const out = Object.create(null) as Record<string, unknown>;
+  for (const key of Object.keys(value)) {
+    // Safe for an own "__proto__" key produced by JSON.parse.
+    Object.defineProperty(out, key, {
+      value: cloneJsonValue(value[key]),
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
+  return out;
+}
+
+const uiSchema = z
+  .unknown()
+  .superRefine((value, ctx) => {
+    if (!isPlainRecord(value)) {
+      ctx.addIssue({ code: "custom", message: "ui must be a JSON object" });
+    }
+  })
+  .transform((value) => cloneJsonValue(value) as Record<string, unknown>);
+const superviseSchema = z.enum(["default", "checkpoint", "notify", "skip"]);
+
+const nodeBase = {
+  id: z.string(),
+  name: z.string(),
+  ui: uiSchema.optional(),
+  supervise: superviseSchema.optional(),
+  env: z.array(z.string()).optional(),
+};
+
+const paramSchema = z.strictObject({
+  name: z.string(),
+  type: z.enum(["string", "number", "boolean", "enum"]),
+  default: z.union([z.string(), z.number(), z.boolean()]).optional(),
+  options: z.array(z.string()).optional(),
+  required: z.boolean(),
+});
+
+const workspaceSchema = z.discriminatedUnion("mode", [
+  z.strictObject({ mode: z.literal("scratch") }),
+  z.strictObject({
+    mode: z.literal("worktree"),
+    base: z.string().optional(),
+    setup: z.string().optional(),
+    from: z.string().optional(),
+  }),
+  z.strictObject({
+    mode: z.literal("project"),
+    access: z.enum(["read", "write"]),
+  }),
+]);
+
+const limitsSchema = z.strictObject({
+  timeoutMin: z.number().optional(),
+  validationRetries: z.number().optional(),
+  crashRetries: z.number().optional(),
+  maxQuotaWaitHours: z.number().optional(),
+});
+
+const contextSchema = z.strictObject({
+  project: z.enum(["none", "read", "readwrite"]),
+  workflow: z.enum(["none", "read", "readwrite"]),
+});
+
+const startNodeSchema = z.strictObject({
+  ...nodeBase,
+  type: z.literal("start"),
+  params: z.array(paramSchema),
+});
+
+const agentNodeSchema = z.strictObject({
+  ...nodeBase,
+  type: z.literal("agent"),
+  cli: z.enum(["fake", "claude-code", "codex"]),
+  model: z.string().optional(),
+  prompt: z.string().optional(),
+  promptFile: z.string().optional(),
+  output: z.record(z.string(), z.unknown()),
+  permissions: z.strictObject({
+    network: z.boolean(),
+    write: z.array(z.enum(["workspace", "project"])),
+  }),
+  workspace: workspaceSchema.optional(),
+  limits: limitsSchema.optional(),
+  context: contextSchema.optional(),
+  cliOptions: z.record(z.string(), z.unknown()).optional(),
+});
+
+const shellNodeSchema = z.strictObject({
+  ...nodeBase,
+  type: z.literal("shell"),
+  command: z.string(),
+  workspace: workspaceSchema.optional(),
+  timeoutMin: z.number().optional(),
+  allowFailure: z.boolean().optional(),
+});
+
+const gateBranchSchema = z.strictObject({
+  id: z.string(),
+  when: z.string().optional(),
+  otherwise: z.literal(true).optional(),
+});
+
+const gateNodeSchema = z.strictObject({
+  ...nodeBase,
+  type: z.literal("gate"),
+  branches: z.array(gateBranchSchema),
+});
+
+const joinNodeSchema = z.strictObject({
+  ...nodeBase,
+  type: z.literal("join"),
+  mode: z.enum(["first", "all"]),
+  inputs: z.array(z.string()),
+  output: z.record(z.string(), z.unknown()).optional(),
+});
+
+const endNodeSchema = z.strictObject({
+  ...nodeBase,
+  type: z.literal("end"),
+  status: z.enum(["success", "failed", "rejected"]),
+  result: z.string(),
+});
+
+const approvalNodeSchema = z.strictObject({
+  ...nodeBase,
+  type: z.literal("approval"),
+  message: z.string(),
+  criteria: z.array(z.string()).optional(),
+  irreversible: z.boolean(),
+});
+
+const edgeSchema = z.strictObject({
+  id: z.string(),
+  from: z.string(),
+  to: z.string(),
+  ui: uiSchema.optional(),
+});
+
+const workflowSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  budget: z.record(z.string(), z.unknown()).optional(),
+  supervisor: z.unknown().optional(),
+  graph: z.strictObject({
+    nodes: z.array(
+      z.discriminatedUnion("type", [
+        startNodeSchema,
+        agentNodeSchema,
+        shellNodeSchema,
+        gateNodeSchema,
+        joinNodeSchema,
+        approvalNodeSchema,
+        endNodeSchema,
+      ]),
+    ),
+    edges: z.array(edgeSchema),
+  }),
+});
+
+const SUPPORTED_NODE_TYPES = new Set([
+  "start",
+  "agent",
+  "shell",
+  "gate",
+  "join",
+  "approval",
+  "end",
+]);
+const SUPPORTED_CLIS = new Set(["fake", "claude-code", "codex"]);
+
+function pointer(path: readonly PropertyKey[]): string {
+  if (path.length === 0) return "";
+  return `/${path.map((part) => String(part).replace(/~/g, "~0").replace(/\//g, "~1")).join("/")}`;
+}
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function precheck(raw: unknown): RelayError | undefined {
+  const root = record(raw);
+  if (root === undefined) {
+    return new RelayError("E_WORKFLOW_INVALID", "Workflow must be a JSON object");
+  }
+  if (root.schemaVersion !== 1) {
+    const version = root.schemaVersion;
+    const hint =
+      typeof version === "number" && version > 1
+        ? " This file was written by a newer build; upgrade Relay instead of editing it."
+        : "";
+    return new RelayError(
+      "E_WORKFLOW_INVALID",
+      `Unsupported schemaVersion ${String(version)}; this build supports schemaVersion 1.${hint}`,
+      { details: { pointer: "/schemaVersion" } },
+    );
+  }
+  const graph = record(root.graph);
+  if (graph !== undefined && Array.isArray(graph.nodes)) {
+    for (let i = 0; i < graph.nodes.length; i += 1) {
+      const node = record(graph.nodes[i]);
+      if (node === undefined) continue;
+      const type = node.type;
+      if (typeof type === "string" && !SUPPORTED_NODE_TYPES.has(type)) {
+        return new RelayError(
+          "E_WORKFLOW_INVALID",
+          `Unsupported node type '${type}' at graph.nodes[${i}]. P1 supports: start, agent, shell, gate, join, approval, end.`,
+          { details: { pointer: `/graph/nodes/${i}/type` } },
+        );
+      }
+      if (type === "agent") {
+        const cli = node.cli;
+        if (typeof cli === "string" && !SUPPORTED_CLIS.has(cli)) {
+          return new RelayError(
+            "E_WORKFLOW_INVALID",
+            `Unsupported agent CLI '${cli}' at graph.nodes[${i}]. P1 supports: fake (test-only), claude-code, codex.`,
+            { details: { pointer: `/graph/nodes/${i}/cli` } },
+          );
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Structural parse (Zod, strict objects). Unknown fields are rejected. Semantic
+ * rules, unsupported options and expressions are checked by validateWorkflow.
+ */
+export function parseWorkflow(raw: unknown): Result<WorkflowFile, RelayError> {
+  const precheckError = precheck(raw);
+  if (precheckError !== undefined) return err(precheckError);
+
+  const parsed = workflowSchema.safeParse(raw);
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((issue) => ({
+      pointer: pointer(issue.path),
+      message: issue.message,
+    }));
+    const first = issues[0];
+    const suffix = issues.length > 1 ? ` (and ${issues.length - 1} more)` : "";
+    return err(
+      new RelayError(
+        "E_WORKFLOW_INVALID",
+        `Invalid workflow${first?.pointer ? ` at ${first.pointer}` : ""}: ${first?.message ?? "parse failed"}${suffix}`,
+        { details: { issues } },
+      ),
+    );
+  }
+
+  return ok(parsed.data as WorkflowFile);
+}
+
+/** Parse workflow JSON text. JSON syntax errors are reported as E_WORKFLOW_INVALID. */
+export function parseWorkflowJson(text: string): Result<WorkflowFile, RelayError> {
+  const bytes = new TextEncoder().encode(text).length;
+  if (bytes > MAX_WORKFLOW_FILE_BYTES) {
+    return err(
+      new RelayError(
+        "E_WORKFLOW_INVALID",
+        `Workflow file exceeds the ${MAX_WORKFLOW_FILE_BYTES}-byte limit.`,
+        { details: { bytes, maxBytes: MAX_WORKFLOW_FILE_BYTES } },
+      ),
+    );
+  }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch (error) {
+    return err(
+      new RelayError(
+        "E_WORKFLOW_INVALID",
+        `Workflow is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+      ),
+    );
+  }
+  return parseWorkflow(raw);
+}
+
+/**
+ * Authoring alias for the structural parser. A draft may be an incomplete
+ * graph (missing start, end or edges); semantic rules are checked separately by
+ * validateWorkflow and are always required before execution.
+ */
+export const parseWorkflowDraft = parseWorkflow;
+
+/** Authoring alias for parseWorkflowJson; same structural, strict contract. */
+export const parseWorkflowDraftJson = parseWorkflowJson;

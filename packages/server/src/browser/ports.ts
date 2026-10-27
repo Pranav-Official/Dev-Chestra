@@ -1,0 +1,198 @@
+import type {
+  ApprovalListResponse,
+  ApprovalResolveResponse,
+  AttemptView,
+  BootstrapSettings,
+  CatalogCli,
+  CliModelCatalog,
+  CliModelItem,
+  CliProbeSummary,
+  CommandResponse,
+  EventPageResponse,
+  ExecutionDetailResponse,
+  ExecutionSummary,
+  ExecutionUsage,
+  HealthResponse,
+  ListProjectsResponse,
+  OutputPreview,
+  ProcessView,
+  ProjectView,
+  ProjectWorkspacesResponse,
+  RunDetailResponse,
+  RunListResponse,
+  RunSummary,
+  RunWorkspaceSelection,
+  StartRunResponse,
+  TranscriptLine,
+  TranscriptPageResponse,
+  WorkspaceView,
+} from "@relay/api";
+import type { EventType, JsonObject, RunStatus } from "@relay/core";
+import type { NormalizedWorkflow } from "@relay/schema";
+import type { AcceptedOutput, ExecutionHistory, ExecutionRow } from "@relay/store";
+import type { Hono } from "hono";
+
+export type {
+  AttemptView,
+  BootstrapSettings,
+  CatalogCli,
+  CliModelCatalog,
+  CliModelItem,
+  CliProbeSummary,
+  CommandResponse,
+  EventPageResponse,
+  ExecutionDetailResponse,
+  ExecutionSummary,
+  ExecutionUsage,
+  HealthResponse,
+  ListProjectsResponse,
+  OutputPreview,
+  ProcessView,
+  ProjectView,
+  ProjectWorkspacesResponse,
+  RunDetailResponse,
+  RunListResponse,
+  RunSummary,
+  RunWorkspaceSelection,
+  StartRunResponse,
+  TranscriptLine,
+  TranscriptPageResponse,
+  WorkspaceView,
+};
+
+export type ProjectKind = "git" | "folder";
+export type RunListPage = RunListResponse;
+export type RunDetailView = RunDetailResponse;
+export type EventPage = EventPageResponse;
+export type ExecutionDetailView = ExecutionDetailResponse;
+export type TranscriptPage = TranscriptPageResponse;
+export type StopReason = "exited" | "killed" | "grace_timeout" | "crash";
+
+export interface ListRunsQuery {
+  projectId?: string;
+  workflowId?: string;
+  status?: readonly RunStatus[];
+  cursor?: string;
+  limit: number;
+}
+
+export interface EventsQuery {
+  after?: number;
+  upTo?: number;
+  limit: number;
+  types?: readonly EventType[];
+  pathPrefix?: string;
+}
+
+export interface RegisterProjectCommand {
+  path: string;
+  name: string;
+  kind: ProjectKind;
+}
+
+export interface RelinkProjectCommand {
+  projectId: string;
+  path: string;
+  name: string;
+  kind: ProjectKind;
+}
+
+export interface BrowserQueryPort {
+  listProjects(): Promise<ProjectView[]> | ProjectView[];
+  getProject(projectId: string): Promise<ProjectView | null> | ProjectView | null;
+  registerProject(input: RegisterProjectCommand): Promise<ProjectView> | ProjectView;
+  relinkProject(input: RelinkProjectCommand): Promise<ProjectView> | ProjectView;
+  listRuns(input: ListRunsQuery): Promise<RunListPage> | RunListPage;
+  getRun(runId: string): Promise<RunSummary | null> | RunSummary | null;
+  runDetail(runId: string): Promise<RunDetailView | null> | RunDetailView | null;
+  eventsPage(runId: string, input: EventsQuery): Promise<EventPage> | EventPage;
+  getExecution(runId: string, path: string): Promise<ExecutionRow | null> | ExecutionRow | null;
+  executionHistory(runId: string, path: string): Promise<ExecutionHistory> | ExecutionHistory;
+  getOutput(
+    runId: string,
+    path: string,
+    attempt: number,
+  ): Promise<AcceptedOutput | null> | AcceptedOutput | null;
+  counts():
+    | Promise<{ runs: number; activeRuns: number; inbox: number }>
+    | {
+        runs: number;
+        activeRuns: number;
+        inbox: number;
+      };
+  listApprovals(input: {
+    projectId?: string;
+    runId?: string;
+    cursor?: string;
+    limit: number;
+  }): Promise<ApprovalListResponse> | ApprovalListResponse;
+  getApproval(
+    runId: string,
+    path: string,
+  ):
+    | Promise<{
+        approval: import("@relay/api").ApprovalSummary;
+        requestedEvent: unknown;
+        resolvedEvent: unknown | null;
+        execution: ExecutionRow | null;
+      } | null>
+    | {
+        approval: import("@relay/api").ApprovalSummary;
+        requestedEvent: unknown;
+        resolvedEvent: unknown | null;
+        execution: ExecutionRow | null;
+      }
+    | null;
+}
+
+export interface StartRunCommand {
+  projectId: string;
+  workflowId: string;
+  workflowFile: string;
+  snapshot: NormalizedWorkflow;
+  snapshotRaw: string;
+  params: JsonObject;
+  /** Normalized run-level workspace; the server always sends a selection for fresh runs. */
+  workspace?: RunWorkspaceSelection;
+  idempotencyKey?: string;
+}
+
+/**
+ * Read-only workspace catalog and selection validation. Implemented by the CLI
+ * (which may touch Git). The server never creates a worktree before the run is
+ * durable: `validate` only inspects the trusted project's worktree list.
+ */
+export interface BrowserWorkspacePort {
+  catalog(projectRoot: string): Promise<ProjectWorkspacesResponse> | ProjectWorkspacesResponse;
+  validate(
+    projectRoot: string,
+    selection: RunWorkspaceSelection,
+  ): Promise<RunWorkspaceSelection> | RunWorkspaceSelection;
+}
+
+export interface BrowserRunControllerPort {
+  startRun(input: StartRunCommand): Promise<StartRunResponse> | StartRunResponse;
+  cancelRun(runId: string): Promise<CommandResponse> | CommandResponse;
+  resumeRun(runId: string): Promise<CommandResponse> | CommandResponse;
+  resolveApproval(input: {
+    runId: string;
+    path: string;
+    requestId: string;
+    decision: "approve" | "reject";
+    note?: string;
+    expectedAttempt: number;
+    expectedGeneration: number;
+  }): Promise<ApprovalResolveResponse> | ApprovalResolveResponse;
+}
+
+export interface BrowserStreamPort {
+  mountRoutes(app: Hono): void;
+  close?(): void;
+}
+
+/** Adapter-backed model catalog, composed by the CLI outside the server. */
+export interface BrowserModelCatalogPort {
+  get(projectId: string, cli: CatalogCli): Promise<CliModelCatalog>;
+  refresh(projectId: string, cli: CatalogCli): Promise<CliModelCatalog>;
+  close?(): void | Promise<void>;
+}

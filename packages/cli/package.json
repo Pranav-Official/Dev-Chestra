@@ -1,0 +1,45 @@
+{
+  "name": "@relay/cli",
+  "version": "0.1.0",
+  "description": "Relay headless CLI: run, resume and doctor",
+  "type": "module",
+  "main": "./dist/main.js",
+  "types": "./dist/main.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/main.d.ts",
+      "import": "./dist/main.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "relay": "./dist/main.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@relay/adapters": "workspace:*",
+    "@relay/core": "workspace:*",
+    "@relay/engine": "workspace:*",
+    "@relay/mcp": "workspace:*",
+    "@relay/schema": "workspace:*",
+    "@relay/server": "workspace:*",
+    "@relay/store": "workspace:*",
+    "@relay/workspaces": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "5.0.4"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

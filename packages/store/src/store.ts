@@ -1,0 +1,436 @@
+import { mkdirSync } from "node:fs";
+import { dirname } from "node:path";
+import {
+  type Clock,
+  type EventDraft,
+  type EventEnvelope,
+  type ExecutionIdentity,
+  type IdGen,
+  type Path,
+  type RunId,
+  type RunView,
+  systemClock,
+  systemIds,
+} from "@relay/core";
+import {
+  consumeApprovalWake,
+  getApproval,
+  listOutstandingApprovalWakes,
+  listPendingApprovals,
+  requestApproval,
+  resolveApproval,
+} from "./approvals.js";
+import { EventBus } from "./bus.js";
+import type { SqliteDb } from "./driver.js";
+import { betterSqliteDriver } from "./driver-better-sqlite3.js";
+import { appendEvents, type ListEventsOptions } from "./events.js";
+import {
+  beginInvocation,
+  completeExecution,
+  ensureExecution,
+  getExecution,
+  listExecutions,
+} from "./executions.js";
+import { applyMigrations } from "./migrate.js";
+import { getOutput, recordDeterministic } from "./outputs.js";
+import {
+  activeProcesses,
+  completeAcceptedAfterRecovery,
+  getProcess,
+  recordProcessStopped,
+  recordSpawned,
+  recordWorkspaceFinalized,
+} from "./processes.js";
+import { getView, listEvents, rebuildProjection } from "./projection.js";
+import {
+  ensureProject,
+  findProjectByPath,
+  getProject,
+  listProjects,
+  relinkProject,
+} from "./projects.js";
+import {
+  executionHistory,
+  getOutputById,
+  listOutputsByProvenance,
+  listRuns,
+  pageEvents,
+  snapshotRun,
+} from "./read-ports.js";
+import { recover } from "./recovery.js";
+import { recordGateDecision, recordJoinResolution } from "./routing.js";
+import { createRun, getRun, listActiveRuns } from "./runs.js";
+import type { Runtime } from "./runtime.js";
+import { type SecretFinding, SecretRegistry } from "./secrets.js";
+import {
+  countNoSubmit,
+  getAcceptedOutput,
+  readReceipt,
+  submit,
+  validationLeft,
+} from "./submissions.js";
+import type {
+  AcceptedOutput,
+  ActiveProcess,
+  ApprovalRecord,
+  ApprovalWake,
+  BeginInvocationInput,
+  CompleteAcceptedAfterRecoveryInput,
+  CompleteExecutionInput,
+  CompleteExecutionResult,
+  CreateRunInput,
+  CreateRunResult,
+  EnsureExecutionInput,
+  EnsureProjectInput,
+  EventPage,
+  EventPageOptions,
+  ExecutionHistory,
+  ExecutionRow,
+  OpenStoreOptions,
+  OutputProvenancePage,
+  OutputProvenanceQuery,
+  OutputRecord,
+  ProcessRecord,
+  ProjectRecord,
+  Receipt,
+  RecordDeterministicOutputInput,
+  RecordDeterministicOutputResult,
+  RecordGateDecisionInput,
+  RecordJoinResolutionInput,
+  RecordProcessStoppedInput,
+  RecordSpawnedInput,
+  RecordWorkspaceFinalizedInput,
+  RecoveryReport,
+  RelinkProjectInput,
+  RequestApprovalInput,
+  RequestApprovalResult,
+  ResolveApprovalInput,
+  ResolveApprovalResult,
+  RoutingCommitResult,
+  RunListFilters,
+  RunListPage,
+  RunRecord,
+  RunSnapshot,
+  SubmitInput,
+  SubmitOutcome,
+} from "./types.js";
+import { fail } from "./util.js";
+
+export interface ProjectsApi {
+  ensure(input: EnsureProjectInput): void;
+  list(): ProjectRecord[];
+  get(projectId: string): ProjectRecord | null;
+  findByPath(path: string): ProjectRecord | null;
+  relink(input: RelinkProjectInput): ProjectRecord;
+}
+
+export interface RunsApi {
+  create(input: CreateRunInput): CreateRunResult;
+  get(runId: RunId): RunRecord | null;
+  list(filters?: RunListFilters): RunListPage;
+  listActive(): RunRecord[];
+}
+
+export interface ProcessesApi {
+  active(): ActiveProcess[];
+}
+
+export interface OutputsApi {
+  recordDeterministic(input: RecordDeterministicOutputInput): RecordDeterministicOutputResult;
+  get(identity: Pick<ExecutionIdentity, "runId" | "path" | "attempt">): AcceptedOutput | null;
+  getById(id: string): OutputRecord | null;
+  listByProvenance(query: OutputProvenanceQuery): OutputProvenancePage;
+}
+
+export interface ExecutionsApi {
+  ensure(input: EnsureExecutionInput): ExecutionRow;
+  get(runId: RunId, path: Path): ExecutionRow | null;
+  list(runId: RunId): ExecutionRow[];
+  history(runId: RunId, path: Path): ExecutionHistory;
+  getProcess(identity: ExecutionIdentity): ProcessRecord | null;
+  recordSpawned(input: RecordSpawnedInput): ProcessRecord;
+  beginInvocation(input: BeginInvocationInput): ExecutionIdentity;
+  recordProcessStopped(input: RecordProcessStoppedInput): void;
+  recordWorkspaceFinalized(input: RecordWorkspaceFinalizedInput): void;
+  complete(input: CompleteExecutionInput): CompleteExecutionResult;
+  completeAcceptedAfterRecovery(input: CompleteAcceptedAfterRecoveryInput): CompleteExecutionResult;
+}
+
+export interface SubmissionsApi {
+  submit(input: SubmitInput): SubmitOutcome;
+  get(identity: ExecutionIdentity, callId: string): Receipt | null;
+  accepted(identity: Pick<ExecutionIdentity, "runId" | "path" | "attempt">): AcceptedOutput | null;
+  validationLeft(identity: ExecutionIdentity): number;
+  /** Counts committed E_NO_SUBMIT rejected receipts across generations of one logical attempt. */
+  countNoSubmit(identity: Pick<ExecutionIdentity, "runId" | "path" | "attempt">): number;
+}
+
+export interface EventsApi {
+  append(runId: RunId, drafts: readonly EventDraft[]): EventEnvelope[];
+  list(runId: RunId, options?: ListEventsOptions): EventEnvelope[];
+  page(runId: RunId, options?: EventPageOptions): EventPage;
+}
+
+export interface ViewApi {
+  get(runId: RunId): RunView;
+  snapshot(runId: RunId): RunSnapshot;
+  rebuild(runId: RunId): RunView;
+}
+
+export interface RecoveryApi {
+  recover(runId: RunId): RecoveryReport;
+}
+
+export interface RoutingApi {
+  recordGateDecision(input: RecordGateDecisionInput): RoutingCommitResult;
+  recordJoinResolution(input: RecordJoinResolutionInput): RoutingCommitResult;
+}
+
+export interface ApprovalsApi {
+  request(input: RequestApprovalInput): RequestApprovalResult;
+  resolve(input: ResolveApprovalInput): ResolveApprovalResult;
+  get(identity: ExecutionIdentity): ApprovalRecord | null;
+  listPending(filter?: { projectId?: string; runId?: RunId }): ApprovalRecord[];
+  listOutstandingWakes(runId?: RunId): ApprovalWake[];
+  consumeWake(identity: ExecutionIdentity, requestId: string): boolean;
+}
+
+export interface SecurityApi {
+  /** Registers a value for reject/redact checks; returns an unregister function. */
+  registerSecret(value: string, name?: string): () => void;
+  scan(value: unknown): SecretFinding | null;
+}
+
+/**
+ * @relay/store owns the only SQLite connection. Every write goes through tx();
+ * appendEvents is the only writer of run_views/executions/run status.
+ */
+export class Store {
+  readonly bus = new EventBus();
+  readonly projects: ProjectsApi;
+  readonly runs: RunsApi;
+  readonly executions: ExecutionsApi;
+  readonly processes: ProcessesApi;
+  readonly outputs: OutputsApi;
+  readonly submissions: SubmissionsApi;
+  readonly events: EventsApi;
+  readonly view: ViewApi;
+  readonly recovery: RecoveryApi;
+  readonly routing: RoutingApi;
+  readonly approvals: ApprovalsApi;
+  readonly security: SecurityApi;
+
+  readonly #runtime: Runtime;
+
+  constructor(options: OpenStoreOptions) {
+    const driver = options.driver ?? betterSqliteDriver;
+    const clock: Clock = options.clock ?? systemClock;
+    const idGen: IdGen = options.idGen ?? systemIds;
+    if (options.file !== ":memory:") mkdirSync(dirname(options.file), { recursive: true });
+    const secrets = new SecretRegistry(options.secrets ?? []);
+    this.#runtime = {
+      db: driver.open(options.file),
+      clock,
+      idGen,
+      bus: this.bus,
+      secrets,
+      depth: 0,
+      pending: [],
+      poisoned: false,
+      poisonError: undefined,
+    };
+    try {
+      this.#configure(this.#runtime.db);
+      applyMigrations(this.#runtime.db, clock.now());
+      this.#quickCheck(this.#runtime.db);
+    } catch (error) {
+      this.#runtime.db.close();
+      throw error;
+    }
+
+    this.projects = {
+      ensure: (input) => this.tx(() => ensureProject(this.#runtime, input)),
+      list: () => listProjects(this.#runtime),
+      get: (projectId) => getProject(this.#runtime, projectId),
+      findByPath: (path) => findProjectByPath(this.#runtime, path),
+      relink: (input) => this.tx(() => relinkProject(this.#runtime, input)),
+    };
+    this.runs = {
+      create: (input) => this.tx(() => createRun(this.#runtime, input)),
+      get: (runId) => getRun(this.#runtime, runId),
+      list: (filters) => listRuns(this.#runtime, filters),
+      listActive: () => listActiveRuns(this.#runtime),
+    };
+    this.processes = {
+      active: () => activeProcesses(this.#runtime),
+    };
+    this.outputs = {
+      recordDeterministic: (input) => this.tx(() => recordDeterministic(this.#runtime, input)),
+      get: (identity) => getOutput(this.#runtime, identity.runId, identity.path, identity.attempt),
+      getById: (id) => getOutputById(this.#runtime, id),
+      listByProvenance: (query) => listOutputsByProvenance(this.#runtime, query),
+    };
+    this.executions = {
+      ensure: (input) => this.tx(() => ensureExecution(this.#runtime, input)),
+      get: (runId, path) => getExecution(this.#runtime, runId, path),
+      list: (runId) => listExecutions(this.#runtime, runId),
+      history: (runId, path) => executionHistory(this.#runtime, runId, path),
+      getProcess: (identity) => getProcess(this.#runtime, identity),
+      recordSpawned: (input) => this.tx(() => recordSpawned(this.#runtime, input)),
+      beginInvocation: (input) => this.tx(() => beginInvocation(this.#runtime, input)),
+      recordProcessStopped: (input) => this.tx(() => recordProcessStopped(this.#runtime, input)),
+      recordWorkspaceFinalized: (input) =>
+        this.tx(() => recordWorkspaceFinalized(this.#runtime, input)),
+      complete: (input) => this.tx(() => completeExecution(this.#runtime, input)),
+      completeAcceptedAfterRecovery: (input) =>
+        this.tx(() => completeAcceptedAfterRecovery(this.#runtime, input)),
+    };
+    this.submissions = {
+      submit: (input) => this.tx(() => submit(this.#runtime, input)),
+      get: (identity, callId) => readReceipt(this.#runtime, identity, callId),
+      accepted: (identity) =>
+        getAcceptedOutput(this.#runtime, identity.runId, identity.path, identity.attempt),
+      validationLeft: (identity) => validationLeft(this.#runtime, identity),
+      countNoSubmit: (identity) =>
+        countNoSubmit(this.#runtime, identity.runId, identity.path, identity.attempt),
+    };
+    this.events = {
+      append: (runId, drafts) => this.tx(() => appendEvents(this.#runtime, runId, drafts)),
+      list: (runId, options) => listEvents(this.#runtime, runId, options),
+      page: (runId, options) => pageEvents(this.#runtime, runId, options),
+    };
+    this.view = {
+      get: (runId) => getView(this.#runtime, runId),
+      snapshot: (runId) => snapshotRun(this.#runtime, runId),
+      rebuild: (runId) => this.tx(() => rebuildProjection(this.#runtime, runId)),
+    };
+    this.recovery = {
+      recover: (runId) => this.tx(() => recover(this.#runtime, runId)),
+    };
+    this.routing = {
+      recordGateDecision: (input) => this.tx(() => recordGateDecision(this.#runtime, input)),
+      recordJoinResolution: (input) => this.tx(() => recordJoinResolution(this.#runtime, input)),
+    };
+    this.approvals = {
+      request: (input) => this.tx(() => requestApproval(this.#runtime, input)),
+      resolve: (input) => this.tx(() => resolveApproval(this.#runtime, input)),
+      get: (identity) => getApproval(this.#runtime, identity),
+      listPending: (filter) => listPendingApprovals(this.#runtime, filter),
+      listOutstandingWakes: (runId) => listOutstandingApprovalWakes(this.#runtime, runId),
+      consumeWake: (identity, requestId) => {
+        if (this.#runtime.depth > 0) return consumeApprovalWake(this.#runtime, identity, requestId);
+        return this.tx(() => consumeApprovalWake(this.#runtime, identity, requestId));
+      },
+    };
+    this.security = {
+      registerSecret: (value, name) => secrets.register(value, name),
+      scan: (value) => secrets.scanValue(value),
+    };
+  }
+
+  /** All writes. The callback is synchronous; nested calls join the outer transaction. */
+  tx<T>(fn: (store: Store) => T & (T extends PromiseLike<unknown> ? never : unknown)): T {
+    const runtime = this.#runtime;
+    if (fn.constructor.name === "AsyncFunction") {
+      fail("E_INTERNAL", "store.tx callbacks must be synchronous; async callbacks are rejected");
+    }
+    if (runtime.depth > 0) {
+      if (runtime.poisoned) {
+        throw runtime.poisonError instanceof Error
+          ? runtime.poisonError
+          : new Error("Outer transaction is poisoned by an earlier nested failure");
+      }
+      try {
+        return this.#syncResult(fn(this));
+      } catch (error) {
+        // Even if the caller catches, the outer transaction must not commit
+        // rows written before the failure.
+        runtime.poisoned = true;
+        runtime.poisonError = error;
+        throw error;
+      }
+    }
+    runtime.poisoned = false;
+    runtime.poisonError = undefined;
+    runtime.db.exec("BEGIN IMMEDIATE");
+    runtime.depth = 1;
+    try {
+      const result = this.#syncResult(fn(this));
+      if (runtime.poisoned) {
+        throw runtime.poisonError instanceof Error
+          ? runtime.poisonError
+          : new Error("Outer transaction is poisoned by an earlier nested failure");
+      }
+      runtime.db.exec("COMMIT");
+      runtime.depth = 0;
+      const committed = runtime.pending;
+      runtime.pending = [];
+      runtime.poisoned = false;
+      runtime.poisonError = undefined;
+      this.bus.publish(committed);
+      return result;
+    } catch (error) {
+      try {
+        runtime.db.exec("ROLLBACK");
+      } catch {
+        // Keep the original failure.
+      }
+      runtime.pending = [];
+      runtime.depth = 0;
+      runtime.poisoned = false;
+      runtime.poisonError = undefined;
+      throw error;
+    }
+  }
+
+  #syncResult<T>(result: T): T {
+    if (
+      result !== null &&
+      (typeof result === "object" || typeof result === "function") &&
+      typeof (result as { then?: unknown }).then === "function"
+    ) {
+      fail(
+        "E_INTERNAL",
+        "store.tx callbacks must be synchronous; a promise was returned and the transaction was rolled back",
+      );
+    }
+    return result;
+  }
+
+  close(): void {
+    if (this.#runtime.depth > 0) {
+      fail("E_INTERNAL", "Cannot close the store inside a transaction");
+    }
+    this.#runtime.db.close();
+  }
+
+  #configure(db: SqliteDb): void {
+    const pragmas = [
+      "journal_mode = WAL",
+      "synchronous = NORMAL",
+      "foreign_keys = ON",
+      "busy_timeout = 5000",
+      "wal_autocheckpoint = 1000",
+      "temp_store = MEMORY",
+      "trusted_schema = OFF",
+    ];
+    for (const pragma of pragmas) db.pragma(pragma);
+    const fts = db.prepare("SELECT sqlite_compileoption_used('ENABLE_FTS5') AS present").get() as
+      | { present?: number }
+      | undefined;
+    if (!fts?.present) {
+      fail("E_INTERNAL", "This SQLite build lacks FTS5; Relay store refuses to start");
+    }
+  }
+
+  #quickCheck(db: SqliteDb): void {
+    const row = db.prepare("PRAGMA quick_check").get() as { quick_check?: string } | undefined;
+    if (row?.quick_check && row.quick_check !== "ok") {
+      fail("E_INTERNAL", `SQLite quick_check failed: ${row.quick_check}`);
+    }
+  }
+}
+
+export function openStore(options: OpenStoreOptions): Store {
+  return new Store(options);
+}

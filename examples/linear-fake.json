@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "id": "linear-fake",
+  "name": "Linear fake-agent demo",
+  "description": "A four-node chain: start -> fake agent -> shell -> end. The run workspace is chosen at start (project root by default). The fake CLI is test-only.",
+  "graph": {
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "name": "Inputs",
+        "params": [
+          {
+            "name": "topic",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "style",
+            "type": "enum",
+            "options": ["brief", "detailed"],
+            "default": "brief",
+            "required": false
+          }
+        ],
+        "ui": { "x": 0, "y": 0 }
+      },
+      {
+        "id": "draft",
+        "type": "agent",
+        "name": "Draft",
+        "cli": "fake",
+        "prompt": "Write a {{ start.style }} note about {{ start.topic }}. Return one summary and up to eight points.",
+        "output": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["summary", "points"],
+          "properties": {
+            "summary": {
+              "type": "string",
+              "maxLength": 2000,
+              "description": "One-paragraph summary."
+            },
+            "points": {
+              "type": "array",
+              "items": { "type": "string", "maxLength": 500 },
+              "maxItems": 8,
+              "minItems": 1
+            }
+          }
+        },
+        "permissions": { "network": false, "write": ["workspace"] },
+        "limits": { "timeoutMin": 10, "validationRetries": 1, "crashRetries": 0 },
+        "context": { "project": "none", "workflow": "none" },
+        "ui": { "x": 240, "y": 0 }
+      },
+      {
+        "id": "render",
+        "type": "shell",
+        "name": "Render summary",
+        "command": "printf '%s\\n' {{ draft.summary }}",
+        "timeoutMin": 2,
+        "allowFailure": false,
+        "ui": { "x": 480, "y": 0 }
+      },
+      {
+        "id": "done",
+        "type": "end",
+        "name": "Done",
+        "status": "success",
+        "result": "{ \"summary\": draft.summary, \"points\": draft.points }",
+        "ui": { "x": 720, "y": 0 }
+      }
+    ],
+    "edges": [
+      { "id": "e-start-draft", "from": "start", "to": "draft" },
+      { "id": "e-draft-render", "from": "draft", "to": "render" },
+      { "id": "e-render-done", "from": "render", "to": "done" }
+    ]
+  }
+}

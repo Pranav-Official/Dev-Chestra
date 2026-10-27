@@ -1,0 +1,77 @@
+name: SQLite native canary
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sqlite-canary-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prebuild-fts5:
+    name: prebuild + FTS5 / ${{ matrix.os }} / node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: ["22.x", "24.x", "26.x"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.14.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install better-sqlite3 without compiling
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/sqlite-canary"
+          rm -rf "$dir"
+          mkdir -p "$dir"
+          cd "$dir"
+          printf '%s\n' '{"name":"sqlite-canary","private":true,"type":"module"}' > package.json
+          pnpm add better-sqlite3@13.0.3 --reporter=append-only 2>&1 | tee install.log
+          if grep -nEi 'node-gyp rebuild|gyp info it worked|gyp info using node-gyp' install.log; then
+            echo "::error::better-sqlite3 fell back to a source compile; the prebuilt-only policy is violated"
+            exit 1
+          fi
+      - name: Load bundled prebuild and exercise FTS5
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/sqlite-canary"
+          node --input-type=module -e '
+            import { createRequire } from "node:module";
+            import { existsSync } from "node:fs";
+            import path from "node:path";
+            const require = createRequire(import.meta.url);
+            const entry = require.resolve("better-sqlite3");
+            const pkgDir = path.dirname(path.dirname(entry));
+            const platform = process.platform === "linux" && !process.report.getReport().header.glibcVersionRuntime
+              ? "linuxmusl"
+              : process.platform;
+            const prebuild = path.join(pkgDir, "prebuilds", `${platform}-${process.arch}.node`);
+            if (!existsSync(prebuild)) throw new Error(`no bundled prebuilt binding at ${prebuild}`);
+            const compiled = path.join(pkgDir, "build", "Release", "better_sqlite3.node");
+            if (existsSync(compiled)) throw new Error("source-compiled binding present; prebuilt-only policy violated");
+            const Database = require("better-sqlite3");
+            const db = new Database(":memory:");
+            const version = db.prepare("select sqlite_version() as v").get().v;
+            db.exec("CREATE VIRTUAL TABLE docs USING fts5(title, body)");
+            const insert = db.prepare("INSERT INTO docs(title, body) VALUES (?, ?)");
+            insert.run("hello", "relay durable recovery");
+            insert.run("other", "unrelated text");
+            const rows = db.prepare("SELECT title FROM docs WHERE docs MATCH ? ORDER BY rank").all("relay");
+            if (rows.length !== 1 || rows[0].title !== "hello") throw new Error("FTS5 query mismatch");
+            console.log(JSON.stringify({ ok: true, node: process.version, abi: process.versions.modules, sqlite: version, prebuild }));
+            db.close();
+          '

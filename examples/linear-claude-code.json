@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "id": "linear-claude-code",
+  "name": "Linear Claude Code demo",
+  "description": "Same four-node scratch-only chain as linear-fake, using the claude-code adapter. Live adapter verification is owned separately.",
+  "graph": {
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "name": "Inputs",
+        "params": [
+          {
+            "name": "topic",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      {
+        "id": "draft",
+        "type": "agent",
+        "name": "Draft",
+        "cli": "claude-code",
+        "prompt": "Write a short note about {{ start.topic }}. Return one summary and up to eight points.",
+        "output": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["summary", "points"],
+          "properties": {
+            "summary": { "type": "string", "maxLength": 2000 },
+            "points": {
+              "type": "array",
+              "items": { "type": "string", "maxLength": 500 },
+              "maxItems": 8
+            }
+          }
+        },
+        "permissions": { "network": false, "write": ["workspace"] },
+        "workspace": { "mode": "scratch" },
+        "limits": { "timeoutMin": 20, "validationRetries": 2, "crashRetries": 1 },
+        "context": { "project": "none", "workflow": "none" }
+      },
+      {
+        "id": "render",
+        "type": "shell",
+        "name": "Render summary",
+        "command": "printf '%s\\n' {{ draft.summary }}",
+        "workspace": { "mode": "scratch" },
+        "timeoutMin": 2
+      },
+      {
+        "id": "done",
+        "type": "end",
+        "name": "Done",
+        "status": "success",
+        "result": "{ \"summary\": draft.summary, \"points\": draft.points }"
+      }
+    ],
+    "edges": [
+      { "id": "e-start-draft", "from": "start", "to": "draft" },
+      { "id": "e-draft-render", "from": "draft", "to": "render" },
+      { "id": "e-render-done", "from": "render", "to": "done" }
+    ]
+  }
+}
