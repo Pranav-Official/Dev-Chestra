@@ -15,11 +15,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { StandinHandle } from "../../../tools/fixtures/decisions/standin.mjs";
 import { startStandin } from "../../../tools/fixtures/decisions/standin.mjs";
 import { type ActiveRunState, EngineContext } from "../src/context.js";
-import { StopSignal } from "../src/stop.js";
 import { createEngine } from "../src/engine.js";
 import { executeDecision } from "../src/exec-decision.js";
 import { executeDeterministic } from "../src/exec-deterministic.js";
 import { analyzeWorkflowPlan, type WorkflowPlan } from "../src/graph-plan.js";
+import { StopSignal } from "../src/stop.js";
 import type { EngineDeps } from "../src/types.js";
 
 const FAKE_ENV = {
@@ -376,7 +376,13 @@ describe("engine decision executor", () => {
     if (!planResult.ok) throw planResult.error;
     const ctx = new EngineContext(deps);
     const run = store.runs.get(created.runId) as RunRecord;
-    await executeDeterministic(ctx, run, planResult.value, planResult.value.byId.get("start") as never, activeState());
+    await executeDeterministic(
+      ctx,
+      run,
+      planResult.value,
+      planResult.value.byId.get("start") as never,
+      activeState(),
+    );
     const nodeD = planResult.value.byId.get("d") as never;
     // The branch-null commit as executeDecision performs it, then a crash
     // before the throw: the answer survives, the execution never failed.
@@ -474,7 +480,13 @@ describe("engine decision executor", () => {
     if (!planResult.ok) throw planResult.error;
     const ctx = new EngineContext({ ...deps, decisions: wrapped });
     const run = store.runs.get(created.runId) as RunRecord;
-    await executeDeterministic(ctx, run, planResult.value, planResult.value.byId.get("start") as never, activeState());
+    await executeDeterministic(
+      ctx,
+      run,
+      planResult.value,
+      planResult.value.byId.get("start") as never,
+      activeState(),
+    );
     const nodeD = planResult.value.byId.get("d") as never;
     let stopped: unknown;
     try {

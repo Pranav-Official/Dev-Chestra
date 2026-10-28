@@ -259,7 +259,9 @@ describe("provider-controlled bounds (F6)", () => {
   it("treats out-of-range or non-finite confidence as absent", () => {
     for (const confidence of [5, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
       const { output } = parseDecisionPayload({
-        payload: { answers: { q0: { choice: "a", probabilities: { a: 0.6, b: 0.3 }, confidence } } },
+        payload: {
+          answers: { q0: { choice: "a", probabilities: { a: 0.6, b: 0.3 }, confidence } },
+        },
         question: choiceQ,
         modelFallback: "m",
       });
@@ -373,7 +375,9 @@ describe("prototype edge cases (F9)", () => {
       },
     };
     const body = buildDecisionBody(request, DECISION_PRESETS["typesafe-jev"]);
-    expect(Object.hasOwn(body.questions.q0.criteria, "__proto__")).toBe(true);
+    const q0 = body.questions.q0;
+    if (q0.type !== "choice") throw new Error("expected a choice body");
+    expect(Object.hasOwn(q0.criteria, "__proto__")).toBe(true);
     // NB: a `__proto__` literal key would set the prototype, not an own
     // property; the computed key asserts the real own-property round trip.
     expect(JSON.parse(JSON.stringify(body)).questions.q0.criteria).toEqual({

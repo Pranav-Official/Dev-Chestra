@@ -101,7 +101,7 @@ async function withSlot<T>(
   } finally {
     sem.active -= 1;
     let next = sem.waiting.shift();
-    while (next !== undefined && next.cancelled) {
+    while (next?.cancelled === true) {
       next = sem.waiting.shift();
     }
     next?.wake();

@@ -337,9 +337,13 @@ export function parseDecisionPayload(args: ParseDecisionPayloadArgs): ParsedDeci
   const top = isRecord(args.payload) ? args.payload : {};
   const envelopeMessage = readEnvelopeError(top);
   if (envelopeMessage !== undefined) {
-    throw new RelayError("E_PROVIDER", `Decision provider failed: ${truncateReason(envelopeMessage)}`, {
-      retryable: false,
-    });
+    throw new RelayError(
+      "E_PROVIDER",
+      `Decision provider failed: ${truncateReason(envelopeMessage)}`,
+      {
+        retryable: false,
+      },
+    );
   }
   const inner =
     isRecord(top.result) && top.result !== top ? (top.result as Record<string, unknown>) : top;

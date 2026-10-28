@@ -264,7 +264,9 @@ describe("decision integration via loopback stand-in", () => {
     });
     const started = Date.now();
     const outcomes = await Promise.all(
-      Array.from({ length: 8 }, () => stalled.ask(booleanReq("typesafe-jev"), new AbortController().signal)),
+      Array.from({ length: 8 }, () =>
+        stalled.ask(booleanReq("typesafe-jev"), new AbortController().signal),
+      ),
     );
     // The timeout stays active mid-body: all 8 fail fast instead of hanging.
     expect(Date.now() - started).toBeLessThan(10_000);
