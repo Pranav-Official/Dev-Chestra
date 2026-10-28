@@ -12,6 +12,7 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 2, file: "0002_process_identity.sql" },
   { version: 3, file: "0003_run_workspace.sql" },
   { version: 4, file: "0004_approval.sql" },
+  { version: 5, file: "0005_workspace_cleanup.sql" },
 ];
 
 function migrationsDir(): string {

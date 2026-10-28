@@ -284,6 +284,7 @@ export interface RoutingCommitResult {
 }
 
 export interface RunRecord {
+  archivedAt?: number | null;
   id: RunId;
   project: { id: string; name: string; path: string; kind: "git" | "folder" };
   workflowId: string;
@@ -312,6 +313,8 @@ export interface RunRecord {
 
 /** Lightweight run row for list endpoints; never includes the frozen snapshot. */
 export interface RunSummary {
+  archivedAt?: number | null;
+  workflowName?: string | null;
   id: RunId;
   projectId: string;
   projectName: string;
@@ -333,6 +336,7 @@ export interface RunSummary {
 }
 
 export interface RunListFilters {
+  archived?: boolean;
   projectId?: string;
   workflowId?: string;
   /** One status or a list; empty means no status filter. */

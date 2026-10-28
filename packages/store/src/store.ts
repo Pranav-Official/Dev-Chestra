@@ -21,6 +21,7 @@ import {
   resolveApproval,
 } from "./approvals.js";
 import { EventBus } from "./bus.js";
+import { archiveWorkflowRuns, removeProject, setRunArchived } from "./cleanup.js";
 import type { SqliteDb } from "./driver.js";
 import { betterSqliteDriver } from "./driver-better-sqlite3.js";
 import { appendEvents, type ListEventsOptions } from "./events.js";
@@ -56,6 +57,7 @@ import {
   listRuns,
   pageEvents,
   snapshotRun,
+  workflowRunSummaries,
 } from "./read-ports.js";
 import { recover } from "./recovery.js";
 import { recordGateDecision, recordJoinResolution } from "./routing.js";
@@ -111,6 +113,7 @@ import type {
   RunListPage,
   RunRecord,
   RunSnapshot,
+  RunSummary,
   SubmitInput,
   SubmitOutcome,
 } from "./types.js";
@@ -118,6 +121,7 @@ import { fail } from "./util.js";
 
 export interface ProjectsApi {
   ensure(input: EnsureProjectInput): void;
+  remove(projectId: string): void;
   list(): ProjectRecord[];
   get(projectId: string): ProjectRecord | null;
   findByPath(path: string): ProjectRecord | null;
@@ -126,6 +130,9 @@ export interface ProjectsApi {
 
 export interface RunsApi {
   create(input: CreateRunInput): CreateRunResult;
+  setArchived(runId: RunId, archived: boolean): void;
+  archiveWorkflow(projectId: string, workflowId: string): void;
+  workflowSummaries(projectId: string): RunSummary[];
   get(runId: RunId): RunRecord | null;
   list(filters?: RunListFilters): RunListPage;
   listActive(): RunRecord[];
@@ -249,6 +256,7 @@ export class Store {
     }
 
     this.projects = {
+      remove: (projectId) => this.tx(() => removeProject(this.#runtime, projectId)),
       ensure: (input) => this.tx(() => ensureProject(this.#runtime, input)),
       list: () => listProjects(this.#runtime),
       get: (projectId) => getProject(this.#runtime, projectId),
@@ -256,6 +264,11 @@ export class Store {
       relink: (input) => this.tx(() => relinkProject(this.#runtime, input)),
     };
     this.runs = {
+      setArchived: (runId, archived) =>
+        this.tx(() => setRunArchived(this.#runtime, runId, archived)),
+      archiveWorkflow: (projectId, workflowId) =>
+        this.tx(() => archiveWorkflowRuns(this.#runtime, projectId, workflowId)),
+      workflowSummaries: (projectId) => workflowRunSummaries(this.#runtime, projectId),
       create: (input) => this.tx(() => createRun(this.#runtime, input)),
       get: (runId) => getRun(this.#runtime, runId),
       list: (filters) => listRuns(this.#runtime, filters),

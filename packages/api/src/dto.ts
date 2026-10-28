@@ -170,6 +170,7 @@ export const bootstrapResponseSchema = strict({
 // ---------------------------------------------------------------------------
 
 export interface RunSummary {
+  archivedAt?: number | null;
   id: RunId;
   projectId: string;
   projectName: string;
@@ -189,6 +190,7 @@ export interface RunSummary {
 }
 
 export const runSummarySchema = strict({
+  archivedAt: epochMsSchema.nullable().optional(),
   id: runIdSchema,
   projectId: z.string().min(1),
   projectName: z.string(),
@@ -217,6 +219,7 @@ export const runListResponseSchema = strict({
 }) as unknown as z.ZodType<RunListResponse>;
 
 export const runListQuerySchema = strict({
+  archived: z.enum(["true", "false"]).optional(),
   project: projectIdSchema.optional(),
   workflow: z.string().min(1).max(64).optional(),
   status: runStatusSchema.optional(),

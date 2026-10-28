@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import type { ApprovalSummary, RunLayout, RunWorkspaceSelection } from "@relay/api";
-import type { Path, RunId, RunStatus } from "@relay/core";
+import { type Path, type RunId, type RunStatus, RelayError as StoreError } from "@relay/core";
 import type { NormalizedWorkflow } from "@relay/schema";
 import type {
   ExecutionHistory,
@@ -11,6 +11,7 @@ import type {
   Store,
   RunSummary as StoreRunSummary,
 } from "@relay/store";
+import { RelayError } from "../errors.js";
 import type {
   BrowserQueryPort,
   EventPage,
@@ -32,6 +33,7 @@ function workflowName(snapshot: unknown): string | null {
 
 function fromRunRecord(run: RunRecord): RunSummary {
   return {
+    archivedAt: run.archivedAt ?? null,
     id: run.id,
     projectId: run.project.id,
     projectName: run.project.name,
@@ -52,11 +54,12 @@ function fromRunRecord(run: RunRecord): RunSummary {
 
 function fromStoreSummary(run: StoreRunSummary): RunSummary {
   return {
+    archivedAt: run.archivedAt ?? null,
     id: run.id,
     projectId: run.projectId,
     projectName: run.projectName,
     workflowId: run.workflowId,
-    workflowName: null,
+    workflowName: run.workflowName ?? null,
     runNumber: run.runNumber,
     kind: run.kind,
     status: run.status,
@@ -176,6 +179,20 @@ function approvalSummaryForRecord(
   };
 }
 
+function cleanupCommand(command: () => void): void {
+  try {
+    command();
+  } catch (error) {
+    if (
+      error instanceof StoreError &&
+      (error.code === "E_CONFLICT" || error.code === "E_NOT_FOUND")
+    ) {
+      throw new RelayError(error.code, error.message);
+    }
+    throw error;
+  }
+}
+
 export function createStoreQueryPort(store: Store): BrowserQueryPort {
   const getProject = (projectId: string): ProjectView | null => {
     const record = store.projects.get(projectId);
@@ -183,13 +200,30 @@ export function createStoreQueryPort(store: Store): BrowserQueryPort {
   };
 
   return {
+    removeProject: (projectId) => cleanupCommand(() => store.projects.remove(projectId)),
+    setRunArchived: (runId, archived) =>
+      cleanupCommand(() => store.runs.setArchived(runId as RunId, archived)),
+    archiveWorkflowRuns: (projectId, workflowId) =>
+      store.runs.archiveWorkflow(projectId, workflowId),
+    projectRunSummaries: (projectId) => ({
+      items: store.runs.workflowSummaries(projectId).map(fromStoreSummary),
+      nextCursor: null,
+    }),
     listProjects(): ProjectView[] {
       return store.projects.list().map(toProject);
     },
     getProject,
     registerProject(input: RegisterProjectCommand): ProjectView {
       const existing = store.projects.findByPath(input.path);
-      if (existing !== null) return toProject(existing);
+      if (existing !== null) {
+        store.projects.ensure({
+          id: existing.id,
+          name: existing.name,
+          path: existing.path,
+          kind: existing.kind,
+        });
+        return toProject(existing);
+      }
       const id = projectIdForPath(input.path);
       store.projects.ensure({
         id,
@@ -213,6 +247,7 @@ export function createStoreQueryPort(store: Store): BrowserQueryPort {
     },
     listRuns(input: ListRunsQuery): RunListPage {
       const page = store.runs.list({
+        ...(input.archived === undefined ? {} : { archived: input.archived }),
         ...(input.projectId === undefined ? {} : { projectId: input.projectId }),
         ...(input.workflowId === undefined ? {} : { workflowId: input.workflowId }),
         ...(input.status === undefined ? {} : { status: input.status }),

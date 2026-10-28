@@ -1,15 +1,21 @@
 import { useQueries } from "@tanstack/react-query";
-import { Activity, Folder, FolderGit2, GitBranch, History, Layers3, Workflow } from "lucide-react";
+import {
+  Activity,
+  ChevronDown,
+  ChevronRight,
+  Folder,
+  FolderGit2,
+  GitBranch,
+  Layers3,
+} from "lucide-react";
+import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { classifyError } from "../api/client.js";
-import { queryKeys, useAllRuns, useBootstrap } from "../api/hooks.js";
+import { api, classifyError } from "../api/client.js";
+import { queryKeys, useBootstrap } from "../api/hooks.js";
 import type { RunSummary } from "../api/types.js";
 import { workflowApi } from "../editor/api/workflowApi.js";
 import { statusLabel } from "../ui/StatusPill.js";
-
-function active(pathname: string, prefix: string): boolean {
-  return pathname === prefix || pathname.startsWith(`${prefix}/`);
-}
+import { WorkspaceActions } from "../ui/WorkspaceActions.js";
 
 interface WorkflowNav {
   id: string;
@@ -18,34 +24,17 @@ interface WorkflowNav {
   runs: RunSummary[];
 }
 
-function buildWorkflows(
-  projectId: string,
-  runs: RunSummary[],
-  names: Map<string, string>,
-): WorkflowNav[] {
-  const map = new Map<string, WorkflowNav>();
-  for (const [id, name] of names) {
-    map.set(id, { id, name, managed: true, runs: [] });
-  }
-  for (const run of runs) {
-    if (run.projectId !== projectId) continue;
-    const existing = map.get(run.workflowId) ?? {
-      id: run.workflowId,
-      name: run.workflowName ?? run.workflowId,
-      managed: false,
-      runs: [],
-    };
-    existing.runs.push(run);
-    map.set(run.workflowId, existing);
-  }
-  return [...map.values()].sort((left, right) => left.name.localeCompare(right.name));
-}
-
 export function Sidebar() {
   const location = useLocation();
   const bootstrap = useBootstrap();
-  const runsQuery = useAllRuns();
-  const runs = runsQuery.data?.items ?? [];
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const toggle = (key: string) =>
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   const failure = bootstrap.error ? classifyError(bootstrap.error) : null;
   const projects = bootstrap.data?.projects ?? [];
   const workflowQueries = useQueries({
@@ -58,7 +47,26 @@ export function Sidebar() {
       retry: false as const,
     })),
   });
-
+  const runQueries = useQueries({
+    queries: projects.map((project) => ({
+      queryKey: [...queryKeys.runsFor(project.id), "sidebar-summaries"],
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        api.projectRunSummaries(project.id, { signal }),
+      staleTime: 5_000,
+    })),
+  });
+  const disclosure = (key: string, label: string) => (
+    <button
+      type="button"
+      className="nav-disclosure"
+      aria-label={`Toggle ${label}`}
+      aria-expanded={!collapsed.has(key)}
+      aria-controls={`nav-${key}`}
+      onClick={() => toggle(key)}
+    >
+      {collapsed.has(key) ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+    </button>
+  );
   return (
     <aside className="sidebar" aria-label="Projects, workflows and runs">
       <div className="sidebar-top">
@@ -78,111 +86,149 @@ export function Sidebar() {
           {bootstrap.data ? <span className="sub">{bootstrap.data.counts.runs} runs</span> : null}
         </Link>
       </div>
-
       <nav className="sidebar-nav">
         <div className="nav-sec">Projects</div>
         {bootstrap.isPending ? (
-          <div className="col" style={{ padding: "4px 8px" }} aria-busy="true">
-            <div className="skeleton" style={{ width: "80%" }} />
-            <div className="skeleton" style={{ width: "64%" }} />
-            <div className="skeleton" style={{ width: "72%" }} />
-          </div>
+          <p aria-busy="true" className="faint">
+            Loading projects…
+          </p>
         ) : null}
         {failure ? (
-          <div className="note" style={{ margin: "4px 4px 8px" }} role="status">
-            <Activity size={14} aria-hidden="true" />
+          <div className="note" role="status">
+            <Activity size={14} />
             <span>
               {failure.kind === "auth" ? "Open Relay from your terminal." : "Server unavailable."}
             </span>
           </div>
         ) : null}
         {bootstrap.data?.projects.length === 0 ? (
-          <p className="faint" style={{ padding: "4px 8px" }}>
-            No projects registered.
-          </p>
+          <p className="faint">No projects registered.</p>
         ) : null}
         {projects.map((project, index) => {
           const projectPath = `/p/${project.id}/workflows`;
-          const projectRuns = runs.filter((run) => run.projectId === project.id);
-          const names = new Map<string, string>();
-          const queryItems = workflowQueries[index]?.data?.items ?? [];
-          for (const item of queryItems) names.set(item.id, item.name);
-          const workflows = buildWorkflows(project.id, projectRuns, names);
+          const workflows = new Map<string, WorkflowNav>();
+          for (const item of workflowQueries[index]?.data?.items ?? [])
+            workflows.set(item.id, { id: item.id, name: item.name, managed: true, runs: [] });
+          for (const run of runQueries[index]?.data?.items ?? []) {
+            const workflow = workflows.get(run.workflowId) ?? {
+              id: run.workflowId,
+              name: run.workflowName ?? run.workflowId,
+              managed: false,
+              runs: [],
+            };
+            workflow.runs.push(run);
+            workflows.set(workflow.id, workflow);
+          }
           return (
-            <div key={project.id} style={{ marginBottom: 6 }}>
-              <Link
-                to={projectPath}
-                className={`nav-item${active(location.pathname, `/p/${project.id}`) ? " active" : ""}`}
-                title={`${project.path} — open workflows`}
-              >
-                {project.kind === "git" ? (
-                  <FolderGit2 size={15} aria-hidden="true" />
-                ) : (
-                  <Folder size={15} aria-hidden="true" />
-                )}
-                <span className="nm">{project.name}</span>
-                {project.missing ? <span className="sub">missing</span> : null}
-              </Link>
-              {workflows.length > 0 ? (
-                <div className="nav-kids">
-                  {workflows.map((workflow) => {
+            <div key={project.id} className="nav-project">
+              <div className="nav-tree-row nav-project-row">
+                {disclosure(project.id, project.name)}
+                <Link
+                  to={projectPath}
+                  className={`nav-item${location.pathname === projectPath ? " active" : ""}`}
+                  aria-current={location.pathname === projectPath ? "page" : undefined}
+                  title={project.path}
+                >
+                  {project.kind === "git" ? (
+                    <FolderGit2 size={15} aria-hidden="true" />
+                  ) : (
+                    <Folder size={15} aria-hidden="true" />
+                  )}
+                  <span className="nm">{project.name}</span>
+                  {project.missing ? <span className="sub">missing</span> : null}
+                </Link>
+                <WorkspaceActions projectId={project.id} name={project.name} />
+              </div>
+              <div id={`nav-${project.id}`} hidden={collapsed.has(project.id)} className="nav-kids">
+                {runQueries[index]?.error ? (
+                  <p role="status" className="faint">
+                    Run history unavailable.{" "}
+                    <button type="button" onClick={() => void runQueries[index]?.refetch()}>
+                      Retry
+                    </button>
+                  </p>
+                ) : null}
+                {[...workflows.values()]
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((workflow) => {
+                    const key = `${project.id}-${workflow.id}`;
                     const editorPath = `/p/${project.id}/w/${workflow.id}`;
-                    const historyPath = `/p/${project.id}/runs?workflow=${encodeURIComponent(
-                      workflow.id,
-                    )}`;
+                    const historyPath = `/p/${project.id}/runs?workflow=${encodeURIComponent(workflow.id)}`;
+                    const selected = workflow.managed
+                      ? location.pathname === editorPath
+                      : location.pathname + location.search === historyPath;
                     return (
                       <div key={workflow.id}>
-                        {workflow.managed ? (
+                        <div className="nav-tree-row nav-workflow-row">
+                          {disclosure(key, workflow.name)}
                           <Link
-                            to={editorPath}
-                            className={`nav-item${
-                              active(location.pathname, editorPath) ? " active" : ""
-                            }`}
-                            title={`Open workflow editor: ${workflow.name}`}
-                            aria-label={`Open workflow editor: ${workflow.name}`}
+                            to={workflow.managed ? editorPath : historyPath}
+                            className={`nav-item${selected ? " active" : ""}`}
+                            aria-current={selected ? "page" : undefined}
+                            title={
+                              workflow.managed
+                                ? `Open workflow editor: ${workflow.name}`
+                                : `${workflow.name} — history only`
+                            }
+                            aria-label={
+                              workflow.managed
+                                ? `Open workflow editor: ${workflow.name}`
+                                : undefined
+                            }
                           >
                             <GitBranch size={13} aria-hidden="true" />
                             <span className="nm">{workflow.name}</span>
-                            <span className="sub" title="Editor">
-                              <Workflow size={11} aria-hidden="true" />
-                            </span>
                           </Link>
-                        ) : (
-                          <Link
-                            to={historyPath}
-                            className="nav-item"
-                            title={`${workflow.name} — past runs only; no managed workflow file`}
-                          >
-                            <History size={13} aria-hidden="true" />
-                            <span className="nm">{workflow.name}</span>
-                            <span className="sub">history</span>
+                          <WorkspaceActions
+                            projectId={project.id}
+                            workflowId={workflow.id}
+                            name={workflow.name}
+                          />
+                        </div>
+                        <div
+                          className="nav-run-group"
+                          id={`nav-${key}`}
+                          hidden={collapsed.has(key)}
+                        >
+                          {workflow.runs.map((run) => {
+                            const runPath = `/p/${project.id}/r/${run.id}`;
+                            const selectedRun =
+                              location.pathname === runPath ||
+                              location.pathname.startsWith(`${runPath}/`);
+                            return (
+                              <div className="nav-tree-row nav-run-row" key={run.id}>
+                                <Link
+                                  to={runPath}
+                                  className={`nav-item${selectedRun ? " active" : ""}`}
+                                  aria-current={selectedRun ? "page" : undefined}
+                                  title={`Run #${run.runNumber} — ${statusLabel(run.status)}`}
+                                >
+                                  <span aria-hidden="true">↳</span>
+                                  <span className="nm">Run #{run.runNumber}</span>
+                                  <span
+                                    className={`status-icon ${run.status}`}
+                                    role="img"
+                                    aria-label={statusLabel(run.status)}
+                                  >
+                                    ●
+                                  </span>
+                                </Link>
+                                <WorkspaceActions projectId={project.id} run={run} />
+                              </div>
+                            );
+                          })}
+                          <Link className="nav-item nav-view-all" to={historyPath}>
+                            View all runs
                           </Link>
-                        )}
-                        {workflow.runs.slice(0, 3).map((run) => {
-                          const runPath = `/p/${project.id}/r/${run.id}`;
-                          return (
-                            <Link
-                              key={run.id}
-                              to={runPath}
-                              className={`nav-item${active(location.pathname, runPath) ? " active" : ""}`}
-                              title={`Open run #${run.runNumber} — ${statusLabel(run.status)}`}
-                            >
-                              <History size={12} aria-hidden="true" />
-                              <span className="nm">Run #{run.runNumber}</span>
-                              <span className="sub">{statusLabel(run.status)}</span>
-                            </Link>
-                          );
-                        })}
+                        </div>
                       </div>
                     );
                   })}
-                </div>
-              ) : null}
+              </div>
             </div>
           );
         })}
       </nav>
-
       <div className="sidebar-foot">
         <span className={`status-icon ${bootstrap.data ? "succeeded" : "idle"}`} aria-hidden="true">
           ●

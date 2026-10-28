@@ -137,7 +137,7 @@ export function createRun(runtime: Runtime, input: CreateRunInput): CreateRunRes
     });
   }
   const project = runtime.db
-    .prepare("SELECT next_run_number FROM projects WHERE id = ?")
+    .prepare("SELECT next_run_number FROM projects WHERE id = ? AND removed_at IS NULL")
     .get(input.projectId) as { next_run_number: number } | undefined;
   if (!project) fail("E_NOT_FOUND", `Project ${input.projectId} does not exist`);
 
@@ -213,6 +213,7 @@ export function createRun(runtime: Runtime, input: CreateRunInput): CreateRunRes
 export { requireRun };
 
 interface RunRecordRow {
+  archived_at: number | null;
   id: string;
   project_id: string;
   project_name: string;
@@ -246,11 +247,12 @@ const RUN_SELECT = `SELECT r.id, r.project_id, p.name AS project_name, p.path AS
   r.snapshot_json, r.snapshot_raw, r.params_json, r.budgets_json, r.base_sha,
   r.workspace_json, r.created_at,
   r.started_at, r.ended_at, r.pause_reason, r.cost_usd, r.tokens, r.active_ms, r.paused_ms,
-  r.supervisor_usd, r.result_json
+  r.supervisor_usd, r.result_json, r.archived_at
   FROM runs r JOIN projects p ON p.id = r.project_id`;
 
 function mapRunRecord(row: RunRecordRow): RunRecord {
   return {
+    archivedAt: row.archived_at,
     id: row.id as RunId,
     project: {
       id: row.project_id,
