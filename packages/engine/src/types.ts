@@ -11,7 +11,7 @@ import type {
   RunWorkspaceSelection,
   SerializedError,
 } from "@relay/core";
-import type { NormalizedWorkflow } from "@relay/schema";
+import type { NormalizedWorkflow, ProdCliId } from "@relay/schema";
 import type { Store } from "@relay/store";
 import type {
   AcquireScratchRequest,
@@ -22,7 +22,7 @@ import type {
   ScratchWorkspace,
 } from "@relay/workspaces";
 
-export type EngineCli = "claude-code" | "codex" | "opencode" | "pi" | "fake";
+export type EngineCli = ProdCliId | "fake";
 
 export interface GatewayScope {
   readonly identity: ExecutionIdentity;
@@ -75,7 +75,7 @@ export interface EngineDeps {
   readonly shutdownGraceMs?: number;
   readonly env?: NodeJS.ProcessEnv;
   /** Caller-owned opt-in for unverified real CLI profiles. Fake is test-only behind RELAY_ALLOW_FAKE. */
-  readonly allowExperimentalClis?: readonly ("claude-code" | "codex" | "opencode" | "pi")[];
+  readonly allowExperimentalClis?: readonly ProdCliId[];
   readonly prompts?: Readonly<Record<string, string>>;
   /** Explicit non-secret env names the caller wants preserved (e.g. fake fixture path). */
   readonly extraEnvNames?: readonly string[];
