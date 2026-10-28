@@ -1,4 +1,4 @@
-import type { Issue, WorkflowFile } from "@relay/schema";
+import { DECISION_UNCERTAIN_HANDLE, type Issue, type WorkflowFile } from "@relay/schema";
 import {
   applyNodeChanges,
   Background,
@@ -76,11 +76,19 @@ function buildNodes(
 ): EditorFlowNode[] {
   const byNode = issuesByNode(issues);
   const old = new Map((previous ?? []).map((node) => [node.id, node]));
+  // A refusal can always route to `uncertain`, so warn whenever that handle is
+  // unwired (the simpler rule the contract allows). Reaching it unwired fails
+  // the run instead of silently falling through.
+  const wiredSources = new Set(file.graph.edges.map((edge) => edge.from));
   return file.graph.nodes.map((node) => {
     const supported = isSupportedNodeType(node.type);
     const prior = old.get(node.id);
     const position =
       prior !== undefined && prior.data.node === node ? prior.position : positionOf(node);
+    const unwiredUncertain =
+      !supported || node.type !== "decision"
+        ? undefined
+        : !wiredSources.has(`${node.id}.${DECISION_UNCERTAIN_HANDLE}`);
     return {
       id: node.id,
       type: supported ? "editor" : "unsupported",
@@ -93,6 +101,7 @@ function buildNodes(
         issues: byNode.get(node.id) ?? [],
         readOnly,
         unsupported: !supported,
+        ...(unwiredUncertain === undefined ? {} : { unwiredUncertain }),
       },
     } as EditorFlowNode;
   });
@@ -115,7 +124,9 @@ function buildEdges(file: WorkflowFile, selection: EditorSelection): EditorFlowE
       selected: selection?.kind === "edge" && selection.edgeId === edge.id,
       data: { edge },
       sourceHandle:
-        (sourceNode as { type: string }).type === "gate" && sourceEndpoint.handle !== null
+        ((sourceNode as { type: string }).type === "gate" ||
+          (sourceNode as { type: string }).type === "decision") &&
+        sourceEndpoint.handle !== null
           ? `out:${sourceEndpoint.handle}`
           : (sourceNode as { type: string }).type === "approval" &&
               sourceEndpoint.handle === "rejected"
@@ -148,6 +159,10 @@ function connectionEndpoints(
     if (handle === "out:rejected") source = `${sourceNode.id}.rejected`;
     else if (handle === "out" || handle === null || handle === undefined) source = sourceNode.id;
     else return null;
+  } else if ((sourceNode as { type: string }).type === "decision") {
+    const handle = connection.sourceHandle;
+    if (handle === null || handle === undefined || !handle.startsWith("out:")) return null;
+    source = `${sourceNode.id}.${handle.slice(4)}`;
   }
   let target = targetNode.id;
   if (targetNode.type === "join") {
@@ -301,7 +316,8 @@ export function EditorCanvas({
       if (readOnly) return false;
       const endpoints = connectionEndpoints(file, connection as Connection);
       if (endpoints === null) {
-        lastRejection.current = "Connect from a Gate branch and into a Join input.";
+        lastRejection.current =
+          "Connect from a Gate branch or Decision handle, and into a Join input.";
         return false;
       }
       const result = checkConnection(file, endpoints);

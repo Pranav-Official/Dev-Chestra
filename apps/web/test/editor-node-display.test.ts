@@ -1,6 +1,7 @@
 import type {
   AgentNode,
   ApprovalNode,
+  DecisionNode,
   EndNode,
   GateNode,
   JoinNode,
@@ -49,6 +50,19 @@ function approval(message = "Deploy to prod", irreversible = false): ApprovalNod
 
 function end(status: EndNode["status"] = "success"): EndNode {
   return { id: "end", type: "end", name: "End", status, result: "done" };
+}
+
+function decision(mode: DecisionNode["mode"], provider: DecisionNode["provider"] = "typesafe-jev"): DecisionNode {
+  return {
+    id: "decision",
+    type: "decision",
+    name: "Decision",
+    provider,
+    state: "{}",
+    instructions: "Decide yes or no from the state.",
+    mode,
+    onError: "fail",
+  };
 }
 
 describe("subtitle pins current output per node type", () => {
@@ -104,6 +118,15 @@ describe("subtitle pins current output per node type", () => {
     expect(subtitle(end("failed"))).toBe("Ends as failed");
     expect(subtitle(end("rejected"))).toBe("Ends as rejected");
   });
+
+  it("decision shows the provider and instruction prefix", () => {
+    expect(subtitle(decision({ kind: "boolean" }))).toBe(
+      "typesafe-jev · Decide yes or no from the state.",
+    );
+    expect(
+      subtitle(decision({ kind: "boolean" }, "cloudflare-clef")).startsWith("cloudflare-clef · "),
+    ).toBe(true);
+  });
 });
 
 describe("handleSignature pins current output per node type", () => {
@@ -118,6 +141,34 @@ describe("handleSignature pins current output per node type", () => {
 
   it("approval returns the node id", () => {
     expect(handleSignature(approval())).toBe("approval:approval");
+  });
+
+  it("decision joins branch/band handles plus uncertain", () => {
+    expect(handleSignature(decision({ kind: "boolean" }))).toBe("decision:true|false|uncertain");
+    expect(
+      handleSignature(
+        decision({
+          kind: "choice",
+          options: [{ value: "a" }, { value: "b" }],
+          branches: [
+            { id: "a", values: ["a"] },
+            { id: "b", values: ["b"] },
+          ],
+        }),
+      ),
+    ).toBe("decision:a|b|uncertain");
+    expect(
+      handleSignature(
+        decision({
+          kind: "score",
+          levels: [{ label: "low" }, { label: "high" }],
+          bands: [
+            { id: "high", atLeast: 1 },
+            { id: "low", atLeast: null },
+          ],
+        }),
+      ),
+    ).toBe("decision:high|low|uncertain");
   });
 
   it("start/agent/shell/end return null", () => {
