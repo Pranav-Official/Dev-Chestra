@@ -445,6 +445,20 @@ describe("admin schemas", () => {
     expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
   });
 
+  it("accepts the agent shell toggle and selected MCP servers in a snapshot", () => {
+    const snapshot = normalizedSnapshot();
+    const agent = snapshot.graph.nodes[1] as Record<string, unknown>;
+    agent.permissions = { network: false, write: [], shell: false };
+    agent.mcpServers = [
+      { name: "docs", scope: "project" },
+      { name: "Notion", scope: "connector" },
+    ];
+    const parsed = normalizedWorkflowSchema.safeParse(snapshot);
+    expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
+    agent.mcpServers = [{ name: "x", scope: "elsewhere" }];
+    expect(normalizedWorkflowSchema.safeParse(snapshot).success).toBe(false);
+  });
+
   it("accepts explicit worktree workspaces for agent and shell nodes", () => {
     const snapshot = normalizedSnapshot({ mode: "worktree" }, { mode: "worktree" });
     const parsed = normalizedWorkflowSchema.safeParse(snapshot);

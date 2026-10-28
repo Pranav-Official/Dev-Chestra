@@ -298,7 +298,7 @@ describe("run viewer Tools line", () => {
     expect(extractMcpTools({ prompt: "hi" })).toBeNull();
     expect(
       extractMcpTools({
-        mcp: {
+        tools: {
           shell: true,
           servers: [
             { name: "github", scope: "global" },
@@ -314,7 +314,7 @@ describe("run viewer Tools line", () => {
         { name: "docs", scope: "project" },
       ],
     });
-    expect(extractMcpTools({ mcp: { shell: null, servers: [] } })).toEqual({
+    expect(extractMcpTools({ tools: { shell: null, servers: [] } })).toEqual({
       shell: null,
       servers: [],
     });
@@ -323,14 +323,14 @@ describe("run viewer Tools line", () => {
   it("renders shell state and server chips, and nothing when absent", () => {
     const { rerender } = render(
       <ToolsLine
-        data={{ mcp: { shell: false, servers: [{ name: "github", scope: "global" }] } }}
+        data={{ tools: { shell: false, servers: [{ name: "github", scope: "global" }] } }}
       />,
     );
     const line = screen.getByTestId("detail-tools");
     expect(line).toHaveTextContent(/Shell off/);
     expect(line).toHaveTextContent("github · global");
 
-    rerender(<ToolsLine data={{ mcp: { shell: null, servers: [] } }} />);
+    rerender(<ToolsLine data={{ tools: { shell: null, servers: [] } }} />);
     expect(screen.getByTestId("detail-tools")).toHaveTextContent(/Shell default/);
 
     rerender(<ToolsLine data={{ prompt: "hi" }} />);

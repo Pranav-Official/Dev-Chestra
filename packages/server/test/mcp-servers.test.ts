@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DiscoveredMcpServer as AdapterDiscovered } from "@relay/adapters";
-import type { CliMcpServers, DiscoveredMcpServer as ApiDiscovered, ProjectView } from "@relay/api";
+import type { DiscoveredMcpServer as ApiDiscovered, CliMcpServers, ProjectView } from "@relay/api";
 import type { RunId } from "@relay/core";
 import { afterEach, describe, expect, expectTypeOf, it } from "vitest";
 import {

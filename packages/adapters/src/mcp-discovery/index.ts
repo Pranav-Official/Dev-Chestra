@@ -137,11 +137,15 @@ export function createMcpResolver(options: McpResolverOptions = {}): McpResolver
       }
       return ok({
         extra,
-        known: result.servers.map((server) => ({
-          name: server.name,
-          scope: server.scope,
-          ...(server.connectorId === undefined ? {} : { connectorId: server.connectorId }),
-        })),
+        // Only servers the CLI will actually load: switching off an untrusted or invalid entry
+        // would make some CLIs (Codex) fail on an unknown name, and disabled ones are already off.
+        known: result.servers
+          .filter((server) => server.status === "ready" || server.status === "needs-auth")
+          .map((server) => ({
+            name: server.name,
+            scope: server.scope,
+            ...(server.connectorId === undefined ? {} : { connectorId: server.connectorId }),
+          })),
       });
     },
   };

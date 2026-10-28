@@ -83,6 +83,9 @@ function fakeResolver(options: {
       selection: readonly McpSelection[],
     ): Promise<Result<{ extra: ResolvedMcpServer[]; known: typeof KNOWN }, RelayError>> => {
       calls.resolve += 1;
+      if (options.listThrows === true && selection.length === 0) {
+        throw new Error("mcp discovery exploded");
+      }
       calls.selections.push(selection.map((item) => ({ ...item })));
       if (options.resolveError !== undefined) return err(options.resolveError);
       return ok({ extra: options.extra ?? EXTRA, known: options.known ?? KNOWN });
@@ -468,7 +471,7 @@ describe("engine agent MCP servers and shell toggle", () => {
     expect(leakScan(h)).toEqual([]);
   });
 
-  it("never fails the node when listing fails", async () => {
+  it("never fails the node when discovery for an empty selection fails", async () => {
     const h = setup(SUCCESS, { resolver: fakeResolver({ listThrows: true }) });
     const { error } = await runAgent(h);
     expect(error).toBeUndefined();

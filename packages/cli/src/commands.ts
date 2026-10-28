@@ -1,6 +1,6 @@
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createAdapterRegistry } from "@relay/adapters";
+import { createAdapterRegistry, createMcpResolver } from "@relay/adapters";
 import { isTerminalRunStatus, type JsonObject, RelayError, type RunStatus } from "@relay/core";
 import { createDecisionService } from "@relay/decisions";
 import { createEngine, type Engine, type RunOutcome, type WorkspacePort } from "@relay/engine";
@@ -92,6 +92,7 @@ export function createCliEngine(
     // defaults); the service reads them lazily per call and never mutates
     // process.env. Never passed to agent CLIs or shell nodes.
     decisions: createDecisionService(),
+    mcpResolver: createMcpResolver(),
   });
 }
 

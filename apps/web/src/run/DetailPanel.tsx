@@ -31,10 +31,10 @@ export interface McpToolsSummary {
   servers: { name: string; scope: string }[];
 }
 
-/** Compact Tools summary from resolved agent input (`mcp: { shell, servers }`). Names and scopes only. */
+/** Compact Tools summary from resolved agent input (`tools: { shell, servers }`). Names and scopes only. */
 export function extractMcpTools(data: unknown): McpToolsSummary | null {
   if (typeof data !== "object" || data === null) return null;
-  const mcp = (data as Record<string, unknown>).mcp;
+  const mcp = (data as Record<string, unknown>).tools;
   if (typeof mcp !== "object" || mcp === null) return null;
   const record = mcp as Record<string, unknown>;
   if (record.shell === undefined && !Array.isArray(record.servers)) return null;

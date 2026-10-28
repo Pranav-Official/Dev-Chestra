@@ -116,14 +116,9 @@ async function resolveAgentMcp(
   }
   if (resolver === undefined) return {};
   try {
-    const listed = await resolver.list(cli, projectDir);
-    return {
-      knownMcp: listed.servers.map((server) => ({
-        name: server.name,
-        scope: server.scope,
-        ...(server.connectorId === undefined ? {} : { connectorId: server.connectorId }),
-      })),
-    };
+    // An empty selection still returns everything the CLI would load, so adapters can switch it off.
+    const resolved = await resolver.resolve(cli, projectDir, []);
+    return resolved.ok ? { knownMcp: resolved.value.known } : {};
   } catch {
     return {};
   }
