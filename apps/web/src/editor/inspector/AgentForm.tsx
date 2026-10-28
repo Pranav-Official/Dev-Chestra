@@ -5,6 +5,7 @@ import { AgentLimits } from "./AgentLimits.js";
 import { AgentModelField } from "./AgentModelField.js";
 import { AgentPermissions } from "./AgentPermissions.js";
 import { AgentPrompt } from "./AgentPrompt.js";
+import { AgentTools } from "./AgentTools.js";
 import { describedBy, Field } from "./fields/fields.js";
 import { fieldIssue } from "./issues.js";
 import { useAvailableClis } from "./model/useAvailableClis.js";
@@ -66,6 +67,9 @@ export function AgentForm({
             </p>
           )}
         </div>
+      </InspectorSection>
+      <InspectorSection sectionKey="agent:tools" title="Tools">
+        <AgentTools node={node} projectId={projectId} onPatch={onPatch} />
       </InspectorSection>
       <InspectorSection sectionKey="agent:output" title="Output" badge={`${properties.length}`}>
         <SchemaEditor
