@@ -21,12 +21,12 @@ export type EnvLike = Record<string, string | undefined>;
 
 export interface LoadSecretsOptions {
   /** Defaults to `process.env`. Injected in tests; never written to. */
-  env?: EnvLike;
+  env?: EnvLike | undefined;
   /**
    * Absolute path of the `.env` file to fall back to. Defaults to
    * `<cwd>/.env`. Pass `null` to skip file fallback entirely.
    */
-  dotenvPath?: string | null;
+  dotenvPath?: string | null | undefined;
 }
 
 /**
