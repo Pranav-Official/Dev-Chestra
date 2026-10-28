@@ -13,8 +13,8 @@ import {
 } from "@xyflow/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "@xyflow/react/dist/style.css";
-import { deriveRouting, isTerminalRunStatus, type RunView } from "@relay/core";
-import { type DecisionMode, type DecisionNode, decisionHandles } from "@relay/schema";
+import { deriveRouting, isTerminalRunStatus, type RunView } from "@devchestra/core";
+import { type DecisionMode, type DecisionNode, decisionHandles } from "@devchestra/schema";
 import {
   Bot,
   CheckCircle2,
@@ -381,7 +381,7 @@ function subtitle(node: SnapshotNode): string {
   return "";
 }
 
-/** Output handle ids for a decision snapshot node (single source: @relay/schema). */
+/** Output handle ids for a decision snapshot node (single source: @devchestra/schema). */
 function decisionHandlesFor(node: SnapshotNode): string[] {
   const mode = node.mode;
   if (typeof mode !== "object" || mode === null) return [];

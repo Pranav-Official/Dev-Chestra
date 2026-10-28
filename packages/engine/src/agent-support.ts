@@ -1,8 +1,8 @@
-import { killOrphan, matchesProcess } from "@relay/adapters";
-import { type AcceptedResultRef, type ExecutionIdentity, RelayError } from "@relay/core";
-import type { RunRecord } from "@relay/store";
-import type { ScratchWorkspace } from "@relay/workspaces";
-import { type ActiveRunState, type EngineContext, toRelayError } from "./context.js";
+import { killOrphan, matchesProcess } from "@devchestra/adapters";
+import { type AcceptedResultRef, type ExecutionIdentity, DevChestraError } from "@devchestra/core";
+import type { RunRecord } from "@devchestra/store";
+import type { ScratchWorkspace } from "@devchestra/workspaces";
+import { type ActiveRunState, type EngineContext, toDevChestraError } from "./context.js";
 import type { PlanNode } from "./graph-plan.js";
 import { ProcessGroupAliveError, StopSignal } from "./stop.js";
 
@@ -35,7 +35,7 @@ export async function cancelAgentGeneration(
     try {
       await ctx.finalize(workspace, identity, "cancelled", evidence);
     } catch (error) {
-      ctx.appendError(run.id, node.id, toRelayError(error, "E_WORKSPACE"));
+      ctx.appendError(run.id, node.id, toDevChestraError(error, "E_WORKSPACE"));
     }
   }
   try {
@@ -51,7 +51,7 @@ export async function cancelAgentGeneration(
 
 export function toStopSignal(error: unknown, active: ActiveRunState): StopSignal | null {
   if (error instanceof StopSignal) return error;
-  if (error instanceof RelayError && error.code === "E_CANCELLED" && active.abort.signal.aborted) {
+  if (error instanceof DevChestraError && error.code === "E_CANCELLED" && active.abort.signal.aborted) {
     return new StopSignal(active.reason ?? "user");
   }
   return null;
@@ -74,14 +74,14 @@ export function consumeNoSubmit(
     ctx.store.submissions.submit({
       identity,
       callId: `engine-no-submit-${identity.attempt}-${identity.generation}`,
-      request: { name: "relay.engine.no_submit", arguments: { generation: identity.generation } },
+      request: { name: "devchestra.engine.no_submit", arguments: { generation: identity.generation } },
       ok: false,
       errors: [{ path: "/", message: "Agent ended without calling submit_result" }],
       errorCode: "E_NO_SUBMIT",
     });
     return "consumed";
   } catch (error) {
-    if (error instanceof RelayError && error.code === "E_ATTEMPTS_EXHAUSTED") return "exhausted";
+    if (error instanceof DevChestraError && error.code === "E_ATTEMPTS_EXHAUSTED") return "exhausted";
     throw error;
   }
 }
@@ -110,7 +110,7 @@ export function countNoSubmit(
  *   of claiming stopped/finalized;
  * - otherwise records a crash stop (if none), finalizes the workspace as
  *   failed (when a workspace exists), and fails the execution with the
- *   ORIGINAL RelayError. Cleanup failures are logged but never replace the
+ *   ORIGINAL DevChestraError. Cleanup failures are logged but never replace the
  *   original error.
  */
 export async function failAgentGeneration(
@@ -119,8 +119,8 @@ export async function failAgentGeneration(
   node: PlanNode,
   workspace: ScratchWorkspace | undefined,
   identity: ExecutionIdentity,
-  original: RelayError,
-): Promise<RelayError> {
+  original: DevChestraError,
+): Promise<DevChestraError> {
   const current = ctx.currentStatus(identity);
   if (current !== "running" && current !== "validating") return original;
   const process = ctx.store.executions.getProcess(identity);
@@ -143,7 +143,7 @@ export async function failAgentGeneration(
       // workspace finalization when identity lookup itself fails. Pause for
       // recovery while preserving the original error in the log.
       ctx.appendError(run.id, node.id, original);
-      ctx.appendError(run.id, node.id, toRelayError(error, "E_WORKSPACE"));
+      ctx.appendError(run.id, node.id, toDevChestraError(error, "E_WORKSPACE"));
       ctx.append(run.id, "", "run.paused", "engine", {
         reason: "shutdown",
         detail: "Could not verify agent process liveness; human recovery required",
@@ -155,7 +155,7 @@ export async function failAgentGeneration(
     }
     if (alive) {
       ctx.appendError(run.id, node.id, original);
-      const blocked = new RelayError(
+      const blocked = new DevChestraError(
         "E_WORKSPACE",
         "Agent process group is still alive; refusing to finalize failure",
         { details: { step: "group_still_alive", pid: process.pid } },
@@ -175,8 +175,8 @@ export async function failAgentGeneration(
     try {
       ctx.recordStop(identity, "crash", null);
     } catch (error) {
-      if (!(error instanceof RelayError) || error.code !== "E_CONFLICT") {
-        ctx.appendError(run.id, node.id, toRelayError(error, "E_WORKSPACE"));
+      if (!(error instanceof DevChestraError) || error.code !== "E_CONFLICT") {
+        ctx.appendError(run.id, node.id, toDevChestraError(error, "E_WORKSPACE"));
       }
     }
   }
@@ -188,7 +188,7 @@ export async function failAgentGeneration(
     try {
       await ctx.finalize(workspace, identity, "failed", evidence);
     } catch (error) {
-      ctx.appendError(run.id, node.id, toRelayError(error, "E_WORKSPACE"));
+      ctx.appendError(run.id, node.id, toDevChestraError(error, "E_WORKSPACE"));
     }
   }
   const after = ctx.currentStatus(identity);
@@ -196,7 +196,7 @@ export async function failAgentGeneration(
     try {
       ctx.failExecution(run, node, identity, original);
     } catch (error) {
-      ctx.appendError(run.id, node.id, toRelayError(error, "E_WORKSPACE"));
+      ctx.appendError(run.id, node.id, toDevChestraError(error, "E_WORKSPACE"));
       throw original;
     }
   }
@@ -232,13 +232,13 @@ export async function finalizeAccepted(
         { graceMs: 5_000 },
       );
     } catch (error) {
-      throw toRelayError(error, "E_WORKSPACE");
+      throw toDevChestraError(error, "E_WORKSPACE");
     }
     if (orphan.matched && !orphan.killed) {
       ctx.appendError(
         run.id,
         node.id,
-        new RelayError("E_WORKSPACE", "The accepted process group is still alive", {
+        new DevChestraError("E_WORKSPACE", "The accepted process group is still alive", {
           details: { step: "group_still_alive", pid: process.pid },
         }),
       );
@@ -246,7 +246,7 @@ export async function finalizeAccepted(
         reason: "shutdown",
         detail: "An accepted process group is still alive; retry after it exits",
       });
-      throw new RelayError("E_WORKSPACE", "Accepted process group is still alive");
+      throw new DevChestraError("E_WORKSPACE", "Accepted process group is still alive");
     }
   }
   let workspace: ScratchWorkspace;
@@ -263,20 +263,20 @@ export async function finalizeAccepted(
         true,
       );
     } catch (error) {
-      const relay = toRelayError(error, "E_WORKSPACE");
-      ctx.appendError(run.id, node.id, relay);
+      const devchestra = toDevChestraError(error, "E_WORKSPACE");
+      ctx.appendError(run.id, node.id, devchestra);
       ctx.append(run.id, "", "run.paused", "engine", {
         reason: "shutdown",
         detail: "The accepted workspace cannot be opened; human recovery required",
       });
-      throw relay;
+      throw devchestra;
     }
   }
   if (existingWorkspace === undefined && !workspace.reused) {
     ctx.appendError(
       run.id,
       node.id,
-      new RelayError("E_WORKSPACE", "The accepted workspace is missing; refusing to recreate it", {
+      new DevChestraError("E_WORKSPACE", "The accepted workspace is missing; refusing to recreate it", {
         details: { step: "workspace_lost", dir: workspace.dir },
       }),
     );
@@ -284,7 +284,7 @@ export async function finalizeAccepted(
       reason: "shutdown",
       detail: "An accepted workspace is missing; human recovery required",
     });
-    throw new RelayError("E_WORKSPACE", "Accepted workspace is missing");
+    throw new DevChestraError("E_WORKSPACE", "Accepted workspace is missing");
   }
   try {
     const view = ctx.store.view.get(run.id).executions[node.id];

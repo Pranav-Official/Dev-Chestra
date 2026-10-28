@@ -1,19 +1,19 @@
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { err, ok, type Path, RelayError, type Result } from "@relay/core";
-import { openStore, type Store } from "@relay/store";
+import { err, ok, type Path, DevChestraError, type Result } from "@devchestra/core";
+import { openStore, type Store } from "@devchestra/store";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ runAgent: vi.fn() }));
 
-vi.mock("@relay/adapters", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@relay/adapters")>();
+vi.mock("@devchestra/adapters", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@devchestra/adapters")>();
   return { ...actual, runAgent: mocks.runAgent };
 });
 
-import type { AdapterRegistry, RunRequest } from "@relay/adapters";
-import type { McpSelection } from "@relay/schema";
+import type { AdapterRegistry, RunRequest } from "@devchestra/adapters";
+import type { McpSelection } from "@devchestra/schema";
 import { type ActiveRunState, EngineContext } from "../src/context.js";
 import { executeAgent } from "../src/exec-agent.js";
 import { analyzeLinearWorkflow, type LinearChain, type LinearNode } from "../src/sequence.js";
@@ -78,17 +78,17 @@ afterEach(() => {
 
 function setup(options: {
   agent?: Record<string, unknown>;
-  planError?: RelayError;
-  acquireError?: RelayError;
+  planError?: DevChestraError;
+  acquireError?: DevChestraError;
   resolver?: McpResolver;
 }): Harness {
-  const base = mkdtempSync(join(tmpdir(), "relay-engine-setupfail-"));
+  const base = mkdtempSync(join(tmpdir(), "devchestra-engine-setupfail-"));
   const project = join(base, "project");
   const dataDir = join(base, "data");
   mkdirSync(project, { recursive: true });
   mkdirSync(dataDir, { recursive: true });
   cleanups.push(() => rmSync(base, { recursive: true, force: true }));
-  const store = openStore({ file: join(dataDir, "relay.db") });
+  const store = openStore({ file: join(dataDir, "devchestra.db") });
   cleanups.push(() => store.close());
   store.projects.ensure({ id: "p1", name: "P1", path: project, kind: "folder" });
   const snapshot = workflow(options.agent ?? {});
@@ -162,7 +162,7 @@ function setup(options: {
     adapters: registry,
     workspaces: {
       prepare: async () => {
-        throw new RelayError("E_INTERNAL", "run-level workspace is not used in this test");
+        throw new DevChestraError("E_INTERNAL", "run-level workspace is not used in this test");
       },
       acquire: async (request) => {
         counters.acquire += 1;
@@ -214,7 +214,7 @@ function setup(options: {
     dataDir,
     nodeBin: process.execPath,
     mcpShimEntry: join(dataDir, "unused.js"),
-    env: { ...process.env, RELAY_ALLOW_FAKE: "1" },
+    env: { ...process.env, DEVCHESTRA_ALLOW_FAKE: "1" },
     ...(options.resolver === undefined ? {} : { mcpResolver: options.resolver }),
   });
   const active: ActiveRunState = { abort: new AbortController(), reason: null, tokens: new Set() };
@@ -236,7 +236,7 @@ function execStatus(harness: Harness): string | undefined {
 
 describe("agent setup failures", () => {
   it("adapter.plan throw fails the node, keeps the original error, revokes the token, finalizes + releases", async () => {
-    const original = new RelayError("E_VALIDATION", "bad plan: marker-7f3a");
+    const original = new DevChestraError("E_VALIDATION", "bad plan: marker-7f3a");
     const h = setup({ planError: original });
     let error: unknown;
     try {
@@ -266,9 +266,9 @@ describe("agent setup failures", () => {
   });
 
   it("Stop during deferred MCP resolve cancels without minting a token or spawning", async () => {
-    let releaseDeferred!: (value: Result<{ extra: []; known: [] }, RelayError>) => void;
+    let releaseDeferred!: (value: Result<{ extra: []; known: [] }, DevChestraError>) => void;
     let resolveCalls = 0;
-    const deferred = new Promise<Result<{ extra: []; known: [] }, RelayError>>((resolve) => {
+    const deferred = new Promise<Result<{ extra: []; known: [] }, DevChestraError>>((resolve) => {
       releaseDeferred = resolve;
     });
     const resolver: McpResolver = {
@@ -277,7 +277,7 @@ describe("agent setup failures", () => {
         _cli: string,
         _projectDir: string,
         _selection: readonly McpSelection[],
-      ): Promise<Result<{ extra: []; known: [] }, RelayError>> => {
+      ): Promise<Result<{ extra: []; known: [] }, DevChestraError>> => {
         resolveCalls += 1;
         return deferred;
       },
@@ -315,7 +315,7 @@ describe("agent setup failures", () => {
   });
 
   it("workspace acquire throw fails the execution instead of leaving it running", async () => {
-    const h = setup({ acquireError: new RelayError("E_WORKSPACE", "disk gone: marker-9c2e") });
+    const h = setup({ acquireError: new DevChestraError("E_WORKSPACE", "disk gone: marker-9c2e") });
     let error: unknown;
     try {
       await executeAgent(

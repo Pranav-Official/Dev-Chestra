@@ -1,4 +1,4 @@
-import { isTerminalRunStatus, type RunStatus } from "@relay/core";
+import { isTerminalRunStatus, type RunStatus } from "@devchestra/core";
 import { statusLabel } from "../ui/StatusPill.js";
 
 /**

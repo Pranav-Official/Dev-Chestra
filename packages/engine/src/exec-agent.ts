@@ -4,10 +4,10 @@ import {
   getProvider,
   piCredentialScope,
   type ReleaseFileLock,
-} from "@relay/adapters";
-import { type ExecutionIdentity, hashJson, type Path } from "@relay/core";
-import type { RunRecord } from "@relay/store";
-import type { ScratchWorkspace } from "@relay/workspaces";
+} from "@devchestra/adapters";
+import { type ExecutionIdentity, hashJson, type Path } from "@devchestra/core";
+import type { RunRecord } from "@devchestra/store";
+import type { ScratchWorkspace } from "@devchestra/workspaces";
 import {
   type AttemptLoop,
   type AttemptPrepared,
@@ -23,7 +23,7 @@ import {
   finalizeAccepted,
   toStopSignal,
 } from "./agent-support.js";
-import { type ActiveRunState, type EngineContext, toRelayError } from "./context.js";
+import { type ActiveRunState, type EngineContext, toDevChestraError } from "./context.js";
 import type { PlanNode, ScopeSource } from "./graph-plan.js";
 import { stripUi } from "./hash-config.js";
 import { composeAgentPrompt, renderAgentInputContext, renderSubmitContract } from "./prompt.js";
@@ -110,12 +110,12 @@ export async function executeAgent(
     if (credentialScope !== null) {
       try {
         releaseCredentialLock = await acquireFileLock(
-          join(credentialScope, "auth.json.relay-lock"),
+          join(credentialScope, "auth.json.devchestra-lock"),
           { signal: active.abort.signal },
         );
       } catch (error) {
         if (active.abort.signal.aborted) throw new StopSignal(active.reason ?? "user");
-        throw toRelayError(error);
+        throw toDevChestraError(error);
       }
     }
 
@@ -135,14 +135,14 @@ export async function executeAgent(
       await cancelAgentGeneration(ctx, run, node, workspace, identity, active);
       throw stopSignal;
     }
-    const relay = toRelayError(error);
+    const devchestra = toDevChestraError(error);
     try {
-      await failAgentGeneration(ctx, run, node, workspace, identity, relay);
+      await failAgentGeneration(ctx, run, node, workspace, identity, devchestra);
     } catch (failError) {
       if (failError instanceof ProcessGroupAliveError) throw failError;
-      ctx.appendError(run.id, node.id, toRelayError(failError, "E_WORKSPACE"));
+      ctx.appendError(run.id, node.id, toDevChestraError(failError, "E_WORKSPACE"));
     }
-    throw relay;
+    throw devchestra;
   } finally {
     if (workspace !== undefined) ctx.release(workspace);
     if (releaseCredentialLock !== undefined) await releaseCredentialLock().catch(() => undefined);
@@ -243,9 +243,9 @@ async function runAttempts(
       // original error with crash stop + failed workspace so no Running
       // execution survives a Failed run. Live processes are never marked
       // stopped (failAgentGeneration pauses instead).
-      const relay = toRelayError(error);
-      await failAgentGeneration(ctx, run, node, loop.workspace, loop.identity, relay);
-      throw relay;
+      const devchestra = toDevChestraError(error);
+      await failAgentGeneration(ctx, run, node, loop.workspace, loop.identity, devchestra);
+      throw devchestra;
     }
   }
 }

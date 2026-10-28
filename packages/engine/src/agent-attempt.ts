@@ -8,13 +8,13 @@ import {
   type ResolvedMcpServer,
   type RunRequest,
   runAgent,
-} from "@relay/adapters";
-import { type ExecutionIdentity, fsSlug, hashJson, type Path, RelayError } from "@relay/core";
-import type { McpSelection } from "@relay/schema";
-import type { AcceptedOutput, RunRecord } from "@relay/store";
-import { resolveInside, type ScratchWorkspace } from "@relay/workspaces";
+} from "@devchestra/adapters";
+import { type ExecutionIdentity, fsSlug, hashJson, type Path, DevChestraError } from "@devchestra/core";
+import type { McpSelection } from "@devchestra/schema";
+import type { AcceptedOutput, RunRecord } from "@devchestra/store";
+import { resolveInside, type ScratchWorkspace } from "@devchestra/workspaces";
 import { secretValues } from "./agent-support.js";
-import { type ActiveRunState, type EngineContext, toRelayError } from "./context.js";
+import { type ActiveRunState, type EngineContext, toDevChestraError } from "./context.js";
 import type { PlanNode } from "./graph-plan.js";
 import { assertAgentPromptSize, composeAgentPrompt } from "./prompt.js";
 import { ProcessGroupAliveError, StopSignal } from "./stop.js";
@@ -96,7 +96,7 @@ async function resolveAgentMcp(
   const projectDir = run.project.path;
   if (selection.length > 0) {
     if (resolver === undefined) {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_CLI_MISSING",
         `Agent '${node.id}' selects MCP server(s) ${mcpLabel(selection)} but no MCP resolver is configured; cannot start the run.`,
         { details: { nodeId: node.id, cli, servers: mcpNames(selection) } },
@@ -106,7 +106,7 @@ async function resolveAgentMcp(
     if (!resolved.ok) {
       // The resolver message is secret-free by contract; details are rebuilt
       // names-only so nothing past names can leak into events.
-      throw new RelayError(
+      throw new DevChestraError(
         resolved.error.code,
         `Agent '${node.id}' cannot use MCP server(s) ${mcpLabel(selection)}: ${resolved.error.message}`,
         { details: { nodeId: node.id, cli, servers: mcpNames(selection) } },
@@ -378,7 +378,7 @@ export async function runSingleAttempt(
         ? undefined
         : stableFake
           ? join(execDir, "fake-checkpoint.json")
-          : join(workspace.dir, ".relay/fake-checkpoint.json");
+          : join(workspace.dir, ".devchestra/fake-checkpoint.json");
     const effectiveMode =
       adapter.id === "fake" && loop.mode === "resume" && !existsSync(fakeCheckpoint as string)
         ? "fresh"
@@ -403,14 +403,14 @@ export async function runSingleAttempt(
       },
       limits: { timeoutMs },
       mcp: {
-        serverName: "relay" as const,
+        serverName: "devchestra" as const,
         command: ctx.deps.nodeBin,
         args: [ctx.deps.mcpShimEntry],
         env: {
-          RELAY_EXEC_TOKEN: issued.token,
-          RELAY_GATEWAY_URL: ctx.deps.gateway.url,
-          RELAY_TOOLSET: "agent",
-          RELAY_MCP_SHIM_ENTRY: ctx.deps.mcpShimEntry,
+          DEVCHESTRA_EXEC_TOKEN: issued.token,
+          DEVCHESTRA_GATEWAY_URL: ctx.deps.gateway.url,
+          DEVCHESTRA_TOOLSET: "agent",
+          DEVCHESTRA_MCP_SHIM_ENTRY: ctx.deps.mcpShimEntry,
         },
       },
       execDir,
@@ -439,7 +439,7 @@ export async function runSingleAttempt(
       ctx.appendError(
         run.id,
         node.id,
-        new RelayError("E_WORKSPACE", "Agent process group did not stop after the kill grace", {
+        new DevChestraError("E_WORKSPACE", "Agent process group did not stop after the kill grace", {
           details: { step: "group_still_alive", pid: exit.pid },
         }),
       );
@@ -485,12 +485,12 @@ export async function runSingleAttempt(
     // E_CANCELLED abort race into a StopSignal here.
     if (error instanceof StopSignal) throw error;
     if (
-      error instanceof RelayError &&
+      error instanceof DevChestraError &&
       error.code === "E_CANCELLED" &&
       active.abort.signal.aborted
     ) {
       throw new StopSignal(active.reason ?? "user");
     }
-    throw toRelayError(error);
+    throw toDevChestraError(error);
   }
 }

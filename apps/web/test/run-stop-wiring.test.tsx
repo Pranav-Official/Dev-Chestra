@@ -1,4 +1,4 @@
-import { emptyRunView, type RunStatus } from "@relay/core";
+import { emptyRunView, type RunStatus } from "@devchestra/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";

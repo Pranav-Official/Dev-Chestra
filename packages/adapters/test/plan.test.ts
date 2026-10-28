@@ -32,9 +32,9 @@ describe("claude-code plan", () => {
     expect(result.value.files[0]?.path).toBe("/run/mcp.json");
     expect(result.value.files[0]?.mode).toBe(0o600);
     const config = JSON.parse(result.value.files[0]?.content ?? "{}") as {
-      mcpServers: { relay: { env: Record<string, string> } };
+      mcpServers: { devchestra: { env: Record<string, string> } };
     };
-    expect(config.mcpServers.relay.env.RELAY_EXEC_TOKEN).toBe(TOKEN);
+    expect(config.mcpServers.devchestra.env.DEVCHESTRA_EXEC_TOKEN).toBe(TOKEN);
   });
 
   it("matches resume and re-passes MCP and permissions", () => {
@@ -95,8 +95,8 @@ describe("codex plan", () => {
     const golden = fixtureJson("golden", "codex-fresh.json");
     expect(result.value.args).toEqual(golden.args);
     expect(JSON.stringify(result.value.args)).not.toContain(TOKEN);
-    expect(result.value.env.RELAY_EXEC_TOKEN).toBe(TOKEN);
-    expect(result.value.env.RELAY_GATEWAY_URL).toBe("http://127.0.0.1:4310");
+    expect(result.value.env.DEVCHESTRA_EXEC_TOKEN).toBe(TOKEN);
+    expect(result.value.env.DEVCHESTRA_GATEWAY_URL).toBe("http://127.0.0.1:4310");
   });
 
   it("resume avoids fresh-only flags and supplies sandbox via config", () => {
@@ -217,11 +217,11 @@ describe("codex mcp selection", () => {
     expect(joined).not.toContain("mcp_servers.stream.env_http_headers");
     // Secret values travel only in the child env, keyed by synthesised names.
     expect(JSON.stringify(inv.args)).not.toContain(SECRET);
-    expect(inv.env.RELAY_MCP_REMOTE_AUTHORIZATION).toBe(`Bearer ${SECRET}`);
-    expect(inv.env.RELAY_MCP_REMOTE_X_API_KEY).toBe(SECRET);
+    expect(inv.env.DEVCHESTRA_MCP_REMOTE_AUTHORIZATION).toBe(`Bearer ${SECRET}`);
+    expect(inv.env.DEVCHESTRA_MCP_REMOTE_X_API_KEY).toBe(SECRET);
   });
 
-  it("switches off known-but-unselected servers and never relay", () => {
+  it("switches off known-but-unselected servers and never devchestra", () => {
     const inv = planned({
       extraMcp: [
         {
@@ -236,14 +236,14 @@ describe("codex mcp selection", () => {
         { name: "fixture", scope: "global" },
         { name: "other", scope: "global" },
         { name: "docs", scope: "project" },
-        { name: "relay", scope: "global" },
+        { name: "devchestra", scope: "global" },
       ],
     });
     const joined = inv.args.join("\n");
     expect(joined).toContain("mcp_servers.other.enabled=false");
     expect(joined).toContain("mcp_servers.docs.enabled=false");
     expect(joined).not.toContain("mcp_servers.fixture.enabled=false");
-    expect(joined).not.toContain("mcp_servers.relay.enabled=false");
+    expect(joined).not.toContain("mcp_servers.devchestra.enabled=false");
   });
 
   it("disables the apps server when no connector is selected", () => {
@@ -309,7 +309,7 @@ describe("codex mcp selection", () => {
 
   it("rejects invalid connectorIds while ordinary names stay strict", () => {
     const adapter = createAdapter("codex");
-    const badIds = ["has space", "evil.id", "../escape", "relay", ""];
+    const badIds = ["has space", "evil.id", "../escape", "devchestra", ""];
     for (const connectorId of badIds) {
       const result = adapter.plan(
         request({
@@ -409,11 +409,11 @@ describe("codex mcp selection", () => {
     expect(legacy.args.join(" ")).toContain("--sandbox read-only");
   });
 
-  it("rejects unsafe names, relay, duplicates and missing launch details", () => {
+  it("rejects unsafe names, devchestra, duplicates and missing launch details", () => {
     const adapter = createAdapter("codex");
     const bad = [
       { extraMcp: [{ name: "evil.name", scope: "global", transport: "stdio", command: "x" }] },
-      { extraMcp: [{ name: "relay", scope: "global", transport: "stdio", command: "x" }] },
+      { extraMcp: [{ name: "devchestra", scope: "global", transport: "stdio", command: "x" }] },
       {
         extraMcp: [
           { name: "dup", scope: "global", transport: "stdio", command: "x" },
@@ -441,7 +441,7 @@ describe("codex mcp selection", () => {
               scope: "global",
               transport: "stdio",
               command: "x",
-              env: { RELAY_EXEC_TOKEN: "something-else" },
+              env: { DEVCHESTRA_EXEC_TOKEN: "something-else" },
             },
           ],
         }),
@@ -457,7 +457,7 @@ describe("fake plan", () => {
     const adapter = createAdapter("fake", options);
     const fresh = adapter.plan(
       request({
-        cliOptions: { checkpoint: ".relay/fake-checkpoint.json", session: "fake-session" },
+        cliOptions: { checkpoint: ".devchestra/fake-checkpoint.json", session: "fake-session" },
       }),
     );
     expect(fresh.ok).toBe(true);
@@ -465,7 +465,7 @@ describe("fake plan", () => {
     expect(fresh.value.args).toEqual(fixtureJson("golden", "fake-fresh.json").args);
     expect(fresh.value.args[0]).toBe("/fake/main.js");
     const resume = adapter.plan(
-      request({ mode: "resume", cliOptions: { checkpoint: ".relay/fake-checkpoint.json" } }),
+      request({ mode: "resume", cliOptions: { checkpoint: ".devchestra/fake-checkpoint.json" } }),
     );
     expect(resume.ok).toBe(true);
     if (!resume.ok) return;
@@ -473,7 +473,7 @@ describe("fake plan", () => {
     const defaulted = adapter.plan(request({ mode: "resume" }));
     expect(defaulted.ok).toBe(true);
     if (defaulted.ok) {
-      expect(defaulted.value.args).toContain("/work/.relay/fake-checkpoint.json");
+      expect(defaulted.value.args).toContain("/work/.devchestra/fake-checkpoint.json");
     }
   });
 
@@ -485,7 +485,7 @@ describe("fake plan", () => {
   });
 
   it("allows a checkpoint under the engine-owned exec dir but not arbitrary roots", () => {
-    const base = mkdtempSync(join(tmpdir(), "relay-fake-checkpoint-"));
+    const base = mkdtempSync(join(tmpdir(), "devchestra-fake-checkpoint-"));
     cleanups.push(() => rmSync(base, { recursive: true, force: true }));
     const cwd = join(base, "project");
     const execDir = join(base, "exec", "node", "attempt-1");
@@ -506,7 +506,7 @@ describe("fake plan", () => {
     }
 
     const insideCwd = adapter.plan(
-      request({ cwd, execDir, cliOptions: { checkpoint: join(cwd, ".relay/fake.json") } }),
+      request({ cwd, execDir, cliOptions: { checkpoint: join(cwd, ".devchestra/fake.json") } }),
     );
     expect(insideCwd.ok).toBe(true);
 
@@ -517,7 +517,7 @@ describe("fake plan", () => {
   });
 
   it("rejects a checkpoint symlink that escapes the allowed roots", () => {
-    const base = mkdtempSync(join(tmpdir(), "relay-fake-checkpoint-link-"));
+    const base = mkdtempSync(join(tmpdir(), "devchestra-fake-checkpoint-link-"));
     cleanups.push(() => rmSync(base, { recursive: true, force: true }));
     const cwd = join(base, "project");
     const execDir = join(base, "exec");

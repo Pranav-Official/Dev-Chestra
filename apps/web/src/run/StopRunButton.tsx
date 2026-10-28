@@ -1,4 +1,4 @@
-import { isTerminalRunStatus, type RunStatus } from "@relay/core";
+import { isTerminalRunStatus, type RunStatus } from "@devchestra/core";
 import { OctagonX, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api, classifyError } from "../api/client.js";

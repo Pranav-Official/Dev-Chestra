@@ -1,6 +1,6 @@
-# @relay/web
+# @devchestra/web
 
-Read-only React 19 + Vite viewer for Relay projects, runs, live events and replay. Snapshots are
+Read-only React 19 + Vite viewer for DevChestra projects, runs, live events and replay. Snapshots are
 never edited from the UI and the viewer never starts or resumes a run — those mutations remain
 CLI/API only. The single exception is the run-level Stop control, which posts to the existing
 `POST /api/runs/:rid/cancel` endpoint.
@@ -10,19 +10,19 @@ CLI/API only. The single exception is the run-level Stop control, which posts to
 ```sh
 # From the repository root
 pnpm install --frozen-lockfile
-pnpm --filter @relay/web build         # production dist for relay start
-pnpm --filter @relay/web typecheck
-pnpm --filter @relay/web test
+pnpm --filter @devchestra/web build         # production dist for devchestra start
+pnpm --filter @devchestra/web typecheck
+pnpm --filter @devchestra/web test
 
 # Serve the built app with the real API and session cookie
-pnpm relay start --data-dir /tmp/relay-dev --allow-experimental-adapters \
+pnpm devchestra start --data-dir /tmp/devchestra-dev --allow-experimental-adapters \
   --no-open --print-url
 
 # Full P2 acceptance, including a real Chromium run page and axe checks
 pnpm demo:p2
 ```
 
-`relay start` serves `apps/web/dist` from the same loopback origin as `/api`. Restart `relay start`
+`devchestra start` serves `apps/web/dist` from the same loopback origin as `/api`. Restart `devchestra start`
 after rebuilding the web app: the server caches `index.html` in memory at startup.
 
 ## Routes
@@ -34,12 +34,12 @@ after rebuilding the web app: the server caches `index.html` in memory at startu
 
 ## Data and correctness
 
-- REST types and the `ApiClient` come from `@relay/api`; `RunView` comes from `@relay/core`.
+- REST types and the `ApiClient` come from `@devchestra/api`; `RunView` comes from `@devchestra/core`.
 - Bootstrap reads one atomic `{run, view, snapshot, watermark}` response, then fetches the complete
   event history at or below the watermark in bounded pages. A partial history is never reported as
   complete.
 - The run stream uses native same-origin `EventSource` (cookies work) with the typed
-  `@relay/api` frame parser. Frames are deduplicated and applied strictly by global event id, not by
+  `@devchestra/api` frame parser. Frames are deduplicated and applied strictly by global event id, not by
   array position. Gaps between a run's ids are normal.
 - One run stream is open at a time; one global hint stream invalidates cached lists and bootstrap
   counts. Both are closed on route change/unmount. Offline/online browser events immediately pause
@@ -62,7 +62,7 @@ after rebuilding the web app: the server caches `index.html` in memory at startu
   stream; it never marks the run Cancelled optimistically and a second click after the 202
   does not re-post. Failures surface an inline retry/dismiss error; a terminal head meanwhile
   suppresses the error as a completion race.
-- Theme preference is UI-only (`data-theme`, `data-theme-mode`, `localStorage: relay.theme`) and
+- Theme preference is UI-only (`data-theme`, `data-theme-mode`, `localStorage: devchestra.theme`) and
   defaults to `prefers-color-scheme`. No gradients, external fonts or CDNs.
 
 ## Known limits

@@ -1,8 +1,8 @@
-# Relay / DevChestra
+# DevChestra / DevChestra
 
-Local, single-user workflow orchestrator for headless coding agents. Relay runs workflows of `start`, `agent`, `shell`, `gate`, `join`, `approval` and `end` nodes against the Claude Code, Codex, Opencode and Pi CLIs through a real MCP shim, a SQLite event store and a loopback web server. Use the browser editor to register a project, build and save a workflow with conflict-safe ETags, then run it into the live viewer (events, transcripts and event-based replay) without editing JSON. Each run picks one workspace at Start: the project root (dirty files included), an existing Git worktree, or a new per-run worktree. Gates branch in order with a mandatory `otherwise`, joins resolve with `first` or `all`, and approvals pause the run until a person approves or rejects. Decisions, maps, loops, artifact capture, budgets, context banks and release packaging are not built yet.
+Local, single-user workflow orchestrator for headless coding agents. DevChestra runs workflows of `start`, `agent`, `shell`, `gate`, `join`, `approval` and `end` nodes against the Claude Code, Codex, Opencode and Pi CLIs through a real MCP shim, a SQLite event store and a loopback web server. Use the browser editor to register a project, build and save a workflow with conflict-safe ETags, then run it into the live viewer (events, transcripts and event-based replay) without editing JSON. Each run picks one workspace at Start: the project root (dirty files included), an existing Git worktree, or a new per-run worktree. Gates branch in order with a mandatory `otherwise`, joins resolve with `first` or `all`, and approvals pause the run until a person approves or rejects. Decisions, maps, loops, artifact capture, budgets, context banks and release packaging are not built yet.
 
-The product name is provisional (`Relay` internally). Do not create durable user-facing paths or publish under a final name until that decision is recorded.
+The product name is provisional (`DevChestra` internally). Do not create durable user-facing paths or publish under a final name until that decision is recorded.
 
 ## Prerequisites
 
@@ -32,11 +32,11 @@ The lockfile is present in the workspace. CI installs with `pnpm install --froze
 | `pnpm format` | Biome format (write) |
 | `pnpm depcruise` | Dependency direction check over `packages`, `tools` and `apps` |
 | `pnpm audit --audit-level high` | Dependency audit at high severity; CI also runs it |
-| `pnpm relay ...` | Runs the CLI from source with the workspace root as cwd (`relay --help`) |
-| `pnpm relay:start --data-dir <dir>` | Starts the loopback web server, editor and viewer (requires `apps/web/dist`; real agent nodes need `--allow-experimental-adapters`) |
-| `pnpm relay:run ...` | `relay run` forwarding |
-| `pnpm relay:resume <runId> ...` | `relay resume` forwarding |
-| `pnpm relay:doctor ...` | `relay doctor` forwarding |
+| `pnpm devchestra ...` | Runs the CLI from source with the workspace root as cwd (`devchestra --help`) |
+| `pnpm devchestra:start --data-dir <dir>` | Starts the loopback web server, editor and viewer (requires `apps/web/dist`; real agent nodes need `--allow-experimental-adapters`) |
+| `pnpm devchestra:run ...` | `devchestra run` forwarding |
+| `pnpm devchestra:resume <runId> ...` | `devchestra resume` forwarding |
+| `pnpm devchestra:doctor ...` | `devchestra doctor` forwarding |
 | `pnpm web:build` / `pnpm web:dev` | Vite production build / dev server for `apps/web` |
 | `pnpm test:p3` | Runs the bounded P3 real-HTTP/security harness tests |
 | `pnpm test:e2e:p3` | Runs the Chromium P3 editor/autosave/conflict/run-and-a11y e2e test |
@@ -48,15 +48,15 @@ Recursive scripts use `pnpm -r --if-present`: a package without that script is s
 A minimal run from the repository root (needs a signed-in provider CLI):
 
 ```sh
-pnpm relay run examples/linear-codex.json \
+pnpm devchestra run examples/linear-codex.json \
   --project . \
-  --data-dir /tmp/relay-dev \
-  --param topic=relay \
+  --data-dir /tmp/devchestra-dev \
+  --param topic=devchestra \
   --allow-experimental-adapters \
   --json
 ```
 
-Fresh `relay run` defaults to the registered project root; the starter example omits per-node workspace metadata. Add `--workspace new-worktree` for a fresh per-run worktree, or `--workspace existing-worktree --worktree-path <dir>` to reuse one; `resume` keeps the run's frozen choice. The supported agent CLIs are `claude-code`, `codex`, `opencode` and `pi` (see `GET /api/clis`); `fake` is test-only behind `RELAY_ALLOW_FAKE=1` with a test-only `--fake-script`. `pnpm relay:doctor --data-dir /tmp/relay-dev` runs diagnostics. `relay run` requires an explicit data dir in this milestone.
+Fresh `devchestra run` defaults to the registered project root; the starter example omits per-node workspace metadata. Add `--workspace new-worktree` for a fresh per-run worktree, or `--workspace existing-worktree --worktree-path <dir>` to reuse one; `resume` keeps the run's frozen choice. The supported agent CLIs are `claude-code`, `codex`, `opencode` and `pi` (see `GET /api/clis`); `fake` is test-only behind `DEVCHESTRA_ALLOW_FAKE=1` with a test-only `--fake-script`. `pnpm devchestra:doctor --data-dir /tmp/devchestra-dev` runs diagnostics. `devchestra run` requires an explicit data dir in this milestone.
 
 For a real Claude Code/Codex/Opencode/Pi run, pass `--allow-experimental-adapters` again on resume as well as on run.
 
@@ -70,20 +70,20 @@ Seed one run into a persistent directory, then start the viewer against the same
 
 ```sh
 pnpm build
-data=/tmp/relay-view
+data=/tmp/devchestra-view
 mkdir -p "$data"
-pnpm relay run examples/linear-codex.json \
+pnpm devchestra run examples/linear-codex.json \
   --project . \
   --data-dir "$data" \
-  --param topic=relay \
+  --param topic=devchestra \
   --allow-experimental-adapters \
   --json
-pnpm relay:start --data-dir "$data"
+pnpm devchestra:start --data-dir "$data"
 ```
 
-`start` holds the data-directory lock; do not run `relay run`/`resume` against the same directory while it is live (the intended single-instance rule).
+`start` holds the data-directory lock; do not run `devchestra run`/`resume` against the same directory while it is live (the intended single-instance rule).
 
-`--data-dir` is required and there is no `~/.relay` fallback. `start` binds loopback only and chooses the first free port in 4821–4890 (or an ephemeral port with `--port 0`); a taken explicit port falls back to an ephemeral one and reports the actual URL. The browser opens by default with a session `?t=<token>` bootstrap URL (the token stays valid until the server restarts); `--no-open` and `--print-url` control that. The token is written owner-only to `<dataDir>/server.json` for the CLI and is not printed in `--json` output. A second `start` attaches to a verified live instance instead of creating a second session.
+`--data-dir` is required and there is no `~/.devchestra` fallback. `start` binds loopback only and chooses the first free port in 4821–4890 (or an ephemeral port with `--port 0`); a taken explicit port falls back to an ephemeral one and reports the actual URL. The browser opens by default with a session `?t=<token>` bootstrap URL (the token stays valid until the server restarts); `--no-open` and `--print-url` control that. The token is written owner-only to `<dataDir>/server.json` for the CLI and is not printed in `--json` output. A second `start` attaches to a verified live instance instead of creating a second session.
 
 The run viewer keeps workflow snapshots read-only and shows project/run lists, execution attempts, paged transcripts, complete event history and event-based replay with a scrubber. A persistent **Stop run** action cancels a nonterminal live run through the existing cancellation API; it stays in **Stopping…** until the live state confirms termination. Replay uses the shared reducer and can be linked with `?at=<eventId>`; **Stop live run** is explicitly a live-run action, independent of the replay position. Older terminal runs with missing execution-terminal events show **State unresolved** instead of a live spinner; the original execution evidence is retained, not rewritten. SSE reconnects from `Last-Event-ID` and refetches on overflow; the live run stream is separate from the low-volume global hints stream. Execution process times are read from stored integer epoch milliseconds; invalid stored timestamps fail with `E_INTERNAL` instead of rendering a fabricated date. Frozen clean: `pnpm check` **567/1950/4 exit 0** with non-browser **1126/135** (`1074/122` + `50/13`, web **190/24**); independent focused P3.5 **1/1 in 9.21s** on `index-CKcmjq75.js` (`/tmp/codex-p35-browser-clean.log`) + HTTP **9/9** valid. Overall Chromium **8/9** on preceding equivalent source: P3.5 + model pass, **P4 routing fails `waitDeadEdges` after succeeded run** (log `/tmp/codex-p35-e2e-fixed.log`; isolated drag fails) — no claim 9/9. Historical routing **1050/124** (`index-ilEE3nLD.js` 1/1 11.59s + 8/8 122.39s) and P3 **915/105** remain historical. Session replay race fixed, limits `note ≤4096`/`criteria 32×≤256` verified, instrumentation removed. Local Linux only, no CI/macOS/live-provider.
 
@@ -93,15 +93,15 @@ P3 introduced the browser editor for the original four node types (`start`, `age
 
 #### Run workspace selection
 
-Choose the workspace once, in the Start/Run dialog, for the whole execution. The default is the registered project root: steps run directly in that directory, including uncommitted tracked edits, untracked files and ignored files, and can edit live project files. Relay does not copy the project, commit, roll back or sandbox writes in this mode. This is the authorized direct-project execution path, not a read-only mode.
+Choose the workspace once, in the Start/Run dialog, for the whole execution. The default is the registered project root: steps run directly in that directory, including uncommitted tracked edits, untracked files and ignored files, and can edit live project files. DevChestra does not copy the project, commit, roll back or sandbox writes in this mode. This is the authorized direct-project execution path, not a read-only mode.
 
-**Existing Git worktree** lists the project's linked worktrees from `git worktree list` with path, branch or detached HEAD and HEAD commit. The registered root is the default and is not repeated as an alternative. Relay validates the canonical path and repository identity before starting; a path not in that list is rejected. **Create a new Git worktree** creates a per-run worktree at `<dataDir>/projects/<projectId>/runs/<runId>/worktree` when the run starts, initially detached at the project's committed `HEAD`. It contains the files committed at that revision: uncommitted tracked edits, untracked/ignored files and untracked/ignored dependency directories such as `node_modules` are absent, and no setup command runs.
+**Existing Git worktree** lists the project's linked worktrees from `git worktree list` with path, branch or detached HEAD and HEAD commit. The registered root is the default and is not repeated as an alternative. DevChestra validates the canonical path and repository identity before starting; a path not in that list is rejected. **Create a new Git worktree** creates a per-run worktree at `<dataDir>/projects/<projectId>/runs/<runId>/worktree` when the run starts, initially detached at the project's committed `HEAD`. It contains the files committed at that revision: uncommitted tracked edits, untracked/ignored files and untracked/ignored dependency directories such as `node_modules` are absent, and no setup command runs.
 
 Every Agent and Shell step in the run uses the same chosen cwd. The selection is frozen into the run record; the internal binding also stores the registered project root, while the browser sees only the selection. Restart/resume and history replay reuse the same workspace and never switch to a later editor choice. A missing or malformed binding fails closed. Runs created before run-level workspaces have no binding and keep their historical per-node scratch/worktree behavior.
 
 Scoped browser acceptance of this selector passed 1/1 in 8.52s with actual Chromium, an ephemeral CLI server, temporary Git/HOME/data and the fake agent. It verified root dirty/untracked visibility, an existing worktree at the exact path, a new checkout under the data directory, one cwd for every agent and shell, no inspector selector, one POST per run, and cleanup sentinel/no-orphan checks. All 7 distinct Chromium regression scenarios are verified: the full suite passed 6/7, the sole failure was a stale old per-node `workspace-review` assertion, and an assertion-only correction plus focused rerun passed 1/1 in 6.59s against unchanged dist. This is not a second full 7/7 invocation.
 
-Agent and Shell inspectors no longer expose a workspace selector. Fresh nodes and templates omit per-node workspace metadata; legacy per-node fields remain parseable for old documents and snapshots but are ignored by fresh runs. Relay finalizes each step with bookkeeping under the data directory; it never deletes, auto-commits or cleans up the project root or an existing worktree, and writes no Relay marker into a user checkout. A new per-run worktree is not merged, committed, given a retained branch or automatically cleaned up. A new worktree starts detached; later workflow commits may advance its HEAD. The initial base is recorded for evidence only. Worktree `base`, `setup` and `from` options are unsupported. None of these modes is an OS sandbox or read-only mode: steps run with the process's ordinary permissions, and project-root or existing-worktree steps can reach project paths by absolute path.
+Agent and Shell inspectors no longer expose a workspace selector. Fresh nodes and templates omit per-node workspace metadata; legacy per-node fields remain parseable for old documents and snapshots but are ignored by fresh runs. DevChestra finalizes each step with bookkeeping under the data directory; it never deletes, auto-commits or cleans up the project root or an existing worktree, and writes no DevChestra marker into a user checkout. A new per-run worktree is not merged, committed, given a retained branch or automatically cleaned up. A new worktree starts detached; later workflow commits may advance its HEAD. The initial base is recorded for evidence only. Worktree `base`, `setup` and `from` options are unsupported. None of these modes is an OS sandbox or read-only mode: steps run with the process's ordinary permissions, and project-root or existing-worktree steps can reach project paths by absolute path.
 
 ### P4 routing increment (gate + join)
 
@@ -120,12 +120,12 @@ Build first, then start against a data directory you already use. Starting does 
 ```sh
 pnpm install --frozen-lockfile
 pnpm build
-mkdir -p "$HOME/relay-data"
-pnpm relay:start --data-dir "$HOME/relay-data" \
+mkdir -p "$HOME/devchestra-data"
+pnpm devchestra:start --data-dir "$HOME/devchestra-data" \
   --allow-experimental-adapters
 ```
 
-`relay start` serves `apps/web/dist`. After `pnpm build` rebuilds the web app, **restart the server manually** if an older process is already running; it will not load the new assets by itself. Existing definitions and past run history are not rewritten: change an agent node's output mode explicitly if you want the new behavior. Automatic input handoff applies to new invocations only. The command opens the loopback URL with a bootstrap token; `--no-open` and `--print-url` control that. Use your own persistent `--data-dir`; use it only for real runs. `GET /api/clis` lists the registry-backed agent CLIs (`claude-code`, `codex`, `opencode`, `pi`); the test-only fake CLI stays hidden unless `RELAY_ALLOW_FAKE=1`.
+`devchestra start` serves `apps/web/dist`. After `pnpm build` rebuilds the web app, **restart the server manually** if an older process is already running; it will not load the new assets by itself. Existing definitions and past run history are not rewritten: change an agent node's output mode explicitly if you want the new behavior. Automatic input handoff applies to new invocations only. The command opens the loopback URL with a bootstrap token; `--no-open` and `--print-url` control that. Use your own persistent `--data-dir`; use it only for real runs. `GET /api/clis` lists the registry-backed agent CLIs (`claude-code`, `codex`, `opencode`, `pi`); the test-only fake CLI stays hidden unless `DEVCHESTRA_ALLOW_FAKE=1`.
 
 In the browser, with no JSON editing:
 
@@ -155,17 +155,17 @@ The Agent inspector's model field is a fuzzy-searchable selector backed by the s
 
 1. Choose the Agent node's CLI (Codex or Claude).
 2. Press **Load models** to run bounded native metadata discovery. Codex uses the app-server `initialize` plus paginated `model/list` path (no thread or turn). Claude uses the published Agent SDK with a prompt-free, never-yielding input: only the initialize handshake runs, with no user frame or model turn. The cache is per project/CLI with a five-minute TTL, 64 entries, 2 concurrent discoveries, single-flight and stale-last-good behavior.
-3. Type to filter locally by id, label, provider or alias, then select and save. The exact catalog ID is stored in the existing optional `node.model` and passed to the CLI unchanged (`-m` for Codex, `--model` for Claude). Claude uses `ModelInfo.value` exactly and never substitutes `resolvedModel`; Codex uses the exact `model` value. Relay does not substitute another model.
+3. Type to filter locally by id, label, provider or alias, then select and save. The exact catalog ID is stored in the existing optional `node.model` and passed to the CLI unchanged (`-m` for Codex, `--model` for Claude). Claude uses `ModelInfo.value` exactly and never substitutes `resolvedModel`; Codex uses the exact `model` value. DevChestra does not substitute another model.
 
-**Use CLI default** clears the override (absent `node.model`). **Use custom model ID** stores an explicit ID. Both CLIs support native discovery; a genuine old-CLI or discovery failure shows **Model listing unavailable**, not an execution-unsupported state, and never an invented catalog. A saved ID missing from a later catalog stays visible as a saved/unverified override and is never auto-replaced. Discovery runs in scratch under Relay's data directory (not the registered project cwd) with the same auth environment as execution; if the data directory sits inside a repository, shared ancestor configuration can apply. Relay does not copy or rewrite global CLI configuration, auth files or the registered project for discovery; real-CLI internal global cache/auth-refresh and managed-hook side effects are not verified by the stand-in acceptance. The catalog is Relay-runtime scoped: not a project-specific inventory, and not a prediction of later per-run files. A listed model is advertised metadata, not a guarantee of entitlement, quota or successful inference. Tests load the actual pinned SDK against harmless CLI stand-ins and real Chromium; no real CLI or provider probe was run, and no user auth/global config was changed. Restart an already-running server manually after `pnpm build`; a second `relay start` attaches to the live instance and does not reload new assets. Existing workflow schemas and run history are unchanged.
+**Use CLI default** clears the override (absent `node.model`). **Use custom model ID** stores an explicit ID. Both CLIs support native discovery; a genuine old-CLI or discovery failure shows **Model listing unavailable**, not an execution-unsupported state, and never an invented catalog. A saved ID missing from a later catalog stays visible as a saved/unverified override and is never auto-replaced. Discovery runs in scratch under DevChestra's data directory (not the registered project cwd) with the same auth environment as execution; if the data directory sits inside a repository, shared ancestor configuration can apply. DevChestra does not copy or rewrite global CLI configuration, auth files or the registered project for discovery; real-CLI internal global cache/auth-refresh and managed-hook side effects are not verified by the stand-in acceptance. The catalog is DevChestra-runtime scoped: not a project-specific inventory, and not a prediction of later per-run files. A listed model is advertised metadata, not a guarantee of entitlement, quota or successful inference. Tests load the actual pinned SDK against harmless CLI stand-ins and real Chromium; no real CLI or provider probe was run, and no user auth/global config was changed. Restart an already-running server manually after `pnpm build`; a second `devchestra start` attaches to the live instance and does not reload new assets. Existing workflow schemas and run history are unchanged.
 
-Test-only fake-agent workflows (hidden unless `RELAY_ALLOW_FAKE=1`) require Relay to be started with a test-only `--fake-script`; the browser cannot inject a script. Real-adapter workflows require the caller to start with `--allow-experimental-adapters` after a live contract check; those adapters remain experimental. Fresh runs use the run-level workspace selection: the registered project root by default, or an explicitly chosen existing/new worktree. Legacy per-node workspace fields are ignored for fresh runs and retained only for old run snapshots. Only explicit workflow saves write project metadata.
+Test-only fake-agent workflows (hidden unless `DEVCHESTRA_ALLOW_FAKE=1`) require DevChestra to be started with a test-only `--fake-script`; the browser cannot inject a script. Real-adapter workflows require the caller to start with `--allow-experimental-adapters` after a live contract check; those adapters remain experimental. Fresh runs use the run-level workspace selection: the registered project root by default, or an explicitly chosen existing/new worktree. Legacy per-node workspace fields are ignored for fresh runs and retained only for old run snapshots. Only explicit workflow saves write project metadata.
 
 A missing launch gate now returns the controlled reason instead of a generic request error; unknown/internal errors remain sanitized. This diagnostic fix does not change adapter gating, OS sandbox/permission enforcement or experimental status. The Run dialog now states explicitly that a real CLI run uses the signed-in account and may cost money. The Codex/Claude PATH-stub regressions confirm the default CLI engine path without a live provider completion.
 
 #### Workflow file API
 
-Project workflow definitions are plain files at `<project>/.relay/workflows/<id>.json`. The server exposes bounded CRUD and validation routes for them. Fresh runs choose one run-level `workspace` selection at Start; omitting it defaults to the registered project root. Legacy per-node workspace metadata remains parseable for old documents, but fresh runs ignore it. `GET /api/projects/:pid/workspaces` returns the trusted catalog (`projectRoot`, worktrees, `git`), with the root excluded from the alternatives.
+Project workflow definitions are plain files at `<project>/.devchestra/workflows/<id>.json`. The server exposes bounded CRUD and validation routes for them. Fresh runs choose one run-level `workspace` selection at Start; omitting it defaults to the registered project root. Legacy per-node workspace metadata remains parseable for old documents, but fresh runs ignore it. `GET /api/projects/:pid/workspaces` returns the trusted catalog (`projectRoot`, worktrees, `git`), with the root excluded from the alternatives.
 
 | Route | Behavior |
 |---|---|
@@ -177,35 +177,35 @@ Project workflow definitions are plain files at `<project>/.relay/workflows/<id>
 | `POST /api/projects/:pid/workflows/:wid/runs` | Start the exact saved revision (`{ params?, etag, workspace? }`); the selection is part of the idempotency fingerprint |
 | `GET /api/projects/:pid/workspaces` | Read-only run-start catalog: canonical project root, linked worktrees and whether the project is Git |
 
-Files are canonical 2-space JSON with a trailing newline; the unquoted SHA-256 content ETag is returned in the body and quoted in `ETag`/`If-Match`. Drafts that parse but fail semantic rules can be saved and listed; they cannot run. Saves re-check the revision before the atomic rename, so an ordinary external edit conflicts instead of being overwritten. A crash between the exclusive publish link and its temp unlink is reconciled on the next read only when the reserved temp is the same inode/device/owner, private-mode and exactly a two-link pair inside `.relay/workflows`; foreign hard links remain rejected. Managed runs reject `promptFile` for now (`E_NOT_SUPPORTED`) until sidecar revisions are covered by the same reviewed ETag. Past runs keep their frozen snapshot when a definition is edited or deleted. Both the managed route and the legacy relative-file `POST /api/projects/:pid/runs` route accept the same optional `workspace` selection and propagate it. The editor uses these routes; the browser never writes project files directly.
+Files are canonical 2-space JSON with a trailing newline; the unquoted SHA-256 content ETag is returned in the body and quoted in `ETag`/`If-Match`. Drafts that parse but fail semantic rules can be saved and listed; they cannot run. Saves re-check the revision before the atomic rename, so an ordinary external edit conflicts instead of being overwritten. A crash between the exclusive publish link and its temp unlink is reconciled on the next read only when the reserved temp is the same inode/device/owner, private-mode and exactly a two-link pair inside `.devchestra/workflows`; foreign hard links remain rejected. Managed runs reject `promptFile` for now (`E_NOT_SUPPORTED`) until sidecar revisions are covered by the same reviewed ETag. Past runs keep their frozen snapshot when a definition is edited or deleted. Both the managed route and the legacy relative-file `POST /api/projects/:pid/runs` route accept the same optional `workspace` selection and propagate it. The editor uses these routes; the browser never writes project files directly.
 
-`relay run` defaults to the project root and accepts `--workspace project|new-worktree|existing-worktree`; use `--worktree-path <dir>` with `existing-worktree`. `relay resume` has no workspace flag and reuses the run's frozen selection.
+`devchestra run` defaults to the project root and accepts `--workspace project|new-worktree|existing-worktree`; use `--worktree-path <dir>` with `existing-worktree`. `devchestra resume` has no workspace flag and reuses the run's frozen selection.
 
 ### Decision providers
 
-Decision nodes ask one of three fixed providers: `typesafe-jev` (Jev), `cloudflare-clef` (Clef 27B) or `cloudflare-clef-flash` (Clef-flash 9B). Keys come from environment variables or a `.env` file in the directory you run `relay` from (see `.env.example`); real shell exports take priority, and only these three names are ever read: `TYPESAFE_API_KEY`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_AUTH_TOKEN`. `relay doctor` reports each provider as ready or missing (names only), and the browser tester at `POST /api/projects/:pid/decisions/test` previews one question without creating a run. Keys kept only in `.env` are never passed to agents (Relay does not load `.env` into `process.env`), but a `TYPESAFE_API_KEY` exported in the shell IS passed to `pi` agent nodes, because Pi uses the same variable name (a pre-existing, intentional entry in the `pi` agent env allowlist, unrelated to decision nodes).
+Decision nodes ask one of three fixed providers: `typesafe-jev` (Jev), `cloudflare-clef` (Clef 27B) or `cloudflare-clef-flash` (Clef-flash 9B). Keys come from environment variables or a `.env` file in the directory you run `devchestra` from (see `.env.example`); real shell exports take priority, and only these three names are ever read: `TYPESAFE_API_KEY`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_AUTH_TOKEN`. `devchestra doctor` reports each provider as ready or missing (names only), and the browser tester at `POST /api/projects/:pid/decisions/test` previews one question without creating a run. Keys kept only in `.env` are never passed to agents (DevChestra does not load `.env` into `process.env`), but a `TYPESAFE_API_KEY` exported in the shell IS passed to `pi` agent nodes, because Pi uses the same variable name (a pre-existing, intentional entry in the `pi` agent env allowlist, unrelated to decision nodes).
 
-Live probe (opt-in): `pnpm relay:doctor --probe-decisions` (or `relay doctor --data-dir <dir> --probe-decisions`) sends ONE trivial boolean question per ready provider through the client's `test()` and prints, per provider, ok/failed, latency, the resolved model and a redacted response-shape summary: top-level key names, the answer's key names and value types, whether the body was wrapped in `result`, and whether `confidence`/`probabilities`/`usage` were present. It never prints values or keys. Cost: one tiny request per ready provider (providers without keys are skipped). Without the flag, doctor makes no network calls.
+Live probe (opt-in): `pnpm devchestra:doctor --probe-decisions` (or `devchestra doctor --data-dir <dir> --probe-decisions`) sends ONE trivial boolean question per ready provider through the client's `test()` and prints, per provider, ok/failed, latency, the resolved model and a redacted response-shape summary: top-level key names, the answer's key names and value types, whether the body was wrapped in `result`, and whether `confidence`/`probabilities`/`usage` were present. It never prints values or keys. Cost: one tiny request per ready provider (providers without keys are skipped). Without the flag, doctor makes no network calls.
 
 ## Workspace
 
 ```text
-packages/*        @relay/core, schema, api, store, workspaces, adapters, engine, mcp, server, cli
+packages/*        @devchestra/core, schema, api, store, workspaces, adapters, engine, mcp, server, cli
 apps/web          React 19 + Vite workflow editor and run viewer
-tools/*           test-only fake agent (RELAY_ALLOW_FAKE=1), fixtures and browser e2e and acceptance harnesses (p2-smoke, p3-smoke)
+tools/*           test-only fake agent (DEVCHESTRA_ALLOW_FAKE=1), fixtures and browser e2e and acceptance harnesses (p2-smoke, p3-smoke)
 examples/*        portable linear workflow examples
 ```
 
 Conventions:
 
-- Package names are `@relay/*`; every package exposes `src/index.ts` and TypeScript ESM with `NodeNext`.
-- `@relay/core`, `@relay/schema` and `@relay/api` and `apps/web` must stay browser-safe: no Node built-ins outside build/test configs. `@relay/schema/node` is the explicit Node-only subpath; main schema code is forbidden from importing `src/node`. The browser bundle check covers core, schema, api and the web entry.
-- The allowed import graph is enforced in `.dependency-cruiser.cjs`. `packages/server` and `packages/cli` are explicit, narrow composition roots; `apps/web` may import only `@relay/api`, `@relay/core` and the browser-safe `@relay/schema` main entry (never `@relay/schema/node`). Their allowed deps are documented in the config.
+- Package names are `@devchestra/*`; every package exposes `src/index.ts` and TypeScript ESM with `NodeNext`.
+- `@devchestra/core`, `@devchestra/schema` and `@devchestra/api` and `apps/web` must stay browser-safe: no Node built-ins outside build/test configs. `@devchestra/schema/node` is the explicit Node-only subpath; main schema code is forbidden from importing `src/node`. The browser bundle check covers core, schema, api and the web entry.
+- The allowed import graph is enforced in `.dependency-cruiser.cjs`. `packages/server` and `packages/cli` are explicit, narrow composition roots; `apps/web` may import only `@devchestra/api`, `@devchestra/core` and the browser-safe `@devchestra/schema` main entry (never `@devchestra/schema/node`). Their allowed deps are documented in the config.
 - Dependencies are pinned exactly in package manifests and by the lockfile. New versions must be at least 14 days old and pass `pnpm audit --audit-level high`.
 - `better-sqlite3` 13.0.3 ships bundled N-API prebuilds. Its gyp build script is deliberately not allowlisted, so installs do not compile from source. FTS5 canary evidence is in the SQLite canary workflow and build status.
 
 ## CI
 
-`.github/workflows/ci.yml` runs check, test and build on Linux and macOS with Node 22 and 24, plus a Chromium-backed P2/P3 browser e2e job. These workflows are configured but have not been confirmed on GitHub; the P4 routing browser scenario is quarantined behind `RELAY_E2E_P4=1` and the P3.5 approval browser scenario is intermittent. `.github/workflows/sqlite-canary.yml` verifies the bundled prebuild and FTS5 on Linux/macOS with Node 22, 24 and 26 without a source compile.
+`.github/workflows/ci.yml` runs check, test and build on Linux and macOS with Node 22 and 24, plus a Chromium-backed P2/P3 browser e2e job. These workflows are configured but have not been confirmed on GitHub; the P4 routing browser scenario is quarantined behind `DEVCHESTRA_E2E_P4=1` and the P3.5 approval browser scenario is intermittent. `.github/workflows/sqlite-canary.yml` verifies the bundled prebuild and FTS5 on Linux/macOS with Node 22, 24 and 26 without a source compile.
 
-The browser jobs install Chromium into the runner cache and export `RELAY_CHROMIUM_PATH`; they do not use a developer browser profile. If web/CLI dist, SQLite or Chromium is missing, the browser acceptance fails instead of skipping.
+The browser jobs install Chromium into the runner cache and export `DEVCHESTRA_CHROMIUM_PATH`; they do not use a developer browser profile. If web/CLI dist, SQLite or Chromium is missing, the browser acceptance fails instead of skipping.

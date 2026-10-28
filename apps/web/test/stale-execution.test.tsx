@@ -4,7 +4,7 @@ import {
   emptyRunView,
   type RunStatus,
   type RunView,
-} from "@relay/core";
+} from "@devchestra/core";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { DetailPanel, ExecutionStatus } from "../src/run/DetailPanel.js";

@@ -1,14 +1,14 @@
 import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { type ErrorCode, err, ok, type Path, RelayError } from "@relay/core";
-import { openStore, type Store } from "@relay/store";
+import { type ErrorCode, err, ok, type Path, DevChestraError } from "@devchestra/core";
+import { openStore, type Store } from "@devchestra/store";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ runAgent: vi.fn() }));
 
-vi.mock("@relay/adapters", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@relay/adapters")>();
+vi.mock("@devchestra/adapters", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@devchestra/adapters")>();
   return { ...actual, runAgent: mocks.runAgent };
 });
 
@@ -18,7 +18,7 @@ import type {
   ExitInfo,
   FailureClass,
   RunRequest,
-} from "@relay/adapters";
+} from "@devchestra/adapters";
 import { type ActiveRunState, EngineContext } from "../src/context.js";
 import { executeAgent } from "../src/exec-agent.js";
 import { analyzeLinearWorkflow, type LinearChain, type LinearNode } from "../src/sequence.js";
@@ -147,7 +147,7 @@ function registryFor(
       seen.modes.push(request.mode);
       seen.execDirs.push(request.execDir);
       if (planError !== undefined) {
-        return err(new RelayError(planError.code, planError.message));
+        return err(new DevChestraError(planError.code, planError.message));
       }
       // Mirror the real fake provider: resume is only honored when the
       // checkpoint from the previous attempt is on disk. Without this the
@@ -190,8 +190,8 @@ function registryFor(
   };
 }
 
-// Avoid a top-level import cycle in the test double: RelayError comes from the
-// real @relay/core which the mock above leaves intact.
+// Avoid a top-level import cycle in the test double: DevChestraError comes from the
+// real @devchestra/core which the mock above leaves intact.
 
 function setup(
   specs: AttemptSpec[],
@@ -205,13 +205,13 @@ function setup(
     generationOverride?: number;
   } = {},
 ): Harness {
-  const base = mkdtempSync(join(tmpdir(), "relay-engine-runattempts-"));
+  const base = mkdtempSync(join(tmpdir(), "devchestra-engine-runattempts-"));
   const project = join(base, "project");
   const dataDir = join(base, "data");
   mkdirSync(project);
   mkdirSync(dataDir, { recursive: true });
   cleanups.push(() => rmSync(base, { recursive: true, force: true }));
-  const store = openStore({ file: join(dataDir, "relay.db") });
+  const store = openStore({ file: join(dataDir, "devchestra.db") });
   cleanups.push(() => store.close());
   store.projects.ensure({ id: "p1", name: "P1", path: project, kind: "folder" });
   const snapshot = workflow(options.cli ?? "fake", options.limits ?? {});
@@ -390,7 +390,7 @@ function setup(
     dataDir,
     nodeBin: process.execPath,
     mcpShimEntry: join(dataDir, "unused.js"),
-    env: { ...process.env, RELAY_ALLOW_FAKE: "1" },
+    env: { ...process.env, DEVCHESTRA_ALLOW_FAKE: "1" },
     ...(options.allowExperimentalClis === undefined
       ? {}
       : { allowExperimentalClis: options.allowExperimentalClis }),

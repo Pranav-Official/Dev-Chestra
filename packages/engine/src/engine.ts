@@ -1,18 +1,18 @@
-import { getProvider, isCliId, matchesProcess } from "@relay/adapters";
-import type { EventEnvelope, RunId, RunStatus, RunView } from "@relay/core";
+import { getProvider, isCliId, matchesProcess } from "@devchestra/adapters";
+import type { EventEnvelope, RunId, RunStatus, RunView } from "@devchestra/core";
 import {
   defaultRunWorkspaceSelection,
   err,
   hashJson,
   isRunWorkspaceSelection,
   ok,
-  RelayError,
+  DevChestraError,
   type Result,
   type RoutingExecutionState,
   type RoutingView,
-} from "@relay/core";
-import { isProdCliId, resolveParams } from "@relay/schema";
-import type { CreateRunInput, CreateRunResult, RunRecord } from "@relay/store";
+} from "@devchestra/core";
+import { isProdCliId, resolveParams } from "@devchestra/schema";
+import type { CreateRunInput, CreateRunResult, RunRecord } from "@devchestra/store";
 import {
   consumeStaleWakesForWaiting,
   consumeWakesForTerminal,
@@ -21,7 +21,7 @@ import {
   reconcileApprovalWakes,
   reconcileApprovalWakesForRun,
 } from "./approval-wake.js";
-import { type ActiveRunState, EngineContext, isTerminal, toRelayError } from "./context.js";
+import { type ActiveRunState, EngineContext, isTerminal, toDevChestraError } from "./context.js";
 import { executeAgent } from "./exec-agent.js";
 import { executeApproval } from "./exec-approval.js";
 import { executeDecision } from "./exec-decision.js";
@@ -109,11 +109,11 @@ export class LinearEngine implements Engine {
     void options;
   }
 
-  async launch(input: StartRunInput): Promise<Result<LaunchResult, RelayError>> {
+  async launch(input: StartRunInput): Promise<Result<LaunchResult, DevChestraError>> {
     try {
       if (!this.#started) await this.start();
       if (this.#stopping) {
-        throw new RelayError("E_CONFLICT", "Engine is shutting down; no new run was created");
+        throw new DevChestraError("E_CONFLICT", "Engine is shutting down; no new run was created");
       }
       const planResult = analyzeWorkflowPlan(input.snapshot);
       if (!planResult.ok) return err(planResult.error);
@@ -128,7 +128,7 @@ export class LinearEngine implements Engine {
       const params = resolveParams({ params: plan.start.raw.params as never }, input.params ?? {});
       if (!params.ok) {
         return err(
-          new RelayError("E_VALIDATION", "Run parameters are invalid", {
+          new DevChestraError("E_VALIDATION", "Run parameters are invalid", {
             details: { issues: params.errors },
           }),
         );
@@ -136,11 +136,11 @@ export class LinearEngine implements Engine {
       this.#assertAdapters(plan);
       const project = this.#ctx.store.projects.get(input.projectId);
       if (project === null) {
-        throw new RelayError("E_NOT_FOUND", `Project ${input.projectId} does not exist`);
+        throw new DevChestraError("E_NOT_FOUND", `Project ${input.projectId} does not exist`);
       }
       const selection = input.workspace ?? defaultRunWorkspaceSelection();
       if (!isRunWorkspaceSelection(selection)) {
-        throw new RelayError("E_VALIDATION", "workspace selection is invalid");
+        throw new DevChestraError("E_VALIDATION", "workspace selection is invalid");
       }
       const workflowHash = await hashJson(input.snapshot);
       const createInput: CreateRunInput = {
@@ -161,32 +161,32 @@ export class LinearEngine implements Engine {
         : this.#drive(created.runId, {}, false);
       return ok({ runId: created.runId, duplicate, completion });
     } catch (error) {
-      return err(toRelayError(error));
+      return err(toDevChestraError(error));
     }
   }
 
   async launchResume(
     runId: string,
     options: ResumeOptions = {},
-  ): Promise<Result<LaunchResult, RelayError>> {
+  ): Promise<Result<LaunchResult, DevChestraError>> {
     try {
       if (!this.#started) await this.start();
-      if (this.#stopping) throw new RelayError("E_CONFLICT", "Engine is shutting down");
+      if (this.#stopping) throw new DevChestraError("E_CONFLICT", "Engine is shutting down");
       const run = this.#ctx.run(runId);
       if (isTerminal(run.status as RunStatus)) {
-        throw new RelayError("E_CONFLICT", `Run ${runId} is already ${run.status}`);
+        throw new DevChestraError("E_CONFLICT", `Run ${runId} is already ${run.status}`);
       }
       const active = this.#active.get(runId);
       if (active !== undefined) {
         if (active.state.reason === "shutdown") {
-          throw new RelayError("E_CONFLICT", "Run is still shutting down");
+          throw new DevChestraError("E_CONFLICT", "Run is still shutting down");
         }
         return ok({ runId, duplicate: false, completion: active.done });
       }
       if (run.status === "paused") {
         if (run.pauseReason === "uncertain_side_effect") {
           if (options.allowUncertainSideEffectRetry !== true) {
-            throw new RelayError(
+            throw new DevChestraError(
               "E_CONFLICT",
               "This run is paused for an uncertain shell side effect; explicit approval is required",
             );
@@ -195,7 +195,7 @@ export class LinearEngine implements Engine {
         } else if (run.pauseReason === "shutdown") {
           this.#ctx.append(runId, "", "run.resumed", "user", { reason: "shutdown" });
         } else {
-          throw new RelayError(
+          throw new DevChestraError(
             "E_CONFLICT",
             `Run is paused for ${run.pauseReason ?? "an unsupported reason"}; resolve it before resuming`,
           );
@@ -203,11 +203,11 @@ export class LinearEngine implements Engine {
       }
       return ok({ runId, duplicate: false, completion: this.#drive(runId, options, true) });
     } catch (error) {
-      return err(toRelayError(error));
+      return err(toDevChestraError(error));
     }
   }
 
-  async run(input: StartRunInput): Promise<Result<RunOutcome, RelayError>> {
+  async run(input: StartRunInput): Promise<Result<RunOutcome, DevChestraError>> {
     const launched = await this.launch(input);
     if (!launched.ok) return err(launched.error);
     return ok(await launched.value.completion);
@@ -216,18 +216,18 @@ export class LinearEngine implements Engine {
   async resume(
     runId: string,
     options: ResumeOptions = {},
-  ): Promise<Result<RunOutcome, RelayError>> {
+  ): Promise<Result<RunOutcome, DevChestraError>> {
     const launched = await this.launchResume(runId, options);
     if (!launched.ok) return err(launched.error);
     return ok(await launched.value.completion);
   }
 
-  async cancel(runId: string): Promise<Result<void, RelayError>> {
+  async cancel(runId: string): Promise<Result<void, DevChestraError>> {
     try {
       const run = this.#ctx.run(runId);
       if (run.status === "cancelled") return ok(undefined);
       if (isTerminal(run.status as RunStatus)) {
-        throw new RelayError("E_CONFLICT", `Run ${runId} is already ${run.status}`);
+        throw new DevChestraError("E_CONFLICT", `Run ${runId} is already ${run.status}`);
       }
       const active = this.#active.get(runId);
       if (active !== undefined) {
@@ -283,7 +283,7 @@ export class LinearEngine implements Engine {
               this.#ctx.appendError(
                 runId,
                 execution.path,
-                new RelayError(
+                new DevChestraError(
                   "E_WORKSPACE",
                   "Cancel found a process with unknown liveness; explicit repair required",
                   { details: { path: execution.path, pid: process.pid } },
@@ -296,7 +296,7 @@ export class LinearEngine implements Engine {
               this.#ctx.appendError(
                 runId,
                 execution.path,
-                new RelayError("E_WORKSPACE", "Agent process group is still alive", {
+                new DevChestraError("E_WORKSPACE", "Agent process group is still alive", {
                   details: { step: "group_still_alive", pid: process.pid },
                 }),
               );
@@ -305,7 +305,7 @@ export class LinearEngine implements Engine {
             }
           }
         } catch (error) {
-          this.#ctx.appendError(runId, execution.path, toRelayError(error, "E_WORKSPACE"));
+          this.#ctx.appendError(runId, execution.path, toDevChestraError(error, "E_WORKSPACE"));
           aliveBlocked.push(execution.path);
           continue;
         }
@@ -323,7 +323,7 @@ export class LinearEngine implements Engine {
           });
         }
         return err(
-          new RelayError("E_WORKSPACE", "Parked cancel blocked by live process group(s)", {
+          new DevChestraError("E_WORKSPACE", "Parked cancel blocked by live process group(s)", {
             details: { paths: aliveBlocked },
           }),
         );
@@ -331,7 +331,7 @@ export class LinearEngine implements Engine {
       this.#ctx.append(runId, "", "run.cancelled", "user", { by: "user" });
       return ok(undefined);
     } catch (error) {
-      return err(toRelayError(error));
+      return err(toDevChestraError(error));
     }
   }
 
@@ -363,7 +363,7 @@ export class LinearEngine implements Engine {
       if (node.type !== "agent") continue;
       const cli: unknown = node.raw.cli;
       if (!isCliId(cli) || !this.#ctx.deps.adapters.has(cli)) {
-        throw new RelayError("E_CLI_MISSING", `Adapter '${String(cli)}' is not available`, {
+        throw new DevChestraError("E_CLI_MISSING", `Adapter '${String(cli)}' is not available`, {
           details: { cli },
         });
       }
@@ -372,7 +372,7 @@ export class LinearEngine implements Engine {
         const allowed = this.#ctx.deps.allowExperimentalClis ?? [];
         const adapter = this.#ctx.deps.adapters.get(cli);
         if (!(isProdCliId(provider.id) && allowed.includes(provider.id))) {
-          throw new RelayError(
+          throw new DevChestraError(
             "E_CLI_MISSING",
             `Adapter '${provider.id}' requires an explicit experimental opt-in only after a live contract check`,
             { details: { cli: provider.id, behaviorVerified: adapter.evidence.behaviorVerified } },
@@ -404,7 +404,7 @@ export class LinearEngine implements Engine {
       (error: unknown) => {
         const run = this.#ctx.store.runs.get(runId as RunId);
         if (run && isTerminal(run.status as RunStatus)) return this.#ctx.outcome(runId);
-        this.#ctx.failRun(runId, toRelayError(error));
+        this.#ctx.failRun(runId, toDevChestraError(error));
         return this.#ctx.outcome(runId);
       },
     );
@@ -436,9 +436,9 @@ export class LinearEngine implements Engine {
       try {
         await this.#ctx.prepareRun(initial, resume, active.abort.signal);
       } catch (error) {
-        const relay = toRelayError(error, "E_WORKSPACE");
-        this.#ctx.appendError(runId, "", relay);
-        this.#ctx.failRun(runId, relay);
+        const devchestra = toDevChestraError(error, "E_WORKSPACE");
+        this.#ctx.appendError(runId, "", devchestra);
+        this.#ctx.failRun(runId, devchestra);
         return this.#ctx.outcome(runId);
       }
     }
@@ -478,7 +478,7 @@ export class LinearEngine implements Engine {
       if (completedEnds.length > 1) {
         this.#ctx.failRun(
           runId,
-          new RelayError(
+          new DevChestraError(
             "E_WORKFLOW_INVALID",
             "multiple active End nodes; converge or make exclusive",
           ),
@@ -501,7 +501,7 @@ export class LinearEngine implements Engine {
         const id = routing.conflicts[0] as string;
         this.#ctx.failRun(
           runId,
-          new RelayError(
+          new DevChestraError(
             "E_JOIN_CONFLICT",
             `Join '${id}' has multiple active inputs in mode 'first'`,
             {
@@ -521,8 +521,8 @@ export class LinearEngine implements Engine {
         this.#ctx.failRun(
           runId,
           known
-            ? new RelayError(known.code, known.message, { details: { nodeId: failed.id } })
-            : new RelayError(
+            ? new DevChestraError(known.code, known.message, { details: { nodeId: failed.id } })
+            : new DevChestraError(
                 "E_INTERNAL",
                 `Node '${failed.id}' ended ${execution?.status ?? "failed"} without an error record`,
                 { details: { nodeId: failed.id } },
@@ -549,8 +549,8 @@ export class LinearEngine implements Engine {
             else this.#finishShutdown(runId);
             return this.#ctx.outcome(runId);
           }
-          const relay = toRelayError(error);
-          if (ctxStatus(this.#ctx, runId) === "running") this.#ctx.failRun(runId, relay);
+          const devchestra = toDevChestraError(error);
+          if (ctxStatus(this.#ctx, runId) === "running") this.#ctx.failRun(runId, devchestra);
         }
         continue;
       }
@@ -558,7 +558,7 @@ export class LinearEngine implements Engine {
       if (readyEnds.length > 1) {
         this.#ctx.failRun(
           runId,
-          new RelayError(
+          new DevChestraError(
             "E_WORKFLOW_INVALID",
             "multiple active End nodes; converge or make exclusive",
             { details: { ends: readyEnds.map((node) => node.id) } },
@@ -575,8 +575,8 @@ export class LinearEngine implements Engine {
             else this.#finishShutdown(runId);
             return this.#ctx.outcome(runId);
           }
-          const relay = toRelayError(error);
-          if (ctxStatus(this.#ctx, runId) === "running") this.#ctx.failRun(runId, relay);
+          const devchestra = toDevChestraError(error);
+          if (ctxStatus(this.#ctx, runId) === "running") this.#ctx.failRun(runId, devchestra);
         }
         continue;
       }
@@ -592,7 +592,7 @@ export class LinearEngine implements Engine {
       }
       this.#ctx.failRun(
         runId,
-        new RelayError("E_INTERNAL", "Routing stalled: no ready node and no active End node", {
+        new DevChestraError("E_INTERNAL", "Routing stalled: no ready node and no active End node", {
           details: { ready: routing.ready, skipped: routing.skipped },
         }),
       );
