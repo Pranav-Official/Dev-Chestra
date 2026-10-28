@@ -5,9 +5,12 @@ import {
   type AdapterRegistry,
   type FailureClass,
   killOrphan,
+  type ResolvedMcpServer,
+  type RunRequest,
   runAgent,
 } from "@relay/adapters";
 import { type ExecutionIdentity, fsSlug, hashJson, type Path, RelayError } from "@relay/core";
+import type { McpSelection } from "@relay/schema";
 import type { AcceptedOutput, RunRecord } from "@relay/store";
 import { resolveInside, type ScratchWorkspace } from "@relay/workspaces";
 import { secretValues } from "./agent-support.js";
@@ -33,6 +36,97 @@ function stopReason(input: {
   if (input.failureKind === "crash") return "crash";
   if (!input.accepted && input.signal !== null) return "crash";
   return "exited";
+}
+
+const MCP_SCOPES = new Set(["global", "project", "connector"]);
+
+/** Names-only selection from the normalized node; absent or malformed reads as empty. */
+function readMcpSelection(node: PlanNode): McpSelection[] {
+  const raw = (node.raw as { mcpServers?: unknown }).mcpServers;
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((entry): McpSelection[] => {
+    if (typeof entry !== "object" || entry === null) return [];
+    const { name, scope } = entry as { name?: unknown; scope?: unknown };
+    if (typeof name !== "string" || typeof scope !== "string") return [];
+    if (!MCP_SCOPES.has(scope)) return [];
+    return [{ name, scope: scope as McpSelection["scope"] }];
+  });
+}
+
+/**
+ * Exact shell toggle from the node. Absent keeps the legacy rule (shell
+ * follows `write`); adapters decide what that means.
+ */
+function readShellPermission(node: PlanNode): boolean | undefined {
+  const permissions = node.raw.permissions;
+  if (typeof permissions !== "object" || permissions === null) return undefined;
+  const shell = (permissions as { shell?: unknown }).shell;
+  return typeof shell === "boolean" ? shell : undefined;
+}
+
+function mcpLabel(selection: readonly McpSelection[]): string {
+  return selection.map((item) => `${item.scope}:${item.name}`).join(", ");
+}
+
+function mcpNames(selection: readonly McpSelection[]): Array<{ name: string; scope: string }> {
+  return selection.map((item) => ({ name: item.name, scope: item.scope }));
+}
+
+interface AttachedMcp {
+  extraMcp?: ResolvedMcpServer[];
+  knownMcp?: NonNullable<RunRequest["knownMcp"]>;
+}
+
+/**
+ * Resolve the node's MCP selection right before launch, on every attempt, so
+ * a resume re-resolves against the current CLI config. A non-empty selection
+ * with no resolver, or a failing resolve, fails the node fast with a
+ * names-only error (never a silent skip). An empty selection only fills
+ * knownMcp so adapters can switch the rest off, and never fails the node:
+ * listing is best-effort and its failure is ignored.
+ */
+async function resolveAgentMcp(
+  ctx: EngineContext,
+  run: RunRecord,
+  node: PlanNode,
+  selection: readonly McpSelection[],
+): Promise<AttachedMcp> {
+  const resolver = ctx.deps.mcpResolver;
+  const cli = String((node.raw as { cli?: unknown }).cli ?? "");
+  const projectDir = run.project.path;
+  if (selection.length > 0) {
+    if (resolver === undefined) {
+      throw new RelayError(
+        "E_CLI_MISSING",
+        `Agent '${node.id}' selects MCP server(s) ${mcpLabel(selection)} but no MCP resolver is configured; cannot start the run.`,
+        { details: { nodeId: node.id, cli, servers: mcpNames(selection) } },
+      );
+    }
+    const resolved = await resolver.resolve(cli, projectDir, selection);
+    if (!resolved.ok) {
+      // The resolver message is secret-free by contract; details are rebuilt
+      // names-only so nothing past names can leak into events.
+      throw new RelayError(
+        resolved.error.code,
+        `Agent '${node.id}' cannot use MCP server(s) ${mcpLabel(selection)}: ${resolved.error.message}`,
+        { details: { nodeId: node.id, cli, servers: mcpNames(selection) } },
+      );
+    }
+    return { extraMcp: resolved.value.extra, knownMcp: resolved.value.known };
+  }
+  if (resolver === undefined) return {};
+  try {
+    const listed = await resolver.list(cli, projectDir);
+    return {
+      knownMcp: listed.servers.map((server) => ({
+        name: server.name,
+        scope: server.scope,
+        ...(server.connectorId === undefined ? {} : { connectorId: server.connectorId }),
+      })),
+    };
+  } catch {
+    return {};
+  }
 }
 
 /** Mutable retry-loop state shared across attempts of one agent node. */
@@ -119,8 +213,13 @@ export async function runSingleAttempt(
       ? composeAgentPrompt(NO_SUBMIT_PROMPT, prepared.contract, prepared.inputContext)
       : prepared.basePrompt;
   assertAgentPromptSize(prompt);
-  const inputsHash = await hashJson({ prompt, scope: prepared.scope });
-  ctx.appendInputResolved(identity, inputsHash, { prompt, scope: prepared.scope });
+  const selection = readMcpSelection(node);
+  const shell = readShellPermission(node);
+  const attached = await resolveAgentMcp(ctx, run, node, selection);
+  const tools = { shell: shell ?? null, servers: mcpNames(selection) };
+  const inputs = { prompt, scope: prepared.scope, tools };
+  const inputsHash = await hashJson(inputs);
+  ctx.appendInputResolved(identity, inputsHash, inputs);
   const issued = ctx.deps.gateway.issue({
     identity,
     outputSchema: node.raw.output as Record<string, unknown>,
@@ -285,6 +384,7 @@ export async function runSingleAttempt(
           | "workspace"
           | "project"
         )[],
+        ...(shell === undefined ? {} : { shell }),
         extraReadDirs: [],
       },
       limits: { timeoutMs },
@@ -301,6 +401,8 @@ export async function runSingleAttempt(
       },
       execDir,
       env: baseEnv,
+      ...(attached.extraMcp === undefined ? {} : { extraMcp: attached.extraMcp }),
+      ...(attached.knownMcp === undefined ? {} : { knownMcp: attached.knownMcp }),
       ...(fakeCheckpoint === undefined ? {} : { cliOptions: { checkpoint: fakeCheckpoint } }),
     };
     const planned = adapter.plan(request);

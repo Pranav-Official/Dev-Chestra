@@ -22,7 +22,7 @@ import type {
   WorkflowFile,
   WorkflowNode,
 } from "./types.js";
-import { PROD_CLIS } from "./types.js";
+import { MCP_SCOPES, PROD_CLIS } from "./types.js";
 import { validateApproval } from "./validate-approval.js";
 import { validateDecision } from "./validate-decision.js";
 import {
@@ -34,6 +34,110 @@ import {
   timeoutBounds,
   workspaceProblem,
 } from "./validate-support.js";
+
+const MCP_SERVER_NAME_MAX = 128;
+const MCP_SERVERS_MAX = 32;
+// biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting control characters is the point.
+const MCP_SERVER_NAME_CONTROL = /[\u0000-\u001f\u007f]/;
+const MCP_SCOPE_SET: ReadonlySet<string> = new Set(MCP_SCOPES);
+
+/**
+ * Semantic check for the agent `mcpServers` selection (names only, never
+ * commands or secrets). The structural parser enforces the same rules; this
+ * stays defensive so programmatically built files fail with pointed issues.
+ */
+function validateMcpServers(
+  value: unknown,
+  pointer: string,
+  nodeId: string,
+  addError: (item: Issue) => void,
+): void {
+  if (value === undefined) return;
+  const base = `${pointer}/mcpServers`;
+  if (!Array.isArray(value)) {
+    addError(issue("error", "E_MCP_SERVERS", "Agent mcpServers must be an array.", base, nodeId));
+    return;
+  }
+  if (value.length > MCP_SERVERS_MAX) {
+    addError(
+      issue(
+        "error",
+        "E_MCP_SERVERS",
+        `Agent mcpServers must have at most ${MCP_SERVERS_MAX} entries.`,
+        base,
+        nodeId,
+      ),
+    );
+  }
+  const seen = new Set<string>();
+  for (let index = 0; index < value.length; index += 1) {
+    const entry = `${base}/${index}`;
+    const selection = value[index];
+    if (!isRecord(selection)) {
+      addError(
+        issue("error", "E_MCP_SERVERS", "Agent mcpServers entries must be objects.", entry, nodeId),
+      );
+      continue;
+    }
+    const { name, scope } = selection;
+    if (
+      typeof name !== "string" ||
+      name.length < 1 ||
+      name.length > MCP_SERVER_NAME_MAX ||
+      MCP_SERVER_NAME_CONTROL.test(name)
+    ) {
+      addError(
+        issue(
+          "error",
+          "E_MCP_SERVERS",
+          `Agent mcpServers[${index}].name must be 1-${MCP_SERVER_NAME_MAX} characters with no control characters.`,
+          `${entry}/name`,
+          nodeId,
+        ),
+      );
+      continue;
+    }
+    if (name === "relay") {
+      addError(
+        issue(
+          "error",
+          "E_MCP_SERVERS",
+          "Agent mcpServers name 'relay' is reserved for Relay's own server.",
+          `${entry}/name`,
+          nodeId,
+        ),
+      );
+      continue;
+    }
+    if (typeof scope !== "string" || !MCP_SCOPE_SET.has(scope)) {
+      addError(
+        issue(
+          "error",
+          "E_MCP_SERVERS",
+          `Agent mcpServers[${index}].scope must be one of ${MCP_SCOPES.join(", ")}.`,
+          `${entry}/scope`,
+          nodeId,
+        ),
+      );
+      continue;
+    }
+    const key = `${scope}:${name}`;
+    if (seen.has(key)) {
+      addError(
+        issue(
+          "error",
+          "E_MCP_SERVERS",
+          `Agent mcpServers[${index}] duplicates '${key}'.`,
+          entry,
+          nodeId,
+        ),
+      );
+    } else {
+      seen.add(key);
+    }
+  }
+}
+
 export function validateWorkflow(
   file: WorkflowFile,
   ctx: ValidationContext = {},
@@ -382,7 +486,20 @@ export function validateWorkflow(
             ),
           );
         }
+        if (agent.permissions.shell !== undefined && typeof agent.permissions.shell !== "boolean") {
+          addError(
+            issue(
+              "error",
+              "E_PERMISSIONS",
+              "permissions.shell must be a boolean.",
+              `${pointer}/permissions/shell`,
+              node.id,
+            ),
+          );
+        }
       }
+
+      validateMcpServers(agent.mcpServers, pointer, node.id, addError);
 
       if (agent.workspace !== undefined) {
         const agentWorkspaceProblem = workspaceProblem(agent.workspace, ctx.projectKind);
