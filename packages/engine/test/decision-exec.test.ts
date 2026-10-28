@@ -2,7 +2,6 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createAdapterRegistry } from "@relay/adapters";
-import type { Path } from "@relay/core";
 import { createDecisionService } from "@relay/decisions";
 import { normalizeWorkflow, parseWorkflow } from "@relay/schema";
 import { openStore, type RunRecord, type Store } from "@relay/store";
@@ -13,9 +12,9 @@ import {
   releaseScratch,
 } from "@relay/workspaces";
 import { afterEach, describe, expect, it } from "vitest";
-import { startStandin } from "../../../tools/fixtures/decisions/standin.mjs";
 import type { StandinHandle } from "../../../tools/fixtures/decisions/standin.mjs";
-import { EngineContext, type ActiveRunState } from "../src/context.js";
+import { startStandin } from "../../../tools/fixtures/decisions/standin.mjs";
+import { type ActiveRunState, EngineContext } from "../src/context.js";
 import { createEngine } from "../src/engine.js";
 import { executeDecision } from "../src/exec-decision.js";
 import { executeDeterministic } from "../src/exec-deterministic.js";
@@ -173,11 +172,13 @@ describe("engine decision executor", () => {
     const view = store.view.get(result.value.runId as never);
     expect(view.executions.sb?.status).toBe("skipped");
     expect(view.executions.d?.decision?.routing).toEqual({ branch: "true", reason: "matched" });
-    expect(store.outputs.get({
-      runId: result.value.runId as never,
-      path: "d" as never,
-      attempt: 1,
-    })?.json).toMatchObject({
+    expect(
+      store.outputs.get({
+        runId: result.value.runId as never,
+        path: "d" as never,
+        attempt: 1,
+      })?.json,
+    ).toMatchObject({
       branch: "true",
       value: true,
       probability: 0.75,
@@ -287,7 +288,12 @@ describe("engine decision executor", () => {
     const { store, deps } = setup(standin);
     const engine = createEngine(deps);
     const snap = snapshot(
-      [start(), decision("d", { mode: { kind: "boolean", trueAt: 0.9, falseAt: 0.5 } }), end("eu", '"unsure"'), end("et", '"sure"')],
+      [
+        start(),
+        decision("d", { mode: { kind: "boolean", trueAt: 0.9, falseAt: 0.5 } }),
+        end("eu", '"unsure"'),
+        end("et", '"sure"'),
+      ],
       [
         ["start", "d"],
         ["d.uncertain", "eu"],
@@ -308,10 +314,14 @@ describe("engine decision executor", () => {
   it("fails with an actionable error when uncertain is reached but unwired", async () => {
     const standin = await startStandin();
     trackStandin(standin);
-    const { store, deps } = setup(standin);
+    const { deps } = setup(standin);
     const engine = createEngine(deps);
     const snap = snapshot(
-      [start(), decision("d", { mode: { kind: "boolean", trueAt: 0.9, falseAt: 0.5 } }), end("et", '"sure"')],
+      [
+        start(),
+        decision("d", { mode: { kind: "boolean", trueAt: 0.9, falseAt: 0.5 } }),
+        end("et", '"sure"'),
+      ],
       [
         ["start", "d"],
         ["d.true", "et"],
@@ -331,10 +341,13 @@ describe("engine decision executor", () => {
     standin.setNext(["error-400"]);
     const { store, deps } = setup(standin);
     const engine = createEngine(deps);
-    const snap = snapshot([start(), decision("d"), end("done")], [
-      ["start", "d"],
-      ["d.true", "done"],
-    ]);
+    const snap = snapshot(
+      [start(), decision("d"), end("done")],
+      [
+        ["start", "d"],
+        ["d.true", "done"],
+      ],
+    );
     const result = await engine.run(launchInput(snap));
     if (!result.ok) throw result.error;
     expect(result.value.status).toBe("failed");
@@ -404,12 +417,15 @@ describe("engine decision executor", () => {
   it("fails closed without a decision service", async () => {
     const standin = await startStandin();
     trackStandin(standin);
-    const { store, deps } = setup(standin);
+    const { deps } = setup(standin);
     const engine = createEngine({ ...deps, decisions: undefined });
-    const snap = snapshot([start(), decision("d"), end("done")], [
-      ["start", "d"],
-      ["d.true", "done"],
-    ]);
+    const snap = snapshot(
+      [start(), decision("d"), end("done")],
+      [
+        ["start", "d"],
+        ["d.true", "done"],
+      ],
+    );
     const result = await engine.run(launchInput(snap));
     if (!result.ok) throw result.error;
     expect(result.value.status).toBe("failed");
@@ -491,10 +507,13 @@ describe("engine decision executor", () => {
     standin.setNext(["echo-key"]);
     const { store, deps } = setup(standin);
     const engine = createEngine(deps);
-    const snap = snapshot([start(), decision("d"), end("done")], [
-      ["start", "d"],
-      ["d.true", "done"],
-    ]);
+    const snap = snapshot(
+      [start(), decision("d"), end("done")],
+      [
+        ["start", "d"],
+        ["d.true", "done"],
+      ],
+    );
     const result = await engine.run(launchInput(snap));
     if (!result.ok) throw result.error;
     expect(result.value.status).toBe("failed");
@@ -509,10 +528,13 @@ describe("engine decision executor", () => {
     standin.setNext([{ scenario: "slow", delayMs: 1500 }]);
     const { store, deps } = setup(standin);
     const engine = createEngine(deps);
-    const snap = snapshot([start(), decision("d"), end("done", '"ok"')], [
-      ["start", "d"],
-      ["d.true", "done"],
-    ]);
+    const snap = snapshot(
+      [start(), decision("d"), end("done", '"ok"')],
+      [
+        ["start", "d"],
+        ["d.true", "done"],
+      ],
+    );
     const launched = await engine.launch(launchInput(snap));
     if (!launched.ok) throw launched.error;
     // Wait until the provider call is actually in flight, so the abort lands
@@ -542,10 +564,13 @@ describe("engine decision executor", () => {
     const standin = await startStandin();
     trackStandin(standin);
     const first = setup(standin);
-    const snap = snapshot([start(), decision("d"), end("done", '"ok"')], [
-      ["start", "d"],
-      ["d.true", "done"],
-    ]);
+    const snap = snapshot(
+      [start(), decision("d"), end("done", '"ok"')],
+      [
+        ["start", "d"],
+        ["d.true", "done"],
+      ],
+    );
     const created = first.store.runs.create({
       projectId: "p1",
       workflowId: "dec",
@@ -589,10 +614,13 @@ describe("engine decision executor", () => {
     const standin = await startStandin();
     trackStandin(standin);
     const { store, deps } = setup(standin);
-    const snap = snapshot([start(), decision("d"), end("done", '"ok"')], [
-      ["start", "d"],
-      ["d.true", "done"],
-    ]);
+    const snap = snapshot(
+      [start(), decision("d"), end("done", '"ok"')],
+      [
+        ["start", "d"],
+        ["d.true", "done"],
+      ],
+    );
     const created = store.runs.create({
       projectId: "p1",
       workflowId: "dec",
@@ -605,7 +633,13 @@ describe("engine decision executor", () => {
     if (!planResult.ok) throw planResult.error;
     const ctx = new EngineContext(deps);
     const run = store.runs.get(created.runId) as RunRecord;
-    await executeDeterministic(ctx, run, planResult.value, planResult.value.byId.get("start") as never, activeState());
+    await executeDeterministic(
+      ctx,
+      run,
+      planResult.value,
+      planResult.value.byId.get("start") as never,
+      activeState(),
+    );
     // Crash between request and answer: only the audit event survives.
     const ensured = store.executions.ensure({
       runId: created.runId as never,
@@ -650,7 +684,13 @@ describe("engine decision executor", () => {
         },
       } as never,
     ]);
-    await executeDecision(ctx, run, planResult.value, planResult.value.byId.get("d") as never, activeState());
+    await executeDecision(
+      ctx,
+      run,
+      planResult.value,
+      planResult.value.byId.get("d") as never,
+      activeState(),
+    );
     expect(standin.requests().length).toBe(1);
     expect(events(store, created.runId, "decision.answered")).toHaveLength(1);
   });

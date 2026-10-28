@@ -49,7 +49,17 @@ const allowed = [
     // until the engine/server boundary owns it. Keep this list narrow.
     name: "cli",
     path: "(^|/)packages/cli/",
-    deps: ["core", "schema", "store", "workspaces", "adapters", "engine", "mcp", "server", "decisions"],
+    deps: [
+      "core",
+      "schema",
+      "store",
+      "workspaces",
+      "adapters",
+      "engine",
+      "mcp",
+      "server",
+      "decisions",
+    ],
   },
   {
     // Browser editor/viewer. It may use the shared contracts, the typed API

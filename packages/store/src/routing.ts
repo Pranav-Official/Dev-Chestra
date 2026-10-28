@@ -235,10 +235,7 @@ function numberMap(value: unknown): Record<string, number> | undefined {
  * entries like `<nodeId>.value` and `<nodeId>.confidence` resolve. A null
  * confidence is stored as null (JSONata comparisons against null are false).
  */
-function decisionPersistedOutput(
-  output: DecisionOutput,
-  branch: string,
-): Record<string, unknown> {
+function decisionPersistedOutput(output: DecisionOutput, branch: string): Record<string, unknown> {
   const record = output as unknown as Record<string, unknown>;
   const persisted: Record<string, unknown> = {
     branch,

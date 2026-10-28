@@ -1,10 +1,10 @@
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createDecisionService } from "@relay/decisions";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { startStandin } from "../../../tools/fixtures/decisions/standin.mjs";
 import type { StandinHandle } from "../../../tools/fixtures/decisions/standin.mjs";
+import { startStandin } from "../../../tools/fixtures/decisions/standin.mjs";
 import type { BrowserQueryPort, ProjectView } from "../src/index.js";
 import { type RunningBrowserServer, startBrowserServer } from "../src/index.js";
 
@@ -71,7 +71,11 @@ async function boot(env?: Record<string, string>): Promise<void> {
     dataDir,
     store: store(),
     controller: {
-      startRun: () => ({ runId: "01ARZ3NDEKTSV4RRFFQ69G5FAV" as never, duplicate: false, status: "queued" as never }),
+      startRun: () => ({
+        runId: "01ARZ3NDEKTSV4RRFFQ69G5FAV" as never,
+        duplicate: false,
+        status: "queued" as never,
+      }),
       cancelRun: () => ({ runId: "x" as never, status: "cancelled" as never }),
       resumeRun: () => ({ runId: "x" as never, status: "running" as never }),
       resolveApproval: () => {
@@ -180,9 +184,7 @@ describe("decision provider HTTP routes", () => {
       ready: false,
       missing: ["TYPESAFE_API_KEY"],
     });
-    expect(
-      response.body.find((entry) => entry.id === "cloudflare-clef"),
-    ).toMatchObject({
+    expect(response.body.find((entry) => entry.id === "cloudflare-clef")).toMatchObject({
       ready: false,
       missing: expect.arrayContaining(["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_AUTH_TOKEN"]),
     });

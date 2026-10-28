@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { runDoctor } from "../src/doctor.js";
+import { type DoctorResult, runDoctor } from "../src/doctor.js";
 
 describe("relay doctor decision providers", () => {
   it("lists each provider as ready or missing with variable NAMES only", async () => {
@@ -16,7 +16,7 @@ describe("relay doctor decision providers", () => {
       const prevToken = process.env.CLOUDFLARE_AUTH_TOKEN;
       delete process.env.CLOUDFLARE_ACCOUNT_ID;
       delete process.env.CLOUDFLARE_AUTH_TOKEN;
-      let result;
+      let result: DoctorResult;
       try {
         result = await runDoctor(join(dir, "data"));
       } finally {

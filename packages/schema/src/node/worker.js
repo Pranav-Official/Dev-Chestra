@@ -87,9 +87,7 @@ function workerError(error) {
       ? String(error.message)
       : String(error);
   const code =
-    error && typeof error === "object" && typeof error.code === "string"
-      ? error.code
-      : undefined;
+    error && typeof error === "object" && typeof error.code === "string" ? error.code : undefined;
   const reply = { ok: false, error: message };
   if (code !== undefined) reply.code = code;
   if (error && typeof error === "object" && "value" in error && error.value === null) {
