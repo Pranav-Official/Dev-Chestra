@@ -10,6 +10,12 @@ export const RETRY_429_DELAYS_MS = [1000, 3000];
 export const RETRY_NETWORK_DELAYS_MS = [500, 1500];
 export const MAX_RETRIES = 2;
 
+/** A honored Retry-After above this fails fast instead of sleeping (F1). */
+export const MAX_RETRY_AFTER_MS = 10_000;
+
+/** Node timers at or above 2^31 ms fire after ~1 ms; clamp every timer (F1). */
+export const MAX_TIMER_MS = 2_147_483_647;
+
 export type SecretMap = Partial<Record<DecisionSecretName, string>>;
 
 export interface DecisionHttpOptions {
@@ -21,12 +27,23 @@ export interface DecisionHttpOptions {
   jitterRatio?: number | undefined;
   maxResponseBytes?: number | undefined;
   signal?: AbortSignal | undefined;
+  /** Provider id, used only to name the provider in error messages. */
+  provider?: string | undefined;
 }
 
 const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(["127.0.0.1", "::1", "localhost"]);
 
 function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function clampTimerMs(ms: number): number {
+  if (!Number.isFinite(ms)) return MAX_TIMER_MS;
+  return Math.min(MAX_TIMER_MS, Math.max(0, Math.round(ms)));
+}
+
+function cancelledError(): RelayError {
+  return new RelayError("E_CANCELLED", "Decision request was cancelled.");
 }
 
 /** A `redirect: "error"` refusal surfaces as a TypeError whose message or cause names the redirect. */
@@ -93,13 +110,45 @@ async function applyDelay(
   sleep: (ms: number) => Promise<void>,
   baseMs: number,
   jitterRatio: number,
+  signal: AbortSignal | undefined,
 ): Promise<void> {
+  // An abort during a retry sleep rejects immediately with the same
+  // E_CANCELLED the rest of the client uses, instead of holding a slot (F1).
+  if (signal?.aborted === true) throw cancelledError();
   const jitter = jitterRatio <= 0 ? 0 : baseMs * jitterRatio * (Math.random() * 2 - 1);
-  await sleep(Math.max(0, Math.round(baseMs + jitter)));
+  const ms = clampTimerMs(baseMs + jitter);
+  if (signal === undefined) {
+    await sleep(ms);
+    return;
+  }
+  let onAbort: () => void = () => undefined;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      onAbort = (): void => {
+        reject(cancelledError());
+      };
+      signal.addEventListener("abort", onAbort, { once: true });
+      sleep(ms).then(() => resolve(), reject);
+    });
+  } finally {
+    signal.removeEventListener("abort", onAbort);
+  }
+}
+
+interface FetchedResponse {
+  response: Response;
+  /**
+   * Clears the still-armed per-call timeout and detaches the abort listener.
+   * The timeout stays active until the body has been fully read (F2), so the
+   * caller must invoke this once the body is done (read, cancelled, or failed).
+   */
+  release: () => void;
+  /** True once the per-call timeout has fired, in the headers or body phase. */
+  timedOut: () => boolean;
 }
 
 interface SingleAttempt {
-  response?: Response;
+  response?: FetchedResponse;
   timeout?: true;
   aborted?: true;
   networkError?: unknown;
@@ -119,19 +168,24 @@ async function fetchOnce(
   const timer = setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, timeoutMs);
+  }, clampTimerMs(timeoutMs));
   const onAbort = (): void => {
     controller.abort();
   };
+  const cleanup = (): void => {
+    clearTimeout(timer);
+    externalSignal?.removeEventListener("abort", onAbort);
+  };
   if (externalSignal !== undefined) {
     if (externalSignal.aborted) {
-      clearTimeout(timer);
+      cleanup();
       return { aborted: true };
     }
     externalSignal.addEventListener("abort", onAbort, { once: true });
   }
+  let response: Response;
   try {
-    const response = await fetchImpl(url, {
+    response = await fetchImpl(url, {
       method: "POST",
       headers: {
         authorization: `Bearer ${apiKey}`,
@@ -142,8 +196,8 @@ async function fetchOnce(
       redirect: "error",
       signal: controller.signal,
     });
-    return { response };
   } catch (error) {
+    cleanup();
     if (externalSignal?.aborted === true) {
       return { aborted: true };
     }
@@ -154,24 +208,72 @@ async function fetchOnce(
       return { redirect: true };
     }
     return { networkError: error };
-  } finally {
-    clearTimeout(timer);
-    externalSignal?.removeEventListener("abort", onAbort);
   }
+  // Success: the timer and abort listener stay armed across the body read.
+  return { response: { response, release: cleanup, timedOut: () => timedOut } };
 }
 
-/** Read a response body as text, enforcing the byte cap. */
+/** What the body reader needs to tell an abort apart from a timeout (F2). */
+export interface BodyReadWatch {
+  externalSignal?: AbortSignal | undefined;
+  timedOut?: (() => boolean) | undefined;
+  timeoutMs?: number | undefined;
+}
+
+function mapBodyReadError(
+  error: unknown,
+  secrets: SecretMap,
+  watch: BodyReadWatch | undefined,
+): RelayError {
+  if (watch?.externalSignal?.aborted === true) return cancelledError();
+  if (watch?.timedOut?.() === true) {
+    return providerError(
+      secrets,
+      `Decision request timed out after ${String(watch.timeoutMs ?? "?")} ms.`,
+      true,
+    );
+  }
+  if (error instanceof RelayError) return error;
+  const detail = error instanceof Error ? error.message : "?";
+  return providerError(secrets, `Decision provider broke the response body: ${detail}`, true);
+}
+
+/**
+ * Read a response body as text, enforcing the byte cap. The per-call timeout
+ * and the external abort signal stay active until the body has been fully
+ * read (F2): pass the attempt's watch so a stall or drip mid-body rejects
+ * instead of hanging with the slot held.
+ */
 export async function readCappedText(
   response: Response,
   secrets: SecretMap,
   maxBytes: number,
+  watch?: BodyReadWatch | undefined,
 ): Promise<string> {
+  // Read through closures: a repeated `watch?.externalSignal?.aborted === true`
+  // check would be narrowed away as impossible after the first one.
+  const isAborted = (): boolean => watch?.externalSignal?.aborted === true;
+  const isTimedOut = (): boolean => watch?.timedOut?.() === true;
+  if (isAborted()) throw cancelledError();
   const declared = response.headers.get("content-length");
   if (declared !== null && Number(declared) > maxBytes) {
     throw providerError(secrets, `Decision response exceeds the ${maxBytes} byte cap.`, false);
   }
   if (response.body === null) {
-    const text = await response.text();
+    let text: string;
+    try {
+      text = await response.text();
+    } catch (error) {
+      throw mapBodyReadError(error, secrets, watch);
+    }
+    if (isAborted()) throw cancelledError();
+    if (isTimedOut()) {
+      throw providerError(
+        secrets,
+        `Decision request timed out after ${String(watch?.timeoutMs ?? "?")} ms.`,
+        true,
+      );
+    }
     if (Buffer.byteLength(text, "utf8") > maxBytes) {
       throw providerError(secrets, `Decision response exceeds the ${maxBytes} byte cap.`, false);
     }
@@ -181,16 +283,22 @@ export async function readCappedText(
   const chunks: Uint8Array[] = [];
   let total = 0;
   for (;;) {
-    const { done, value } = await reader.read();
-    if (done) {
+    let next: Awaited<ReturnType<typeof reader.read>>;
+    try {
+      next = await reader.read();
+    } catch (error) {
+      await reader.cancel().catch(() => undefined);
+      throw mapBodyReadError(error, secrets, watch);
+    }
+    if (next.done) {
       break;
     }
-    total += value.byteLength;
+    total += next.value.byteLength;
     if (total > maxBytes) {
       await reader.cancel().catch(() => undefined);
       throw providerError(secrets, `Decision response exceeds the ${maxBytes} byte cap.`, false);
     }
-    chunks.push(value);
+    chunks.push(next.value);
   }
   return Buffer.concat(chunks).toString("utf8");
 }
@@ -231,10 +339,11 @@ async function terminalFailure(
   maxBytes: number,
   prefix: string,
   retryable: boolean,
+  watch?: BodyReadWatch | undefined,
 ): Promise<never> {
   let text = "";
   try {
-    text = await readCappedText(response, secrets, maxBytes);
+    text = await readCappedText(response, secrets, maxBytes, watch);
   } catch (error) {
     if (error instanceof RelayError) {
       throw error;
@@ -267,6 +376,18 @@ export async function postDecisionJson(
     throw validationError(secrets, `Invalid decision timeout ${String(options.timeoutMs)}.`);
   }
 
+  // Discard (cancel, do not fully read) a body we are not going to parse so a
+  // retry or failure does not leave the transfer hanging (F2).
+  async function discardBody(fetched: FetchedResponse): Promise<void> {
+    try {
+      await fetched.response.body?.cancel();
+    } catch {
+      // Already closed or errored; nothing to do.
+    } finally {
+      fetched.release();
+    }
+  }
+
   for (let attempt = 0; ; attempt += 1) {
     const outcome = await fetchOnce(
       fetchImpl,
@@ -277,7 +398,7 @@ export async function postDecisionJson(
       options.signal,
     );
     if (outcome.aborted === true) {
-      throw new RelayError("E_CANCELLED", "Decision request was cancelled.");
+      throw cancelledError();
     }
     if (outcome.redirect === true) {
       throw providerError(
@@ -287,11 +408,8 @@ export async function postDecisionJson(
       );
     }
     if (outcome.timeout === true) {
-      if (attempt < MAX_RETRIES) {
-        const delays = RETRY_NETWORK_DELAYS_MS[attempt] as number;
-        await applyDelay(sleep, delays, jitterRatio);
-        continue;
-      }
+      // Client-side timeouts are never retried: each attempt may already have
+      // been billed, and a retry would bill again (F7b).
       throw providerError(
         secrets,
         `Decision request timed out after ${String(options.timeoutMs)} ms.`,
@@ -301,37 +419,81 @@ export async function postDecisionJson(
     if (outcome.networkError !== undefined) {
       if (attempt < MAX_RETRIES) {
         const delays = RETRY_NETWORK_DELAYS_MS[attempt] as number;
-        await applyDelay(sleep, delays, jitterRatio);
+        await applyDelay(sleep, delays, jitterRatio, options.signal);
         continue;
       }
       const detail = outcome.networkError instanceof Error ? outcome.networkError.message : "?";
       throw providerError(secrets, `Decision provider is not reachable: ${detail}`, true);
     }
-    const response = outcome.response as Response;
+    const fetched = outcome.response as FetchedResponse;
+    const response = fetched.response;
+    const watch: BodyReadWatch = {
+      externalSignal: options.signal,
+      timedOut: fetched.timedOut,
+      timeoutMs: options.timeoutMs,
+    };
     if (response.status === 429) {
       if (attempt < MAX_RETRIES) {
         const retryAfter = parseRetryAfterMs(response.headers.get("retry-after"));
+        if (retryAfter !== null && retryAfter > MAX_RETRY_AFTER_MS) {
+          const providerName = options.provider ?? "unknown provider";
+          await discardBody(fetched);
+          throw providerError(
+            secrets,
+            `Decision provider ${providerName} asked to wait ${String(Math.round(retryAfter))} ms (Retry-After), above the ${String(MAX_RETRY_AFTER_MS)} ms cap; failing fast without retry.`,
+            true,
+          );
+        }
         const fallback = RETRY_429_DELAYS_MS[attempt] as number;
-        await applyDelay(sleep, retryAfter ?? fallback, jitterRatio);
+        try {
+          await applyDelay(sleep, retryAfter ?? fallback, jitterRatio, options.signal);
+        } catch (error) {
+          await discardBody(fetched);
+          throw error;
+        }
+        await discardBody(fetched);
         continue;
       }
-      await terminalFailure(response, secrets, maxBytes, "Decision provider rate limited", true);
+      try {
+        await terminalFailure(
+          response,
+          secrets,
+          maxBytes,
+          "Decision provider rate limited",
+          true,
+          watch,
+        );
+      } finally {
+        fetched.release();
+      }
     }
     if (response.status >= 500 && response.status <= 599) {
       if (attempt < MAX_RETRIES) {
         const delays = RETRY_NETWORK_DELAYS_MS[attempt] as number;
-        await applyDelay(sleep, delays, jitterRatio);
+        try {
+          await applyDelay(sleep, delays, jitterRatio, options.signal);
+        } catch (error) {
+          await discardBody(fetched);
+          throw error;
+        }
+        await discardBody(fetched);
         continue;
       }
-      await terminalFailure(
-        response,
-        secrets,
-        maxBytes,
-        `Decision provider failed with status ${String(response.status)}`,
-        true,
-      );
+      try {
+        await terminalFailure(
+          response,
+          secrets,
+          maxBytes,
+          `Decision provider failed with status ${String(response.status)}`,
+          true,
+          watch,
+        );
+      } finally {
+        fetched.release();
+      }
     }
     if (response.status >= 300 && response.status <= 399) {
+      await discardBody(fetched);
       throw providerError(
         secrets,
         `Decision request was redirected (status ${String(response.status)}); redirects are refused.`,
@@ -339,15 +501,24 @@ export async function postDecisionJson(
       );
     }
     if (!response.ok) {
-      await terminalFailure(
-        response,
-        secrets,
-        maxBytes,
-        `Decision provider rejected the request (status ${String(response.status)})`,
-        false,
-      );
+      try {
+        await terminalFailure(
+          response,
+          secrets,
+          maxBytes,
+          `Decision provider rejected the request (status ${String(response.status)})`,
+          false,
+          watch,
+        );
+      } finally {
+        fetched.release();
+      }
     }
-    return readCappedText(response, secrets, maxBytes);
+    try {
+      return await readCappedText(response, secrets, maxBytes, watch);
+    } finally {
+      fetched.release();
+    }
   }
 }
 

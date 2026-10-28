@@ -203,8 +203,8 @@ describe("decision integration via loopback stand-in", () => {
     });
 
     standin.clear();
-    // Every attempt is slow, so all 3 attempts (initial + 2 retries) time out.
-    standin.setNext(["slow", "slow", "slow"]);
+    // F7b: a client-side timeout is never retried, so one slow attempt fails.
+    standin.setNext(["slow"]);
     const slow = createDecisionClient("typesafe-jev", {
       env: ENV,
       dotenvPath: null,
@@ -219,7 +219,7 @@ describe("decision integration via loopback stand-in", () => {
       expect(timedOut.error.message).toMatch(/timed out/);
       expect(timedOut.error.message).not.toContain("test-typesafe-key");
     }
-    expect(standin.requests()).toHaveLength(3);
+    expect(standin.requests()).toHaveLength(1);
     // Abandoned slow handlers still sleep server-side; drain before the next test.
     await standin.drain();
 
@@ -248,6 +248,77 @@ describe("decision integration via loopback stand-in", () => {
     if (!leaked.ok) {
       expect(leaked.error.message).toContain("[redacted]");
     }
+  });
+
+  it("times out a stalled body without retrying and releases the slot", async () => {
+    resetDecisionSemaphores();
+    standin.clear();
+    standin.setNext(Array.from({ length: 8 }, () => "stall"));
+    const stalled = createDecisionClient("typesafe-jev", {
+      env: ENV,
+      dotenvPath: null,
+      baseUrlOverride: standin.origin,
+      jitterRatio: 0,
+      timeoutMs: 100,
+      sleep: async () => undefined,
+    });
+    const started = Date.now();
+    const outcomes = await Promise.all(
+      Array.from({ length: 8 }, () => stalled.ask(booleanReq("typesafe-jev"), new AbortController().signal)),
+    );
+    // The timeout stays active mid-body: all 8 fail fast instead of hanging.
+    expect(Date.now() - started).toBeLessThan(10_000);
+    expect(outcomes.every((r) => !r.ok)).toBe(true);
+    if (!outcomes[0]?.ok) {
+      expect(outcomes[0]?.error.message).toMatch(/timed out/);
+    }
+    // F7b: no retry after a client-side timeout, even mid-body.
+    expect(standin.requests()).toHaveLength(8);
+    // Every slot is released: a later question is answered, not queued forever.
+    standin.clear();
+    const live = createDecisionClient("typesafe-jev", {
+      env: ENV,
+      dotenvPath: null,
+      baseUrlOverride: standin.origin,
+      jitterRatio: 0,
+      sleep: async () => undefined,
+    });
+    const next = await live.ask(booleanReq("typesafe-jev"), new AbortController().signal);
+    expect(next.ok).toBe(true);
+    resetDecisionSemaphores();
+  });
+
+  it("aborts a dripping body promptly and releases the slot", async () => {
+    resetDecisionSemaphores();
+    standin.clear();
+    standin.setNext([{ scenario: "drip", delayMs: 50 }]);
+    const client = createDecisionClient("typesafe-jev", {
+      env: ENV,
+      dotenvPath: null,
+      baseUrlOverride: standin.origin,
+      jitterRatio: 0,
+      timeoutMs: 10_000,
+      sleep: async () => undefined,
+    });
+    const controller = new AbortController();
+    const pending = client.ask(booleanReq("typesafe-jev"), controller.signal);
+    // Wait until the server is actually dripping, so the abort lands mid-body.
+    for (let i = 0; i < 200 && standin.requests().length < 1; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    expect(standin.requests()).toHaveLength(1);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const started = Date.now();
+    controller.abort();
+    const result = await pending;
+    expect(Date.now() - started).toBeLessThan(5000);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("E_CANCELLED");
+    }
+    expect(standin.requests()).toHaveLength(1);
+    await standin.drain();
+    resetDecisionSemaphores();
   });
 
   it("rejects bad credentials with a key-free error", async () => {

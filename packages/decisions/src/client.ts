@@ -36,9 +36,14 @@ export interface DecisionClientOptions {
   maxResponseBytes?: number | undefined;
 }
 
+interface Waiter {
+  wake: () => void;
+  cancelled: boolean;
+}
+
 interface Semaphore {
   active: number;
-  waiting: Array<() => void>;
+  waiting: Waiter[];
 }
 
 const semaphores = new Map<DecisionProviderId, Semaphore>();
@@ -52,13 +57,42 @@ function semaphoreFor(provider: DecisionProviderId): Semaphore {
   return sem;
 }
 
-async function withSlot<T>(provider: DecisionProviderId, fn: () => Promise<T>): Promise<T> {
+/**
+ * Run `fn` while holding one of the 8 per-provider slots. Callers waiting for
+ * a slot reject immediately with E_CANCELLED when their signal aborts (F1);
+ * the waiter is removed from the queue so a later release cannot leak it.
+ */
+async function withSlot<T>(
+  provider: DecisionProviderId,
+  fn: () => Promise<T>,
+  signal: AbortSignal | undefined,
+): Promise<T> {
   const sem = semaphoreFor(provider);
+  if (signal?.aborted === true) {
+    throw new RelayError("E_CANCELLED", "Decision request was cancelled.");
+  }
   // Recheck after every wake-up: several released waiters may resume in the
   // same microtask drain, and only the first may take the freed slot.
   while (sem.active >= MAX_CONCURRENT_PER_PROVIDER) {
-    await new Promise<void>((resolve) => {
-      sem.waiting.push(resolve);
+    await new Promise<void>((resolve, reject) => {
+      const waiter: Waiter = { wake: () => resolve(), cancelled: false };
+      const onAbort = (): void => {
+        waiter.cancelled = true;
+        const index = sem.waiting.indexOf(waiter);
+        if (index >= 0) {
+          sem.waiting.splice(index, 1);
+        }
+        reject(new RelayError("E_CANCELLED", "Decision request was cancelled."));
+      };
+      if (signal !== undefined) {
+        signal.addEventListener("abort", onAbort, { once: true });
+        const wake = waiter.wake;
+        waiter.wake = (): void => {
+          signal.removeEventListener("abort", onAbort);
+          wake();
+        };
+      }
+      sem.waiting.push(waiter);
     });
   }
   sem.active += 1;
@@ -66,7 +100,11 @@ async function withSlot<T>(provider: DecisionProviderId, fn: () => Promise<T>): 
     return await fn();
   } finally {
     sem.active -= 1;
-    sem.waiting.shift()?.();
+    let next = sem.waiting.shift();
+    while (next !== undefined && next.cancelled) {
+      next = sem.waiting.shift();
+    }
+    next?.wake();
   }
 }
 
@@ -190,22 +228,26 @@ export function createDecisionClient(
     const timeoutMs = options.timeoutMs ?? preset.timeoutMs;
     const started = Date.now();
     try {
-      const text = await withSlot(provider, () =>
-        postDecisionJson(
-          url,
-          bodyJson,
-          secretFor(secrets, provider),
-          {
-            timeoutMs,
-            secrets,
-            fetchImpl: options.fetchImpl,
-            sleep: options.sleep,
-            jitterRatio: options.jitterRatio,
-            maxResponseBytes: options.maxResponseBytes,
-            signal,
-          },
-          allowLoopbackHttp,
-        ),
+      const text = await withSlot(
+        provider,
+        () =>
+          postDecisionJson(
+            url,
+            bodyJson,
+            secretFor(secrets, provider),
+            {
+              timeoutMs,
+              secrets,
+              fetchImpl: options.fetchImpl,
+              sleep: options.sleep,
+              jitterRatio: options.jitterRatio,
+              maxResponseBytes: options.maxResponseBytes,
+              signal,
+              provider,
+            },
+            allowLoopbackHttp,
+          ),
+        signal,
       );
       const payload = parseJsonBody(text, secrets);
       const parsed = parseDecisionPayload({
