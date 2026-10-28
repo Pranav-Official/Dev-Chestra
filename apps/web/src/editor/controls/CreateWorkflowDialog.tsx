@@ -124,11 +124,11 @@ export function CreateWorkflowDialog({
             disabled={pending}
           >
             <option value="blank">Blank</option>
-            <option value="linear-fake">Linear fake</option>
+            <option value="linear">Linear</option>
           </select>
           <span className="editor-field-hint">
-            Blank starts with an empty canvas. Linear fake creates start → agent → shell → end with
-            a fake test-only agent.
+            Blank starts with an empty canvas. Linear creates start → agent → shell → end with a
+            codex agent.
           </span>
         </label>
         {error === null ? null : (

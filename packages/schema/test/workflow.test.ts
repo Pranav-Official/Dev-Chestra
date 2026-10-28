@@ -62,8 +62,13 @@ describe("parse and validate the P1 chain", () => {
     const opencode = chainRaw();
     node(opencode, "agent").cli = "opencode";
     const opencodeParse = parseWorkflow(opencode);
-    expect(opencodeParse.ok).toBe(false);
-    if (!opencodeParse.ok) expect(opencodeParse.error.message).toContain("Unsupported agent CLI");
+    expect(opencodeParse.ok).toBe(true);
+
+    const bogus = chainRaw();
+    node(bogus, "agent").cli = "bogus-cli";
+    const bogusParse = parseWorkflow(bogus);
+    expect(bogusParse.ok).toBe(false);
+    if (!bogusParse.ok) expect(bogusParse.error.message).toContain("Unsupported agent CLI");
 
     const newer = chainRaw();
     newer.schemaVersion = 2;

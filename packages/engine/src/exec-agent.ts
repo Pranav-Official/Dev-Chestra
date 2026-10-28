@@ -1,6 +1,13 @@
 import { chmodSync, existsSync, mkdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
-import { type AdapterEvent, type FailureClass, killOrphan, runAgent } from "@relay/adapters";
+import {
+  type AdapterEvent,
+  type CliId,
+  type FailureClass,
+  getProvider,
+  killOrphan,
+  runAgent,
+} from "@relay/adapters";
 import { type ExecutionIdentity, fsSlug, hashJson, type Path, RelayError } from "@relay/core";
 import type { RunRecord } from "@relay/store";
 import { resolveInside, type ScratchWorkspace } from "@relay/workspaces";
@@ -148,14 +155,15 @@ async function runAttempts(
   state: AttemptState,
 ): Promise<void> {
   let workspace = initialWorkspace;
-  const adapter = ctx.deps.adapters.get(node.raw.cli as "fake" | "claude-code" | "codex");
-  if (adapter.id !== "fake") {
+  const provider = getProvider(node.raw.cli as CliId);
+  const adapter = ctx.deps.adapters.get(provider.id);
+  if (provider.experimental) {
     const allowed = ctx.deps.allowExperimentalClis ?? [];
-    if (!allowed.includes(adapter.id)) {
+    if (!allowed.includes(provider.id as "claude-code" | "codex" | "opencode" | "pi")) {
       throw new RelayError(
         "E_CLI_MISSING",
-        `Adapter '${adapter.id}' is not enabled in this build. The caller must opt in with an explicit experimental flag after a live contract check.`,
-        { details: { cli: adapter.id, behaviorVerified: adapter.evidence.behaviorVerified } },
+        `Adapter '${provider.id}' is not enabled in this build. The caller must opt in with an explicit experimental flag after a live contract check.`,
+        { details: { cli: provider.id, behaviorVerified: adapter.evidence.behaviorVerified } },
       );
     }
   }
@@ -510,8 +518,23 @@ async function runAttempts(
         acceptFreshFallback: true,
       });
       if (decision.action === "fail") {
+        // Keep the CLI's own startup diagnostic on the node error (redacted,
+        // bounded) instead of forcing transcript inspection for e.g. Pi's
+        // credentials_not_configured. Message stays stable for matching.
+        const rawDiagnostic = hooks.redact(exit.tail.stderr).trim();
+        const diagnostic =
+          rawDiagnostic === ""
+            ? undefined
+            : rawDiagnostic.length <= 2000
+              ? rawDiagnostic
+              : `${rawDiagnostic.slice(0, 2000)}…[truncated]`;
         const error = new RelayError(decision.code, `Agent node failed: ${decision.reason}`, {
-          details: { reason: decision.reason, exitCode: exit.code, signal: exit.signal },
+          details: {
+            reason: decision.reason,
+            exitCode: exit.code,
+            signal: exit.signal,
+            ...(diagnostic === undefined ? {} : { stderr: diagnostic }),
+          },
         });
         const stopEvidence = ctx.persistedStop(identity) ?? { reason, exitCode: exit.code };
         await ctx.finalize(workspace, identity, "failed", stopEvidence);

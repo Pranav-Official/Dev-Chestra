@@ -178,8 +178,10 @@ describe("model catalog client", () => {
 
   it("rejects an unknown CLI before calling fetch", async () => {
     const { client, calls } = makeClient(catalog());
-    await expect(client.getCliModels("proj-1", "pi" as CatalogCli)).rejects.toBeDefined();
-    await expect(client.refreshCliModels("proj-1", "opencode" as CatalogCli)).rejects.toBeDefined();
+    await expect(client.getCliModels("proj-1", "fake" as CatalogCli)).rejects.toBeDefined();
+    await expect(
+      client.refreshCliModels("proj-1", "bogus-cli" as CatalogCli),
+    ).rejects.toBeDefined();
     expect(calls).toHaveLength(0);
   });
 

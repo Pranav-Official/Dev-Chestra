@@ -105,7 +105,7 @@ export function createDefaultNode(
         id,
         type: "agent",
         name,
-        cli: "fake",
+        cli: "codex",
         prompt: "Describe the work for this step. Return the result as a JSON object.",
         output: defaultAgentOutput(),
         permissions: { network: false, write: ["workspace"] },

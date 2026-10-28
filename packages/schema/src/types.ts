@@ -1,7 +1,9 @@
 import type { RunWorkspaceSelection } from "@relay/core";
 
-/** P1-supported agent CLIs. `fake` is test-only and never a production adapter. */
-export type AgentCli = "fake" | "claude-code" | "codex";
+/** Production agent CLIs. `fake` lives only in the test adapter registry behind RELAY_ALLOW_FAKE. */
+export const PROD_CLIS = ["claude-code", "codex", "opencode", "pi"] as const;
+
+export type AgentCli = (typeof PROD_CLIS)[number];
 
 export type SuperviseMode = "default" | "checkpoint" | "notify" | "skip";
 
@@ -308,13 +310,13 @@ export interface Capabilities {
 export const SCHEMA_CAPABILITIES: Capabilities = {
   schemaVersion: 1,
   nodeTypes: ["start", "agent", "shell", "gate", "join", "approval", "end"],
-  clis: ["fake", "claude-code", "codex"],
+  clis: [...PROD_CLIS],
   workspaces: ["scratch", "worktree"],
   runWorkspaces: ["project", "existing-worktree", "new-worktree"],
   defaultRunWorkspace: "project",
   unsupported: [
     "node types other than start/agent/shell/gate/join/approval/end",
-    "cli opencode/pi",
+    "cli fake (test-only, behind RELAY_ALLOW_FAKE)",
     "per-node workspace selection (legacy metadata is ignored on fresh runs)",
     "per-node worktree base/setup/from options",
     "agent context reads/writes",

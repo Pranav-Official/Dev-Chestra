@@ -71,7 +71,7 @@ function linear(id: string, name: string): WorkflowFile {
           id: "agent",
           type: "agent",
           name: "Agent",
-          cli: "fake",
+          cli: "codex",
           prompt: "hello",
           output: {
             type: "object",

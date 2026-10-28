@@ -137,7 +137,7 @@ function snapshot() {
           name: "Agent",
           supervise: "default" as const,
           env: [],
-          cli: "fake" as const,
+          cli: "codex" as const,
           prompt: "do it",
           output: { type: "object", properties: {}, required: [], additionalProperties: false },
           permissions: { network: false, write: [] },

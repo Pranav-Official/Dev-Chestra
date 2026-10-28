@@ -426,6 +426,25 @@ describe("materializeInvocation", () => {
     expect((await stat(join(dir, "exec", "mcp.json"))).mode & 0o777).toBe(0o600);
     expect((await stat(join(dir, "exec"))).mode & 0o777).toBe(0o700);
   });
+
+  it("links canonical files instead of copying them", async () => {
+    const dir = await workspace();
+    const { materializeInvocation } = await import("../src/index.js");
+    const { readlink, readFile, writeFile } = await import("node:fs/promises");
+    await writeFile(join(dir, "canonical.json"), '{"a":1}\n');
+    const inv = {
+      bin: "/bin/true",
+      args: [],
+      cwd: dir,
+      env: {},
+      files: [{ path: join(dir, "exec", "linked.json"), symlink: join(dir, "canonical.json") }],
+    };
+    await materializeInvocation(inv);
+    // Repeat materialization replaces the previous link instead of failing.
+    await materializeInvocation(inv);
+    expect(await readlink(join(dir, "exec", "linked.json"))).toBe(join(dir, "canonical.json"));
+    expect(await readFile(join(dir, "exec", "linked.json"), "utf8")).toBe('{"a":1}\n');
+  });
 });
 
 describe("killTree semantics", () => {

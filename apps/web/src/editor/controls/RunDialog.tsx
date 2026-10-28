@@ -451,11 +451,7 @@ export function RunDialog({
                   node.type === "agent" ? (
                     <li key={node.id}>
                       <b>{node.name}</b> · <span className="mono">{node.cli}</span>
-                      {node.cli === "fake" ? (
-                        <span className="pill amber">test-only fake agent</span>
-                      ) : (
-                        <span className="pill amber">experimental adapter</span>
-                      )}
+                      <span className="pill amber">experimental adapter</span>
                       <div className="muted">
                         Network {node.permissions.network ? "enabled" : "disabled"}; write:{" "}
                         {node.permissions.write.length === 0
@@ -470,12 +466,11 @@ export function RunDialog({
             <div className="note amber">
               <ShieldAlert size={16} aria-hidden="true" />
               <span>
-                Relay is not an OS sandbox; agent permission controls are advisory to the CLI. A
-                fake agent requires Relay to be started with{" "}
-                <span className="mono">--fake-script</span>; a real experimental adapter requires{" "}
+                Relay is not an OS sandbox; agent permission controls are advisory to the CLI. An
+                experimental adapter requires{" "}
                 <span className="mono">--allow-experimental-adapters</span>. The browser cannot
-                enable either. Starting a real-agent run uses your configured CLI account and may
-                incur costs.
+                enable it. Starting a real-agent run uses your configured CLI account and may incur
+                costs.
               </span>
             </div>
           </section>

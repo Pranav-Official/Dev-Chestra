@@ -1,6 +1,6 @@
 import { err, ok, RelayError, type Result } from "@relay/core";
 import { MAX_WORKFLOW_FILE_BYTES } from "./ids.js";
-import type { WorkflowFile } from "./types.js";
+import { PROD_CLIS, type WorkflowFile } from "./types.js";
 import { z } from "./zod.js";
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -87,7 +87,11 @@ const startNodeSchema = z.strictObject({
 const agentNodeSchema = z.strictObject({
   ...nodeBase,
   type: z.literal("agent"),
-  cli: z.enum(["fake", "claude-code", "codex"]),
+  // Structural parse allows fake everywhere (warning in validateWorkflow).
+  // Run-time layers (CLI startup/run gates, adapter registry) enforce the
+  // RELAY_ALLOW_FAKE=1 test-only requirement; API DTO schemas keep their own
+  // gate for direct API writes.
+  cli: z.enum([...PROD_CLIS, "fake"]),
   model: z.string().optional(),
   prompt: z.string().optional(),
   promptFile: z.string().optional(),
@@ -185,7 +189,14 @@ const SUPPORTED_NODE_TYPES = new Set([
   "approval",
   "end",
 ]);
-const SUPPORTED_CLIS = new Set(["fake", "claude-code", "codex"]);
+const SUPPORTED_CLIS = new Set<string>([...PROD_CLIS]);
+
+/** `fake` parses only for the test adapter registry behind RELAY_ALLOW_FAKE. */
+// ponytail: env-gated test hook; a shared registry module if more flags appear.
+export function isFakeCliEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const value = env.RELAY_ALLOW_FAKE;
+  return value === "1" || value === "true";
+}
 
 function pointer(path: readonly PropertyKey[]): string {
   if (path.length === 0) return "";
@@ -231,9 +242,15 @@ function precheck(raw: unknown): RelayError | undefined {
       if (type === "agent") {
         const cli = node.cli;
         if (typeof cli === "string" && !SUPPORTED_CLIS.has(cli)) {
+          if (cli === "fake") {
+            // Structural parse allows fake everywhere so browser authoring and
+            // validation can display it with a warning. Run-time enforces the
+            // test-only gate (RELAY_ALLOW_FAKE=1) at startup/run/adapter layers.
+            continue;
+          }
           return new RelayError(
             "E_WORKFLOW_INVALID",
-            `Unsupported agent CLI '${cli}' at graph.nodes[${i}]. P1 supports: fake (test-only), claude-code, codex.`,
+            `Unsupported agent CLI '${cli}' at graph.nodes[${i}]. P1 supports: ${[...PROD_CLIS].join(", ")}.`,
             { details: { pointer: `/graph/nodes/${i}/cli` } },
           );
         }

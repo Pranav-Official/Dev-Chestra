@@ -5,7 +5,7 @@ import type {
   ValidationReport,
   WorkflowFile,
 } from "@relay/schema";
-import { parseWorkflowDraft } from "@relay/schema";
+import { PROD_CLIS, parseWorkflowDraft } from "@relay/schema";
 import { relativeWorkflowFileSchema } from "./dto.js";
 import {
   cursorQuerySchema,
@@ -24,7 +24,10 @@ const strict = z.strictObject;
 // Workflows (managed files)
 // ---------------------------------------------------------------------------
 
-export const agentCliSchema = z.enum(["fake", "claude-code", "codex"]);
+// Structural allow-list: fake parses everywhere so browser DTO validation can
+// display it with a warning. Run-time layers (CLI startup/run gates, adapter
+// registry) enforce the RELAY_ALLOW_FAKE=1 test-only requirement.
+export const agentCliSchema = z.enum([...PROD_CLIS, "fake"]);
 
 export const workflowBudgetSchema = strict({
   maxUsd: z.number().optional(),
@@ -71,7 +74,7 @@ export const workflowDraftSchema = z.unknown().superRefine((value, ctx) => {
   if (!parsed.ok) ctx.addIssue({ code: "custom", message: parsed.error.message });
 }) as unknown as z.ZodType<WorkflowFile>;
 
-export const workflowTemplateSchema = z.enum(["blank", "linear-fake"]);
+export const workflowTemplateSchema = z.enum(["blank", "linear", "linear-fake"]);
 export type WorkflowTemplate = z.infer<typeof workflowTemplateSchema>;
 
 export interface CreateWorkflowRequest {

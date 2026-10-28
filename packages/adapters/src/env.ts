@@ -1,4 +1,5 @@
 import { RelayError } from "@relay/core";
+import { getProvider } from "./provider.js";
 import type { BuildEnvOptions, CliId } from "./types.js";
 
 const ALWAYS = [
@@ -23,17 +24,6 @@ const ALWAYS = [
   "https_proxy",
   "no_proxy",
 ] as const;
-
-const AUTH: Record<CliId, readonly string[]> = {
-  "claude-code": [
-    "ANTHROPIC_API_KEY",
-    "ANTHROPIC_AUTH_TOKEN",
-    "ANTHROPIC_BASE_URL",
-    "CLAUDE_CONFIG_DIR",
-  ],
-  codex: ["CODEX_API_KEY", "CODEX_HOME", "OPENAI_API_KEY", "OPENAI_BASE_URL"],
-  fake: [],
-};
 
 const INJECTION = new Set([
   "NODE_OPTIONS",
@@ -77,11 +67,12 @@ export function buildChildEnv(cli: CliId, options: BuildEnvOptions = {}): Record
     if (name.startsWith("RELAY_")) reject(name, "RELAY_* must be supplied through injected env");
   };
 
+  const identity = getProvider(cli).contextIdentity;
   for (const name of ALWAYS) copy(name);
   for (const name of Object.keys(base)) if (name.startsWith("LC_")) copy(name);
-  for (const name of AUTH[cli]) copy(name);
-  if (cli === "claude-code") {
-    for (const name of Object.keys(base)) if (name.startsWith("CLAUDE_CODE_")) copy(name);
+  for (const name of identity.envNames) copy(name);
+  for (const prefix of identity.extraEnvPrefixes) {
+    for (const name of Object.keys(base)) if (name.startsWith(prefix)) copy(name);
   }
 
   for (const name of [...(options.extraNames ?? []), ...(options.nodeEnvNames ?? [])]) {

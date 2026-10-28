@@ -33,7 +33,7 @@ The lockfile is present in the workspace. CI installs with `pnpm install --froze
 | `pnpm depcruise` | Dependency direction check over `packages`, `tools` and `apps` |
 | `pnpm audit --audit-level high` | Dependency audit at high severity; CI also runs it |
 | `pnpm relay ...` | Runs the CLI from source with the workspace root as cwd (`relay --help`) |
-| `pnpm relay:start --data-dir <dir>` | Starts the loopback web server, editor and viewer (requires `apps/web/dist`; add a trusted `--fake-script` for fake agent nodes) |
+| `pnpm relay:start --data-dir <dir>` | Starts the loopback web server, editor and viewer (requires `apps/web/dist`; real agent nodes need `--allow-experimental-adapters`) |
 | `pnpm relay:run ...` | `relay run` forwarding |
 | `pnpm relay:resume <runId> ...` | `relay resume` forwarding |
 | `pnpm relay:doctor ...` | `relay doctor` forwarding |
@@ -57,31 +57,20 @@ Runs the bounded P0 slice with the fake agent (no live model calls): real stdio 
 
 ### P1 linear CLI and demo
 
-A minimal fake-agent run from the repository root:
+A minimal run from the repository root (needs a signed-in provider CLI):
 
 ```sh
-cat > /tmp/relay-fake-script.json <<'JSON'
-[{"type":"submit","output":{"summary":"Relay README smoke","points":["one","two"]}}]
-JSON
-
-pnpm relay run examples/linear-fake.json \
+pnpm relay run examples/linear-codex.json \
   --project . \
   --data-dir /tmp/relay-dev \
   --param topic=relay \
-  --fake-script /tmp/relay-fake-script.json \
+  --allow-experimental-adapters \
   --json
 ```
 
-Fresh `relay run` defaults to the registered project root; the starter example omits per-node workspace metadata. Add `--workspace new-worktree` for a fresh per-run worktree, or `--workspace existing-worktree --worktree-path <dir>` to reuse one; `resume` keeps the run's frozen choice. The fake CLI is test-only. `pnpm relay:doctor --data-dir /tmp/relay-dev` runs diagnostics. `relay run` requires an explicit data dir in this milestone.
+Fresh `relay run` defaults to the registered project root; the starter example omits per-node workspace metadata. Add `--workspace new-worktree` for a fresh per-run worktree, or `--workspace existing-worktree --worktree-path <dir>` to reuse one; `resume` keeps the run's frozen choice. The supported agent CLIs are `claude-code`, `codex`, `opencode` and `pi` (see `GET /api/clis`); `fake` is test-only behind `RELAY_ALLOW_FAKE=1` with a test-only `--fake-script`. `pnpm relay:doctor --data-dir /tmp/relay-dev` runs diagnostics. `relay run` requires an explicit data dir in this milestone.
 
-For an interrupted/non-terminal fake run, resume with the same script; the checkpoint does not embed it:
-
-```sh
-pnpm relay:resume <runId> --data-dir /tmp/relay-dev \
-  --fake-script /tmp/relay-fake-script.json --json
-```
-
-For a real Claude Code/Codex run, pass `--allow-experimental-adapters` again on resume as well as on run.
+For a real Claude Code/Codex/Opencode/Pi run, pass `--allow-experimental-adapters` again on resume as well as on run.
 
 The historical `pnpm demo:p1` proved the bounded P1 path: it SIGKILLs the CLI process that hosts SQLite, the engine and the gateway, then resumes the same run in a fresh process. It also exercised accepted-output recovery and an explicitly retried uncertain shell effect. It uses the fake agent and makes no paid model calls. That demo predates run-level workspaces and is preserved as P1 evidence; see [docs/build-status.md](docs/build-status.md) for the current gate state.
 
@@ -91,20 +80,17 @@ Claude Code and Codex adapter contracts are implemented. Basic live fresh + resu
 
 Build the workspace first: the server refuses to start without `apps/web/dist` and does not serve a placeholder viewer. Use a **persistent** data directory if you want to open the viewer after the producing process exits. The P0/P1/P2 demos use throwaway temp directories and delete them, so their runs are not viewable afterwards.
 
-Seed one fake-agent run into a persistent directory, then start the viewer against the same directory:
+Seed one run into a persistent directory, then start the viewer against the same directory:
 
 ```sh
 pnpm build
 data=/tmp/relay-view
 mkdir -p "$data"
-cat > /tmp/relay-fake-script.json <<'JSON'
-[{"type":"submit","output":{"summary":"Viewer seed","points":["one","two"]}}]
-JSON
-pnpm relay run examples/linear-fake.json \
+pnpm relay run examples/linear-codex.json \
   --project . \
   --data-dir "$data" \
   --param topic=relay \
-  --fake-script /tmp/relay-fake-script.json \
+  --allow-experimental-adapters \
   --json
 pnpm relay:start --data-dir "$data"
 ```
@@ -152,10 +138,10 @@ pnpm install --frozen-lockfile
 pnpm build
 mkdir -p "$HOME/relay-data"
 pnpm relay:start --data-dir "$HOME/relay-data" \
-  --fake-script tools/fixtures/p3/scripts/summary.json
+  --allow-experimental-adapters
 ```
 
-`relay start` serves `apps/web/dist`. After `pnpm build` rebuilds the web app, **restart the server manually** if an older process is already running; it will not load the new assets by itself. Existing definitions and past run history are not rewritten: change an agent node's output mode explicitly if you want the new behavior. Automatic input handoff applies to new invocations only. The command opens the loopback URL with a bootstrap token; `--no-open` and `--print-url` control that. Use your own persistent `--data-dir`; do not point the P0–P3 demos at it because they use throwaway temporary directories. The bundled fake script submits `{ "summary", "points" }`; configure the agent output schema to match it, or pass your own trusted `--fake-script` file.
+`relay start` serves `apps/web/dist`. After `pnpm build` rebuilds the web app, **restart the server manually** if an older process is already running; it will not load the new assets by itself. Existing definitions and past run history are not rewritten: change an agent node's output mode explicitly if you want the new behavior. Automatic input handoff applies to new invocations only. The command opens the loopback URL with a bootstrap token; `--no-open` and `--print-url` control that. Use your own persistent `--data-dir`; do not point the P0–P3 demos at it because they use throwaway temporary directories. `GET /api/clis` lists the registry-backed agent CLIs (`claude-code`, `codex`, `opencode`, `pi`); the test-only fake CLI stays hidden unless `RELAY_ALLOW_FAKE=1`.
 
 In the browser, with no JSON editing:
 
@@ -189,9 +175,9 @@ The Agent inspector's model field is a fuzzy-searchable selector backed by the s
 
 **Use CLI default** clears the override (absent `node.model`). **Use custom model ID** stores an explicit ID. Both CLIs support native discovery; a genuine old-CLI or discovery failure shows **Model listing unavailable**, not an execution-unsupported state, and never an invented catalog. A saved ID missing from a later catalog stays visible as a saved/unverified override and is never auto-replaced. Discovery runs in scratch under Relay's data directory (not the registered project cwd) with the same auth environment as execution; if the data directory sits inside a repository, shared ancestor configuration can apply. Relay does not copy or rewrite global CLI configuration, auth files or the registered project for discovery; real-CLI internal global cache/auth-refresh and managed-hook side effects are not verified by the stand-in acceptance. The catalog is Relay-runtime scoped: not a project-specific inventory, and not a prediction of later per-run files. A listed model is advertised metadata, not a guarantee of entitlement, quota or successful inference. Tests load the actual pinned SDK against harmless CLI stand-ins and real Chromium; no real CLI or provider probe was run, and no user auth/global config was changed. Restart an already-running server manually after `pnpm build`; a second `relay start` attaches to the live instance and does not reload new assets. Existing workflow schemas and run history are unchanged.
 
-Fake-agent workflows require Relay to be started with a trusted CLI `--fake-script`; the browser cannot inject a script. Real-adapter workflows require the caller to start with `--allow-experimental-adapters` after a live contract check; those adapters remain experimental. Fresh runs use the run-level workspace selection: the registered project root by default, or an explicitly chosen existing/new worktree. Legacy per-node workspace fields are ignored for fresh runs and retained only for old run snapshots. Only explicit workflow saves write project metadata.
+Test-only fake-agent workflows (hidden unless `RELAY_ALLOW_FAKE=1`) require Relay to be started with a test-only `--fake-script`; the browser cannot inject a script. Real-adapter workflows require the caller to start with `--allow-experimental-adapters` after a live contract check; those adapters remain experimental. Fresh runs use the run-level workspace selection: the registered project root by default, or an explicitly chosen existing/new worktree. Legacy per-node workspace fields are ignored for fresh runs and retained only for old run snapshots. Only explicit workflow saves write project metadata.
 
-A missing launch gate now returns the controlled reason instead of a generic request error; unknown/internal errors remain sanitized. This diagnostic fix does not change adapter gating, OS sandbox/permission enforcement or experimental status. The Run dialog now states explicitly that a real CLI run uses the signed-in account and may cost money; fake-agent runs remain the no-paid path. The Codex/Claude PATH-stub regressions confirm the default CLI engine path without a live provider completion.
+A missing launch gate now returns the controlled reason instead of a generic request error; unknown/internal errors remain sanitized. This diagnostic fix does not change adapter gating, OS sandbox/permission enforcement or experimental status. The Run dialog now states explicitly that a real CLI run uses the signed-in account and may cost money. The Codex/Claude PATH-stub regressions confirm the default CLI engine path without a live provider completion.
 
 #### Workflow file API
 
@@ -200,7 +186,7 @@ Project workflow definitions are plain files at `<project>/.relay/workflows/<id>
 | Route | Behavior |
 |---|---|
 | `GET /api/projects/:pid/workflows` | Paged list with per-file validation summary |
-| `POST /api/projects/:pid/workflows` | Create `{ name, id?, template: "blank" \| "linear-fake" }` exclusively |
+| `POST /api/projects/:pid/workflows` | Create `{ name, id?, template: "blank" \| "linear" }` exclusively (legacy `"linear-fake"` still accepted) |
 | `GET/PUT/DELETE /api/projects/:pid/workflows/:wid` | Read, save and delete one definition; `PUT`/`DELETE` require a strong `If-Match` |
 | `POST /api/projects/:pid/workflows/:wid/validate` | Full semantic report for an unsaved draft |
 | `POST /api/projects/:pid/gates/test` | Stateless bounded gate preview (`{ gate, scope } -> GateEvaluation`); no run or definition write |
@@ -216,7 +202,7 @@ Files are canonical 2-space JSON with a trailing newline; the unquoted SHA-256 c
 ```text
 packages/*        @relay/core, schema, api, store, workspaces, adapters, engine, mcp, server, cli
 apps/web          React 19 + Vite workflow editor and run viewer
-tools/*           fake agent, fixtures and bounded P0/P1/P2/P3 demos and acceptance
+tools/*           test-only fake agent (RELAY_ALLOW_FAKE=1), fixtures and bounded P0/P1/P2/P3 demos and acceptance
 examples/*        portable linear workflow examples
 docs/             build plan, status, ADRs and spike reports
 ```

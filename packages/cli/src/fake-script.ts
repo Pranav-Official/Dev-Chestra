@@ -1,12 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { UsageError } from "./args.js";
+import { isFakeScriptEnabled, UsageError } from "./args.js";
 
 /**
- * Explicit caller-provided fake fixture. It is never read from workflow
- * cliOptions and never auto-selected from a project file.
+ * Explicit caller-provided fake fixture. Test-only: requires
+ * RELAY_ALLOW_FAKE=1 and is never read from workflow cliOptions.
  */
 export async function loadFakeScript(path: string | undefined): Promise<string | undefined> {
+  if (!isFakeScriptEnabled()) return undefined;
   if (path === undefined) {
     const fromEnv = process.env.FAKE_AGENT_SCRIPT;
     return fromEnv === undefined || fromEnv === "" ? undefined : fromEnv;
@@ -35,7 +36,7 @@ export async function loadFakeScript(path: string | undefined): Promise<string |
 export function requireFakeScript(script: string | undefined): string {
   if (script === undefined) {
     throw new UsageError(
-      "A workflow with fake agent nodes requires --fake-script <file> (or trusted FAKE_AGENT_SCRIPT). The fake default submits nothing.",
+      "A workflow with fake agent nodes requires RELAY_ALLOW_FAKE=1 with --fake-script <file> (or FAKE_AGENT_SCRIPT).",
     );
   }
   return script;

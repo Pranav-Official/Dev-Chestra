@@ -246,7 +246,7 @@ function controllerFor(
       if (requireFakeScriptForFakeNodes(input.snapshot) && fakeScript === undefined) {
         throw new ServerRelayError(
           "E_VALIDATION",
-          "This workflow uses fake agent nodes; start relay with a trusted --fake-script. The browser cannot inject a fake script.",
+          "This workflow uses test-only fake agent nodes; start relay with RELAY_ALLOW_FAKE=1 and a test-only --fake-script. The browser cannot inject a fake script.",
         );
       }
       const workspace = input.workspace ?? { mode: "project" as const };

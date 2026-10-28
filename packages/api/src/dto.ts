@@ -80,6 +80,26 @@ export type ListProjectsQuery = z.infer<typeof listProjectsQuerySchema>;
 // Health and bootstrap
 // ---------------------------------------------------------------------------
 
+export interface CliListItem {
+  id: string;
+  label: string;
+  experimental: boolean;
+}
+
+export const cliListItemSchema = strict({
+  id: z.string().min(1).max(64),
+  label: z.string().min(1).max(128),
+  experimental: z.boolean(),
+}) as unknown as z.ZodType<CliListItem>;
+
+export interface CliListResponse {
+  clis: CliListItem[];
+}
+
+export const cliListResponseSchema = strict({
+  clis: z.array(cliListItemSchema).max(32),
+}) as unknown as z.ZodType<CliListResponse>;
+
 export interface HealthResponse {
   ok: true;
   version: string;

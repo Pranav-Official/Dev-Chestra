@@ -59,7 +59,7 @@ export interface WorkflowDocumentView {
 export interface CreateWorkflowInput {
   name: string;
   id?: string;
-  template?: "blank" | "linear-fake";
+  template?: "blank" | "linear" | "linear-fake";
 }
 
 export interface SaveWorkflowInput {
@@ -235,7 +235,7 @@ export class ManagedWorkflowService {
       for (let attempt = 0; attempt < attempts; attempt += 1) {
         const id = attempt === 0 ? baseId : `${baseId.slice(0, 60)}-${attempt + 1}`;
         const file =
-          template === "blank" ? blankTemplate(id, input.name) : linearFakeTemplate(id, input.name);
+          template === "blank" ? blankTemplate(id, input.name) : linearTemplate(id, input.name);
         const text = serializeOrThrow(file);
         assertSize(text);
         try {
@@ -427,7 +427,7 @@ function blankTemplate(id: string, name: string): WorkflowFile {
   };
 }
 
-function linearFakeTemplate(id: string, name: string): WorkflowFile {
+function linearTemplate(id: string, name: string): WorkflowFile {
   return {
     schemaVersion: 1,
     id,
@@ -446,7 +446,7 @@ function linearFakeTemplate(id: string, name: string): WorkflowFile {
           type: "agent",
           name: "Agent",
           ui: { x: 320, y: 160 },
-          cli: "fake",
+          cli: "codex",
           prompt: "Say hello to the run.",
           output: {
             type: "object",

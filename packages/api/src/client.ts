@@ -21,7 +21,9 @@ import {
 import {
   type BootstrapResponse,
   bootstrapResponseSchema,
+  type CliListResponse,
   type CommandResponse,
+  cliListResponseSchema,
   commandResponseSchema,
   type ExecutionDetailResponse,
   executionDetailResponseSchema,
@@ -249,6 +251,10 @@ export class ApiClientBase {
       cliModelCatalogSchema,
       this.req(options, { mutation: true }),
     );
+  }
+
+  listClis(options: ApiRequestOptions = {}): Promise<CliListResponse> {
+    return this.request("GET", ["clis"], cliListResponseSchema, this.req(options));
   }
 
   async relinkProject(

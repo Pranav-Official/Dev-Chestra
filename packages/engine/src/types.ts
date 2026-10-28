@@ -22,7 +22,7 @@ import type {
   ScratchWorkspace,
 } from "@relay/workspaces";
 
-export type EngineCli = "fake" | "claude-code" | "codex";
+export type EngineCli = "claude-code" | "codex" | "opencode" | "pi" | "fake";
 
 export interface GatewayScope {
   readonly identity: ExecutionIdentity;
@@ -74,8 +74,8 @@ export interface EngineDeps {
   readonly finishGraceMs?: number;
   readonly shutdownGraceMs?: number;
   readonly env?: NodeJS.ProcessEnv;
-  /** Caller-owned opt-in for unverified real CLI profiles. Fake is always allowed. */
-  readonly allowExperimentalClis?: readonly ("claude-code" | "codex")[];
+  /** Caller-owned opt-in for unverified real CLI profiles. Fake is test-only behind RELAY_ALLOW_FAKE. */
+  readonly allowExperimentalClis?: readonly ("claude-code" | "codex" | "opencode" | "pi")[];
   readonly prompts?: Readonly<Record<string, string>>;
   /** Explicit non-secret env names the caller wants preserved (e.g. fake fixture path). */
   readonly extraEnvNames?: readonly string[];

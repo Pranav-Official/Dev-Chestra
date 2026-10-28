@@ -289,7 +289,7 @@ describe("model catalog routes", () => {
     expect(h.calls).toEqual({ get: 0, refresh: 1, clis: ["codex"] });
   });
 
-  it("fake is always unsupported and never calls the port", async () => {
+  it("fake is retired from the user surface and never calls the port", async () => {
     const h = await harness({ port: true });
     for (const method of ["GET", "POST"] as const) {
       const path =
@@ -300,14 +300,24 @@ describe("model catalog routes", () => {
         method,
         ...(method === "POST" ? { headers: mutationHeaders() } : { headers: cookieHeaders() }),
       });
-      expect(res.status).toBe(200);
-      expect(await res.json()).toMatchObject({
-        status: "unsupported",
-        source: "none",
-        items: [],
-        customSupported: true,
-      });
+      expect(res.status).toBe(400);
     }
+    expect(h.calls.get).toBe(0);
+    expect(h.calls.refresh).toBe(0);
+  });
+
+  it("opencode is unsupported without discovery and never probes", async () => {
+    const h = await harness();
+    const res = await h.app.request(url("/api/projects/proj-1/clis/opencode/models"), {
+      headers: cookieHeaders(),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      status: "unsupported",
+      source: "none",
+      items: [],
+      customSupported: true,
+    });
     expect(h.calls.get).toBe(0);
     expect(h.calls.refresh).toBe(0);
   });
@@ -377,7 +387,7 @@ describe("model catalog routes", () => {
     ).toBe(404);
     expect(
       (
-        await h.app.request(url("/api/projects/proj-1/clis/pi/models"), {
+        await h.app.request(url("/api/projects/proj-1/clis/bogus-cli/models"), {
           headers: cookieHeaders(),
         })
       ).status,

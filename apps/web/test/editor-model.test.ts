@@ -81,7 +81,7 @@ describe("editor commands", () => {
     const report = validateWorkflow(parsed.value);
     expect(report.errors).toEqual([]);
     expect(report.ok).toBe(true);
-    expect(report.warnings.map((warning) => warning.code)).toContain("W_FAKE_CLI");
+    expect(report.warnings.map((warning) => warning.code)).not.toContain("W_FAKE_CLI");
   });
 
   it("uses test-safe defaults for the four palette nodes", () => {
@@ -97,7 +97,7 @@ describe("editor commands", () => {
     if (agent?.type !== "agent" || shell?.type !== "shell" || end?.type !== "end") {
       throw new Error("missing defaults");
     }
-    expect(agent.cli).toBe("fake");
+    expect(agent.cli).toBe("codex");
     expect(agent.permissions).toEqual({ network: false, write: ["workspace"] });
     expect(agent).not.toHaveProperty("workspace");
     expect(agent.context).toEqual({ project: "none", workflow: "none" });
@@ -174,7 +174,7 @@ describe("editor commands", () => {
     expect(model.undo().ok).toBe(true);
     const undone = model.getFile().graph.nodes.find((node) => node.id === "agent");
     if (undone?.type !== "agent") throw new Error("missing agent");
-    expect(undone.cli).toBe("fake");
+    expect(undone.cli).toBe("codex");
     expect(undone.model).toBe("gpt-5");
 
     expect(model.redo().ok).toBe(true);

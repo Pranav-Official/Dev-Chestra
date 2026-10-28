@@ -147,11 +147,15 @@ export async function resolveRunWorkspace(
 }
 
 export function workflowRequiresRealAdapter(workflow: NormalizedWorkflow): boolean {
-  return workflow.graph.nodes.some((node) => node.type === "agent" && node.cli !== "fake");
+  return workflow.graph.nodes.some(
+    (node) => node.type === "agent" && (node.cli as string) !== "fake",
+  );
 }
 
 export function requireFakeScriptForFakeNodes(workflow: NormalizedWorkflow): boolean {
-  return workflow.graph.nodes.some((node) => node.type === "agent" && node.cli === "fake");
+  return workflow.graph.nodes.some(
+    (node) => node.type === "agent" && (node.cli as string) === "fake",
+  );
 }
 
 export function relayErrorResult(error: RelayError): Result<never, RelayError> {

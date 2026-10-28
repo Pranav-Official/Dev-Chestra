@@ -13,10 +13,11 @@ enforcement is `partial` for Claude and `advisory`/unproven for Codex.
 ## Public surface
 
 ```ts
-type CliId = "claude-code" | "codex" | "fake";
+type CliId = "claude-code" | "codex" | "opencode" | "pi" | "fake";
 
 createAdapter(id, options?): CliAdapter
-createAdapterRegistry(options?): { get(id), has(id), ids() }
+createAdapterRegistry(options?): { get(id), has(id), ids() }  // prod ids plus fake only when RELAY_ALLOW_FAKE=1
+listProviders()/providerIds()  // static registry, no live probes; GET /api/clis serves the same list
 createAdapter(id).plan(req: RunRequest): Result<Invocation, RelayError>  // pure
 createAdapter(id).parser(): StreamParser
 createAdapter(id).classify(exit: ExitInfo, tail: Tail): FailureClass
@@ -39,11 +40,12 @@ isGroupAlive(pid): boolean
 killOrphan(identity, { graceMs? }): Promise<{ matched, killed }>
 ```
 
-`AdapterOptions` takes absolute `claudeBin`, `codexBin`, `fakeAgentBin` and
-`nodeBin` from the composition root. `fakeAgentBin` defaults to the workspace
+`AdapterOptions` takes absolute `claudeBin`, `codexBin`, `opencodeBin`, `piBin`,
+`fakeAgentBin` and `nodeBin` from the composition root. `fakeAgentBin` defaults to the workspace
 build at `tools/fake-agent/dist/main.js`; installed builds should pass it.
-`fakeScript` (factory) is trusted test-only injection. Fake CLI options are
-`checkpoint` and `session` only; everything else is rejected.
+`fakeScript` (factory) is test-only injection behind `RELAY_ALLOW_FAKE=1`. Fake CLI options are
+`checkpoint` and `session` only; everything else is rejected. `opencode`/`pi` are experimental
+registry entries backed by a generic adapter until a live contract check lands.
 
 ## Process semantics and limits
 
@@ -123,6 +125,11 @@ even when declared. `TERM=dumb` and `CI=1` are forced.
 - Codex: `-c mcp_servers.relay.env_vars=["NAME",...]` carries names only; values
   are merged into the child environment from `RunRequest.mcp.env`.
 - Fake: `RunRequest.mcp.env` is merged into the fake child's environment.
+- Opencode: the token travels in the child environment and inside the
+  `OPENCODE_CONFIG_CONTENT` inline JSON (MCP `environment`); no secret file
+  is written and nothing secret enters argv.
+- Pi: the token travels in the child environment and in the isolated
+  `<execDir>/pi-home/mcp.json` (mode 0600), like Claude.
 - Never pass a secret in argv. Check `ps` and fixtures for the token value.
 
 ## Profiles (pinned, evidence false)
@@ -147,6 +154,28 @@ even when declared. `TERM=dumb` and `CI=1` are forced.
   atomically after each completed step. No-submit fallback belongs to the
   engine. A trusted default script can be injected via `fakeScript` or
   `FAKE_AGENT_SCRIPT`; workflow `cliOptions` can never choose a script or binary.
+- Opencode 1.19.4: fresh `run <prompt> --model provider/model --format json
+  --dir <cwd>`; resume adds `--session ses_...`. Prompt travels as argv
+  (capped at 256 KiB); the relay MCP server attaches via
+  `OPENCODE_CONFIG_CONTENT` inline JSON (`type: local`, command
+  `[shim, ...args]`, environment, enabled) on fresh and resume alike, and
+  `submit_result` is addressed as `relay_submit_result`.
+  `step_start`/`text`/`tool_use`/`step_finish`/`error` map to
+  session/text/tool/usage/turn_end; `step_finish` tokens are per-step deltas
+  emitted directly (`usageIsCumulative: false`). Model catalog is
+  `opencode models [--verbose]` (15 s / 1 MiB / 1000 items); ids pass through
+  to `-m` verbatim. `enforcesPermissions: advisory`.
+- Pi 1.4.0: `-p --mode json --session-dir <execDir>/../pi-sessions
+  [--session-id <id>] -- <prompt>`; model via `piProvider.modelArg`, provider
+  via `--provider`. Discovery returns provider-qualified `provider/model` ids
+  so catalog selection round-trips through `--model`/`--provider` without
+  ambiguity. The isolated `PI_CODING_AGENT_DIR` carries relay `mcp.json` plus
+  symlinks to the canonical `auth.json`/`models.json`/`settings.json` when
+  present (refresh writes persist back); provider API-key variables also pass
+  the child-env allowlist. Catalog is `pi --list-models [search]`.
+  Each completed message's usage is counted once from `message_end`;
+  streaming deltas and the `turn_end` echo are not counted.
+  `enforcesPermissions: advisory`.
 
 `classify` does not guess quota messages; live evidence must fill patterns.
 

@@ -122,11 +122,6 @@ export function mountModelRoutes(app: Hono, deps: ModelRouteDeps): void {
     if (!cli.success) {
       return c.json(errorBody("E_VALIDATION", "CLI is not supported for model discovery."), 400);
     }
-    if (cli.data === "fake") {
-      const body = safeCatalog(projectId, cli.data, "unsupported", "The fake CLI has no models.");
-      deps.validate("CliModelCatalog", body);
-      return c.json(body);
-    }
     const port = deps.modelCatalog;
     if (port === undefined) {
       const body = safeCatalog(

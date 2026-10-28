@@ -1,7 +1,6 @@
 import { RelayError } from "@relay/core";
-import { createClaudeAdapter } from "./claude.js";
-import { createCodexAdapter } from "./codex.js";
-import { createFakeAdapter, type FakeAdapterOptions } from "./fake.js";
+import type { FakeAdapterOptions } from "./fake.js";
+import { getProvider, providerIds } from "./provider.js";
 import type { AdapterOptions, AdapterRegistry, CliAdapter, CliId, Invocation } from "./types.js";
 
 export { discoverClaudeModels } from "./claude-model-discovery.js";
@@ -16,19 +15,14 @@ export {
 } from "./identity.js";
 export { materializeInvocation } from "./invocation.js";
 export { discoverCodexModels } from "./model-catalog.js";
+export { discoverOpencodeModels, opencodeConfigIdentity } from "./opencode-discovery.js";
+export { discoverPiModels, piConfigIdentity } from "./pi-discovery.js";
 export { classifyExit } from "./plan.js";
 export { runAgent } from "./process.js";
 export * from "./types.js";
 
 export function createAdapter(id: CliId, options: FakeAdapterOptions = {}): CliAdapter {
-  switch (id) {
-    case "claude-code":
-      return createClaudeAdapter(options);
-    case "codex":
-      return createCodexAdapter(options);
-    case "fake":
-      return createFakeAdapter(options);
-  }
+  return getProvider(id).adapter(options);
 }
 
 export interface AdapterRegistryOptions extends AdapterOptions {
@@ -36,8 +30,30 @@ export interface AdapterRegistryOptions extends AdapterOptions {
   ids?: CliId[];
 }
 
+export type {
+  CliProvider,
+  ContextIdentityProvider,
+  ModelDiscoveryItem,
+  ModelDiscoveryProvider,
+  ModelDiscoveryRequest,
+  ModelDiscoveryResult,
+  ModelDiscoverySource,
+  ModelDiscoveryStatus,
+  PermissionMap,
+} from "./provider.js";
+export {
+  fakeCatalogMessage,
+  getProvider,
+  hasProvider,
+  isFakeProviderEnabled,
+  listProviders,
+  prodProviderIds,
+  providerIds,
+  registerProvider,
+} from "./provider.js";
+
 export function createAdapterRegistry(options: AdapterRegistryOptions = {}): AdapterRegistry {
-  const ids = options.ids ?? ["fake", "claude-code", "codex"];
+  const ids = options.ids ?? providerIds();
   const cache = new Map<CliId, CliAdapter>();
   return {
     ids: () => [...ids],

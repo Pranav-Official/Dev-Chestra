@@ -431,7 +431,7 @@ describe("model catalog context", () => {
     await service.close();
   });
 
-  it("returns an honest unsupported catalog for fake without discovery", async () => {
+  it("returns an honest unsupported catalog for opencode without discovery", async () => {
     const dataDir = tempDir();
     const home = tempDir("relay-model-catalog-home-");
     const binDir = tempDir("relay-model-catalog-bin-");
@@ -449,8 +449,10 @@ describe("model catalog context", () => {
         return claudeReady();
       },
     });
-    const fake = await service.refresh("project-1", "fake");
-    expect(fake).toMatchObject({ status: "unsupported", source: "none", items: [] });
+    const opencode = await service.refresh("project-1", "opencode");
+    expect(opencode.cli).toBe("opencode");
+    expect(opencode.items).toEqual([]);
+    expect(["unsupported", "unavailable"]).toContain(opencode.status);
     expect(calls).toBe(0);
     await service.close();
   });

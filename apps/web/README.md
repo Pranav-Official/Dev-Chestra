@@ -13,7 +13,7 @@ pnpm --filter @relay/web typecheck
 pnpm --filter @relay/web test
 
 # Serve the built app with the real API and session cookie
-pnpm relay start --data-dir /tmp/relay-dev --fake-script /tmp/relay-script.json \
+pnpm relay start --data-dir /tmp/relay-dev --allow-experimental-adapters \
   --no-open --print-url
 
 # Full P2 acceptance, including a real Chromium run page and axe checks

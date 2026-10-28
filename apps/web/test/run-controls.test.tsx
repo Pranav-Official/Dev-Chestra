@@ -73,7 +73,7 @@ const FILE: WorkflowFile = {
         id: "agent",
         type: "agent",
         name: "Research",
-        cli: "fake",
+        cli: "codex",
         prompt: "Research",
         output: { type: "object" },
         permissions: { network: false, write: ["workspace"] },
@@ -149,8 +149,8 @@ describe("RunDialog", () => {
     expect(screen.getByText("false")).toBeInTheDocument();
     expect(screen.getByText("0")).toBeInTheDocument();
     expect(screen.getByText("printf hello")).toBeInTheDocument();
-    expect(screen.getByText("test-only fake agent")).toBeInTheDocument();
-    expect(screen.getByText(/--fake-script/)).toBeInTheDocument();
+    expect(screen.getByText("experimental adapter")).toBeInTheDocument();
+    expect(screen.getByText(/--allow-experimental-adapters/)).toBeInTheDocument();
     expect(screen.getByText(/configured CLI account and may incur costs/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Start run" }));

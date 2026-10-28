@@ -1,4 +1,4 @@
-import type { AgentCli, AgentNode } from "@relay/schema";
+import type { AgentNode } from "@relay/schema";
 import { Bot } from "lucide-react";
 import { AgentLimits } from "./AgentLimits.js";
 import { AgentModelField } from "./AgentModelField.js";
@@ -6,24 +6,11 @@ import { AgentPermissions } from "./AgentPermissions.js";
 import { AgentPrompt } from "./AgentPrompt.js";
 import { describedBy, Field } from "./fields/fields.js";
 import { fieldIssue } from "./issues.js";
+import { useAvailableClis } from "./model/useAvailableClis.js";
 import { InspectorSection } from "./Section.js";
 import { SchemaEditor } from "./schema/SchemaEditor.js";
 import { isRecord } from "./stableStringify.js";
 import type { FormProps } from "./types.js";
-
-const CLIS: readonly { value: AgentCli; label: string; help: string }[] = [
-  { value: "fake", label: "Fake (test only)", help: "Test-only. Makes no model calls." },
-  {
-    value: "claude-code",
-    label: "Claude Code (experimental)",
-    help: "Real CLI adapter. Not an OS sandbox; enforcement is unverified.",
-  },
-  {
-    value: "codex",
-    label: "Codex (experimental)",
-    help: "Real CLI adapter. Not an OS sandbox; enforcement is unverified.",
-  },
-];
 
 export function AgentForm({
   node,
@@ -32,7 +19,8 @@ export function AgentForm({
   projectId,
 }: FormProps<AgentNode> & { projectId?: string | undefined }) {
   const cliIssue = fieldIssue(issues, "/cli");
-  const selected = CLIS.find((entry) => entry.value === node.cli);
+  const { clis } = useAvailableClis();
+  const selected = clis.find((entry) => entry.id === node.cli);
   const properties = isRecord(node.output.properties) ? Object.keys(node.output.properties) : [];
 
   return (
@@ -54,12 +42,12 @@ export function AgentForm({
               aria-invalid={cliIssue ? true : undefined}
               aria-describedby={describedBy("inspector-agent-cli", selected?.help, cliIssue)}
               onChange={(event) => {
-                const next = event.currentTarget.value as AgentCli;
+                const next = event.currentTarget.value as AgentNode["cli"];
                 if (next !== node.cli) onPatch({ cli: next, model: undefined });
               }}
             >
-              {CLIS.map((cli) => (
-                <option key={cli.value} value={cli.value}>
+              {clis.map((cli) => (
+                <option key={cli.id} value={cli.id}>
                   {cli.label}
                 </option>
               ))}
@@ -72,17 +60,12 @@ export function AgentForm({
             issues={issues}
             onPatch={onPatch}
           />
-          {node.cli === "fake" ? (
-            <p className="inspector-note" role="note">
-              <Bot size={13} aria-hidden="true" />
-              <span>Fake is test-only. Do not use it for a real run.</span>
-            </p>
-          ) : (
+          {selected?.help === undefined ? null : (
             <p className="inspector-note amber" role="note">
               <Bot size={13} aria-hidden="true" />
               <span>
-                Claude Code and Codex are experimental adapters. Relay does not provide an OS
-                sandbox, and permission enforcement is unverified.
+                {selected.label} is an experimental adapter. Relay does not provide an OS sandbox,
+                and permission enforcement is unverified.
               </span>
             </p>
           )}

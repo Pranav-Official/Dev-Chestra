@@ -49,7 +49,7 @@ function subtitle(node: WorkflowNode): string {
     case "start":
       return `${(node as unknown as { params: unknown[] }).params.length} parameter${(node as unknown as { params: unknown[] }).params.length === 1 ? "" : "s"}`;
     case "agent":
-      return `${(node as unknown as { cli: string }).cli === "fake" ? "fake (test only)" : (node as unknown as { cli: string }).cli}${
+      return `${(node as unknown as { cli: string }).cli}${
         (node as unknown as { model?: string }).model === undefined
           ? ""
           : ` · ${(node as unknown as { model?: string }).model}`

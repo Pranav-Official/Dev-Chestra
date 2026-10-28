@@ -73,7 +73,7 @@ function agentWith(output: JsonSchemaObject): AgentNode {
     id: "node-agent",
     type: "agent",
     name: "Research",
-    cli: "fake",
+    cli: "codex",
     prompt: "Find facts.",
     output,
     permissions: { network: false, write: ["workspace"] },

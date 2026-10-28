@@ -84,7 +84,9 @@ export function createCliEngine(
     nodeBin: process.execPath,
     mcpShimEntry: SHIM_ENTRY,
     env: process.env,
-    allowExperimentalClis: options.allowExperimentalAdapters ? ["claude-code", "codex"] : [],
+    allowExperimentalClis: options.allowExperimentalAdapters
+      ? (["claude-code", "codex", "opencode", "pi"] as const)
+      : [],
     extraEnvNames: ["FAKE_AGENT_CHECKPOINT"],
     validateOutput: (schema, value) => outputValidator.compile(schema).validate(value),
   });

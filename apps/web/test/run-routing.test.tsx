@@ -10,8 +10,8 @@ function snapshot(): WorkflowSnapshot {
       nodes: [
         { id: "start", type: "start", name: "Start" },
         { id: "gate", type: "gate", name: "Gate", branches: [{ id: "yes" }, { id: "no" }] },
-        { id: "a", type: "agent", name: "A", cli: "fake" },
-        { id: "b", type: "agent", name: "B", cli: "fake" },
+        { id: "a", type: "agent", name: "A", cli: "codex" },
+        { id: "b", type: "agent", name: "B", cli: "codex" },
         {
           id: "join",
           type: "join",

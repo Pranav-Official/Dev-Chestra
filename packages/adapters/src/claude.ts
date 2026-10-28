@@ -11,6 +11,7 @@ import {
   uuid,
 } from "./plan.js";
 import { probeVersion } from "./probe.js";
+import { claudeProvider } from "./provider.js";
 import type {
   AdapterEvent,
   AdapterOptions,
@@ -165,13 +166,14 @@ function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
     const addDirs = options.addDirs === undefined ? [] : stringList(options.addDirs, "addDirs");
     for (const dir of addDirs) checkDir(dir, "addDirs");
 
+    const permissions = claudeProvider.permissionMap;
     const writable = req.permissions.write.length > 0;
     const allowed = new Set(["mcp__relay__*", "Read", "Glob", "Grep", ...extraAllowed]);
     const denied = new Set<string>(extraDenied);
-    if (writable) for (const tool of ["Edit", "Write", "Bash"]) allowed.add(tool);
-    else for (const tool of ["Edit", "Write", "NotebookEdit", "Bash"]) denied.add(tool);
-    if (req.permissions.network) for (const tool of ["WebFetch", "WebSearch"]) allowed.add(tool);
-    else for (const tool of ["WebFetch", "WebSearch"]) denied.add(tool);
+    if (writable) for (const tool of permissions.writeTools) allowed.add(tool);
+    else for (const tool of permissions.readOnlyDeniedTools) denied.add(tool);
+    if (req.permissions.network) for (const tool of permissions.networkTools) allowed.add(tool);
+    else for (const tool of permissions.networkTools) denied.add(tool);
     for (const tool of extraAllowed) {
       if (denied.has(tool)) {
         throw new Error(`cliOptions.allowedTools cannot enable permission-disabled tool ${tool}`);
@@ -195,7 +197,7 @@ function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
       }
       args.push("--max-turns", String(req.limits.maxTurns));
     }
-    if (req.model !== undefined && req.model !== "") args.push("--model", req.model);
+    if (req.model !== undefined && req.model !== "") args.push(claudeProvider.modelArg, req.model);
     for (const dir of new Set([...req.permissions.extraReadDirs, ...addDirs])) {
       checkDir(dir, "extraReadDirs");
       args.push("--add-dir", dir);

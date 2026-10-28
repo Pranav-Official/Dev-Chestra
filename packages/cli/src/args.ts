@@ -28,6 +28,13 @@ export class UsageError extends Error {
   }
 }
 
+/** Test-only seam: the fake agent script is invisible unless explicitly enabled. */
+// ponytail: single env flag; promote to CLI options if more test seams appear.
+export function isFakeScriptEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const value = env.RELAY_ALLOW_FAKE;
+  return value === "1" || value === "true";
+}
+
 function takeValue(argv: string[], index: number, flag: string): { value: string; next: number } {
   const value = argv[index + 1];
   if (value === undefined || value.startsWith("--")) {
@@ -160,6 +167,9 @@ export function parseArgs(argv: string[]): CliOptions {
       continue;
     }
     if (arg === "--fake-script") {
+      if (!isFakeScriptEnabled()) {
+        throw new UsageError("--fake-script is test-only (RELAY_ALLOW_FAKE=1).");
+      }
       const taken = takeValue(argv, index, arg);
       options.fakeScript = taken.value;
       index = taken.next;
@@ -277,7 +287,7 @@ Options:
   --workspace MODE            Run only: project (default), new-worktree or existing-worktree
   --worktree-path <dir>       Run only: existing worktree of the project (with --workspace)
   --budget-usd N              Rejected in P1 (not enforced)
-  --fake-script <file>        Trusted fake-agent JSON script (start/run/resume, fake only)
+  --fake-script <file>        Test-only fake-agent JSON script (RELAY_ALLOW_FAKE=1)
   --json                      NDJSON events plus a final summary
   --embedded                  In-process engine (this milestone is always embedded)
   --non-interactive           Never prompt

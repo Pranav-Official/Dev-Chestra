@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { accessSync, constants, existsSync, realpathSync, statSync } from "node:fs";
 import { delimiter, dirname, isAbsolute, join, parse, resolve } from "node:path";
-import { buildChildEnv } from "@relay/adapters";
+import { buildChildEnv, type CliId, getProvider } from "@relay/adapters";
 import type { CatalogCli } from "@relay/server";
 
 const MAX_ANCESTOR_DEPTH = 32;
@@ -9,21 +9,7 @@ const MAX_ANCESTOR_PATH = 1_024;
 
 // Context observes env names/presence, never values. Rotating a secret without changing
 // presence cannot be detected: restart Relay or refresh explicitly after rotation.
-export const ENV_NAMES = [
-  "HOME",
-  "CODEX_HOME",
-  "OPENAI_API_KEY",
-  "CODEX_API_KEY",
-  "OPENAI_BASE_URL",
-  "XDG_CONFIG_HOME",
-  "CLAUDE_CONFIG_DIR",
-  "ANTHROPIC_API_KEY",
-  "ANTHROPIC_AUTH_TOKEN",
-  "ANTHROPIC_BASE_URL",
-] as const;
-
-const CODEX_FILES = ["config.toml", "config.json", "auth.json"] as const;
-const CLAUDE_FILES = ["settings.json", "settings.local.json", ".credentials.json"] as const;
+const GLOBAL_ENV_NAMES = ["HOME", "XDG_CONFIG_HOME"] as const;
 
 export interface CatalogContext {
   key: string;
@@ -90,9 +76,12 @@ export function resolveExecutable(
   return null;
 }
 
-function ancestorConfigIdentity(cli: CatalogCli, cwd: string): string {
-  const dirName = cli === "claude-code" ? ".claude" : ".codex";
-  const names = cli === "claude-code" ? CLAUDE_FILES : CODEX_FILES;
+function ancestorConfigIdentity(
+  dirName: string,
+  files: readonly string[],
+  includeDirIdentity: boolean,
+  cwd: string,
+): string {
   const parts: string[] = [];
   let dir = resolve(cwd);
   const root = parse(dir).root;
@@ -103,11 +92,11 @@ function ancestorConfigIdentity(cli: CatalogCli, cwd: string): string {
     if (dirIdentity !== "missing") {
       // Config directories accumulate session/project/plugin/cache state, so
       // their mtime/size is not identity. Only canonical dir dev/ino plus the
-      // named settings/auth files count (Claude files only for Claude).
+      // named settings/auth files count (dir dev/ino only where the provider asks).
       parts.push(
-        cli === "claude-code"
-          ? `${digest(configDir)}:${filesIdentity(configDir, names)}`
-          : `${digest(configDir)}:${dirIdentity}:${filesIdentity(configDir, names)}`,
+        includeDirIdentity
+          ? `${digest(configDir)}:${dirIdentity}:${filesIdentity(configDir, files)}`
+          : `${digest(configDir)}:${filesIdentity(configDir, files)}`,
       );
     }
     if (dir === root) break;
@@ -119,57 +108,62 @@ function ancestorConfigIdentity(cli: CatalogCli, cwd: string): string {
   return parts.join("|");
 }
 
-function homeConfigIdentity(cli: CatalogCli, env: Record<string, string>, cwd: string): string {
+function homeConfigIdentity(
+  homeEnvVar: string,
+  homeSubdir: string,
+  files: readonly string[],
+  userPresenceFile: string | undefined,
+  home: string | null,
+  env: Record<string, string>,
+  cwd: string,
+): string {
   const pathFrom = (value: string): string =>
     isAbsolute(value) ? resolve(value) : resolve(cwd, value);
-  const home = env.HOME !== undefined && env.HOME !== "" ? pathFrom(env.HOME) : null;
-  if (cli === "claude-code") {
-    const configDir =
-      env.CLAUDE_CONFIG_DIR !== undefined && env.CLAUDE_CONFIG_DIR !== ""
-        ? pathFrom(env.CLAUDE_CONFIG_DIR)
-        : home === null
-          ? null
-          : join(home, ".claude");
-    // settings.json/settings.local.json/.credentials.json are strict identity.
-    // The config directory's own mtime is excluded: Claude writes session,
-    // project and plugin state inside it, which would self-invalidate the cache.
-    const files =
-      configDir === null
-        ? "none"
-        : `${digest(configDir)}:${filesIdentity(configDir, CLAUDE_FILES)}`;
-    // ~/.claude.json mixes provider/model settings with volatile startup/auth
-    // cache counters. Observe presence only so a normal launch cannot discard an
-    // otherwise valid catalog; auth still comes from .credentials.json above.
-    const userFile =
-      home === null || !existsSync(join(home, ".claude.json")) ? "absent" : "present";
-    return `${files}|${userFile}`;
-  }
-  const codexHome =
-    env.CODEX_HOME !== undefined && env.CODEX_HOME !== ""
-      ? pathFrom(env.CODEX_HOME)
-      : home === null
-        ? null
-        : join(home, ".codex");
-  // Do not include the Codex home directory's mtime/size: the native app-server
-  // may write models_cache.json or other files there during discovery. Only the
-  // named config/auth files are identity.
-  return codexHome === null
-    ? "none"
-    : `${digest(codexHome)}:${filesIdentity(codexHome, CODEX_FILES)}`;
+  const fromEnv =
+    homeEnvVar !== "" && env[homeEnvVar] !== undefined && env[homeEnvVar] !== ""
+      ? pathFrom(env[homeEnvVar] as string)
+      : null;
+  const configDir = fromEnv ?? (home === null || homeSubdir === "" ? null : join(home, homeSubdir));
+  // settings/auth files are strict identity; the config directory's own
+  // mtime is excluded (session/project/plugin state would self-invalidate).
+  const base =
+    configDir === null ? "none" : `${digest(configDir)}:${filesIdentity(configDir, files)}`;
+  if (userPresenceFile === undefined || home === null) return base;
+  // Presence only (e.g. ~/.claude.json mixes provider settings with volatile
+  // cache counters): a normal launch must not discard an otherwise valid catalog.
+  const userFile = !existsSync(join(home, userPresenceFile)) ? "absent" : "present";
+  return `${base}|${userFile}`;
 }
 
 export function configIdentity(cli: CatalogCli, env: Record<string, string>, cwd: string): string {
-  const names =
-    cli === "claude-code"
-      ? [
-          ...ENV_NAMES,
-          ...Object.keys(env)
-            .filter((name) => name.startsWith("CLAUDE_CODE_"))
-            .sort(),
-        ]
-      : ENV_NAMES;
+  const identity = getProvider(cli as CliId).contextIdentity;
+  const names = [
+    ...GLOBAL_ENV_NAMES,
+    ...identity.envNames,
+    ...Object.keys(env)
+      .filter((name) => identity.extraEnvPrefixes.some((prefix) => name.startsWith(prefix)))
+      .sort(),
+  ];
   const presence = names.map((name) => `${name}:${env[name] === undefined ? "0" : "1"}`).join(",");
-  return `${presence}|${homeConfigIdentity(cli, env, cwd)}|${ancestorConfigIdentity(cli, cwd)}`;
+  const pathFrom = (value: string): string =>
+    isAbsolute(value) ? resolve(value) : resolve(cwd, value);
+  const home = env.HOME !== undefined && env.HOME !== "" ? pathFrom(env.HOME) : null;
+  const homePart = homeConfigIdentity(
+    identity.homeEnvVar,
+    identity.homeSubdir,
+    identity.configFiles,
+    identity.userPresenceFile,
+    home,
+    env,
+    cwd,
+  );
+  const ancestorPart = ancestorConfigIdentity(
+    identity.configDirName,
+    identity.configFiles,
+    identity.includeConfigDirIdentity,
+    cwd,
+  );
+  return `${presence}|${homePart}|${ancestorPart}`;
 }
 
 export function contextKey(

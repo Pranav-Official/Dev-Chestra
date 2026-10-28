@@ -21,6 +21,7 @@ import type {
   WorkflowFile,
   WorkflowNode,
 } from "./types.js";
+import { PROD_CLIS } from "./types.js";
 import { validateApproval } from "./validate-approval.js";
 import {
   isRecord,
@@ -213,26 +214,29 @@ export function validateWorkflow(
 
     if (node.type === "agent") {
       const agent = node as AgentNode;
-      if (!["fake", "claude-code", "codex"].includes(agent.cli)) {
-        addError(
-          issue(
-            "error",
-            "E_WORKFLOW_INVALID",
-            `Agent CLI '${String(agent.cli)}' is not supported in P1; use fake (test-only), claude-code or codex.`,
-            `${pointer}/cli`,
-            node.id,
-          ),
-        );
-      } else if (agent.cli === "fake") {
-        addWarning(
-          issue(
-            "warning",
-            "W_FAKE_CLI",
-            "Agent CLI 'fake' is test-only; do not use it for a real run.",
-            `${pointer}/cli`,
-            node.id,
-          ),
-        );
+      const prodClis: readonly string[] = PROD_CLIS;
+      if (!prodClis.includes(agent.cli)) {
+        if (agent.cli === ("fake" as string)) {
+          addWarning(
+            issue(
+              "warning",
+              "W_FAKE_CLI",
+              "Agent CLI 'fake' is test-only (requires RELAY_ALLOW_FAKE=1 at run time); do not use it for a real run.",
+              `${pointer}/cli`,
+              node.id,
+            ),
+          );
+        } else {
+          addError(
+            issue(
+              "error",
+              "E_WORKFLOW_INVALID",
+              `Agent CLI '${String(agent.cli)}' is not supported in P1; use ${PROD_CLIS.join(", ")}. Fake is test-only behind RELAY_ALLOW_FAKE=1.`,
+              `${pointer}/cli`,
+              node.id,
+            ),
+          );
+        }
       }
 
       if (agent.prompt !== undefined && agent.promptFile !== undefined) {

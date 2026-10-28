@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "id": "linear-codex",
+  "name": "Linear Codex demo",
+  "description": "A four-node chain: start -> codex agent -> shell -> end. The run workspace is chosen at start (project root by default).",
+  "graph": {
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "name": "Inputs",
+        "params": [
+          {
+            "name": "topic",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      {
+        "id": "draft",
+        "type": "agent",
+        "name": "Draft",
+        "cli": "codex",
+        "prompt": "Write a short note about {{ start.topic }}. Return one summary and up to eight points.",
+        "output": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["summary", "points"],
+          "properties": {
+            "summary": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "points": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "maxItems": 8
+            }
+          }
+        },
+        "permissions": {
+          "network": false,
+          "write": ["workspace"]
+        },
+        "workspace": {
+          "mode": "scratch"
+        },
+        "limits": {
+          "timeoutMin": 20,
+          "validationRetries": 2,
+          "crashRetries": 1
+        },
+        "context": {
+          "project": "none",
+          "workflow": "none"
+        }
+      },
+      {
+        "id": "render",
+        "type": "shell",
+        "name": "Render summary",
+        "command": "printf '%s\\n' {{ draft.summary }}",
+        "workspace": {
+          "mode": "scratch"
+        },
+        "timeoutMin": 2
+      },
+      {
+        "id": "done",
+        "type": "end",
+        "name": "Done",
+        "status": "success",
+        "result": "{ \"summary\": draft.summary, \"points\": draft.points }"
+      }
+    ],
+    "edges": [
+      {
+        "id": "e-start-draft",
+        "from": "start",
+        "to": "draft"
+      },
+      {
+        "id": "e-draft-render",
+        "from": "draft",
+        "to": "render"
+      },
+      {
+        "id": "e-render-done",
+        "from": "render",
+        "to": "done"
+      }
+    ]
+  }
+}

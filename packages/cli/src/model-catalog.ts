@@ -1,5 +1,6 @@
 import { chmodSync, mkdtempSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { type CliId, getProvider } from "@relay/adapters";
 import type { BrowserModelCatalogPort, CatalogCli, CliModelCatalog } from "@relay/server";
 import {
   buildContext,
@@ -48,7 +49,7 @@ interface CacheEntry {
   cooldownUntil: number;
 }
 
-const FAKE_MESSAGE = "This CLI does not provide a model catalog.";
+const UNSUPPORTED_MESSAGE = "This CLI does not provide a model catalog.";
 const COLD_MESSAGE = "No model catalog is cached yet. Refresh models to load it.";
 const BUSY_MESSAGE = "Model discovery is busy; try again shortly.";
 const COOLDOWN_MESSAGE = "Model discovery failed recently; try again shortly.";
@@ -90,9 +91,24 @@ export function createModelCatalogService(
   let runtimeDir: string | null = null;
   let closed = false;
 
-  const binFor = (cli: CatalogCli): string => (cli === "codex" ? codexBin : claudeBin);
+  // Composition-root bin overrides; anything else comes from the provider.
+  const binOverrides = new Map<CatalogCli, string>([
+    ["codex", codexBin],
+    ["claude-code", claudeBin],
+  ]);
+  const binFor = (cli: CatalogCli): string =>
+    binOverrides.get(cli) ?? getProvider(cli as CliId).defaultBin;
+  // Test/composition discovery overrides; anything else comes from the provider.
+  const discoverOverrides = new Map<CatalogCli, DiscoverCli>([
+    ["codex", codexDiscover],
+    ["claude-code", claudeDiscover],
+  ]);
   const discoverFor = (cli: CatalogCli): DiscoverCli =>
-    cli === "codex" ? codexDiscover : claudeDiscover;
+    discoverOverrides.get(cli) ??
+    ((request) =>
+      getProvider(cli as CliId).discovery.discover(request) as Promise<DiscoveryResult>);
+  const isUnsupportedCli = (cli: CatalogCli): boolean =>
+    getProvider(cli as CliId).discovery.source === "none";
 
   const base = (
     projectId: string,
@@ -177,7 +193,7 @@ export function createModelCatalogService(
 
   const get = async (projectId: string, cli: CatalogCli): Promise<CliModelCatalog> => {
     if (closed) return unavailable(projectId, cli, CLOSED_MESSAGE);
-    if (cli === "fake") return base(projectId, cli, "unsupported", FAKE_MESSAGE);
+    if (isUnsupportedCli(cli)) return base(projectId, cli, "unsupported", UNSUPPORTED_MESSAGE);
 
     if (runtimeDir === null) return unavailable(projectId, cli, COLD_MESSAGE);
     let context: CatalogContext;
@@ -197,7 +213,7 @@ export function createModelCatalogService(
 
   const refresh = async (projectId: string, cli: CatalogCli): Promise<CliModelCatalog> => {
     if (closed) return unavailable(projectId, cli, CLOSED_MESSAGE);
-    if (cli === "fake") return base(projectId, cli, "unsupported", FAKE_MESSAGE);
+    if (isUnsupportedCli(cli)) return base(projectId, cli, "unsupported", UNSUPPORTED_MESSAGE);
 
     let context: CatalogContext;
     let cwd: string;
@@ -276,7 +292,7 @@ export function createModelCatalogService(
 
       if (result.status === "ready") {
         const itemSource = itemSourceForCli(cli);
-        if (itemSource === null) return base(projectId, cli, "unsupported", FAKE_MESSAGE);
+        if (itemSource === null) return base(projectId, cli, "unsupported", UNSUPPORTED_MESSAGE);
         const items = result.items
           .slice(0, MAX_ITEMS)
           .map((item) => normalizeItem(item, itemSource));

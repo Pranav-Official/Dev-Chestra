@@ -1,5 +1,5 @@
 import type { RunView } from "@relay/core";
-import type { NormalizedWorkflow } from "@relay/schema";
+import { type NormalizedWorkflow, PROD_CLIS } from "@relay/schema";
 import { coreErrorCodeSchema } from "./errors.js";
 import {
   gateDecidedPayloadSchema,
@@ -234,7 +234,9 @@ const normalizedStartNodeSchema = strict({
 const normalizedAgentNodeSchema = strict({
   ...normalizedNodeBase,
   type: z.literal("agent"),
-  cli: z.enum(["fake", "claude-code", "codex"]),
+  // Structural allow-list: fake validates everywhere so browser run views can
+  // display test runs. Run-time layers enforce the RELAY_ALLOW_FAKE=1 gate.
+  cli: z.enum([...PROD_CLIS, "fake"]),
   model: z.string().optional(),
   prompt: z.string(),
   output: jsonSchemaObjectSchema,

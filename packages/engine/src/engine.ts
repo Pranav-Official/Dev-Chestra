@@ -1,3 +1,4 @@
+import { type CliId, getProvider } from "@relay/adapters";
 import type { EventEnvelope, RunId, RunStatus, RunView } from "@relay/core";
 import {
   defaultRunWorkspaceSelection,
@@ -269,20 +270,21 @@ export class LinearEngine implements Engine {
   #assertAdapters(plan: WorkflowPlan): void {
     for (const node of plan.nodes) {
       if (node.type !== "agent") continue;
-      const cli = node.raw.cli as string;
+      const cli = node.raw.cli as CliId;
       if (!this.#ctx.deps.adapters.has(cli as never)) {
-        throw new RelayError("E_CLI_MISSING", `Adapter '${cli}' is not available`, {
+        throw new RelayError("E_CLI_MISSING", `Adapter '${String(cli)}' is not available`, {
           details: { cli },
         });
       }
-      if (cli !== "fake") {
+      const provider = getProvider(cli);
+      if (provider.experimental) {
         const allowed = this.#ctx.deps.allowExperimentalClis ?? [];
         const adapter = this.#ctx.deps.adapters.get(cli as never);
-        if (!allowed.includes(cli as "claude-code" | "codex")) {
+        if (!allowed.includes(provider.id as "claude-code" | "codex" | "opencode" | "pi")) {
           throw new RelayError(
             "E_CLI_MISSING",
-            `Adapter '${cli}' requires an explicit experimental opt-in only after a live contract check`,
-            { details: { cli, behaviorVerified: adapter.evidence.behaviorVerified } },
+            `Adapter '${provider.id}' requires an explicit experimental opt-in only after a live contract check`,
+            { details: { cli: provider.id, behaviorVerified: adapter.evidence.behaviorVerified } },
           );
         }
       }

@@ -28,12 +28,12 @@ One machine-readable `relay.ready` NDJSON line (no token) is printed after the l
 
 SIGINT/SIGTERM close HTTP/SSE first, then `engine.stop` (pausing active runs for manual resume), then gateway/store and the lock. Clean shutdown removes only this process's `server.json`. Startup recovery never auto-resumes or dispatches a run, and browser startup never starts work.
 
-## Fake example (no paid model calls)
+## Linear example (needs a signed-in provider CLI)
 
 ```sh
 tmp=$(mktemp -d)
 mkdir -p "$tmp/project" "$tmp/data"
-cp examples/linear-fake.json "$tmp/project/workflow.json"
+cp examples/linear-codex.json "$tmp/project/workflow.json"
 cat > "$tmp/script.json" <<'JSON'
 [{"type":"submit","output":{"summary":"A short note.","points":["one","two"]}}]
 JSON
@@ -41,11 +41,11 @@ pnpm relay run workflow.json \
   --project "$tmp/project" \
   --data-dir "$tmp/data" \
   --param topic=orchestration \
-  --fake-script "$tmp/script.json" \
+  --allow-experimental-adapters \
   --json
 ```
 
-The workflow path must resolve inside `--project`. The fake CLI is test-only and its default script submits nothing, so `--fake-script` is required for fake agent nodes. The script is an explicit caller fixture, never read from workflow `cliOptions`.
+The workflow path must resolve inside `--project`. Supported agent CLIs are `claude-code`, `codex`, `opencode` and `pi` (registry-backed; see `GET /api/clis`) and require `--allow-experimental-adapters`. The fake CLI is test-only behind `RELAY_ALLOW_FAKE=1`; its script is an explicit caller fixture, never read from workflow `cliOptions`.
 
 ## Options
 
@@ -54,8 +54,8 @@ The workflow path must resolve inside `--project`. The fake CLI is test-only and
 - `--embedded` — accepted; this milestone is always in-process.
 - `--non-interactive` — accepted; the CLI never prompts.
 - `--retry-uncertain-shell` — resume only; explicit user approval to retry an interrupted shell that may have had external effects. Without it, an uncertain shell pause exits 5 and is not replayed.
-- `--allow-experimental-adapters` — explicit caller opt-in for `claude-code`/`codex`; those profiles are not verified for this milestone and may still be refused.
-- `--fake-script <file>` — trusted fake-agent script for start/run/resume. For `start` it applies to every fake-agent run launched through the API; browser requests cannot inject a script.
+- `--allow-experimental-adapters` — explicit caller opt-in for `claude-code`/`codex`/`opencode`/`pi`; those profiles are not verified for this milestone and may still be refused.
+- `--fake-script <file>` — test-only fake-agent script for start/run/resume (requires `RELAY_ALLOW_FAKE=1`). For `start` it applies to every fake-agent run launched through the API; browser requests cannot inject a script.
 - `--allow-experimental-adapters` — launch-level opt-in; browser requests cannot enable real providers.
 - `--budget-usd N` — rejected in P1; budgets are not enforced by the linear runner.
 
@@ -75,4 +75,4 @@ pnpm relay resume <runId> --data-dir "$tmp/data" --json
 
 ## P1 limits
 
-`start → agent → shell → end`, scratch workspaces only, fake/claude-code/codex adapters (real ones unverified), read-only browser viewer via `relay start` when the web app is built, no approval command, no budget enforcement, no worktrees/project writes.
+`start → agent → shell → end`, scratch workspaces only, claude-code/codex/opencode/pi adapters (real ones unverified; fake is test-only behind `RELAY_ALLOW_FAKE=1`), read-only browser viewer via `relay start` when the web app is built, no approval command, no budget enforcement, no worktrees/project writes.

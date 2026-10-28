@@ -85,7 +85,7 @@ const agent: AgentNode = {
   id: "node-agent",
   type: "agent",
   name: "Research",
-  cli: "fake",
+  cli: "codex",
   prompt: "Find the facts.",
   output: {
     type: "object",
@@ -260,8 +260,8 @@ describe("Inspector identity and Start parameters", () => {
 describe("Agent fields", () => {
   it("offers only real CLIs and edits the model only through explicit picker actions", async () => {
     render(<Harness initial={agent} alternate={shell} />);
-    expect(screen.getByText(/Fake is test-only/)).toBeInTheDocument();
-    expect(screen.getByText(/not an OS sandbox/i)).toBeInTheDocument();
+    expect(screen.getByText(/experimental adapter/)).toBeInTheDocument();
+    expect(screen.getAllByText(/not an OS sandbox/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/provider keys/i)).toBeInTheDocument();
     expect(screen.queryByTestId("inspector-agent-model")).toBeNull();
     expect(screen.queryByTestId("inspector-agent-model-picker")).toBeInTheDocument();
@@ -276,15 +276,15 @@ describe("Agent fields", () => {
     expect(screen.queryByRole("button", { name: /project workspace/i })).toBeNull();
 
     fireEvent.change(screen.getByTestId("inspector-agent-cli"), {
-      target: { value: "codex" },
+      target: { value: "claude-code" },
     });
     await waitFor(() =>
       expect(lastPatch()).toEqual({
         nodeId: "node-agent",
-        patch: { cli: "codex", model: undefined },
+        patch: { cli: "claude-code", model: undefined },
       }),
     );
-    expect(screen.getByText(/experimental adapters/i)).toBeInTheDocument();
+    expect(screen.getByText(/experimental adapter/i)).toBeInTheDocument();
 
     const custom = screen.getByTestId("inspector-agent-model-custom-input");
     fireEvent.change(custom, { target: { value: "gpt-test" } });

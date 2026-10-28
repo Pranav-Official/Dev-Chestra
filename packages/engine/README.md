@@ -164,7 +164,7 @@ pnpm exec tsx tools/fixtures/engine/scenarios.ts
 ```
 
 `scenarios.ts` uses real temp SQLite, the real loopback gateway, the real MCP shim and
-real fake-agent child processes. It covers happy path, invalid-then-valid submission,
+test-only fake-agent child processes (RELAY_ALLOW_FAKE=1). It covers happy path, invalid-then-valid submission,
 no-submit budget, validation exhaustion, crash cap, accepted-then-crash finalization,
 shell failure/allow-failure/quoting, timeout crash budget, shutdown/resume, cancellation
 and the uncertain-shell override. It is not live Claude Code/Codex evidence.

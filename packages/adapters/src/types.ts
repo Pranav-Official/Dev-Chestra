@@ -1,6 +1,11 @@
 import type { RelayError, Result } from "@relay/core";
 
-export type CliId = "claude-code" | "codex" | "fake";
+/** Production CLI ids. `fake` is test-only behind RELAY_ALLOW_FAKE. */
+export const PROD_CLI_IDS = ["claude-code", "codex", "opencode", "pi"] as const;
+
+export type ProdCliId = (typeof PROD_CLI_IDS)[number];
+
+export type CliId = ProdCliId | "fake";
 
 export interface AdapterCaps {
   enforcesPermissions: "enforced" | "partial" | "advisory";
@@ -49,8 +54,13 @@ export interface RunRequest {
 
 export interface InvocationFile {
   path: string;
-  content: string;
+  /** File bytes; required unless `symlink` is set. */
+  content?: string;
   mode?: number;
+  /** When set, materialize a symlink at `path` pointing at this target
+   * instead of writing `content`. Writes through the link persist back to
+   * the canonical store (e.g. credential refresh). */
+  symlink?: string;
 }
 
 export interface Invocation {
@@ -220,12 +230,13 @@ export interface CommandResult {
 export interface AdapterOptions {
   claudeBin?: string;
   codexBin?: string;
+  opencodeBin?: string;
+  piBin?: string;
   fakeAgentBin?: string;
   nodeBin?: string;
 }
 
 export type CodexModelSource = "codex-app-server";
-
 export interface CodexModelItem {
   /** Raw RPC `model` field: the exact value passed to `-m`. */
   id: string;
@@ -318,6 +329,89 @@ export interface AdapterRegistry {
   get(id: CliId): CliAdapter;
   has(id: CliId): boolean;
   ids(): CliId[];
+}
+
+export type PiModelSource = "pi-list-models";
+
+export interface PiModelItem {
+  /** Provider-qualified `provider/model` id; the value to pass as `--model`
+   * (with `--provider`). Bare only when the row carries no provider column. */
+  id: string;
+  /** Bare model column of the row; never the routing id. */
+  label: string;
+  /** Provider column of the same row; the value to pass as `--provider`. */
+  provider?: string;
+  source: PiModelSource;
+}
+
+export type PiModelDiscoveryStatus = "ready" | "unsupported" | "unavailable" | "authRequired";
+
+export interface PiModelDiscovery {
+  status: PiModelDiscoveryStatus;
+  items: PiModelItem[];
+  cliVersion: string | null;
+  truncated: boolean;
+  /** Short canned text only; never raw stdout/stderr, env, config or provider messages. */
+  message?: string;
+}
+
+export interface PiModelDiscoveryRequest {
+  /** Neutral runtime cwd owned by the composition root. */
+  cwd: string;
+  /** Trusted installed Pi executable. Resolved from `env.PATH` when omitted. */
+  bin?: string;
+  /** Already allowlisted child environment. Never modified here. */
+  env: Record<string, string>;
+  signal?: AbortSignal;
+  /** Total bound. Clamped to 15s. */
+  timeoutMs?: number;
+  /** Optional fuzzy search passed as the positional `[search]` argument. */
+  search?: string;
+  /** Trusted test/composition bounds below the documented maxima. */
+  maxStdoutBytes?: number;
+  maxStderrBytes?: number;
+  maxModels?: number;
+}
+
+export type OpencodeModelSource = "opencode-models";
+
+export interface OpencodeModelItem {
+  /** Exact `provider/model` line reported by `opencode models`; the value to pass as `-m`. */
+  id: string;
+  /** Verbose `name` when reported, else the exact id. */
+  label: string;
+  /** Prefix before the first `/`; only present when the id actually reported it. */
+  provider?: string;
+  source: OpencodeModelSource;
+}
+
+export type OpencodeModelDiscoveryStatus = "ready" | "unsupported" | "unavailable" | "authRequired";
+
+export interface OpencodeModelDiscovery {
+  status: OpencodeModelDiscoveryStatus;
+  items: OpencodeModelItem[];
+  cliVersion: string | null;
+  truncated: boolean;
+  /** Short canned text only; never raw stdout/stderr, env, config or provider messages. */
+  message?: string;
+}
+
+export interface OpencodeModelDiscoveryRequest {
+  /** Neutral runtime cwd owned by the composition root. */
+  cwd: string;
+  /** Trusted installed opencode executable. Defaults to `opencode`. */
+  bin?: string;
+  /** Already allowlisted child environment. Never modified here. */
+  env: Record<string, string>;
+  signal?: AbortSignal;
+  /** Total bound. Clamped to 15s. */
+  timeoutMs?: number;
+  /** When true, run `models --verbose` and read `name` labels from it. */
+  verbose?: boolean;
+  /** Trusted test/composition bounds below the documented maxima. */
+  maxStdoutBytes?: number;
+  maxStderrBytes?: number;
+  maxModels?: number;
 }
 
 export interface BuildEnvOptions {

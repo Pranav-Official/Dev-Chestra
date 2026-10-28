@@ -85,8 +85,8 @@ public executor and main API are typechecked.
 ```jsonc
 {
   "schemaVersion": 1,
-  "id": "linear-fake",
-  "name": "Linear fake-agent demo",
+  "id": "linear-codex",
+  "name": "Linear codex demo",
   "description": "optional",
   "graph": {
     "nodes": [ /* start, agent, shell, end */ ],
@@ -103,7 +103,7 @@ public executor and main API are typechecked.
   for the start node because `start` names run parameters in expressions.
 - `ui` data on nodes/edges is accepted and preserved by `parseWorkflow`, then stripped by
   `normalizeWorkflow`.
-- `agent` supports `cli: "fake" | "claude-code" | "codex"` (`fake` is test-only and warns),
+- `agent` supports `cli: "claude-code" | "codex" | "opencode" | "pi"` (`fake` parses only behind `RELAY_ALLOW_FAKE=1` and warns),
   optional `model`, `prompt` or `promptFile`, restricted `output`, declared `permissions`,
   scratch workspace and bounded limits.
 - `shell` supports a scratch workspace, `command` template, `timeoutMin` (default 10) and
@@ -128,7 +128,7 @@ the CLI/workspaces layer owns `.relay/workflows/<id>.json` placement.
 
 ### Rejected in P1, with clear diagnostics
 
-Unsupported node types; `opencode`/`pi`; per-node workspace execution (legacy `workspace` metadata
+Unsupported node types; `fake` (test-only, behind `RELAY_ALLOW_FAKE=1`); per-node workspace execution (legacy `workspace` metadata
 still parses, but fresh runs use the run-level selection); agent context
 reads/writes; top-level supervisor; node supervise modes other than `default`; workflow budgets
 (`maxUsd`, `maxTokens`, `maxActiveMinutes` are not enforced yet and are not accepted); artifact
@@ -199,12 +199,12 @@ server/engine; this package produces the normalized schema and its hash.
 - No `gate`, `join`, `decision`, `approval`, `map`, `loop`, context banks, pins, supervisor,
   artifacts, budgets, worktrees, project writes, browser expression worker, graph editor or I/O.
 - Live Claude Code/Codex behavior is adapter-owned and not verified here.
-- `fake` is only for deterministic tests and examples.
+- `fake` is only for deterministic tests behind `RELAY_ALLOW_FAKE=1`; user workflows use `claude-code`/`codex`/`opencode`/`pi`.
 - Relay is not a sandbox.
 
 ## Examples
 
-- `/home/pranavpp/Dev Works/DevChestra/examples/linear-fake.json` — deterministic four-node
-  scratch-only chain using the test-only `fake` CLI.
+- `/home/pranavpp/Dev Works/DevChestra/examples/linear-codex.json` — deterministic four-node
+  scratch-only chain using the `codex` CLI.
 - `/home/pranavpp/Dev Works/DevChestra/examples/linear-claude-code.json` — same chain using
   the `claude-code` CLI; live execution/verification is owned by the adapter worker.

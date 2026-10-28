@@ -1,9 +1,15 @@
+import { PROD_CLIS } from "@relay/schema";
 import { projectIdSchema } from "./primitives.js";
 import { z } from "./zod.js";
 
 const strict = z.strictObject;
 
-export const CATALOG_CLI_VALUES = ["fake", "claude-code", "codex"] as const;
+export const CATALOG_CLI_VALUES = [...PROD_CLIS] as unknown as [
+  "claude-code",
+  "codex",
+  "opencode",
+  "pi",
+];
 
 export type CatalogCli = (typeof CATALOG_CLI_VALUES)[number];
 
@@ -21,13 +27,24 @@ export type ModelCatalogStatus = (typeof MODEL_CATALOG_STATUS_VALUES)[number];
 
 export const modelCatalogStatusSchema = z.enum(MODEL_CATALOG_STATUS_VALUES);
 
-export const MODEL_CATALOG_SOURCE_VALUES = ["codex-app-server", "claude-sdk", "none"] as const;
+export const MODEL_CATALOG_SOURCE_VALUES = [
+  "codex-app-server",
+  "claude-sdk",
+  "opencode-models",
+  "pi-list-models",
+  "none",
+] as const;
 
 export type ModelCatalogSource = (typeof MODEL_CATALOG_SOURCE_VALUES)[number];
 
 export const modelCatalogSourceSchema = z.enum(MODEL_CATALOG_SOURCE_VALUES);
 
-export const CLI_MODEL_ITEM_SOURCE_VALUES = ["codex-app-server", "claude-sdk"] as const;
+export const CLI_MODEL_ITEM_SOURCE_VALUES = [
+  "codex-app-server",
+  "claude-sdk",
+  "opencode-models",
+  "pi-list-models",
+] as const;
 
 export type CliModelItemSource = (typeof CLI_MODEL_ITEM_SOURCE_VALUES)[number];
 

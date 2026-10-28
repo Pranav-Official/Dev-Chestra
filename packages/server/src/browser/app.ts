@@ -20,6 +20,7 @@ import { mountWorkflowRoutes } from "../workflows/routes.js";
 import { ManagedWorkflowService } from "../workflows/service.js";
 import { mountApprovalRoutes } from "./approval-routes.js";
 import { browserError } from "./browser-error.js";
+import { mountCliRoutes } from "./cli-routes.js";
 import { makeResponseValidator } from "./contracts.js";
 import {
   buildAttempts,
@@ -138,7 +139,6 @@ function isUnsupportedFeature(path: string): boolean {
     path.startsWith("/api/context/") ||
     path === "/api/inbox" ||
     path.startsWith("/api/config/") ||
-    path.startsWith("/api/clis") ||
     path.startsWith("/api/storage")
   );
 }
@@ -248,6 +248,7 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
     ...(deps.modelCatalog === undefined ? {} : { modelCatalog: deps.modelCatalog }),
     validate,
   });
+  mountCliRoutes(app, { validate });
   mountApprovalRoutes(app, { store: deps.store, controller: deps.controller, validate });
   mountWorkflowRoutes(app, {
     store: deps.store,

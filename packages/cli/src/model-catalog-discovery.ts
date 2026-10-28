@@ -1,8 +1,12 @@
-import { discoverClaudeModels, discoverCodexModels } from "@relay/adapters";
+import { type CliId, getProvider } from "@relay/adapters";
 import type { CatalogCli, CliModelItem } from "@relay/server";
 
 export type DiscoveryStatus = "ready" | "unsupported" | "unavailable" | "authRequired";
-export type DiscoverySource = "codex-app-server" | "claude-sdk";
+export type DiscoverySource =
+  | "codex-app-server"
+  | "claude-sdk"
+  | "opencode-models"
+  | "pi-list-models";
 
 export interface DiscoveryItem {
   id: string;
@@ -32,13 +36,20 @@ export interface DiscoveryRequest {
 
 export type DiscoverCli = (request: DiscoveryRequest) => Promise<DiscoveryResult>;
 
-export function itemSourceForCli(cli: CatalogCli): DiscoverySource | null {
-  if (cli === "codex") return "codex-app-server";
-  if (cli === "claude-code") return "claude-sdk";
-  return null;
+function toDiscoverySource(source: string): DiscoverySource | null {
+  return source === "codex-app-server" ||
+    source === "claude-sdk" ||
+    source === "opencode-models" ||
+    source === "pi-list-models"
+    ? source
+    : null;
 }
 
-export function catalogSourceForCli(cli: CatalogCli): "codex-app-server" | "claude-sdk" | "none" {
+export function itemSourceForCli(cli: CatalogCli): DiscoverySource | null {
+  return toDiscoverySource(getProvider(cli as CliId).discovery.source);
+}
+
+export function catalogSourceForCli(cli: CatalogCli): DiscoverySource | "none" {
   return itemSourceForCli(cli) ?? "none";
 }
 
@@ -54,6 +65,13 @@ export function normalizeItem(item: DiscoveryItem, source: DiscoverySource): Cli
   };
 }
 
-export const discoverCodex: DiscoverCli = (request) => discoverCodexModels(request);
+// Registry-backed discovery. The CLI catalog only models the codex/claude
+// sources (matching the API schema); the provider registry may know more, so
+// the wider registry result is narrowed at this boundary. No live CLI is
+// contacted here: these only run when the catalog service calls them (tests
+// inject stand-ins instead).
+export const discoverCodex: DiscoverCli = (request) =>
+  getProvider("codex").discovery.discover(request) as Promise<DiscoveryResult>;
 
-export const discoverClaude: DiscoverCli = (request) => discoverClaudeModels(request);
+export const discoverClaude: DiscoverCli = (request) =>
+  getProvider("claude-code").discovery.discover(request) as Promise<DiscoveryResult>;
