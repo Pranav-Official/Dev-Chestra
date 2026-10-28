@@ -1,0 +1,4 @@
+[
+  { "type": "say", "text": "p2 acceptance agent working" },
+  { "type": "submit", "output": { "summary": "P2 acceptance summary" } }
+]

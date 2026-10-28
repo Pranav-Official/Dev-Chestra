@@ -1,0 +1,5 @@
+{"type":"relay-fake","event":"session","profile":"fake","sessionId":"fake-example","cwd":"/tmp/relay-fake-work","resumed":false,"pid":4242,"nextStepIndex":0,"promptBytes":8,"promptSha256":"0000000000000000000000000000000000000000000000000000000000000000"}
+{"type":"relay-fake","event":"tools","profile":"fake","sessionId":"fake-example","cwd":"/tmp/relay-fake-work","names":["submit_result"],"count":1}
+{"type":"relay-fake","event":"submit_result","profile":"fake","sessionId":"fake-example","cwd":"/tmp/relay-fake-work","index":0,"accepted":false,"isError":true,"text":"answer: must be a string (expected string)\nFix these and call submit_result again."}
+{"type":"relay-fake","event":"submit_result","profile":"fake","sessionId":"fake-example","cwd":"/tmp/relay-fake-work","index":1,"accepted":true,"isError":false,"text":"Result accepted. You are done; do not call any other tool."}
+{"type":"relay-fake","event":"end","profile":"fake","sessionId":"fake-example","cwd":"/tmp/relay-fake-work","submitted":true,"nextStepIndex":2,"steps":2}

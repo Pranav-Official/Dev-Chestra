@@ -1,0 +1,3 @@
+opencode/test-provider-a
+opencode/test-provider-b
+anthropic/claude-sonnet-4-5

@@ -25,6 +25,6 @@ Thumbs.db
 .idea/
 .vscode/
 
-
-docs/
-tools/
+# Generated tool output (tools/* are tracked; their build and run output is not)
+tools/*/artifacts/
+tools/*/dist/

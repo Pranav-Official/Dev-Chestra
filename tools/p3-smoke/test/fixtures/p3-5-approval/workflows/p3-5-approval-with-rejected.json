@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "p3-5-approval-with-rejected",
+  "name": "P3.5 with rejected branch",
+  "graph": {
+    "nodes": [
+      { "id": "start", "type": "start", "name": "Start", "ui": { "x": 20, "y": 20 }, "params": [] },
+      { "id": "a", "type": "approval", "name": "Check", "ui": { "x": 240, "y": 20 }, "message": "Approve?", "irreversible": false },
+      { "id": "agent_ok", "type": "agent", "name": "OK", "ui": { "x": 480, "y": 0 }, "cli": "fake", "prompt": "ok", "output": { "type": "object", "properties": { "verdict": { "type": "string" } }, "required": ["verdict"], "additionalProperties": false }, "permissions": { "network": false, "write": [] } },
+      { "id": "agent_alt", "type": "agent", "name": "ALT", "ui": { "x": 480, "y": 80 }, "cli": "fake", "prompt": "alt", "output": { "type": "object", "properties": { "verdict": { "type": "string" } }, "required": ["verdict"], "additionalProperties": false }, "permissions": { "network": false, "write": [] } },
+      { "id": "done_ok", "type": "end", "name": "Done OK", "ui": { "x": 720, "y": 0 }, "status": "success", "result": "agent_ok" },
+      { "id": "done_alt", "type": "end", "name": "Done ALT", "ui": { "x": 720, "y": 80 }, "status": "success", "result": "agent_alt" }
+    ],
+    "edges": [
+      { "id": "e0", "from": "start", "to": "a" },
+      { "id": "e1", "from": "a", "to": "agent_ok" },
+      { "id": "e2", "from": "a.rejected", "to": "agent_alt" },
+      { "id": "e3", "from": "agent_ok", "to": "done_ok" },
+      { "id": "e4", "from": "agent_alt", "to": "done_alt" }
+    ]
+  }
+}

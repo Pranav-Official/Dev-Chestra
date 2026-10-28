@@ -1,0 +1,32 @@
+{
+  "label": "SYNTHETIC golden argv expectation, not a live capture",
+  "cli": "claude-code",
+  "version": "2.1.310",
+  "case": "fresh-readonly",
+  "bin": "claude",
+  "args": [
+    "-p",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--mcp-config",
+    "/run/mcp.json",
+    "--strict-mcp-config",
+    "--permission-mode",
+    "dontAsk",
+    "--allowedTools",
+    "mcp__relay__*,Read,Glob,Grep",
+    "--disallowedTools",
+    "Edit,Write,NotebookEdit,Bash,WebFetch,WebSearch",
+    "--max-turns",
+    "2",
+    "--model",
+    "claude-sonnet",
+    "--add-dir",
+    "/extra",
+    "--append-system-prompt",
+    "be brief",
+    "--max-budget-usd",
+    "0.5"
+  ]
+}

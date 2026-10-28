@@ -1,0 +1,53 @@
+# Claude Code 2.1.310 parse-recognition probes
+# Captured: 2026-10-26 (UTC). No model/inference was invoked.
+# Method: --mcp-config with deliberately invalid value fails during argument/config
+#         validation, proving later flags parsed. --session-id validates format first.
+
+## sentinel control: invalid --mcp-config alone
+$ claude -p --mcp-config "{invalid-json" </dev/null
+Error: Invalid MCP configuration:
+MCP config file not found: /home/pranavpp/Dev Works/DevChestra/{invalid-json
+exit=1
+
+## claude -p --mcp-config '{invalid-json' --max-turns 2
+Error: Invalid MCP configuration:
+MCP config file not found: /home/pranavpp/Dev Works/DevChestra/{invalid-json
+exit=1
+
+## claude -p --mcp-config '{invalid-json' --append-system-prompt-file /tmp/relay-spike/empty.md
+Error: Invalid MCP configuration:
+MCP config file not found: /home/pranavpp/Dev Works/DevChestra/{invalid-json
+exit=1
+
+## claude -p --mcp-config '{invalid-json' --system-prompt-file /tmp/relay-spike/empty.md
+Error: Invalid MCP configuration:
+MCP config file not found: /home/pranavpp/Dev Works/DevChestra/{invalid-json
+exit=1
+
+## claude -p --mcp-config '{invalid-json' --permission-mode dontAsk
+Error: Invalid MCP configuration:
+MCP config file not found: /home/pranavpp/Dev Works/DevChestra/{invalid-json
+exit=1
+
+## claude -p --mcp-config '{invalid-json' --permission-prompts none
+Error: Invalid MCP configuration:
+MCP config file not found: /home/pranavpp/Dev Works/DevChestra/{invalid-json
+exit=1
+
+## claude -p --mcp-config '{invalid-json' --strict-mcp-config
+Error: Invalid MCP configuration:
+MCP config file not found: /home/pranavpp/Dev Works/DevChestra/{invalid-json
+exit=1
+
+## claude -p --mcp-config '{invalid-json' --input-format text
+Error: Invalid MCP configuration:
+MCP config file not found: /home/pranavpp/Dev Works/DevChestra/{invalid-json
+exit=1
+
+## claude -p --mcp-config '{invalid-json' --session-id not-a-uuid
+Error: Invalid session ID. Must be a valid UUID.
+exit=1
+
+## claude -p --mcp-config '{invalid-json' --sandbox read-only
+error: unknown option '--sandbox'
+exit=1

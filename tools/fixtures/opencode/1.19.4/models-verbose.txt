@@ -1,0 +1,22 @@
+opencode/test-provider-a
+{
+  "id": "test-provider-a",
+  "providerID": "opencode",
+  "name": "Test Provider A",
+  "status": "active",
+  "cost": {
+    "input": 0,
+    "output": 0
+  },
+  "limit": {
+    "context": 200000,
+    "output": 32000
+  }
+}
+opencode/test-provider-b
+{
+  "id": "test-provider-b",
+  "providerID": "opencode",
+  "name": "Test Provider B",
+  "status": "active"
+}

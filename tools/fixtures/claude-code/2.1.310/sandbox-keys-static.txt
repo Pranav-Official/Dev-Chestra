@@ -1,0 +1,46 @@
+# Claude Code 2.1.310 static string extraction (NOT behavioral proof)
+# Captured: 2026-10-26. Source: installed ELF binary.
+# Command: strings -n 6 "$CLAUDE_BIN" | grep -oE 'sandbox\.[A-Za-z][A-Za-z0-9_.]{2,40}' | sort | uniq -c | sort -rn
+# This shows setting-key names present in the binary; it does not prove the
+# sandbox enforces anything. S-1b remains OPEN until a live curl/write test.
+
+     24 sandbox.network.allowLocalBinding
+     21 sandbox.credentials
+     14 sandbox.enabled
+     13 sandbox.filesystem.allowRead
+     12 sandbox.failIfUnavailable
+     10 sandbox.filesystem.disabled
+     10 sandbox.excludedCommands
+      9 sandbox.filesystem.allowWrite
+      9 sandbox.credentials.awsPairs
+      8 sandbox.network.allowedDomains
+      8 sandbox.filesystem
+      6 sandbox.network.allowManagedDomainsOnly
+      6 sandbox.filesystem.allowManagedReadPathsOnly
+      6 sandbox.credentials.files
+      6 sandbox.credentials.
+      5 sandbox.ripgrep
+      5 sandbox.network.tlsTerminate
+      5 sandbox.network.
+      5 sandbox.allowNestedUserNamespaces
+      4 sandbox.network.deniedDomains
+      4 sandbox.filesystem.
+      4 sandbox.enableWeakerNetworkIsolation
+      4 sandbox.enableWeakerNestedSandbox
+      4 sandbox.denies
+      4 sandbox.credentials.allowPlaintextInject
+      4 sandbox.bwrapPath
+      4 sandbox.autoAllowBashIfSandboxed
+      4 sandbox.allowUnsandboxedCommands
+      4 sandbox.allowAppleEvents
+      3 sandbox.workspace
+      3 sandbox.filesystem.denyRead
+      2 sandbox.seccomp.bpfPath
+      2 sandbox.network.socksProxyPort
+      2 sandbox.network.httpProxyPort
+      2 sandbox.network.allowMachLookup
+      2 sandbox.network.allowAllUnixSockets
+      2 sandbox.network
+      2 sandbox.ignoreViolations
+      2 sandbox.filesystem.allowRead.
+      2 sandbox.enabledPlatforms

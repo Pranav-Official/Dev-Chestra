@@ -1,0 +1,348 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-10-26T17:02:45Z",
+  "scope": "bounded CLI capability baseline: version/help/argument-parse/config-parse only",
+  "note": "No live model prompt, tool call, MCP handshake, session resume or paid inference was exercised. Version strings come from --version at capture time; install mtimes are intentionally not used as release evidence. Behavior flags are NOT verified by the presence of a binary or a help entry. P1 live smoke entries are separately marked inferenceInvoked:true.",
+  "host": {
+    "os": "Linux 7.2.11-1-cachyos x86_64",
+    "libc": "glibc 2.44",
+    "bubblewrap": "0.13.1",
+    "node": "v26.11.1",
+    "pnpm": "10.14.0",
+    "nodeSqlite": "available"
+  },
+  "liveSpikesStatus": {
+    "S-1": "open",
+    "S-1b": "open",
+    "S-2": "open",
+    "S-3": "open"
+  },
+  "clis": {
+    "claude-code": {
+      "binary": "claude",
+      "version": "2.1.310",
+      "versionCommand": "claude --version",
+      "versionOutput": "2.1.310 (Claude Code)",
+      "fixtures": [
+        {
+          "path": "tools/fixtures/claude-code/2.1.310/version.txt",
+          "sourceCommand": "claude --version",
+          "captureKind": "version",
+          "inferenceInvoked": false,
+          "behaviorVerified": false,
+          "redaction": "none",
+          "sha256": "03c71ebd08ddd569558734d42a29ae8c6a2a049e4a7fb78126979867e6f941d2"
+        },
+        {
+          "path": "tools/fixtures/claude-code/2.1.310/help.txt",
+          "sourceCommand": "claude --help",
+          "captureKind": "help",
+          "inferenceInvoked": false,
+          "behaviorVerified": false,
+          "redaction": "none",
+          "sha256": "b10f5c36adfe3285f6c5a0d18284f466e6c4486499de56ef62745e13312a7fbc"
+        },
+        {
+          "path": "tools/fixtures/claude-code/2.1.310/mcp-help.txt",
+          "sourceCommand": "claude mcp --help",
+          "captureKind": "help",
+          "inferenceInvoked": false,
+          "behaviorVerified": false,
+          "redaction": "none",
+          "sha256": "7119050de7984dc9d616f6b632fa3ee7fef92667eb5298ba57c73051e59cad46"
+        },
+        {
+          "path": "tools/fixtures/claude-code/2.1.310/auth-help.txt",
+          "sourceCommand": "claude auth --help",
+          "captureKind": "help",
+          "inferenceInvoked": false,
+          "behaviorVerified": false,
+          "redaction": "none",
+          "sha256": "07245cbb719ae3b2d0fb0d4700338c41b7a5e7b3f21db70469e40b00f8f2abb0"
+        },
+        {
+          "path": "tools/fixtures/claude-code/2.1.310/parse-probes.txt",
+          "sourceCommand": "claude -p --mcp-config '{invalid-json' <candidate-flag> </dev/null",
+          "captureKind": "argument-parse probe",
+          "inferenceInvoked": false,
+          "inferenceEvidence": "Deliberately invalid --mcp-config fails during config validation before any turn; --sandbox fails at argument parsing; --session-id fails format validation. No prompt was sent.",
+          "behaviorVerified": false,
+          "redaction": "none",
+          "sha256": "b09658e06c2de2d62c76682d4cc053a1c541fcd8db041c84ca6f0173b7a90283"
+        },
+        {
+          "path": "tools/fixtures/claude-code/2.1.310/resume-missing-session.txt",
+          "sourceCommand": "claude -p --mcp-config '{\"mcpServers\":{}}' --strict-mcp-config --resume 00000000-0000-4000-8000-000000000000 </dev/null",
+          "captureKind": "resume lookup (missing session)",
+          "inferenceInvoked": false,
+          "inferenceEvidence": "Session lookup fails with 'No conversation found' before a turn starts; fixed nil UUID, no real session.",
+          "behaviorVerified": false,
+          "redaction": "none",
+          "sha256": "e71a71bd80cd33916db82a1667e581286c95bb2774ecf882ae40f8f081bcf407"
+        },
+        {
+          "path": "tools/fixtures/claude-code/2.1.310/sandbox-keys-static.txt",
+          "sourceCommand": "strings -n 6 $CLAUDE_BIN | grep -oE 'sandbox\\.[A-Za-z][A-Za-z0-9_.]{2,40}' | sort | uniq -c | sort -rn",
+          "captureKind": "static binary string extraction",
+          "inferenceInvoked": false,
+          "behaviorVerified": false,
+          "redaction": "none",
+          "note": "Key names present in the binary; enforcement is NOT proven. S-1b stays open.",
+          "sha256": "3f24fba433016247620f4eea7404f56deed427360552c23a845cef537c4cea94"
+        },
+        {
+          "path": "tools/fixtures/claude-code/P1/2026-10-26T17-55-21-430Z-fresh.meta.json",
+          "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
+          "captureKind": "live smoke metadata",
+          "inferenceInvoked": true,
+          "behaviorVerified": true,
+          "redaction": "exec token, bearer, emails, provider keys, JWT, home/tmp paths",
+          "sha256": "e3939f49ca251b851f82f6500f7963ae5818932942425673cb7c8aaca5075608",
+          "bytes": 1213,
+          "mode": "fresh",
+          "accepted": true
+        },
+        {
+          "path": "tools/fixtures/claude-code/P1/2026-10-26T17-55-21-430Z-fresh.stderr.txt",
+          "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
+          "captureKind": "live smoke stream",
+          "inferenceInvoked": true,
+          "behaviorVerified": true,
+          "redaction": "exec token, bearer, emails, provider keys, JWT, home/tmp paths",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        {
+          "path": "tools/fixtures/claude-code/P1/2026-10-26T17-55-21-430Z-fresh.stdout.ndjson",
+          "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
+          "captureKind": "live smoke stream",
+          "inferenceInvoked": true,
+          "behaviorVerified": true,
+          "redaction": "exec token, bearer, emails, provider keys, JWT, home/tmp paths",
+          "sha256": "5823ef63866db683f6672f01b2351abeee8f0ae9853d4cf970a4922a2a899bf8",
+          "bytes": 10746
+        },
+        {
+          "path": "tools/fixtures/claude-code/P1/2026-10-26T17-55-21-431Z-resume.meta.json",
+          "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
+          "captureKind": "live smoke metadata",
+          "inferenceInvoked": true,
+          "behaviorVerified": true,
+          "redaction": "exec token, bearer, emails, provider keys, JWT, home/tmp paths",
+          "sha256": "2cf52d8a21f1817e4553b232d6fe36fb2420ea278ac707bbb3b26a72b194366e",
+          "bytes": 1301,
+          "mode": "resume",
+          "accepted": true
+        },
+        {
+          "path": "tools/fixtures/claude-code/P1/2026-10-26T17-55-21-431Z-resume.stderr.txt",
+          "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
+          "captureKind": "live smoke stream",
+          "inferenceInvoked": true,
+          "behaviorVerified": true,
+          "redaction": "exec token, bearer, emails, provider keys, JWT, home/tmp paths",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        {
+          "path": "tools/fixtures/claude-code/P1/2026-10-26T17-55-21-431Z-resume.stdout.ndjson",
+          "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
+          "captureKind": "live smoke stream",
+          "inferenceInvoked": true,
+          "behaviorVerified": true,
+          "redaction": "exec token, bearer, emails, provider keys, JWT, home/tmp paths",
+          "sha256": "2a1b11c09ffac7952e48fd246fbaa836b8d40be9786709af1fa0eb2c70251f84",
+          "bytes": 9065
+        }
+      ]
+    },
+    "codex": {
+      "binary": "codex",
+      "version": "0.164.0",
+      "versionCommand": "codex --version",
+      "versionOutput": "codex-cli 0.164.0",
+      "fixtures": [
+        {
+          "path": "tools/fixtures/codex/0.164.0/version.txt",
+          "sourceCommand": "codex --version",
+          "captureKind": "version",
+          "inferenceInvoked": false,
+          "behaviorVerified": false,
+          "redaction": "none",
+          "sha256": "1c27284b7f5c74467a59a96821de67dc184c09423d800257b4f2e8eb3b1445a6"
+        },
+        {
+          "path": "tools/fixtures/codex/0.164.0/help.txt",
+          "sourceCommand": "codex --help",
+          "captureKind": "help",
+          "inferenceInvoked": false,
+          "behaviorVerified": false,
+          "redaction": "none",
+          "sha256": "70d960401dfe708743865b6338dfe986663345b58cca9ca67308d041e90f4053"
+        },
+        {
+          "path": "tools/fixtures/codex/0.164.0/exec-help.txt",
+          "sourceCommand": "codex exec --help",
+          "captureKind": "help",
+          "inferenceInvoked": false,
+          "behaviorVerified": false,
+          "redaction": "none",
+          "sha256": "df0d864ca2076f7654288c6a1e3394e3eaa2ea8f15021df2524efdd90c70986c"
+        },
+        {
+          "path": "tools/fixtures/codex/0.164.0/exec-resume-help.txt",
+          "sourceCommand": "codex exec resume --help",
+          "captureKind": "help",
+          "inferenceInvoked": false,
+          "behaviorVerified": false,
+          "redaction": "none",
+          "sha256": "186d8922e15809b2072de0fcd943d47ce1745e9ab112b651f3e4e722a17fa969"
+        },
+        {
+          "path": "tools/fixtures/codex/0.164.0/mcp-help.txt",
+          "sourceCommand": "codex mcp --help",
+          "captureKind": "help",
+          "inferenceInvoked": false,
+          "behaviorVerified": false,
+          "redaction": "none",
+          "sha256": "9e7d1a796b488470f391207bc994f268a100d85e7b2224e04b1514b8787bad09"
+        },
+        {
+          "path": "tools/fixtures/codex/0.164.0/mcp-add-help.txt",
+          "sourceCommand": "codex mcp add --help",
+          "captureKind": "help",
+          "inferenceInvoked": false,
+          "behaviorVerified": false,
+          "redaction": "none",
+          "sha256": "fbfb2ad6745ccda1de93b40e4aa928965fa01f2d57d191ac22ae93c526a6d96d"
+        },
+        {
+          "path": "tools/fixtures/codex/0.164.0/login-help.txt",
+          "sourceCommand": "codex login --help",
+          "captureKind": "help",
+          "inferenceInvoked": false,
+          "behaviorVerified": false,
+          "redaction": "none",
+          "sha256": "06ef70370c92189627bf3d969c6b304506f5b161f8f751496a02668d2103771f"
+        },
+        {
+          "path": "tools/fixtures/codex/0.164.0/config-probes.txt",
+          "sourceCommand": "CODEX_HOME=<temp> codex features list; CODEX_HOME=<temp> codex mcp add relay --env RELAY_EXEC_TOKEN=placeholder -- node /tmp/relay-sim/shim.js; codex exec resume --sandbox|--cd ...",
+          "captureKind": "local config-parse probe",
+          "inferenceInvoked": false,
+          "inferenceEvidence": "Temp CODEX_HOME under /tmp only; 'features list' loads config and exits; resume flag rejection happens in argument parsing (exit 2) before any session lookup. Placeholder token, no real secret.",
+          "behaviorVerified": false,
+          "redaction": "placeholder token only; no real credential",
+          "sha256": "5cc4ff653cc442cc5d98697fdc4e6a6ba302632d0781510a636dd8d3c898a2c4"
+        },
+        {
+          "path": "tools/fixtures/codex/P1/2026-10-26T17-55-44-934Z-fresh.meta.json",
+          "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
+          "captureKind": "live smoke metadata",
+          "inferenceInvoked": true,
+          "behaviorVerified": false,
+          "redaction": "exec token, bearer, emails, provider keys, JWT, home/tmp paths",
+          "sha256": "c6c32f40ab98e9eda13e8ae82165c911ce0bdf876a2e57e0a0550f817f8c2faa",
+          "bytes": 1030,
+          "mode": "fresh",
+          "accepted": false,
+          "blocker": "MCP tool call requires approval, but approval policy is never"
+        },
+        {
+          "path": "tools/fixtures/codex/P1/2026-10-26T17-55-44-934Z-fresh.stderr.txt",
+          "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
+          "captureKind": "live smoke stream",
+          "inferenceInvoked": true,
+          "behaviorVerified": false,
+          "redaction": "exec token, bearer, emails, provider keys, JWT, home/tmp paths",
+          "sha256": "3e75d28a6681c31400a3f0fcb564c7613fd42796fb83294e4d53fea86bcbd401",
+          "bytes": 29
+        },
+        {
+          "path": "tools/fixtures/codex/P1/2026-10-26T17-55-44-934Z-fresh.stdout.ndjson",
+          "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
+          "captureKind": "live smoke stream",
+          "inferenceInvoked": true,
+          "behaviorVerified": false,
+          "redaction": "exec token, bearer, emails, provider keys, JWT, home/tmp paths",
+          "sha256": "2dc6b1dac15fe7f8fba3fd85348c9cbdf59476276d47b0e0344f555da5acad40",
+          "bytes": 788
+        },
+        {
+          "path": "tools/fixtures/codex/P1/2026-10-26T18-00-09-245Z-fresh.meta.json",
+          "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
+          "captureKind": "live smoke metadata",
+          "inferenceInvoked": true,
+          "behaviorVerified": true,
+          "redaction": "exec token, bearer, emails, provider keys, JWT, home/tmp paths",
+          "sha256": "dc2cf38d2450357c28100f9a0a13a6a45eab17e3be1ed970304134da81058ba7",
+          "bytes": 1423,
+          "mode": "fresh",
+          "accepted": true
+        },
+        {
+          "path": "tools/fixtures/codex/P1/2026-10-26T18-00-09-245Z-fresh.stderr.txt",
+          "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
+          "captureKind": "live smoke stream",
+          "inferenceInvoked": true,
+          "behaviorVerified": true,
+          "redaction": "exec token, bearer, emails, provider keys, JWT, home/tmp paths",
+          "sha256": "3e75d28a6681c31400a3f0fcb564c7613fd42796fb83294e4d53fea86bcbd401",
+          "bytes": 29
+        },
+        {
+          "path": "tools/fixtures/codex/P1/2026-10-26T18-00-09-245Z-fresh.stdout.ndjson",
+          "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
+          "captureKind": "live smoke stream",
+          "inferenceInvoked": true,
+          "behaviorVerified": true,
+          "redaction": "exec token, bearer, emails, provider keys, JWT, home/tmp paths",
+          "sha256": "5d9d6d5a7ba5adf6edb6564190ed5b27fb9e33636213f52079214fd9d1ae9bff",
+          "bytes": 840
+        },
+        {
+          "path": "tools/fixtures/codex/P1/2026-10-26T18-00-09-245Z-resume.meta.json",
+          "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
+          "captureKind": "live smoke metadata",
+          "inferenceInvoked": true,
+          "behaviorVerified": true,
+          "redaction": "exec token, bearer, emails, provider keys, JWT, home/tmp paths",
+          "sha256": "1d3085b318d9476c8a820cc3d5583984e8dcac81a05c62340ce0f2ee37606f50",
+          "bytes": 1558,
+          "mode": "resume",
+          "accepted": true
+        },
+        {
+          "path": "tools/fixtures/codex/P1/2026-10-26T18-00-09-245Z-resume.stderr.txt",
+          "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
+          "captureKind": "live smoke stream",
+          "inferenceInvoked": true,
+          "behaviorVerified": true,
+          "redaction": "exec token, bearer, emails, provider keys, JWT, home/tmp paths",
+          "sha256": "3e75d28a6681c31400a3f0fcb564c7613fd42796fb83294e4d53fea86bcbd401",
+          "bytes": 29
+        },
+        {
+          "path": "tools/fixtures/codex/P1/2026-10-26T18-00-09-245Z-resume.stdout.ndjson",
+          "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
+          "captureKind": "live smoke stream",
+          "inferenceInvoked": true,
+          "behaviorVerified": true,
+          "redaction": "exec token, bearer, emails, provider keys, JWT, home/tmp paths",
+          "sha256": "8a540b33ab034c6f480af26b1d9700cc58337a4cfa8cdffe4cb09a11ef5e93f2",
+          "bytes": 851
+        }
+      ]
+    }
+  },
+  "p1LiveSmoke": {
+    "capturedAt": "2026-10-26T18:00:09Z",
+    "status": "bounded pass: Claude fresh+resume, Codex fresh+resume after per-server approval fix",
+    "open": [
+      "S-1b sandbox enforcement",
+      "crash/SIGKILL resume",
+      "Codex OS sandbox/network negative test",
+      "quota patterns"
+    ]
+  }
+}

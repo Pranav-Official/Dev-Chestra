@@ -1,0 +1,7 @@
+# Claude Code 2.1.310 resume-missing-session probe
+# Captured: 2026-10-26 (UTC). No model/inference was invoked; the session lookup
+# fails before a turn starts. UUID is a fixed nil UUID, not a real session.
+
+$ claude -p --mcp-config "{\"mcpServers\":{}}" --strict-mcp-config --resume 00000000-0000-4000-8000-000000000000 </dev/null
+No conversation found with session ID: 00000000-0000-4000-8000-000000000000
+exit=1

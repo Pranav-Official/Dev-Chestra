@@ -1,0 +1,18 @@
+{
+  "label": "SYNTHETIC golden argv expectation, not a live capture",
+  "cli": "fake",
+  "version": "0.1.0",
+  "case": "fresh-checkpoint",
+  "bin": "/usr/bin/node",
+  "args": [
+    "/fake/main.js",
+    "--format",
+    "relay-fake",
+    "--cwd",
+    "/work",
+    "--checkpoint",
+    "/work/.relay/fake-checkpoint.json",
+    "--session",
+    "fake-session"
+  ]
+}

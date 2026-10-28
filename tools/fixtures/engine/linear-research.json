@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "id": "linear-research",
+  "name": "Linear research",
+  "graph": {
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "name": "Start",
+        "params": [
+          {
+            "name": "topic",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      {
+        "id": "research",
+        "type": "agent",
+        "name": "Research",
+        "cli": "fake",
+        "prompt": "Research {{ start.topic }} and return a summary.",
+        "output": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string"
+            }
+          },
+          "required": ["summary"],
+          "additionalProperties": false
+        },
+        "permissions": {
+          "network": false,
+          "write": ["workspace"]
+        },
+        "workspace": {
+          "mode": "scratch"
+        },
+        "limits": {
+          "timeoutMin": 10,
+          "validationRetries": 2,
+          "crashRetries": 1
+        },
+        "context": {
+          "project": "none",
+          "workflow": "none"
+        }
+      },
+      {
+        "id": "report",
+        "type": "shell",
+        "name": "Report",
+        "command": "printf '%s' {{ research.summary }}",
+        "workspace": {
+          "mode": "scratch"
+        },
+        "timeoutMin": 2,
+        "allowFailure": false
+      },
+      {
+        "id": "end",
+        "type": "end",
+        "name": "End",
+        "status": "success",
+        "result": "{ \"summary\": research.summary, \"echo\": report.stdout }"
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "from": "start",
+        "to": "research"
+      },
+      {
+        "id": "e2",
+        "from": "research",
+        "to": "report"
+      },
+      {
+        "id": "e3",
+        "from": "report",
+        "to": "end"
+      }
+    ]
+  }
+}

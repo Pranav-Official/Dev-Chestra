@@ -1,0 +1,5 @@
+{"type":"relay-fake","event":"session","profile":"fake","sessionId":"fake-example","cwd":"/tmp/work","resumed":false,"pid":4242,"nextStepIndex":0,"promptBytes":8,"promptSha256":"0000000000000000000000000000000000000000000000000000000000000000"}
+{"type":"relay-fake","event":"tools","profile":"fake","sessionId":"fake-example","cwd":"/tmp/work","names":["submit_result"],"count":1}
+{"type":"relay-fake","event":"say","profile":"fake","sessionId":"fake-example","cwd":"/tmp/work","index":0,"text":"working"}
+{"type":"relay-fake","event":"submit_result","profile":"fake","sessionId":"fake-example","cwd":"/tmp/work","index":1,"accepted":true,"isError":false,"text":"Result accepted."}
+{"type":"relay-fake","event":"end","profile":"fake","sessionId":"fake-example","cwd":"/tmp/work","submitted":true,"nextStepIndex":2,"steps":2}
