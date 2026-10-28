@@ -1,7 +1,6 @@
 import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   createAdapter,
@@ -10,6 +9,7 @@ import {
   type OpencodeModelDiscoveryRequest,
   opencodeConfigIdentity,
 } from "../src/index.js";
+import { splitOpencodeMcpTool } from "../src/opencode.js";
 import { FIXTURES, fixtureJson, fixtureText, request, TOKEN } from "./helpers.js";
 
 const STANDIN = resolve(FIXTURES, "..", "opencode", "standin.mjs");
@@ -446,6 +446,163 @@ describe("opencodeConfigIdentity", () => {
   });
 });
 
+describe("opencode mcp selection", () => {
+  const SECRET = "header-secret-value-xyz";
+
+  function planned(overrides: Parameters<typeof request>[0]) {
+    const adapter = createAdapter("opencode");
+    const result = adapter.plan(request(overrides));
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("plan failed unexpectedly");
+    return result.value;
+  }
+
+  function inlineConfig(inv: { env: Record<string, string> }): Record<string, unknown> {
+    return JSON.parse(inv.env.OPENCODE_CONFIG_CONTENT ?? "{}") as Record<string, unknown>;
+  }
+
+  it("attaches stdio and remote extras with enabled:true", () => {
+    const inv = planned({
+      extraMcp: [
+        {
+          name: "fixture",
+          scope: "global",
+          transport: "stdio",
+          command: "/usr/bin/node",
+          args: ["echo-server.mjs"],
+          env: { FIXTURE_MCP_NAME: "fixture" },
+          cwd: "/work",
+        },
+        {
+          name: "remote",
+          scope: "project",
+          transport: "http",
+          url: "https://mcp.example.com/mcp",
+          headers: { Authorization: `Bearer ${SECRET}` },
+        },
+      ],
+    });
+    const config = inlineConfig(inv);
+    expect(config.mcp).toMatchObject({
+      relay: { type: "local", enabled: true },
+      fixture: {
+        type: "local",
+        command: ["/usr/bin/node", "echo-server.mjs"],
+        environment: { FIXTURE_MCP_NAME: "fixture" },
+        cwd: "/work",
+        enabled: true,
+      },
+      remote: {
+        type: "remote",
+        url: "https://mcp.example.com/mcp",
+        headers: { Authorization: `Bearer ${SECRET}` },
+        enabled: true,
+      },
+    });
+    // Secrets travel in the child env, never in argv.
+    expect(JSON.stringify(inv.args)).not.toContain(SECRET);
+    expect(JSON.stringify(describeInvocation(inv))).not.toContain(SECRET);
+  });
+
+  it("switches off known-but-unselected servers and never relay", () => {
+    const inv = planned({
+      extraMcp: [
+        {
+          name: "fixture",
+          scope: "global",
+          transport: "stdio",
+          command: "/usr/bin/node",
+          args: ["x.mjs"],
+        },
+      ],
+      knownMcp: [
+        { name: "fixture", scope: "global" },
+        { name: "other", scope: "global" },
+        { name: "docs", scope: "project" },
+        { name: "relay", scope: "global" },
+      ],
+    });
+    const config = inlineConfig(inv);
+    const mcp = config.mcp as Record<string, Record<string, unknown>>;
+    expect(mcp.other).toEqual({ enabled: false });
+    expect(mcp.docs).toEqual({ enabled: false });
+    expect(mcp.fixture).toMatchObject({ enabled: true, type: "local" });
+    expect(mcp.relay).toMatchObject({ enabled: true, type: "local" });
+  });
+
+  it("emits no mcp extras when the engine selected nothing", () => {
+    const inv = planned({});
+    const config = inlineConfig(inv);
+    expect(Object.keys(config.mcp as Record<string, unknown>)).toEqual(["relay"]);
+    expect(config.permission).toBeUndefined();
+  });
+
+  it("denies bash only when shell is false", () => {
+    const off = inlineConfig(
+      planned({
+        permissions: { network: false, write: ["workspace"], extraReadDirs: [], shell: false },
+      }),
+    );
+    expect(off.permission).toEqual({ bash: "deny" });
+    const on = inlineConfig(
+      planned({ permissions: { network: false, write: [], extraReadDirs: [], shell: true } }),
+    );
+    expect(on.permission).toBeUndefined();
+    const legacy = inlineConfig(planned({}));
+    expect(legacy.permission).toBeUndefined();
+  });
+
+  it("rejects unsafe names, relay, duplicates and missing launch details", () => {
+    const adapter = createAdapter("opencode");
+    const bad = [
+      { extraMcp: [{ name: "evil.name", scope: "global", transport: "stdio", command: "x" }] },
+      { extraMcp: [{ name: "relay", scope: "global", transport: "stdio", command: "x" }] },
+      {
+        extraMcp: [
+          { name: "dup", scope: "global", transport: "stdio", command: "x" },
+          { name: "dup", scope: "global", transport: "stdio", command: "y" },
+        ],
+      },
+      { extraMcp: [{ name: "nocmd", scope: "global", transport: "stdio" }] },
+      { extraMcp: [{ name: "nourl", scope: "global", transport: "http" }] },
+      { knownMcp: [{ name: "evil name", scope: "global" }] },
+    ] as Parameters<typeof request>[0][];
+    for (const overrides of bad) {
+      expect(adapter.plan(request(overrides)).ok).toBe(false);
+    }
+  });
+});
+
+describe("splitOpencodeMcpTool", () => {
+  const servers = ["relay", "fixture", "my-server"];
+
+  it("splits <server>_<tool> on the longest known prefix", () => {
+    expect(splitOpencodeMcpTool("relay_submit_result", servers)).toEqual({
+      server: "relay",
+      tool: "submit_result",
+    });
+    expect(splitOpencodeMcpTool("fixture_fixture_echo", servers)).toEqual({
+      server: "fixture",
+      tool: "fixture_echo",
+    });
+    expect(splitOpencodeMcpTool("my-server_do_thing", servers)).toEqual({
+      server: "my-server",
+      tool: "do_thing",
+    });
+  });
+
+  it("returns null for built-ins and unknown servers", () => {
+    expect(splitOpencodeMcpTool("bash", servers)).toBeNull();
+    expect(splitOpencodeMcpTool("read", servers)).toBeNull();
+    expect(splitOpencodeMcpTool("unknown_tool", servers)).toBeNull();
+    expect(splitOpencodeMcpTool("relay_", servers)).toBeNull();
+    expect(splitOpencodeMcpTool("relay_submit_result", [])).toBeNull();
+  });
+
+  it("prefers the longest server prefix on overlap", () => {
+    expect(splitOpencodeMcpTool("ab_c", ["a", "ab"])).toEqual({ server: "ab", tool: "c" });
+  });
+});
 describe("opencode probe", () => {
   it("reports the standin version and fails safe when missing", async () => {
     const h = await harness();
