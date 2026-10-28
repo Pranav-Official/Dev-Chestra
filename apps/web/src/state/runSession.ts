@@ -155,6 +155,14 @@ export function markHistoryError(session: RunSession, message: string): RunSessi
 
 export function setReplayAt(session: RunSession, at: number | null): RunSession {
   if (at === null || !Number.isSafeInteger(at) || at < 1) {
+    if (
+      session.replayAt === null &&
+      session.view === session.head &&
+      !session.replayPending &&
+      !session.replayMissing
+    ) {
+      return session;
+    }
     return {
       ...session,
       replayAt: null,
@@ -163,6 +171,10 @@ export function setReplayAt(session: RunSession, at: number | null): RunSession 
       view: session.head,
     };
   }
+  // Same cursor: return the session untouched so the run canvas does not
+  // re-render (and React Flow does not tear down its edge DOM) on redundant
+  // re-applies, e.g. the ?at= effect firing after an eager scrub update.
+  if (session.replayAt === at) return session;
   return resolveReplay({ ...session, replayAt: at });
 }
 
