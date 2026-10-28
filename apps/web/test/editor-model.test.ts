@@ -366,8 +366,8 @@ describe("connection rules", () => {
 
     const unsupported = {
       ...agentA,
-      id: "decision1",
-      type: "decision",
+      id: "map1",
+      type: "map",
     } as unknown as WorkflowNode;
     const unsupportedFile: WorkflowFile = {
       schemaVersion: 1,
@@ -377,11 +377,11 @@ describe("connection rules", () => {
     };
     const rejected = executeCommand(createEditorState(unsupportedFile), {
       kind: "connect",
-      connection: { source: agentB.id, target: "decision1" },
+      connection: { source: agentB.id, target: "map1" },
     });
     expect(rejected.ok).toBe(false);
     if (!rejected.ok)
-      expect(rejected.error).toMatch(/Start, Agent, Shell, Gate, Join, Approval and End/);
+      expect(rejected.error).toMatch(/Start, Agent, Shell, Gate, Join, Approval, Decision and End/);
   });
 
   it("does not reject a valid edge because another draft field is invalid", () => {

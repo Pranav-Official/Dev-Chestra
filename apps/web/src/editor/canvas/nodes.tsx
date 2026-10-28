@@ -1,4 +1,10 @@
-import { decisionHandles, type Issue, type NodeType, type WorkflowNode } from "@relay/schema";
+import {
+  DECISION_UNCERTAIN_HANDLE,
+  decisionHandles,
+  type Issue,
+  type NodeType,
+  type WorkflowNode,
+} from "@relay/schema";
 import { Handle, type Node, type NodeProps, Position, useUpdateNodeInternals } from "@xyflow/react";
 import {
   AlertTriangle,
@@ -7,6 +13,7 @@ import {
   GitBranch,
   GitMerge,
   Play,
+  Scale,
   ShieldCheck,
   TerminalSquare,
 } from "lucide-react";
@@ -17,6 +24,11 @@ export interface EditorNodeData extends Record<string, unknown> {
   issues: readonly Issue[];
   readOnly: boolean;
   unsupported: boolean;
+  /**
+   * True when a decision node's `uncertain` handle can occur but has no outgoing
+   * edge. Reaching it unwired fails the run, so the canvas flags it.
+   */
+  unwiredUncertain?: boolean;
 }
 
 export type EditorFlowNode = Node<EditorNodeData, "editor" | "unsupported">;
@@ -28,6 +40,7 @@ function Icon({ type }: { type: NodeType }) {
   if (type === "gate") return <GitBranch size={13} aria-hidden="true" />;
   if (type === "join") return <GitMerge size={13} aria-hidden="true" />;
   if (type === "approval") return <ShieldCheck size={13} aria-hidden="true" />;
+  if (type === "decision") return <Scale size={13} aria-hidden="true" />;
   if (type === "end") return <Flag size={13} aria-hidden="true" />;
   return <AlertTriangle size={13} aria-hidden="true" />;
 }
@@ -128,7 +141,7 @@ function HandleRow({
 }
 
 export function EditorNodeView({ data, selected }: NodeProps<EditorFlowNode>) {
-  const { node, issues, readOnly, unsupported } = data;
+  const { node, issues, readOnly, unsupported, unwiredUncertain } = data;
   const updateNodeInternals = useUpdateNodeInternals();
   const signature = unsupported ? null : handleSignature(node);
   const measured = useRef<string | null>(null);
@@ -142,6 +155,7 @@ export function EditorNodeView({ data, selected }: NodeProps<EditorFlowNode>) {
   const gate = !unsupported && node.type === "gate" ? node : null;
   const join = !unsupported && node.type === "join" ? node : null;
   const approval = !unsupported && node.type === "approval" ? node : null;
+  const decision = !unsupported && node.type === "decision" ? node : null;
   return (
     <button
       type="button"
@@ -177,6 +191,17 @@ export function EditorNodeView({ data, selected }: NodeProps<EditorFlowNode>) {
           >
             <AlertTriangle size={11} aria-hidden="true" />
             <span>{issueCount}</span>
+          </span>
+        ) : null}
+        {decision !== null && unwiredUncertain === true ? (
+          <span
+            className="ed-node-issues ed-node-warn"
+            role="img"
+            aria-label="Uncertain route is not wired"
+            title="The uncertain route can always occur (low confidence, refusal, or provider error with onError uncertain) but has no outgoing edge. Reaching it fails the run."
+          >
+            <AlertTriangle size={11} aria-hidden="true" />
+            <span>?</span>
           </span>
         ) : null}
       </div>
@@ -234,7 +259,30 @@ export function EditorNodeView({ data, selected }: NodeProps<EditorFlowNode>) {
           />
         </div>
       )}
-      {!unsupported && node.type !== "end" && gate === null && approval === null ? (
+      {decision === null ? null : (
+        <div className="ed-node-handle-list" data-testid={`ed-decision-handles-${node.id}`}>
+          {decisionHandles(decision).map((handle) => (
+            <HandleRow
+              key={handle}
+              side="out"
+              id={`out:${handle}`}
+              label={handle}
+              title={
+                handle === DECISION_UNCERTAIN_HANDLE
+                  ? "Fallback when the model is unsure, refuses, or the provider fails"
+                  : `Decision route ${handle}`
+              }
+              testId={`ed-handle-${node.id}-out-${handle}`}
+              readOnly={readOnly}
+            />
+          ))}
+        </div>
+      )}
+      {!unsupported &&
+      node.type !== "end" &&
+      gate === null &&
+      approval === null &&
+      decision === null ? (
         <Handle
           type="source"
           position={Position.Right}

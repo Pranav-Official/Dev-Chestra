@@ -1,5 +1,15 @@
-import type { Edge, GateNode, JoinNode, WorkflowFile, WorkflowNode } from "@relay/schema";
-import { HANDLE_ID_PATTERN } from "@relay/schema";
+import type {
+  DecisionChoiceMode,
+  DecisionMode,
+  DecisionNode,
+  DecisionScoreMode,
+  Edge,
+  GateNode,
+  JoinNode,
+  WorkflowFile,
+  WorkflowNode,
+} from "@relay/schema";
+import { DECISION_UNCERTAIN_HANDLE, decisionHandles, HANDLE_ID_PATTERN } from "@relay/schema";
 import type { ConnectRequest } from "./types.js";
 
 export interface ParsedEndpoint {
@@ -22,6 +32,7 @@ const SUPPORTED_TYPES: ReadonlySet<string> = new Set<string>([
   "gate",
   "join",
   "approval",
+  "decision",
   "end",
 ]);
 
@@ -143,6 +154,16 @@ export function danglingHandleProblem(
       }
     }
   }
+  if (before.type === "decision" && after.type === "decision") {
+    const next = new Set(decisionHandles(after));
+    for (const handle of decisionHandles(before)) {
+      if (next.has(handle)) continue;
+      const endpoint = `${before.id}.${handle}`;
+      if (edges.some((edge) => edge.from === endpoint || edge.to === endpoint)) {
+        return `Decision handle '${handle}' is connected. Remove its connection in the same edit.`;
+      }
+    }
+  }
   return null;
 }
 
@@ -154,6 +175,311 @@ export function edgesFromGateBranch(file: WorkflowFile, nodeId: string, branchId
 export function edgesIntoJoinInput(file: WorkflowFile, nodeId: string, inputName: string): Edge[] {
   const endpoint = `${nodeId}.${inputName}`;
   return file.graph.edges.filter((edge) => edge.to === endpoint);
+}
+
+export function edgesFromDecisionHandle(
+  file: WorkflowFile,
+  nodeId: string,
+  handleId: string,
+): Edge[] {
+  const endpoint = `${nodeId}.${handleId}`;
+  return file.graph.edges.filter((edge) => edge.from === endpoint);
+}
+
+// ---------------------------------------------------------------------------
+// Decision mode helpers (contract section 3). Pure node transforms; forms
+// commit them through onRoutingChange so each edit stays one undoable command.
+// Option<->branch consistency is preserved by construction: added options join
+// the first branch, removed options leave their branch, and removing a branch
+// moves its orphaned options to the first remaining branch.
+// ---------------------------------------------------------------------------
+
+/** Default branch/band handle for an arbitrary label (levels may contain spaces). */
+export function slugDecisionHandle(label: string, used: readonly string[]): string {
+  const taken = new Set(used);
+  const base =
+    label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48) || "band";
+  const start = /^[a-z0-9]/.test(base) ? base : `b-${base}`;
+  if (!taken.has(start)) return start;
+  return nextHandleId(start, used);
+}
+
+/** One band per level, highest first; the lowest level is the null floor. */
+export function defaultDecisionBandsForLevels(
+  levels: DecisionScoreMode["levels"],
+): DecisionScoreMode["bands"] {
+  const used: string[] = [];
+  const bands: DecisionScoreMode["bands"] = [];
+  for (let index = levels.length - 1; index >= 1; index -= 1) {
+    const label = levels[index]?.label ?? `level${index}`;
+    const id = slugDecisionHandle(label, used);
+    used.push(id);
+    bands.push({ id, atLeast: index });
+  }
+  const floorLabel = levels[0]?.label ?? "level0";
+  const floorId = slugDecisionHandle(floorLabel, used);
+  bands.push({ id: floorId, atLeast: null });
+  return bands;
+}
+
+export function defaultDecisionMode(kind: DecisionMode["kind"]): DecisionMode {
+  if (kind === "boolean") return { kind: "boolean" };
+  if (kind === "choice") {
+    return {
+      kind: "choice",
+      options: [{ value: "yes" }, { value: "no" }],
+      branches: [
+        { id: "yes", values: ["yes"] },
+        { id: "no", values: ["no"] },
+      ],
+    };
+  }
+  const levels = [{ label: "low" }, { label: "medium" }, { label: "high" }];
+  return { kind: "score", levels, bands: defaultDecisionBandsForLevels(levels) };
+}
+
+function asChoice(node: DecisionNode): DecisionChoiceMode | null {
+  return node.mode.kind === "choice" ? node.mode : null;
+}
+
+function asScore(node: DecisionNode): DecisionScoreMode | null {
+  return node.mode.kind === "score" ? node.mode : null;
+}
+
+export function addDecisionOption(node: DecisionNode, value?: string): DecisionNode | null {
+  const mode = asChoice(node);
+  if (mode === null || mode.options.length >= 255) return null;
+  const next =
+    value ??
+    nextHandleId(
+      "option",
+      mode.options.map((option) => option.value),
+    );
+  if (mode.options.some((option) => option.value === next)) return null;
+  const options = [...mode.options, { value: next }];
+  const branches =
+    mode.branches.length === 0
+      ? [{ id: slugDecisionHandle(next, []), values: [next] }]
+      : mode.branches.map((branch, index) =>
+          index === 0 ? { ...branch, values: [...branch.values, next] } : branch,
+        );
+  return { ...node, mode: { ...mode, options, branches } };
+}
+
+export function removeDecisionOption(node: DecisionNode, value: string): DecisionNode | null {
+  const mode = asChoice(node);
+  if (mode === null || !mode.options.some((option) => option.value === value)) return null;
+  if (mode.options.length <= 1) return null;
+  return {
+    ...node,
+    mode: {
+      ...mode,
+      options: mode.options.filter((option) => option.value !== value),
+      branches: mode.branches.map((branch) => ({
+        ...branch,
+        values: branch.values.filter((candidate) => candidate !== value),
+      })),
+    },
+  };
+}
+
+export function updateDecisionOption(
+  node: DecisionNode,
+  value: string,
+  patch: { value?: string; description?: string },
+): DecisionNode | null {
+  const mode = asChoice(node);
+  if (mode === null) return null;
+  if (patch.value !== undefined && patch.value !== value) {
+    if (patch.value.length < 1 || patch.value.length > 100) return null;
+    if (mode.options.some((option) => option.value === patch.value)) return null;
+  }
+  const nextValue = patch.value ?? value;
+  return {
+    ...node,
+    mode: {
+      ...mode,
+      options: mode.options.map((option) =>
+        option.value === value
+          ? {
+              value: nextValue,
+              ...(patch.description !== undefined
+                ? { description: patch.description }
+                : option.description === undefined
+                  ? {}
+                  : { description: option.description }),
+            }
+          : option,
+      ),
+      branches: mode.branches.map((branch) => ({
+        ...branch,
+        values: branch.values.map((candidate) => (candidate === value ? nextValue : candidate)),
+      })),
+    },
+  };
+}
+
+/** Move an option into another branch; every option stays in exactly one branch. */
+export function setDecisionOptionBranch(
+  node: DecisionNode,
+  value: string,
+  branchId: string,
+): DecisionNode | null {
+  const mode = asChoice(node);
+  if (mode === null) return null;
+  if (!mode.options.some((option) => option.value === value)) return null;
+  if (!mode.branches.some((branch) => branch.id === branchId)) return null;
+  return {
+    ...node,
+    mode: {
+      ...mode,
+      branches: mode.branches.map((branch) => {
+        if (branch.id === branchId) {
+          return branch.values.includes(value)
+            ? branch
+            : { ...branch, values: [...branch.values, value] };
+        }
+        return { ...branch, values: branch.values.filter((candidate) => candidate !== value) };
+      }),
+    },
+  };
+}
+
+export function addDecisionBranch(node: DecisionNode): DecisionNode | null {
+  const mode = asChoice(node);
+  if (mode === null) return null;
+  const id = slugDecisionHandle(
+    "branch",
+    mode.branches.map((branch) => branch.id),
+  );
+  return { ...node, mode: { ...mode, branches: [...mode.branches, { id, values: [] }] } };
+}
+
+export function renameDecisionBranch(
+  node: DecisionNode,
+  from: string,
+  to: string,
+): DecisionNode | null {
+  const mode = asChoice(node);
+  if (mode === null) return null;
+  if (!HANDLE_ID_PATTERN.test(to) || to === DECISION_UNCERTAIN_HANDLE) return null;
+  if (from !== to && mode.branches.some((branch) => branch.id === to)) return null;
+  if (!mode.branches.some((branch) => branch.id === from)) return null;
+  return {
+    ...node,
+    mode: {
+      ...mode,
+      branches: mode.branches.map((branch) =>
+        branch.id === from ? { ...branch, id: to } : branch,
+      ),
+    },
+  };
+}
+
+/** Removing a branch moves its orphaned options to the first remaining branch. */
+export function removeDecisionBranch(node: DecisionNode, branchId: string): DecisionNode | null {
+  const mode = asChoice(node);
+  if (mode === null) return null;
+  const branch = mode.branches.find((candidate) => candidate.id === branchId);
+  if (branch === undefined || mode.branches.length <= 1) return null;
+  const rest = mode.branches.filter((candidate) => candidate.id !== branchId);
+  const first = rest[0];
+  if (first === undefined) return null;
+  return {
+    ...node,
+    mode: {
+      ...mode,
+      branches: rest.map((candidate) =>
+        candidate.id === first.id
+          ? { ...candidate, values: [...candidate.values, ...branch.values] }
+          : candidate,
+      ),
+    },
+  };
+}
+
+export function addDecisionLevel(node: DecisionNode, label?: string): DecisionNode | null {
+  const mode = asScore(node);
+  if (mode === null || mode.levels.length >= 10) return null;
+  const next =
+    label ??
+    nextHandleId(
+      "level",
+      mode.levels.map((level) => level.label),
+    );
+  if (mode.levels.some((level) => level.label === next)) return null;
+  const levels = [...mode.levels, { label: next }];
+  return { ...node, mode: { ...mode, levels, bands: defaultDecisionBandsForLevels(levels) } };
+}
+
+export function removeDecisionLevel(node: DecisionNode, label: string): DecisionNode | null {
+  const mode = asScore(node);
+  if (mode === null || mode.levels.length <= 2) return null;
+  if (!mode.levels.some((level) => level.label === label)) return null;
+  const levels = mode.levels.filter((level) => level.label !== label);
+  return { ...node, mode: { ...mode, levels, bands: defaultDecisionBandsForLevels(levels) } };
+}
+
+export function updateDecisionLevel(
+  node: DecisionNode,
+  label: string,
+  patch: { label?: string; description?: string },
+): DecisionNode | null {
+  const mode = asScore(node);
+  if (mode === null) return null;
+  if (patch.label !== undefined && patch.label !== label) {
+    if (patch.label.length === 0) return null;
+    if (mode.levels.some((level) => level.label === patch.label)) return null;
+  }
+  const nextLabel = patch.label ?? label;
+  return {
+    ...node,
+    mode: {
+      ...mode,
+      levels: mode.levels.map((level) =>
+        level.label === label
+          ? {
+              label: nextLabel,
+              ...(patch.description !== undefined
+                ? { description: patch.description }
+                : level.description === undefined
+                  ? {}
+                  : { description: level.description }),
+            }
+          : level,
+      ),
+    },
+  };
+}
+
+export function updateDecisionBand(
+  node: DecisionNode,
+  bandId: string,
+  patch: { id?: string; atLeast?: number | null },
+): DecisionNode | null {
+  const mode = asScore(node);
+  if (mode === null) return null;
+  if (!mode.bands.some((band) => band.id === bandId)) return null;
+  if (patch.id !== undefined && patch.id !== bandId) {
+    if (!HANDLE_ID_PATTERN.test(patch.id) || patch.id === DECISION_UNCERTAIN_HANDLE) return null;
+    if (mode.bands.some((band) => band.id === patch.id)) return null;
+  }
+  const nextId = patch.id ?? bandId;
+  return {
+    ...node,
+    mode: {
+      ...mode,
+      bands: mode.bands.map((band) =>
+        band.id === bandId
+          ? { ...band, id: nextId, atLeast: "atLeast" in patch ? patch.atLeast : band.atLeast }
+          : band,
+      ),
+    },
+  };
 }
 
 function hasPath(file: WorkflowFile, from: string, target: string): boolean {
@@ -193,7 +519,7 @@ export function checkConnection(file: WorkflowFile, request: ConnectRequest): Co
     return {
       ok: false,
       message:
-        "This editor can only connect Start, Agent, Shell, Gate, Join, Approval and End nodes.",
+        "This editor can only connect Start, Agent, Shell, Gate, Join, Approval, Decision and End nodes.",
     };
   }
   if (source.id === target.id) {
@@ -223,6 +549,15 @@ export function checkConnection(file: WorkflowFile, request: ConnectRequest): Co
       return { ok: false, message: "Approval has only approved (plain) and rejected handles." };
     }
     from = sourceEndpoint.handle === "rejected" ? `${source.id}.rejected` : source.id;
+  } else if (source.type === "decision") {
+    const handles = decisionHandles(source as DecisionNode);
+    if (sourceEndpoint.handle === null || !handles.includes(sourceEndpoint.handle)) {
+      return {
+        ok: false,
+        message: "Pick a Decision output handle before connecting from a decision.",
+      };
+    }
+    from = `${source.id}.${sourceEndpoint.handle}`;
   } else if (sourceEndpoint.handle !== null && sourceEndpoint.handle !== "out") {
     return { ok: false, message: "That node has no such output handle." };
   }

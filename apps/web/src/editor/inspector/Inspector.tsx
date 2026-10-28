@@ -6,6 +6,7 @@ import { AgentForm } from "./AgentForm.js";
 import { ApprovalForm } from "./ApprovalForm.js";
 import { BufferContext } from "./BufferContext.js";
 import { contentSignature } from "./contentSignature.js";
+import { DecisionForm } from "./DecisionForm.js";
 import { EndForm } from "./EndForm.js";
 import { GateForm } from "./GateForm.js";
 import { issuesForNode, summaryIssues } from "./issues.js";
@@ -23,6 +24,7 @@ const TYPE_LABEL: Record<string, string> = {
   gate: "Gate",
   join: "Join",
   approval: "Approval",
+  decision: "Decision",
   end: "End",
 };
 
@@ -203,6 +205,16 @@ export function Inspector({
                   node={node as unknown as never}
                   issues={nodeIssues}
                   onPatch={emit as unknown as never}
+                />
+              ) : null}
+              {node.type === "decision" ? (
+                <DecisionForm
+                  node={node}
+                  issues={nodeIssues}
+                  projectId={projectId}
+                  edges={edges ?? []}
+                  onPatch={emit}
+                  onRoutingChange={emitRouting}
                 />
               ) : null}
               {node.type === "end" ? (
