@@ -39,14 +39,14 @@ export function ensureProject(runtime: Runtime, input: EnsureProjectInput): void
     .prepare(
       `INSERT INTO projects (id, name, path, kind, added_at)
        VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO NOTHING`,
+       ON CONFLICT(id) DO UPDATE SET removed_at = NULL`,
     )
     .run(input.id, input.name, input.path, input.kind, now(runtime));
 }
 
 export function listProjects(runtime: Runtime): ProjectRecord[] {
   const rows = runtime.db
-    .prepare(`${PROJECT_SELECT} ORDER BY added_at ASC, id ASC`)
+    .prepare(`${PROJECT_SELECT} WHERE removed_at IS NULL ORDER BY added_at ASC, id ASC`)
     .all() as ProjectRow[];
   return rows.map(mapProject);
 }

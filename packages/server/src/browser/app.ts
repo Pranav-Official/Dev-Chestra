@@ -279,6 +279,7 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
 
   app.get("/api/runs", async (c) => {
     const query = runListQuerySchema.safeParse({
+      archived: c.req.query("archived") || undefined,
       project: c.req.query("project") || undefined,
       workflow: c.req.query("workflow") || undefined,
       status: c.req.query("status") || undefined,
@@ -289,6 +290,7 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
       return c.json(errorBody("E_VALIDATION", "Run list query is invalid."), 400);
     }
     const body = await deps.store.listRuns({
+      archived: query.data.archived === "true",
       limit: query.data.limit ?? 50,
       ...(query.data.project === undefined ? {} : { projectId: query.data.project }),
       ...(query.data.workflow === undefined ? {} : { workflowId: query.data.workflow }),
@@ -298,6 +300,16 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
     validate("RunListResponse", body);
     return json(c, body);
   });
+
+  for (const action of ["archive", "restore"] as const) {
+    app.post(`/api/runs/:rid/${action}`, async (c) => {
+      await readOptionalJson(c);
+      if (!deps.store.setRunArchived)
+        throw new RelayError("E_NOT_SUPPORTED", "Run archiving is unavailable.");
+      await deps.store.setRunArchived(c.req.param("rid"), action === "archive");
+      return c.json({ ok: true });
+    });
+  }
 
   app.get("/api/runs/:rid", async (c) => {
     const detail = await deps.store.runDetail(c.req.param("rid"));

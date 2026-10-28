@@ -80,13 +80,19 @@ export function useAllRuns() {
   });
 }
 
-export function useProjectRuns(projectId: string, status?: RunStatus, workflow?: string) {
+export function useProjectRuns(
+  projectId: string,
+  status?: RunStatus,
+  workflow?: string,
+  archived = false,
+) {
   return useInfiniteQuery({
-    queryKey: [...queryKeys.runsFor(projectId), status ?? "all", workflow ?? "all"],
+    queryKey: [...queryKeys.runsFor(projectId), status ?? "all", workflow ?? "all", archived],
     queryFn: ({ pageParam, signal }) =>
       api.listRuns(
         {
           project: projectId,
+          archived: archived ? "true" : "false",
           limit: 50,
           ...(status === undefined ? {} : { status }),
           ...(workflow === undefined ? {} : { workflow }),

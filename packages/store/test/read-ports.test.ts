@@ -280,6 +280,7 @@ describe("run list keyset pagination", () => {
       projectId: null,
       workflowId: null,
       status: null,
+      archived: false,
     });
     expectRelayError(
       () =>

@@ -69,6 +69,7 @@ export type TranscriptPage = TranscriptPageResponse;
 export type StopReason = "exited" | "killed" | "grace_timeout" | "crash";
 
 export interface ListRunsQuery {
+  archived?: boolean;
   projectId?: string;
   workflowId?: string;
   status?: readonly RunStatus[];
@@ -98,6 +99,10 @@ export interface RelinkProjectCommand {
 }
 
 export interface BrowserQueryPort {
+  removeProject?(projectId: string): void | Promise<void>;
+  setRunArchived?(runId: string, archived: boolean): void | Promise<void>;
+  archiveWorkflowRuns?(projectId: string, workflowId: string): void | Promise<void>;
+  projectRunSummaries?(projectId: string): RunListPage | Promise<RunListPage>;
   listProjects(): Promise<ProjectView[]> | ProjectView[];
   getProject(projectId: string): Promise<ProjectView | null> | ProjectView | null;
   registerProject(input: RegisterProjectCommand): Promise<ProjectView> | ProjectView;

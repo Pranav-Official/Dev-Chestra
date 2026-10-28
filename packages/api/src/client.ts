@@ -1,4 +1,4 @@
-import type { z } from "zod";
+import { z } from "zod";
 import {
   type ApprovalListQuery,
   type ApprovalListResponse,
@@ -278,6 +278,7 @@ export class ApiClientBase {
       runListResponseSchema,
       this.req(options, {
         query: {
+          archived: query.archived,
           project: query.project,
           workflow: query.workflow,
           status: query.status,
@@ -285,6 +286,45 @@ export class ApiClientBase {
           limit: query.limit,
         },
       }),
+    );
+  }
+
+  removeProject(projectId: string): Promise<{ ok: true }> {
+    return this.request(
+      "DELETE",
+      ["projects", projectId],
+      z.object({ ok: z.literal(true) }),
+      this.req({}, { mutation: true }),
+    );
+  }
+
+  setRunArchived(runId: string, archived: boolean): Promise<{ ok: true }> {
+    return this.request(
+      "POST",
+      ["runs", runId, archived ? "archive" : "restore"],
+      z.object({ ok: z.literal(true) }),
+      this.req({}, { body: {}, mutation: true }),
+    );
+  }
+
+  archiveWorkflowRuns(projectId: string, workflowId: string): Promise<{ ok: true }> {
+    return this.request(
+      "POST",
+      ["projects", projectId, "workflows", workflowId, "archive-runs"],
+      z.object({ ok: z.literal(true) }),
+      this.req({}, { body: {}, mutation: true }),
+    );
+  }
+
+  projectRunSummaries(
+    projectId: string,
+    options: ApiRequestOptions = {},
+  ): Promise<RunListResponse> {
+    return this.request(
+      "GET",
+      ["projects", projectId, "run-summaries"],
+      runListResponseSchema,
+      this.req(options),
     );
   }
 

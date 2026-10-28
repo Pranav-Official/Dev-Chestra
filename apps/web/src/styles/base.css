@@ -187,8 +187,9 @@ a:hover {
   text-decoration: none;
 }
 .nav-item.active {
-  background: var(--bg-muted);
-  color: var(--text);
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: inset 2px 0 0 var(--accent);
   font-weight: 500;
 }
 .nav-item .nm {
@@ -204,6 +205,101 @@ a:hover {
   margin-left: 15px;
   border-left: 1px solid var(--border);
   padding-left: 6px;
+}
+.nav-project {
+  margin-bottom: 8px;
+}
+.nav-tree-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.nav-tree-row > .nav-item {
+  flex: 1;
+  min-width: 0;
+  padding-left: 4px;
+}
+.nav-project-row > .nav-item {
+  font-weight: 650;
+}
+.nav-workflow-row > .nav-item {
+  font-weight: 500;
+}
+.nav-disclosure {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.nav-run-group {
+  margin-left: 22px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+.nav-run-row > .nav-item,
+.nav-view-all {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.nav-run-row .status-icon {
+  margin-left: auto;
+  font-size: 8px;
+}
+.workspace-menu {
+  position: relative;
+  flex-shrink: 0;
+}
+.workspace-menu > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  color: var(--text-3);
+  border-radius: var(--radius);
+}
+.workspace-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.workspace-menu > summary:hover,
+.workspace-menu[open] > summary {
+  background: var(--bg-muted);
+  color: var(--text);
+}
+.workspace-menu-items {
+  position: absolute;
+  right: 0;
+  z-index: 30;
+  width: 190px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 12%);
+}
+.workspace-menu-items > button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px;
+  background: none;
+  border: 0;
+  color: var(--text);
+  cursor: pointer;
+}
+.workspace-menu-items > button:hover {
+  background: var(--bg-muted);
+}
+.workspace-menu-items > button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.workspace-menu-items > span {
+  display: block;
+  padding: 4px 7px;
 }
 .sidebar-foot {
   border-top: 1px solid var(--border);

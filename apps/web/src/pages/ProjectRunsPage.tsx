@@ -3,7 +3,7 @@ import { Folder, FolderGit2, History, PlayCircle } from "lucide-react";
 import { useMemo } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { classifyError } from "../api/client.js";
-import { useBootstrap, useProjectRuns } from "../api/hooks.js";
+import { useBootstrap, useProjectRuns, useProjectWorkflows } from "../api/hooks.js";
 import { Topbar } from "../shell/Topbar.js";
 import { formatCost, formatTime } from "../ui/format.js";
 import { StatusPill } from "../ui/StatusPill.js";
@@ -15,6 +15,7 @@ import {
   NetworkError,
   NotFoundState,
 } from "../ui/states.js";
+import { WorkspaceActions } from "../ui/WorkspaceActions.js";
 
 const STATUS_FILTERS: { value: RunStatus | "all"; label: string }[] = [
   { value: "all", label: "All" },
@@ -24,6 +25,7 @@ const STATUS_FILTERS: { value: RunStatus | "all"; label: string }[] = [
   { value: "succeeded", label: "Succeeded" },
   { value: "failed", label: "Failed" },
   { value: "cancelled", label: "Cancelled" },
+  { value: "rejected", label: "Rejected" },
 ];
 
 function parseStatus(value: string | null): RunStatus | undefined {
@@ -39,7 +41,12 @@ export function ProjectRunsPage() {
   const bootstrap = useBootstrap();
   const status = parseStatus(params.get("status"));
   const workflow = params.get("workflow") ?? undefined;
-  const runsQuery = useProjectRuns(pid, status, workflow);
+  const archived = params.get("archived") === "true";
+  const runsQuery = useProjectRuns(pid, status, workflow, archived);
+  const managedWorkflows = useProjectWorkflows(
+    pid,
+    bootstrap.data?.projects.some((project) => project.id === pid && !project.missing) ?? false,
+  );
   const runs = useMemo(
     () => runsQuery.data?.pages.flatMap((page) => page.items) ?? [],
     [runsQuery.data],
@@ -101,7 +108,11 @@ export function ProjectRunsPage() {
   }
 
   const workflows = new Map<string, string>();
-  for (const run of runs) workflows.set(run.workflowId, run.workflowName ?? run.workflowId);
+  for (const item of managedWorkflows.data?.items ?? []) workflows.set(item.id, item.name);
+  for (const run of runs)
+    if (!workflows.has(run.workflowId))
+      workflows.set(run.workflowId, run.workflowName ?? run.workflowId);
+  if (workflow && !workflows.has(workflow)) workflows.set(workflow, workflow);
 
   return (
     <>
@@ -129,6 +140,27 @@ export function ProjectRunsPage() {
 
           {project.missing ? <MissingProjectBanner projectName={project.name} /> : null}
 
+          <div className="row wrap" style={{ marginTop: 16 }}>
+            <button
+              type="button"
+              className={`chip${!archived ? " on" : ""}`}
+              aria-pressed={!archived}
+              onClick={() => update("archived", null)}
+            >
+              History
+            </button>
+            <button
+              type="button"
+              className={`chip${archived ? " on" : ""}`}
+              aria-pressed={archived}
+              onClick={() => update("archived", "true")}
+            >
+              Archived
+            </button>
+            {workflow && !archived ? (
+              <WorkspaceActions projectId={pid} workflowId={workflow} />
+            ) : null}
+          </div>
           <div className="row wrap filters" style={{ marginTop: 16 }}>
             {STATUS_FILTERS.map((filter) => (
               <button
@@ -198,6 +230,7 @@ export function ProjectRunsPage() {
                     <th>Started</th>
                     <th>Cost</th>
                     <th>Tokens</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -219,6 +252,9 @@ export function ProjectRunsPage() {
                       <td className="muted">{formatTime(run.startedAt ?? run.createdAt)}</td>
                       <td>{formatCost(run.costUsd)}</td>
                       <td className="muted">{run.tokens.toLocaleString()}</td>
+                      <td>
+                        <WorkspaceActions projectId={pid} run={run} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>

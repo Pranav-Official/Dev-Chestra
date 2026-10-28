@@ -52,6 +52,33 @@ export interface ProjectRouteDeps {
 }
 
 export function mountProjectRoutes(app: Hono, deps: ProjectRouteDeps): void {
+  app.delete("/api/projects/:pid", async (c) => {
+    if (!deps.store.removeProject)
+      throw new RelayError("E_NOT_SUPPORTED", "Project removal is unavailable.");
+    await deps.store.removeProject(c.req.param("pid"));
+    return c.json({ ok: true });
+  });
+
+  app.get("/api/projects/:pid/run-summaries", async (c) => {
+    const pid = c.req.param("pid");
+    if ((await deps.store.getProject(pid)) === null)
+      return c.json(errorBody("E_NOT_FOUND", "Project not found."), 404);
+    if (!deps.store.projectRunSummaries)
+      throw new RelayError("E_NOT_SUPPORTED", "Run summaries are unavailable.");
+    const body = await deps.store.projectRunSummaries(pid);
+    deps.validate("RunListResponse", body);
+    return c.json(body);
+  });
+
+  app.post("/api/projects/:pid/workflows/:wid/archive-runs", async (c) => {
+    if ((await deps.store.getProject(c.req.param("pid"))) === null)
+      return c.json(errorBody("E_NOT_FOUND", "Project not found."), 404);
+    if (!deps.store.archiveWorkflowRuns)
+      throw new RelayError("E_NOT_SUPPORTED", "Run archiving is unavailable.");
+    await deps.store.archiveWorkflowRuns(c.req.param("pid"), c.req.param("wid"));
+    return c.json({ ok: true });
+  });
+
   app.get("/api/projects", async (c) => {
     const query = listProjectsQuerySchema.safeParse({
       cursor: c.req.query("cursor") || undefined,

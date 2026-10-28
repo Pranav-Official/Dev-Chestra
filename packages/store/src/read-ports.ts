@@ -55,6 +55,8 @@ function normalizeRunStatuses(
 }
 
 interface RunSummaryRow {
+  archived_at: number | null;
+  workflow_name?: string | null;
   id: string;
   project_id: string;
   project_name: string;
@@ -77,6 +79,8 @@ interface RunSummaryRow {
 
 function mapRunSummary(row: RunSummaryRow): RunSummary {
   return {
+    archivedAt: row.archived_at,
+    ...(row.workflow_name === undefined ? {} : { workflowName: row.workflow_name }),
     id: row.id as RunId,
     projectId: row.project_id,
     projectName: row.project_name,
@@ -105,11 +109,15 @@ export function listRuns(runtime: Runtime, filters: RunListFilters = {}): RunLis
     projectId: filters.projectId ?? null,
     workflowId: filters.workflowId ?? null,
     status: statuses,
+    archived: filters.archived ?? false,
   };
   const fingerprint = queryFingerprint(query);
   const limit = pageLimit(filters.limit);
 
-  const where: string[] = [];
+  const where: string[] = [
+    filters.archived ? "r.archived_at IS NOT NULL" : "r.archived_at IS NULL",
+    "p.removed_at IS NULL",
+  ];
   const params: unknown[] = [];
   if (filters.projectId !== undefined) {
     where.push("r.project_id = ?");
@@ -144,7 +152,7 @@ export function listRuns(runtime: Runtime, filters: RunListFilters = {}): RunLis
       `SELECT r.id, r.project_id, p.name AS project_name, p.path AS project_path,
               p.kind AS project_kind, r.workflow_id, r.workflow_hash, r.run_number,
               r.kind, r.status, r.created_at, r.started_at, r.ended_at, r.pause_reason,
-              r.cost_usd, r.tokens, r.active_ms, r.paused_ms
+              r.cost_usd, r.tokens, r.active_ms, r.paused_ms, r.archived_at
          FROM runs r JOIN projects p ON p.id = r.project_id
         ${where.length > 0 ? `WHERE ${where.join(" AND ")}` : ""}
         ORDER BY r.created_at DESC, r.id DESC
@@ -159,6 +167,27 @@ export function listRuns(runtime: Runtime, filters: RunListFilters = {}): RunLis
       ? encodeCursor({ v: 1, k: "runs", q: fingerprint, c: last.createdAt, i: last.id })
       : null;
   return { items, nextCursor };
+}
+
+/** Bounded lightweight rows per workflow; never loads frozen snapshots into JS. */
+export function workflowRunSummaries(runtime: Runtime, projectId: string): RunSummary[] {
+  const rows = runtime.db
+    .prepare(`
+    WITH ranked AS (
+      SELECT id, ROW_NUMBER() OVER (PARTITION BY workflow_id ORDER BY created_at DESC, id DESC) AS position
+      FROM runs WHERE project_id = ? AND archived_at IS NULL
+    )
+    SELECT r.id, r.project_id, p.name AS project_name, p.path AS project_path,
+      p.kind AS project_kind, r.workflow_id, r.workflow_hash, r.run_number,
+      r.kind, r.status, r.created_at, r.started_at, r.ended_at, r.pause_reason,
+      r.cost_usd, r.tokens, r.active_ms, r.paused_ms, r.archived_at,
+      CASE WHEN json_type(r.snapshot_json, '$.name') = 'text' THEN json_extract(r.snapshot_json, '$.name') ELSE NULL END AS workflow_name
+    FROM ranked JOIN runs r ON r.id = ranked.id JOIN projects p ON p.id = r.project_id
+    WHERE ranked.position <= 3 AND p.removed_at IS NULL
+    ORDER BY r.workflow_id, r.created_at DESC, r.id DESC
+  `)
+    .all(projectId) as RunSummaryRow[];
+  return rows.map(mapRunSummary);
 }
 
 export function snapshotRun(runtime: Runtime, runId: RunId): RunSnapshot {
