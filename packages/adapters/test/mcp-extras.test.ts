@@ -107,9 +107,11 @@ describe("claude-code extraMcp", () => {
     expect(adapter.plan(request({ extraMcp: [{ ...STDIO_EXTRA, command: "" }] })).ok).toBe(false);
     expect(adapter.plan(request({ extraMcp: [{ ...HTTP_EXTRA, url: "" }] })).ok).toBe(false);
     // Connector entries carry no launch details, so they fail fast instead of skipping.
-    expect(adapter.plan(request({ extraMcp: [{ name: "notion", scope: "connector", transport: "stdio" }] })).ok).toBe(
-      false,
-    );
+    expect(
+      adapter.plan(
+        request({ extraMcp: [{ name: "notion", scope: "connector", transport: "stdio" }] }),
+      ).ok,
+    ).toBe(false);
   });
 
   it("surfaces extra-server tool calls in parsed output", () => {
