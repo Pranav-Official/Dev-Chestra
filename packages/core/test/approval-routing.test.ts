@@ -33,6 +33,20 @@ describe("approval routing", () => {
     expect(r.edges["a-b"]).toBe("active");
     expect(r.edges["a-c"]).toBe("dead");
   });
+  it("routes a legacy decision with null requestId by decision alone", () => {
+    // ExecView carries requestId: null for legacy approvals; routing must
+    // accept it without mapping and ignore it (only `decision` matters).
+    const approved = deriveRouting(base, {
+      a: { status: "succeeded", approvalDecision: { decision: "approve", requestId: null } },
+    });
+    expect(approved.edges["a-b"]).toBe("active");
+    expect(approved.edges["a-c"]).toBe("dead");
+    const rejected = deriveRouting(base, {
+      a: { status: "succeeded", approvalDecision: { decision: "reject", requestId: null } },
+    });
+    expect(rejected.edges["a-b"]).toBe("dead");
+    expect(rejected.edges["a-c"]).toBe("active");
+  });
   it("reject activates .rejected", () => {
     const r = deriveRouting(base, {
       a: { status: "succeeded", approvalDecision: { decision: "reject" } },

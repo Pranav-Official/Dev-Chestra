@@ -450,10 +450,14 @@ describe("runAttempts pre-flight policy checks", () => {
     expect(String((error as Error).message)).toContain("not available");
     expect(h.runAgentCalls()).toBe(0);
     expect(h.events("node.process.spawned")).toHaveLength(0);
-    // The workspace is acquired before the cli gate; the gate throws outside
-    // the acquire/release try/finally, so it is NOT released on this path.
-    expect(h.acquires()).toBe(1);
+    // TD-007: the CLI gate used to throw after workspace acquisition and
+    // outside the release try/finally (acquire without release, a leak). The
+    // gate now runs before beginInvocation/acquire, so nothing is acquired
+    // and no durable attempt is recorded on this path.
+    expect(h.acquires()).toBe(0);
     expect(h.releases()).toBe(0);
+    expect(h.events("workspace.created")).toHaveLength(0);
+    expect(h.events("node.attempt.started")).toHaveLength(0);
     expect(h.active.tokens.size).toBe(0);
   });
 
@@ -464,8 +468,11 @@ describe("runAttempts pre-flight policy checks", () => {
     expect(String((error as Error).message)).toContain("not enabled in this build");
     expect(h.runAgentCalls()).toBe(0);
     expect(h.events("node.process.spawned")).toHaveLength(0);
-    expect(h.acquires()).toBe(1);
-    expect(h.releases()).toBe(1);
+    // Same pre-acquire gate as the unknown-CLI path: no workspace taken.
+    expect(h.acquires()).toBe(0);
+    expect(h.releases()).toBe(0);
+    expect(h.events("workspace.created")).toHaveLength(0);
+    expect(h.events("node.attempt.started")).toHaveLength(0);
   });
 
   it("lets an experimental cli through with a matching opt-in", async () => {
@@ -486,6 +493,8 @@ describe("runAttempts pre-flight policy checks", () => {
     const { error } = await runAgent(h);
     expect(error).toMatchObject({ code: "E_CLI_MISSING" });
     expect(h.runAgentCalls()).toBe(0);
+    expect(h.acquires()).toBe(0);
+    expect(h.releases()).toBe(0);
   });
 
   it("aborts before the first attempt when already cancelled", async () => {
