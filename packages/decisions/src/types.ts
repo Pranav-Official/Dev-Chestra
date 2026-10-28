@@ -1,22 +1,9 @@
-import type { JsonValue, RelayError, Result } from "@relay/core";
+import type { DecisionOutput, JsonValue, RelayError, Result } from "@relay/core";
 import type { DecisionProviderId } from "@relay/schema";
 
-// NOTE: this mirrors the `DecisionOutput` contract in section 4 of
-// decision-node-contract.md. `@relay/core` does not export a DecisionOutput
-// type yet; when it does, this alias must be replaced with (or checked
-// assignable to) the core type at integration time. The shapes are
-// intentionally identical so unification is a rename, not a migration.
-export interface DecisionOutput {
-  kind: "boolean" | "choice" | "score";
-  value: boolean | string | null;
-  probability?: number;
-  score?: number;
-  probabilities?: Record<string, number>;
-  confidence: number | null;
-  confidenceSource: "provider" | "derived" | null;
-  refusal?: { reason?: string };
-  model: string;
-}
+/** The normalized answer is owned by `@relay/core` (events); re-exported so the
+ * client result and the stored event payload are the same type. */
+export type { DecisionOutput } from "@relay/core";
 
 export type DecisionQuestion =
   | { kind: "boolean"; instructions: string }
