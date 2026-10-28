@@ -5,8 +5,11 @@ export {
   browserWebRootError,
   createBrowserApp,
 } from "./browser/app.js";
+export type { McpRouteDeps, McpServersPortOptions } from "./browser/mcp-routes.js";
+export { createMcpServersPort, mountMcpRoutes } from "./browser/mcp-routes.js";
 export type {
   AttemptView,
+  BrowserMcpServersPort,
   BrowserModelCatalogPort,
   BrowserQueryPort,
   BrowserRunControllerPort,
