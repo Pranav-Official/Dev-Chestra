@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import {
   err,
+  isRecord,
   isRunWorkspaceSelection,
   ok,
   RelayError,
@@ -46,7 +47,6 @@ import {
   conflict,
   gitText,
   INTENT_NAME,
-  isRecord,
   projectRepo as projectRepoFor,
   readBinding,
   readLstat,

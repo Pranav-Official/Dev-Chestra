@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { Context, MiddlewareHandler } from "hono";
+import { isRecord } from "@relay/core";
 import { RelayError } from "../errors.js";
 
 export const SESSION_COOKIE = "relay_session";
@@ -142,10 +143,6 @@ export function csrfGuard(): MiddlewareHandler {
     }
     await next();
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export interface JsonBodyOptions {

@@ -1,7 +1,7 @@
 import { join } from "node:path";
-import { ok, type RelayError, type Result } from "@relay/core";
+import { isRecord, ok, type RelayError, type Result } from "@relay/core";
 import { clip, NdjsonParser, num, parseObject, record, str, UsageDelta } from "./parsers.js";
-import { checkDir, classifyExit, fail, isRecord, requireOptionKeys, stringList } from "./plan.js";
+import { checkDir, classifyExit, fail, requireOptionKeys, stringList } from "./plan.js";
 import { probeVersion } from "./probe.js";
 import { codexStatic } from "./provider-config.js";
 import type {

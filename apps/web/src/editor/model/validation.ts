@@ -1,4 +1,5 @@
 import type { ValidationReport, WorkflowFile } from "@relay/schema";
+import { isRecord } from "@relay/core";
 import { errorReport } from "./validation-report.js";
 
 export const VALIDATION_DEBOUNCE_MS = 150;
@@ -31,10 +32,6 @@ interface Reply {
   revision: number;
   report?: unknown;
   message?: unknown;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function isReply(value: unknown): value is Reply {

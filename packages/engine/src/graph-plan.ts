@@ -1,4 +1,4 @@
-import { err, ok, RelayError, type Result } from "@relay/core";
+import { err, isRecord, ok, RelayError, type Result } from "@relay/core";
 import { analyzeGraph, type GateBranch, validateWorkflow } from "@relay/schema";
 import { type LinearNodeKind, validateBaseNodeConfig } from "./sequence.js";
 
@@ -38,10 +38,6 @@ const NODE_ID_RE = /^[a-z][a-z0-9_-]{0,47}$/;
 
 function invalid(message: string, details?: unknown): RelayError {
   return new RelayError("E_WORKFLOW_INVALID", message, details === undefined ? {} : { details });
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function gateBranches(raw: Record<string, unknown>): GateBranch[] {

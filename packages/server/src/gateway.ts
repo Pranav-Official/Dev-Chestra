@@ -1,5 +1,6 @@
 import { type Context, Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { isRecord } from "@relay/core";
 import { errorBody, RelayError, relayErrorCode, toRelayError } from "./errors.js";
 import type { SubmissionPort, SubmitOutcome } from "./ports.js";
 import { type ExecScope, type ExecTokenRegistry, scopeKey } from "./tokens.js";
@@ -64,10 +65,6 @@ class TokenBuckets {
     bucket.tokens -= 1;
     return true;
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function allowedHosts(port: number): Set<string> | null {

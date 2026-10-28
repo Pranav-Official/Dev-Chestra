@@ -1,4 +1,5 @@
 import type { Issue, JsonSchemaObject } from "@relay/schema";
+import { isRecord } from "@relay/core";
 import { normalizeOutputSchema } from "@relay/schema";
 import { AlertCircle, Braces, Code, Plus, Trash2 } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
@@ -7,7 +8,6 @@ import { CheckboxField, describedBy, Field } from "../fields/fields.js";
 import { useBufferedNumber } from "../fields/useBufferedNumber.js";
 import { useBufferedText } from "../fields/useBufferedText.js";
 import { containingIssue } from "../issues.js";
-import { isRecord } from "../stableStringify.js";
 import {
   buildSchema,
   canUseBasicRoot,

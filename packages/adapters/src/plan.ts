@@ -12,10 +12,6 @@ export function fail(message: string): Result<Invocation, RelayError> {
   return err(new RelayError("E_VALIDATION", message));
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 export function stringList(value: unknown, name: string): string[] {
   if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
     throw new RelayError("E_VALIDATION", `${name} must be an array of strings`);
