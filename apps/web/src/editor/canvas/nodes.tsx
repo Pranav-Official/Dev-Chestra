@@ -1,4 +1,4 @@
-import type { Issue, WorkflowNode } from "@relay/schema";
+import type { Issue, NodeType, WorkflowNode } from "@relay/schema";
 import { Handle, type Node, type NodeProps, Position, useUpdateNodeInternals } from "@xyflow/react";
 import {
   AlertTriangle,
@@ -21,56 +21,66 @@ export interface EditorNodeData extends Record<string, unknown> {
 
 export type EditorFlowNode = Node<EditorNodeData, "editor" | "unsupported">;
 
-function Icon({ type }: { type: string }) {
-  const t = type as string;
-  if (t === "start") return <Play size={13} aria-hidden="true" />;
-  if (t === "agent") return <Bot size={13} aria-hidden="true" />;
-  if (t === "shell") return <TerminalSquare size={13} aria-hidden="true" />;
-  if (t === "gate") return <GitBranch size={13} aria-hidden="true" />;
-  if (t === "join") return <GitMerge size={13} aria-hidden="true" />;
-  if (t === "approval") return <ShieldCheck size={13} aria-hidden="true" />;
-  if (t === "end") return <Flag size={13} aria-hidden="true" />;
+function Icon({ type }: { type: NodeType }) {
+  if (type === "start") return <Play size={13} aria-hidden="true" />;
+  if (type === "agent") return <Bot size={13} aria-hidden="true" />;
+  if (type === "shell") return <TerminalSquare size={13} aria-hidden="true" />;
+  if (type === "gate") return <GitBranch size={13} aria-hidden="true" />;
+  if (type === "join") return <GitMerge size={13} aria-hidden="true" />;
+  if (type === "approval") return <ShieldCheck size={13} aria-hidden="true" />;
+  if (type === "end") return <Flag size={13} aria-hidden="true" />;
   return <AlertTriangle size={13} aria-hidden="true" />;
+}
+
+/** "1 branch" / "2 branches", "1 parameter" / "2 parameters". */
+function plural(count: number, singular: string, many: string = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : many}`;
 }
 
 /** Handle geometry is cached by React Flow, so programmatic id/order changes need a remeasure. */
 export function handleSignature(node: WorkflowNode): string | null {
-  const t = (node as { type: string }).type;
-  if (t === "gate")
-    return `gate:${(node as unknown as { branches: { id: string }[] }).branches.map((branch) => branch.id).join("|")}`;
-  if (t === "join") return `join:${(node as unknown as { inputs: string[] }).inputs.join("|")}`;
-  if (t === "approval") return `approval:${node.id}`;
-  return null;
+  switch (node.type) {
+    case "gate":
+      return `gate:${node.branches.map((branch) => branch.id).join("|")}`;
+    case "join":
+      return `join:${node.inputs.join("|")}`;
+    case "approval":
+      return `approval:${node.id}`;
+    case "start":
+    case "agent":
+    case "shell":
+    case "end":
+      return null;
+    default: {
+      const _exhaustive: never = node;
+      return _exhaustive;
+    }
+  }
 }
 
 export function subtitle(node: WorkflowNode): string {
-  const t = (node as { type: string }).type;
-  switch (t) {
+  switch (node.type) {
     case "start":
-      return `${(node as unknown as { params: unknown[] }).params.length} parameter${(node as unknown as { params: unknown[] }).params.length === 1 ? "" : "s"}`;
+      return plural(node.params.length, "parameter");
     case "agent":
-      return `${(node as unknown as { cli: string }).cli}${
-        (node as unknown as { model?: string }).model === undefined
-          ? ""
-          : ` · ${(node as unknown as { model?: string }).model}`
-      }`;
+      return node.model === undefined ? node.cli : `${node.cli} · ${node.model}`;
     case "shell":
-      return (node as unknown as { command: string }).command;
+      return node.command;
     case "gate":
-      return `${(node as unknown as { branches: unknown[] }).branches.length} branch${(node as unknown as { branches: unknown[] }).branches.length === 1 ? "" : "es"}`;
+      return plural(node.branches.length, "branch", "branches");
     case "join":
-      return `${(node as unknown as { mode: string }).mode} · ${(node as unknown as { inputs: unknown[] }).inputs.length} input${(node as unknown as { inputs: unknown[] }).inputs.length === 1 ? "" : "s"}`;
+      return `${node.mode} · ${plural(node.inputs.length, "input")}`;
     case "approval": {
-      const msg = (node as unknown as { message?: string }).message ?? "";
+      const msg = node.message ?? "";
       const short = msg.trim().slice(0, 32);
-      return (node as unknown as { irreversible?: boolean }).irreversible
-        ? `Irreversible · ${short}`
-        : short || "Waits for a person";
+      return node.irreversible ? `Irreversible · ${short}` : short || "Waits for a person";
     }
     case "end":
-      return `Ends as ${(node as unknown as { status: string }).status}`;
-    default:
-      return "";
+      return `Ends as ${node.status}`;
+    default: {
+      const _exhaustive: never = node;
+      return _exhaustive;
+    }
   }
 }
 
@@ -123,13 +133,9 @@ export function EditorNodeView({ data, selected }: NodeProps<EditorFlowNode>) {
   }, [node.id, signature, updateNodeInternals]);
   const issueCount = issues.length;
   const summary = issueCount ? issues.map((issue) => issue.message).join("\n") : node.name;
-  const t = (node as { type: string }).type;
-  const gate =
-    !unsupported && t === "gate"
-      ? (node as unknown as { branches: { id: string; when?: string; otherwise?: true }[] })
-      : null;
-  const join = !unsupported && t === "join" ? (node as unknown as { inputs: string[] }) : null;
-  const approval = !unsupported && t === "approval" ? (node as unknown as { id: string }) : null;
+  const gate = !unsupported && node.type === "gate" ? node : null;
+  const join = !unsupported && node.type === "join" ? node : null;
+  const approval = !unsupported && node.type === "approval" ? node : null;
   return (
     <button
       type="button"
@@ -138,9 +144,7 @@ export function EditorNodeView({ data, selected }: NodeProps<EditorFlowNode>) {
       }`}
       data-testid={`ed-node-${node.id}`}
     >
-      {!unsupported &&
-      (node as { type: string }).type !== "start" &&
-      (node as { type: string }).type !== "join" ? (
+      {!unsupported && node.type !== "start" && node.type !== "join" ? (
         <Handle
           type="target"
           position={Position.Left}
@@ -224,10 +228,7 @@ export function EditorNodeView({ data, selected }: NodeProps<EditorFlowNode>) {
           />
         </div>
       )}
-      {!unsupported &&
-      (node as { type: string }).type !== "end" &&
-      gate === null &&
-      approval === null ? (
+      {!unsupported && node.type !== "end" && gate === null && approval === null ? (
         <Handle
           type="source"
           position={Position.Right}

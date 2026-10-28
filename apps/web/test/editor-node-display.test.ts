@@ -54,9 +54,7 @@ function end(status: EndNode["status"] = "success"): EndNode {
 describe("subtitle pins current output per node type", () => {
   it("start counts parameters", () => {
     expect(subtitle(start([]))).toBe("0 parameters");
-    expect(
-      subtitle(start([{ name: "p", type: "string", required: true }])),
-    ).toBe("1 parameter");
+    expect(subtitle(start([{ name: "p", type: "string", required: true }]))).toBe("1 parameter");
     expect(
       subtitle(
         start([
