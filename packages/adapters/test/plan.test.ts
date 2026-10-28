@@ -141,6 +141,207 @@ describe("codex plan", () => {
     expect(joined).not.toContain("dangerously-bypass");
     expect(joined).toContain("workspace-write");
   });
+
+  it("emits no MCP selection flags when the engine selected nothing", () => {
+    const adapter = createAdapter("codex");
+    const result = adapter.plan(request({}));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const joined = result.value.args.join("\n");
+    expect(joined).not.toContain("mcp_servers.fixture");
+    expect(joined).not.toContain("features.apps");
+    expect(joined).not.toContain("features.shell_tool");
+    expect(joined).not.toContain("apps.default");
+  });
+});
+
+describe("codex mcp selection", () => {
+  const SECRET = "extra-secret-value-xyz";
+
+  function planned(overrides: Parameters<typeof request>[0]) {
+    const adapter = createAdapter("codex");
+    const result = adapter.plan(request(overrides));
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("plan failed unexpectedly");
+    return result.value;
+  }
+
+  it("attaches a stdio extra via -c overrides with secrets only in env", () => {
+    const inv = planned({
+      extraMcp: [
+        {
+          name: "fixture",
+          scope: "global",
+          transport: "stdio",
+          command: "/usr/bin/node",
+          args: ["echo-server.mjs"],
+          env: { FIXTURE_MCP_NAME: "fixture", FIXTURE_MCP_LOG: "/tmp/fixture.log" },
+        },
+      ],
+    });
+    const joined = inv.args.join("\n");
+    expect(joined).toContain('-c\nmcp_servers.fixture.command="/usr/bin/node"');
+    expect(joined).toContain('mcp_servers.fixture.args=["echo-server.mjs"]');
+    expect(joined).toContain('mcp_servers.fixture.env_vars=["FIXTURE_MCP_NAME","FIXTURE_MCP_LOG"]');
+    expect(joined).toContain("mcp_servers.fixture.enabled=true");
+    expect(inv.env.FIXTURE_MCP_NAME).toBe("fixture");
+    expect(inv.env.FIXTURE_MCP_LOG).toBe("/tmp/fixture.log");
+    // Env values travel in the child env, never in argv.
+    expect(JSON.stringify(inv.args)).not.toContain("/tmp/fixture.log");
+    expect(JSON.stringify(inv.args)).not.toContain(TOKEN);
+  });
+
+  it("attaches http and sse extras via url + env_http_headers", () => {
+    const inv = planned({
+      extraMcp: [
+        {
+          name: "remote",
+          scope: "project",
+          transport: "http",
+          url: "https://mcp.example.com/mcp",
+          headers: { Authorization: `Bearer ${SECRET}`, "X-Api-Key": SECRET },
+        },
+        {
+          name: "stream",
+          scope: "global",
+          transport: "sse",
+          url: "https://sse.example.com/events",
+        },
+      ],
+    });
+    const joined = inv.args.join("\n");
+    expect(joined).toContain('mcp_servers.remote.url="https://mcp.example.com/mcp"');
+    expect(joined).toContain("mcp_servers.remote.env_http_headers=");
+    expect(joined).toContain("mcp_servers.remote.enabled=true");
+    expect(joined).toContain('mcp_servers.stream.url="https://sse.example.com/events"');
+    expect(joined).not.toContain("mcp_servers.stream.env_http_headers");
+    // Secret values travel only in the child env, keyed by synthesised names.
+    expect(JSON.stringify(inv.args)).not.toContain(SECRET);
+    expect(inv.env.RELAY_MCP_REMOTE_AUTHORIZATION).toBe(`Bearer ${SECRET}`);
+    expect(inv.env.RELAY_MCP_REMOTE_X_API_KEY).toBe(SECRET);
+  });
+
+  it("switches off known-but-unselected servers and never relay", () => {
+    const inv = planned({
+      extraMcp: [
+        {
+          name: "fixture",
+          scope: "global",
+          transport: "stdio",
+          command: "/usr/bin/node",
+          args: ["x.mjs"],
+        },
+      ],
+      knownMcp: [
+        { name: "fixture", scope: "global" },
+        { name: "other", scope: "global" },
+        { name: "docs", scope: "project" },
+        { name: "relay", scope: "global" },
+      ],
+    });
+    const joined = inv.args.join("\n");
+    expect(joined).toContain("mcp_servers.other.enabled=false");
+    expect(joined).toContain("mcp_servers.docs.enabled=false");
+    expect(joined).not.toContain("mcp_servers.fixture.enabled=false");
+    expect(joined).not.toContain("mcp_servers.relay.enabled=false");
+  });
+
+  it("disables the apps server when no connector is selected", () => {
+    const inv = planned({
+      knownMcp: [
+        { name: "other", scope: "global" },
+        { name: "gmail", scope: "connector", connectorId: "connector_gmail" },
+      ],
+    });
+    const joined = inv.args.join("\n");
+    expect(joined).toContain("features.apps=false");
+    expect(joined).toContain("mcp_servers.other.enabled=false");
+    expect(joined).not.toContain("apps.default");
+  });
+
+  it("selects connectors per id and leaves the rest off", () => {
+    const inv = planned({
+      extraMcp: [
+        { name: "gmail", scope: "connector", transport: "stdio", connectorId: "connector_gmail" },
+      ],
+      knownMcp: [
+        { name: "gmail", scope: "connector", connectorId: "connector_gmail" },
+        { name: "drive", scope: "connector", connectorId: "connector_drive" },
+      ],
+    });
+    const joined = inv.args.join("\n");
+    expect(joined).toContain("features.apps=true");
+    expect(joined).toContain("apps.default.enabled=false");
+    expect(joined).toContain("apps.connector_gmail.enabled=true");
+    expect(joined).not.toContain("connector_drive");
+    expect(joined).not.toContain("features.apps=false");
+  });
+
+  it("keeps connector selection usable without a knownMcp list", () => {
+    const inv = planned({
+      extraMcp: [
+        { name: "gmail", scope: "connector", transport: "stdio", connectorId: "connector_gmail" },
+      ],
+    });
+    expect(inv.args.join("\n")).toContain("apps.connector_gmail.enabled=true");
+  });
+
+  it("maps the shell toggle without touching the sandbox mode", () => {
+    const writable = {
+      network: true,
+      write: ["workspace"] as ("workspace" | "project")[],
+      extraReadDirs: [] as string[],
+    };
+    const off = planned({ permissions: { ...writable, shell: false } });
+    expect(off.args.join("\n")).toContain("features.shell_tool=false");
+    expect(off.args.join(" ")).toContain("--sandbox workspace-write");
+    const on = planned({ permissions: { ...writable, shell: true } });
+    expect(on.args.join("\n")).not.toContain("features.shell_tool");
+    expect(on.args.join(" ")).toContain("--sandbox workspace-write");
+    const legacy = planned({ permissions: { network: false, write: [], extraReadDirs: [] } });
+    expect(legacy.args.join("\n")).not.toContain("features.shell_tool");
+    expect(legacy.args.join(" ")).toContain("--sandbox read-only");
+  });
+
+  it("rejects unsafe names, relay, duplicates and missing launch details", () => {
+    const adapter = createAdapter("codex");
+    const bad = [
+      { extraMcp: [{ name: "evil.name", scope: "global", transport: "stdio", command: "x" }] },
+      { extraMcp: [{ name: "relay", scope: "global", transport: "stdio", command: "x" }] },
+      {
+        extraMcp: [
+          { name: "dup", scope: "global", transport: "stdio", command: "x" },
+          { name: "dup", scope: "global", transport: "stdio", command: "y" },
+        ],
+      },
+      { extraMcp: [{ name: "nocmd", scope: "global", transport: "stdio" }] },
+      { extraMcp: [{ name: "nourl", scope: "global", transport: "http" }] },
+      { extraMcp: [{ name: "conn", scope: "connector", transport: "stdio" }] },
+      { knownMcp: [{ name: "evil name", scope: "global" }] },
+    ] as Parameters<typeof request>[0][];
+    for (const overrides of bad) {
+      expect(adapter.plan(request(overrides)).ok).toBe(false);
+    }
+  });
+
+  it("rejects secret env collisions instead of silently overriding", () => {
+    const adapter = createAdapter("codex");
+    expect(
+      adapter.plan(
+        request({
+          extraMcp: [
+            {
+              name: "fixture",
+              scope: "global",
+              transport: "stdio",
+              command: "x",
+              env: { RELAY_EXEC_TOKEN: "something-else" },
+            },
+          ],
+        }),
+      ).ok,
+    ).toBe(false);
+  });
 });
 
 describe("fake plan", () => {

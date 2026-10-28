@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { isRecord, ok, type RelayError, type Result } from "@relay/core";
+import { hasControl } from "./discovery-util.js";
 import { clip, NdjsonParser, num, parseObject, record, str, UsageDelta } from "./parsers.js";
 import { checkDir, classifyExit, fail, requireOptionKeys, stringList } from "./plan.js";
 import { probeVersion } from "./probe.js";
@@ -54,6 +55,133 @@ function toml(value: string): string {
     if (code < 0x20) throw new Error("config value contains a control character");
   }
   return JSON.stringify(value);
+}
+
+/** Inline TOML table for string maps (JSON objects are not valid TOML). */
+function tomlTable(entries: Array<readonly [string, string]>): string {
+  return `{${entries.map(([key, value]) => `${toml(key)} = ${toml(value)}`).join(", ")}}`;
+}
+
+const MCP_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+const ENV_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** Names that become `-c` key-path segments must be strict: dots would
+ *  escape the intended nesting and `relay` is the always-attached shim. */
+function checkMcpName(name: string, field: string): string {
+  if (!MCP_NAME_RE.test(name)) {
+    throw new Error(`${field} is not a safe MCP server name: ${name}`);
+  }
+  if (name === "relay") {
+    throw new Error(`${field} must not be "relay" (reserved for the Relay shim)`);
+  }
+  return name;
+}
+
+/** Env var synthesised for one HTTP header value: the value itself travels
+ *  only in the child process env, never in argv. */
+function headerEnvVar(server: string, header: string): string {
+  const clean = (part: string): string => part.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+  return `RELAY_MCP_${clean(server)}_${clean(header)}`;
+}
+
+interface ExtraMcpPlan {
+  flags: string[];
+  env: Record<string, string>;
+}
+
+/** Per-run MCP selection for Codex. Selected extras are attached via
+ *  `-c mcp_servers.<name>.*` overrides (secret values only in the child
+ *  env); every known-but-unselected stdio/http server is switched off via
+ *  `enabled=false`; connectors go through the built-in `codex_apps` server
+ *  (`features.apps` gate plus per-connector `[apps.<id>] enabled`). */
+function planExtraMcp(req: RunRequest): ExtraMcpPlan {
+  const flags: string[] = [];
+  const env: Record<string, string> = {};
+  const claimEnv = (name: string, value: string, what: string): void => {
+    if (!ENV_NAME_RE.test(name)) throw new Error(`Invalid MCP env name: ${name}`);
+    const existing = env[name] ?? req.env[name] ?? req.mcp.env[name];
+    if (existing !== undefined && existing !== value) {
+      throw new Error(`MCP server ${what} redefines already-set env var ${name}`);
+    }
+    env[name] = value;
+  };
+
+  const extras = req.extraMcp ?? [];
+  const seen = new Set<string>();
+  const selectedServers = new Set<string>();
+  const selectedConnectors = new Set<string>();
+  for (const extra of extras) {
+    checkMcpName(extra.name, "extraMcp[].name");
+    if (seen.has(extra.name)) throw new Error(`Duplicate extraMcp server: ${extra.name}`);
+    seen.add(extra.name);
+    if (extra.scope === "connector") {
+      if (extra.connectorId === undefined || extra.connectorId === "") {
+        throw new Error(`extraMcp connector ${extra.name} is missing its connectorId`);
+      }
+      checkMcpName(extra.connectorId, "extraMcp[].connectorId");
+      if (selectedConnectors.has(extra.connectorId)) {
+        throw new Error(`Duplicate extraMcp connector: ${extra.connectorId}`);
+      }
+      selectedConnectors.add(extra.connectorId);
+      continue;
+    }
+    selectedServers.add(extra.name);
+    if (extra.transport === "http" || extra.transport === "sse") {
+      if (extra.url === undefined || extra.url === "") {
+        throw new Error(`extraMcp server ${extra.name} needs a url`);
+      }
+      const headers = Object.entries(extra.headers ?? {});
+      const table: Array<readonly [string, string]> = [];
+      for (const [header, value] of headers) {
+        if (header === "" || hasControl(header)) {
+          throw new Error(`extraMcp server ${extra.name} has an invalid header name`);
+        }
+        const varName = headerEnvVar(extra.name, header);
+        claimEnv(varName, value, extra.name);
+        table.push([header, varName]);
+      }
+      flags.push("-c", `mcp_servers.${extra.name}.url=${toml(extra.url)}`);
+      if (table.length > 0) {
+        flags.push("-c", `mcp_servers.${extra.name}.env_http_headers=${tomlTable(table)}`);
+      }
+      flags.push("-c", `mcp_servers.${extra.name}.enabled=true`);
+      flags.push("-c", `mcp_servers.${extra.name}.default_tools_approval_mode=${toml("approve")}`);
+    } else {
+      if (extra.command === undefined || extra.command === "") {
+        throw new Error(`extraMcp server ${extra.name} needs a command`);
+      }
+      const names = Object.keys(extra.env ?? {});
+      for (const [key, value] of Object.entries(extra.env ?? {})) claimEnv(key, value, extra.name);
+      flags.push("-c", `mcp_servers.${extra.name}.command=${toml(extra.command)}`);
+      flags.push("-c", `mcp_servers.${extra.name}.args=${JSON.stringify(extra.args ?? [])}`);
+      flags.push("-c", `mcp_servers.${extra.name}.env_vars=${JSON.stringify(names)}`);
+      if (extra.cwd !== undefined) {
+        flags.push("-c", `mcp_servers.${extra.name}.cwd=${toml(extra.cwd)}`);
+      }
+      flags.push("-c", `mcp_servers.${extra.name}.enabled=true`);
+      flags.push("-c", `mcp_servers.${extra.name}.default_tools_approval_mode=${toml("approve")}`);
+    }
+  }
+
+  for (const known of req.knownMcp ?? []) {
+    if (known.scope === "connector") continue; // covered by the apps gate below
+    if (known.name === "relay") continue; // our own shim, always attached
+    checkMcpName(known.name, "knownMcp[].name");
+    if (!selectedServers.has(known.name)) {
+      flags.push("-c", `mcp_servers.${known.name}.enabled=false`);
+    }
+  }
+
+  if (selectedConnectors.size === 0) {
+    // No connector selected: switch the whole built-in apps server off, but
+    // only when the engine told us what is known (otherwise legacy inherit).
+    if (req.knownMcp !== undefined) flags.push("-c", "features.apps=false");
+  } else {
+    flags.push("-c", "features.apps=true");
+    flags.push("-c", "apps.default.enabled=false");
+    for (const id of selectedConnectors) flags.push("-c", `apps.${id}.enabled=true`);
+  }
+  return { flags, env };
 }
 
 class CodexParser extends NdjsonParser {
@@ -202,7 +330,7 @@ function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
     if (req.mcp.serverName !== "relay") throw new Error("mcp.serverName must be relay");
     const envNames = req.mcp.envNames ?? Object.keys(req.mcp.env);
     for (const name of envNames) {
-      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+      if (!ENV_NAME_RE.test(name)) {
         throw new Error(`Invalid MCP env name: ${name}`);
       }
     }
@@ -212,6 +340,11 @@ function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
     args.push("-c", `mcp_servers.relay.default_tools_approval_mode=${toml("approve")}`);
     args.push("-c", "mcp_servers.relay.startup_timeout_sec=20");
     args.push("-c", "mcp_servers.relay.tool_timeout_sec=120");
+    const extraMcp = planExtraMcp(req);
+    args.push(...extraMcp.flags);
+    // Built-in shell tool: undefined keeps the legacy rule (shell follows the
+    // sandbox mode above); false asks the CLI to remove it, true leaves it.
+    if (req.permissions.shell === false) args.push("-c", "features.shell_tool=false");
     args.push(...overrides);
     args.push("-o", join(req.execDir, "last-message.txt"));
 
@@ -219,7 +352,7 @@ function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
       bin,
       args,
       cwd: req.cwd,
-      env: { ...req.env, ...req.mcp.env },
+      env: { ...req.env, ...req.mcp.env, ...extraMcp.env },
       stdin: req.prompt,
       files: [],
     });
@@ -247,9 +380,14 @@ export function createCodexAdapter(options: AdapterOptions = {}): CliAdapter {
       behaviorVerified: false,
       notes: [
         "resume rejects --sandbox/--cd/--add-dir/-a/-p; sandbox_mode is passed via -c",
-        "env_vars forwarding and OS sandbox enforcement are UNVERIFIED",
-        'per-server MCP approval mode "approve" is schema-valid; headless behavior was not proven until the bounded live smoke',
-        "JSON stream event names are documented expectations, not live captures",
+        "LIVE codex 0.164.0: stdio extra attached via -c mcp_servers.<name>.command/args/env_vars/enabled=true started AND was called (fixture log: start+call, turn completed); headless calls need default_tools_approval_mode=approve or the turn is denied (approval policy is never)",
+        "LIVE: known-but-unselected server (mcp_servers.other.enabled=false, server present in CODEX_HOME config) never started while the selected extra ran; exact selection holds for listed servers",
+        "mcp_servers.<unknown>.enabled=false FAILS the run (codex: invalid transport): disables only work for servers present in codex's loaded config (global or trusted-project); stale/untrusted names fail fast instead of silently leaving servers on",
+        "LIVE: features.shell_tool=false removes the shell tool (model reports NOSHELL, no command_execution items); without the flag the same prompt runs echo. Shell true/undefined leaves the sandbox-mode rule untouched",
+        "connectors: no selection -> features.apps=false (coarse off, live run succeeds); selection -> features.apps=true + apps.default.enabled=false + apps.<connectorId>.enabled=true. Key shapes pass --strict-config, but per-connector tool filtering is UNVERIFIED (verifying would invoke real account tools)",
+        "http extras use url + env_http_headers (header values only in the child env); key shapes pass --strict-config but no live HTTP MCP server was exercised",
+        "live turns occasionally stall with no output (model-side flake); retries of the identical invocation completed",
+        "JSON stream mcp_tool_call items carry server/tool/arguments/result/error/status; tool names are bare (fixture/fixture_echo), not mcp__-prefixed",
       ],
     },
     plan: (req) => plan(req, bin),
