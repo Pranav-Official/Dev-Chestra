@@ -166,7 +166,7 @@ export function createDecisionClient(
       return err(
         new RelayError(
           "E_PROVIDER",
-          `Missing decision secret(s): ${missing.join(", ")}. Set them in the environment or .env.`,
+          `Missing or invalid decision secret(s): ${missing.join(", ")}. Set them in the environment or .env.`,
         ),
       );
     }

@@ -50,5 +50,7 @@ export const DECISION_PRESETS: Record<DecisionProviderId, DecisionPreset> = {
 
 /** Substitute `$CLOUDFLARE_ACCOUNT_ID` in the preset URL template. */
 export function resolvePresetUrl(preset: DecisionPreset, accountId: string): string {
-  return preset.url.replace("$CLOUDFLARE_ACCOUNT_ID", accountId);
+  // Function replacer: `$&`-style patterns in the value are not interpreted, and the value is
+  // encoded so it can only ever be a single path segment.
+  return preset.url.replace("$CLOUDFLARE_ACCOUNT_ID", () => encodeURIComponent(accountId));
 }

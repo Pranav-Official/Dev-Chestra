@@ -85,8 +85,20 @@ export function missingSecretNames(
   secrets: Partial<Record<DecisionSecretName, string>>,
   required: readonly DecisionSecretName[],
 ): DecisionSecretName[] {
-  return required.filter((name) => secrets[name] === undefined);
+  return required.filter((name) => {
+    const value = secrets[name];
+    if (value === undefined) return true;
+    // A malformed value counts as missing so it is reported by name only and
+    // never reaches a URL. The account id is substituted into a request path.
+    const pattern = SECRET_FORMATS[name];
+    return pattern !== undefined && !pattern.test(value);
+  });
 }
+
+/** Format checks for secrets that are placed into a URL. Values never appear in messages. */
+const SECRET_FORMATS: Partial<Record<DecisionSecretName, RegExp>> = {
+  CLOUDFLARE_ACCOUNT_ID: /^[A-Za-z0-9_-]{1,64}$/,
+};
 
 /**
  * Replace every known secret value in `text` with `[redacted]`. Applied to

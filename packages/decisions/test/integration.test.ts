@@ -317,4 +317,25 @@ describe("decision integration via loopback stand-in", () => {
     expect(standin.maxActive()).toBeLessThanOrEqual(8);
     resetDecisionSemaphores();
   });
+
+  it("refuses a malformed Cloudflare account id locally without leaking it", async () => {
+    standin.clear();
+    const evil = "../../user/tokens/verify";
+    const client = createDecisionClient("cloudflare-clef", {
+      env: { ...ENV, CLOUDFLARE_ACCOUNT_ID: evil },
+      dotenvPath: null,
+      baseUrlOverride: standin.origin,
+      jitterRatio: 0,
+      sleep: async () => undefined,
+    });
+    expect(client.availability()).toEqual({ ready: false, missing: ["CLOUDFLARE_ACCOUNT_ID"] });
+    const result = await client.ask(booleanReq("cloudflare-clef"), new AbortController().signal);
+    expect(result.ok).toBe(false);
+    expect(standin.requests()).toHaveLength(0);
+    if (!result.ok) {
+      expect(result.error.message).toContain("CLOUDFLARE_ACCOUNT_ID");
+      expect(result.error.message).not.toContain(evil);
+      expect(result.error.message).not.toContain("test-cf-token");
+    }
+  });
 });

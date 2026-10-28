@@ -76,3 +76,35 @@ describe("decision secrets", () => {
     expect(out).toBe("tok [redacted]");
   });
 });
+
+describe("account id format", () => {
+  const required = ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_AUTH_TOKEN"] as const;
+
+  it("accepts ids that are a single safe path segment", () => {
+    for (const id of ["0123456789abcdef0123456789abcdef", "acct_1-A"]) {
+      expect(
+        missingSecretNames({ CLOUDFLARE_ACCOUNT_ID: id, CLOUDFLARE_AUTH_TOKEN: "t" }, required),
+      ).toEqual([]);
+    }
+  });
+
+  it("reports malformed ids as missing by name, never by value", () => {
+    const bad = [
+      "../../user/tokens/verify",
+      "a/b",
+      "a?x=1",
+      "a#b",
+      "a b",
+      "a\nb",
+      "$&",
+      "%2e%2e",
+      "x".repeat(65),
+      "",
+    ];
+    for (const id of bad) {
+      expect(
+        missingSecretNames({ CLOUDFLARE_ACCOUNT_ID: id, CLOUDFLARE_AUTH_TOKEN: "t" }, required),
+      ).toEqual(["CLOUDFLARE_ACCOUNT_ID"]);
+    }
+  });
+});
