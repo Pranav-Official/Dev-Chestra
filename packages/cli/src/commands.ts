@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { createAdapterRegistry } from "@relay/adapters";
 import { isTerminalRunStatus, type JsonObject, RelayError, type RunStatus } from "@relay/core";
 import { createEngine, type Engine, type RunOutcome, type WorkspacePort } from "@relay/engine";
-import { validateParams } from "@relay/schema";
+import { PROD_CLIS, validateParams } from "@relay/schema";
 import { OutputValidator } from "@relay/server";
 import { openStore, type Store } from "@relay/store";
 import {
@@ -84,9 +84,7 @@ export function createCliEngine(
     nodeBin: process.execPath,
     mcpShimEntry: SHIM_ENTRY,
     env: process.env,
-    allowExperimentalClis: options.allowExperimentalAdapters
-      ? (["claude-code", "codex", "opencode", "pi"] as const)
-      : [],
+    allowExperimentalClis: options.allowExperimentalAdapters ? [...PROD_CLIS] : [],
     extraEnvNames: ["FAKE_AGENT_CHECKPOINT"],
     validateOutput: (schema, value) => outputValidator.compile(schema).validate(value),
   });
