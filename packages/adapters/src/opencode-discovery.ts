@@ -1,13 +1,7 @@
 import { accessSync, constants, realpathSync, statSync } from "node:fs";
 import { delimiter, isAbsolute, join, resolve } from "node:path";
-import { runCommand } from "./command.js";
-import {
-  boundCount,
-  boundMs,
-  hasControl,
-  printable,
-  validateDiscoveryRequest,
-} from "./discovery-util.js";
+import { runModelDiscovery } from "./discovery-runner.js";
+import { hasControl, printable } from "./discovery-util.js";
 import type {
   OpencodeModelDiscovery,
   OpencodeModelDiscoveryRequest,
@@ -186,79 +180,69 @@ export function opencodeConfigIdentity(env: Record<string, string>, cwd: string)
 export async function discoverOpencodeModels(
   request: OpencodeModelDiscoveryRequest,
 ): Promise<OpencodeModelDiscovery> {
-  if (typeof request !== "object" || request === null || !validateDiscoveryRequest(request)) {
-    return failure("unavailable", MESSAGES.invalidRequest);
-  }
-  if (request.signal?.aborted === true) {
-    return failure("unavailable", MESSAGES.cancelled);
-  }
-  const totalMs = boundMs(request.timeoutMs, TOTAL_MS);
-  const maxStdout = boundCount(request.maxStdoutBytes, STDOUT_MAX);
-  const maxStderr = boundCount(request.maxStderrBytes, STDERR_MAX);
-  const maxModels = boundCount(request.maxModels, MODELS_MAX);
-  const startedAt = Date.now();
-  const remaining = (): number => Math.max(1, totalMs - (Date.now() - startedAt));
-  const bin = resolveOpencodeBin(request.bin, request.env, request.cwd);
-  if (bin === null) return failure("unavailable", MESSAGES.missing);
-
-  const args = ["models"];
-  if (request.verbose === true) args.push("--verbose");
-  let stdout: string;
-  let stdoutBytes = 0;
-  try {
-    const result = await runCommand(
-      {
-        cmd: bin,
-        args,
-        cwd: request.cwd,
-        env: { ...request.env },
-        timeoutMs: remaining(),
-        maxStdoutBytes: maxStdout,
-        maxStderrBytes: maxStderr,
-      },
-      {},
-      request.signal,
-    );
-    if (result.killedBy === "timeout") return failure("unavailable", MESSAGES.timeout);
-    if (result.killedBy === "cancel") return failure("unavailable", MESSAGES.cancelled);
-    stdout = result.stdout;
-    stdoutBytes = result.stdoutBytes;
-    const combined = `${result.stdout}\n${result.stderr}`;
-    if (
-      /not logged|login|sign in|unauthori[sz]ed|credential|api.?key|auth/i.test(combined) &&
-      parseOpencodeModels(stdout).items.length === 0
-    ) {
-      return failure("authRequired", MESSAGES.authRequired);
-    }
-    if (result.exitCode !== 0) {
-      if (/unknown (?:flag|option|command)|not support|usage:/i.test(combined)) {
-        return failure("unsupported", MESSAGES.unsupported);
+  return runModelDiscovery<OpencodeModelItem, OpencodeModelDiscovery>({
+    request,
+    limits: {
+      totalMs: TOTAL_MS,
+      stdoutMax: STDOUT_MAX,
+      stderrMax: STDERR_MAX,
+      modelsMax: MODELS_MAX,
+    },
+    messages: {
+      invalidRequest: MESSAGES.invalidRequest,
+      missing: MESSAGES.missing,
+      unavailable: MESSAGES.unavailable,
+      timeout: MESSAGES.timeout,
+      cancelled: MESSAGES.cancelled,
+    },
+    // Drift (kept): a pre-aborted request reports cancelled, while pi
+    // reports invalid-request for the same case.
+    abortedMessage: MESSAGES.cancelled,
+    resolveBin: () => resolveOpencodeBin(request.bin, request.env, request.cwd),
+    buildArgs: () => {
+      const args = ["models"];
+      if (request.verbose === true) args.push("--verbose");
+      return args;
+    },
+    parse: parseOpencodeModels,
+    // Drift (kept): no E_CANCELLED / signal.aborted / cause-ENOENT branches;
+    // mid-flight cancel surfaces as killedBy cancel above.
+    classifyCaughtError: (error) => {
+      const code = (error as NodeJS.ErrnoException | undefined)?.code;
+      if (code === "ENOENT" || code === "E_CLI_MISSING") return MESSAGES.missing;
+      return MESSAGES.unavailable;
+    },
+    interpret: ({ result, stdoutBytes, combined, parsed, maxModels, maxStdout }) => {
+      if (
+        /not logged|login|sign in|unauthori[sz]ed|credential|api.?key|auth/i.test(combined) &&
+        parsed.items.length === 0
+      ) {
+        return failure("authRequired", MESSAGES.authRequired);
       }
-      const { items } = parseOpencodeModels(stdout);
-      if (items.length > 0) {
-        return {
-          status: "ready",
-          items: items.slice(0, maxModels),
-          cliVersion: null,
-          truncated: items.length > maxModels || stdoutBytes > maxStdout,
-        };
+      if (result.exitCode !== 0) {
+        if (/unknown (?:flag|option|command)|not support|usage:/i.test(combined)) {
+          return failure("unsupported", MESSAGES.unsupported);
+        }
+        if (parsed.items.length > 0) {
+          return {
+            status: "ready",
+            items: parsed.items.slice(0, maxModels),
+            cliVersion: null,
+            truncated: parsed.items.length > maxModels || stdoutBytes > maxStdout,
+          };
+        }
+        return failure("unavailable", MESSAGES.unavailable);
       }
-      return failure("unavailable", MESSAGES.unavailable);
-    }
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException | undefined)?.code;
-    if (code === "ENOENT" || code === "E_CLI_MISSING")
-      return failure("unavailable", MESSAGES.missing);
-    return failure("unavailable", MESSAGES.unavailable);
-  }
-
-  if (stdoutBytes > maxStdout) return failure("unavailable", MESSAGES.oversize);
-  const parsed = parseOpencodeModels(stdout);
-  const items = parsed.items.slice(0, maxModels);
-  return {
-    status: "ready",
-    items,
-    cliVersion: null,
-    truncated: parsed.truncated || parsed.items.length > maxModels,
-  };
+      // Drift (kept): pi has no oversize failure; it tails and returns ready.
+      if (stdoutBytes > maxStdout) return failure("unavailable", MESSAGES.oversize);
+      const items = parsed.items.slice(0, maxModels);
+      return {
+        status: "ready",
+        items,
+        cliVersion: null,
+        truncated: parsed.truncated || parsed.items.length > maxModels,
+      };
+    },
+    fail: (status, message) => failure(status as OpencodeModelDiscovery["status"], message),
+  });
 }
