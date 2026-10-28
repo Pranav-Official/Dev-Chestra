@@ -577,9 +577,7 @@ function executionStates(
       kind: execution.kind,
       gateDecision: execution.gateDecision,
       joinResolution: execution.joinResolution,
-      approvalDecision: ad
-        ? { decision: ad.decision, ...(ad.requestId ? { requestId: ad.requestId } : {}) }
-        : null,
+      approvalDecision: ad ? { decision: ad.decision, requestId: ad.requestId } : null,
     };
   }
   return out;

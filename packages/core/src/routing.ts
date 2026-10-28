@@ -32,7 +32,10 @@ export interface RoutingExecutionState {
   kind?: string | null;
   gateDecision?: { branch: string | null } | null;
   joinResolution?: unknown;
-  approvalDecision?: { decision: "approve" | "reject"; requestId?: string } | null;
+  // requestId is intentionally unused by routing (only `decision` matters)
+  // but must accept null: ExecView carries null for legacy decisions, and
+  // callers pass run views straight in without mapping.
+  approvalDecision?: { decision: "approve" | "reject"; requestId?: string | null } | null;
 }
 
 export interface RoutingView {

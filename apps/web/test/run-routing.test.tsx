@@ -118,10 +118,7 @@ describe("run routing viewer", () => {
     );
     expect(screen.getByTestId("run-gate-branch-gate")).toHaveTextContent("branch yes");
     expect(screen.getByTestId("run-node-b")).toHaveAttribute("data-node-status", "skipped");
-    const routing = deriveRouting(
-      snapshot().graph,
-      view().executions as unknown as Parameters<typeof deriveRouting>[1],
-    );
+    const routing = deriveRouting(snapshot().graph, view().executions);
     expect(routing.edges["e-gate-yes"]).toBe("active");
     expect(routing.edges["e-gate-no"]).toBe("dead");
     expect(routing.edges["e-a-join"]).toBe("active");
@@ -159,11 +156,6 @@ describe("run routing viewer", () => {
       />,
     );
     expect(screen.getByTestId("run-gate-branch-gate")).toHaveTextContent("gate failed");
-    expect(
-      deriveRouting(
-        snapshot().graph,
-        failed.executions as unknown as Parameters<typeof deriveRouting>[1],
-      ).edges["e-gate-yes"],
-    ).toBe("dead");
+    expect(deriveRouting(snapshot().graph, failed.executions).edges["e-gate-yes"]).toBe("dead");
   });
 });
