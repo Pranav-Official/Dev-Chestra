@@ -40,7 +40,7 @@ export function AgentPermissions({
         id="inspector-agent-write-workspace"
         label="Write to workspace"
         checked={hasWorkspace}
-        help="Applies to the directory chosen when the run starts: the project root, an existing Git worktree, or a new worktree. Advisory to the CLI."
+        help="Applies to the directory chosen when the run starts: the project root, an existing Git worktree, or a new worktree. Advisory to the CLI. Shell commands are a separate toggle under Tools; write no longer implies shell."
         error={writeIssue}
         onChange={(enabled) => onPatch(setWorkspaceWrite(node, enabled))}
       />
