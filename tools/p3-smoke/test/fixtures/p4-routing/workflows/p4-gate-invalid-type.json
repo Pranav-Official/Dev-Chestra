@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "id": "p4-gate-invalid-type",
+  "name": "P4 gate non-boolean predicate",
+  "description": "when yields a string",
+  "graph": {
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "name": "Inputs",
+        "params": [
+          {
+            "name": "route",
+            "type": "string",
+            "required": true,
+            "default": "a"
+          }
+        ],
+        "ui": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": "route_gate",
+        "type": "gate",
+        "name": "Route",
+        "branches": [
+          {
+            "id": "a",
+            "when": "start.route"
+          },
+          {
+            "id": "b",
+            "otherwise": true
+          }
+        ],
+        "ui": {
+          "x": 180,
+          "y": 0
+        }
+      },
+      {
+        "id": "agent_a",
+        "type": "agent",
+        "name": "Agent A",
+        "cli": "fake",
+        "prompt": "Run Agent A for {{ start.route }}.",
+        "output": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "verdict",
+            "note"
+          ],
+          "properties": {
+            "verdict": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 200
+            }
+          }
+        },
+        "permissions": {
+          "network": false,
+          "write": [
+            "workspace"
+          ]
+        },
+        "workspace": {
+          "mode": "scratch"
+        },
+        "limits": {
+          "timeoutMin": 2,
+          "validationRetries": 1,
+          "crashRetries": 0
+        },
+        "context": {
+          "project": "none",
+          "workflow": "none"
+        },
+        "ui": {
+          "x": 380,
+          "y": -80
+        }
+      },
+      {
+        "id": "agent_b",
+        "type": "agent",
+        "name": "Agent B",
+        "cli": "fake",
+        "prompt": "Run Agent B for {{ start.route }}.",
+        "output": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "verdict",
+            "note"
+          ],
+          "properties": {
+            "verdict": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 200
+            }
+          }
+        },
+        "permissions": {
+          "network": false,
+          "write": [
+            "workspace"
+          ]
+        },
+        "workspace": {
+          "mode": "scratch"
+        },
+        "limits": {
+          "timeoutMin": 2,
+          "validationRetries": 1,
+          "crashRetries": 0
+        },
+        "context": {
+          "project": "none",
+          "workflow": "none"
+        },
+        "ui": {
+          "x": 380,
+          "y": 80
+        }
+      },
+      {
+        "id": "merge",
+        "type": "join",
+        "name": "Merge",
+        "mode": "first",
+        "inputs": [
+          "a",
+          "b"
+        ],
+        "ui": {
+          "x": 620,
+          "y": 0
+        }
+      },
+      {
+        "id": "done",
+        "type": "end",
+        "name": "done",
+        "status": "success",
+        "result": "merge",
+        "ui": {
+          "x": 820,
+          "y": 0
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e-start-gate",
+        "from": "start",
+        "to": "route_gate"
+      },
+      {
+        "id": "e-gate-a",
+        "from": "route_gate.a",
+        "to": "agent_a"
+      },
+      {
+        "id": "e-gate-b",
+        "from": "route_gate.b",
+        "to": "agent_b"
+      },
+      {
+        "id": "e-a-join",
+        "from": "agent_a",
+        "to": "merge.a"
+      },
+      {
+        "id": "e-b-join",
+        "from": "agent_b",
+        "to": "merge.b"
+      },
+      {
+        "id": "e-join-end",
+        "from": "merge",
+        "to": "done"
+      }
+    ]
+  }
+}

@@ -403,4 +403,24 @@ describe("run session state", () => {
     expect(session.view?.lastEventId).toBe(61);
     expect(session.view?.executions["approval"]?.status).toBe("succeeded");
   });
+
+  it("re-applies the same replay cursor without rebuilding the session", () => {
+    const all = lifecycle();
+    let session = createRunSession(RUN_ID);
+    session = bootstrapSession(session, {
+      view: viewAt(all, 12),
+      watermark: 12,
+      events: all,
+      historyLoaded: true,
+    });
+    session = setReplayAt(session, 20);
+    const settled = session;
+    // Same cursor again (e.g. the ?at= effect firing after an eager scrub
+    // update) must be a no-op so the run canvas does not re-render.
+    expect(setReplayAt(session, 20)).toBe(settled);
+    expect(setReplayAt(session, null)).not.toBe(settled);
+    session = setReplayAt(session, null);
+    expect(session.view).toBe(session.head);
+    expect(setReplayAt(session, null)).toBe(session);
+  });
 });

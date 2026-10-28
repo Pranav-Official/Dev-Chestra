@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+import { isRecord } from "@relay/core";
 import type { Context, MiddlewareHandler } from "hono";
 import { RelayError } from "../errors.js";
 
@@ -142,10 +143,6 @@ export function csrfGuard(): MiddlewareHandler {
     }
     await next();
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export interface JsonBodyOptions {

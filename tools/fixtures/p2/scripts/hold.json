@@ -1,0 +1,5 @@
+[
+  { "type": "say", "text": "p2 negative-test agent holding" },
+  { "type": "sleep", "ms": 30000 },
+  { "type": "submit", "output": { "summary": "P2 hold summary" } }
+]

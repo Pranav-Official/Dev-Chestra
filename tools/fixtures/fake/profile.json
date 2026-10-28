@@ -1,0 +1,55 @@
+{
+  "profile": "fake",
+  "version": 1,
+  "kind": "explicit-fake",
+  "description": "Relay's scriptable fake agent. It is not a recorded Claude, Codex, OpenCode or Pi transcript and must not be used as live-CLI evidence.",
+  "stdout": {
+    "format": "NDJSON",
+    "envelope": {
+      "type": "relay-fake",
+      "profile": "fake",
+      "sessionId": "fake-<uuid>",
+      "cwd": "<absolute working directory>"
+    },
+    "events": {
+      "session": "resumed, pid, nextStepIndex, promptBytes, promptSha256",
+      "tools": "names, count",
+      "say": "index, text",
+      "tool_result": "index, name, isError, text",
+      "submit_result": "index, accepted, isError, text",
+      "sleep": "index, ms",
+      "crash": "index, code",
+      "error": "message",
+      "end": "submitted, nextStepIndex, steps"
+    }
+  },
+  "stderr": "diagnostics and shim stderr; never the exec token",
+  "launch": {
+    "bin": "tools/fake-agent/dist/main.js",
+    "dev": "node --import tsx tools/fake-agent/src/main.ts",
+    "required_env": [
+      "RELAY_MCP_SHIM_ENTRY",
+      "RELAY_EXEC_TOKEN",
+      "RELAY_GATEWAY_URL",
+      "RELAY_TOOLSET"
+    ],
+    "shim": "Spawns the real @relay/mcp stdio shim via the MCP SDK client."
+  },
+  "script": {
+    "env": "FAKE_AGENT_SCRIPT",
+    "arg": "--script <json-or-path>",
+    "steps": [
+      { "type": "say", "text": "working" },
+      { "type": "tool", "name": "context_list", "args": {} },
+      { "type": "submit", "output": { "answer": "final" } },
+      { "type": "sleep", "ms": 10 },
+      { "type": "crash", "code": 9 }
+    ]
+  },
+  "checkpoint": {
+    "arg": "--checkpoint <path>",
+    "env": "FAKE_AGENT_CHECKPOINT",
+    "resume": "--resume reads {version:1, profile:'fake', sessionId, cwd, nextStepIndex, submitted} and continues at nextStepIndex from the same cwd",
+    "note": "No checkpoint file is created unless a path is supplied."
+  }
+}

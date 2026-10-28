@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "id": "p3-incomplete",
+  "name": "P3 incomplete graph",
+  "description": "Structurally supported four node types with a missing end edge",
+  "graph": {
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "name": "Inputs",
+        "params": [{ "name": "topic", "type": "string", "required": true }],
+        "ui": { "x": 40, "y": 100 }
+      },
+      {
+        "id": "research",
+        "type": "agent",
+        "name": "Research",
+        "cli": "fake",
+        "prompt": "Summarize {{ start.topic }}.",
+        "output": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["summary", "points"],
+          "properties": {
+            "summary": { "type": "string", "maxLength": 2000 },
+            "points": { "type": "array", "maxItems": 20, "items": { "type": "string" } }
+          }
+        },
+        "permissions": { "network": false, "write": ["workspace"] },
+        "workspace": { "mode": "scratch" },
+        "limits": { "timeoutMin": 5, "validationRetries": 1, "crashRetries": 0 },
+        "context": { "project": "none", "workflow": "none" },
+        "ui": { "x": 300, "y": 100 }
+      },
+      {
+        "id": "render",
+        "type": "shell",
+        "name": "Render",
+        "command": "printf '%s\\n' {{ research.summary }}",
+        "workspace": { "mode": "scratch" },
+        "timeoutMin": 1,
+        "ui": { "x": 560, "y": 100 }
+      },
+      {
+        "id": "done",
+        "type": "end",
+        "name": "Done",
+        "status": "success",
+        "result": "{ \"summary\": research.summary }",
+        "ui": { "x": 820, "y": 100 }
+      }
+    ],
+    "edges": [
+      { "id": "e-start-research", "from": "start", "to": "research" },
+      { "id": "e-research-render", "from": "research", "to": "render" }
+    ]
+  }
+}

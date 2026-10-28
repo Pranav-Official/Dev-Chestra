@@ -1,0 +1,4 @@
+{"type":"system","subtype":"init","session_id":"11111111-1111-4111-8111-111111111111","tools":["Read","mcp__relay__submit_result"],"mcp_servers":["relay"]}
+{"type":"assistant","message":{"content":[{"type":"text","text":"working"},{"type":"tool_use","id":"toolu_1","name":"mcp__relay__submit_result","input":{"answer":"ok"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_1","content":[{"type":"text","text":"accepted"}],"is_error":false}]}}
+{"type":"result","subtype":"success","is_error":false,"result":"done","session_id":"11111111-1111-4111-8111-111111111111","total_cost_usd":0.0123,"usage":{"input_tokens":100,"output_tokens":20}}

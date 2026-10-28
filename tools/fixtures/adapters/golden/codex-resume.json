@@ -1,0 +1,32 @@
+{
+  "label": "SYNTHETIC golden argv expectation, not a live capture",
+  "cli": "codex",
+  "version": "0.164.0",
+  "case": "resume-read-only-no-network",
+  "bin": "codex",
+  "args": [
+    "exec",
+    "resume",
+    "thread-1",
+    "--json",
+    "--skip-git-repo-check",
+    "-c",
+    "sandbox_mode=\"read-only\"",
+    "-c",
+    "sandbox_workspace_write.network_access=false",
+    "-c",
+    "mcp_servers.relay.command=\"/usr/bin/node\"",
+    "-c",
+    "mcp_servers.relay.args=[\"/abs/shim.js\"]",
+    "-c",
+    "mcp_servers.relay.env_vars=[\"RELAY_EXEC_TOKEN\",\"RELAY_GATEWAY_URL\",\"RELAY_TOOLSET\"]",
+    "-c",
+    "mcp_servers.relay.default_tools_approval_mode=\"approve\"",
+    "-c",
+    "mcp_servers.relay.startup_timeout_sec=20",
+    "-c",
+    "mcp_servers.relay.tool_timeout_sec=120",
+    "-o",
+    "/run/last-message.txt"
+  ]
+}

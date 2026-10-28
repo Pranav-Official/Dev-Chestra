@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "p3-5-approval-simple",
+  "name": "P3.5 simple approval",
+  "graph": {
+    "nodes": [
+      { "id": "start", "type": "start", "name": "Start", "ui": { "x": 20, "y": 20 }, "params": [] },
+      { "id": "a", "type": "approval", "name": "Human check", "ui": { "x": 240, "y": 20 }, "message": "Approve to proceed", "criteria": ["Looks good"], "irreversible": false },
+      { "id": "agent_a", "type": "agent", "name": "Agent A", "ui": { "x": 480, "y": 20 }, "cli": "fake", "prompt": "return {verdict:'ok'}", "output": { "type": "object", "properties": { "verdict": { "type": "string" } }, "required": ["verdict"], "additionalProperties": false }, "permissions": { "network": false, "write": [] } },
+      { "id": "done", "type": "end", "name": "Done", "ui": { "x": 720, "y": 20 }, "status": "success", "result": "agent_a" }
+    ],
+    "edges": [
+      { "id": "e0", "from": "start", "to": "a" },
+      { "id": "e1", "from": "a", "to": "agent_a" },
+      { "id": "e2", "from": "agent_a", "to": "done" }
+    ]
+  }
+}

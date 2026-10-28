@@ -3,7 +3,30 @@ import type { RunWorkspaceSelection } from "@relay/core";
 /** Production agent CLIs. `fake` lives only in the test adapter registry behind RELAY_ALLOW_FAKE. */
 export const PROD_CLIS = ["claude-code", "codex", "opencode", "pi"] as const;
 
-export type AgentCli = (typeof PROD_CLIS)[number];
+/** Production CLI id, derived from {@link PROD_CLIS}. This is the only
+ * declaration of the supported-CLI set; adapters, engine, server and web
+ * derive their CLI types, ids and labels from it. */
+export type ProdCliId = (typeof PROD_CLIS)[number];
+
+/** Back-compat alias of {@link ProdCliId} for workflow shape fields. */
+export type AgentCli = ProdCliId;
+
+/** Canonical display labels, keyed by {@link ProdCliId}. Provider metadata
+ * and the web offline fallback both read these, so each label string is
+ * declared exactly once. */
+export const PROD_CLI_LABELS: Record<ProdCliId, string> = {
+  "claude-code": "Claude Code",
+  codex: "Codex",
+  opencode: "Opencode",
+  pi: "Pi",
+};
+
+const prodCliIds: readonly string[] = PROD_CLIS;
+
+/** Type guard for {@link ProdCliId}. Use it instead of casting CLI ids. */
+export function isProdCliId(value: unknown): value is ProdCliId {
+  return typeof value === "string" && prodCliIds.includes(value);
+}
 
 export type SuperviseMode = "default" | "checkpoint" | "notify" | "skip";
 

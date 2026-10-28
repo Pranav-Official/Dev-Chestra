@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { err, fsSlug, ok, type Path, RelayError, type Result } from "@relay/core";
+import { err, fsSlug, isRecord, ok, type Path, RelayError, type Result } from "@relay/core";
 import {
   parseWorkspacePath,
   requireAbsolutePath,
@@ -53,8 +53,6 @@ const ferr = (message: string, details?: unknown): RelayError =>
 const conflict = (message: string, details?: unknown): RelayError =>
   new RelayError("E_CONFLICT", message, details === undefined ? {} : { details });
 const aborted = (signal: AbortSignal | undefined): boolean => signal?.aborted === true;
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
 function toRelayError(e: unknown): RelayError {
   if (e instanceof RelayError) return e;
   const code = (e as NodeJS.ErrnoException | undefined)?.code ?? "unknown";

@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "id": "p2-basic",
+  "name": "P2 acceptance chain",
+  "description": "start -> fake agent -> shell -> end. Fake-only; no live provider calls.",
+  "graph": {
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "name": "Inputs",
+        "params": [
+          { "name": "topic", "type": "string", "required": true }
+        ],
+        "ui": { "x": 0, "y": 0 }
+      },
+      {
+        "id": "research",
+        "type": "agent",
+        "name": "Research",
+        "cli": "fake",
+        "prompt": "Summarize {{ start.topic }} for the P2 acceptance run.",
+        "output": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["summary"],
+          "properties": {
+            "summary": { "type": "string", "maxLength": 2000 }
+          }
+        },
+        "permissions": { "network": false, "write": ["workspace"] },
+        "workspace": { "mode": "scratch" },
+        "limits": { "timeoutMin": 5, "validationRetries": 1, "crashRetries": 0 },
+        "context": { "project": "none", "workflow": "none" },
+        "ui": { "x": 240, "y": 0 }
+      },
+      {
+        "id": "render",
+        "type": "shell",
+        "name": "Render",
+        "command": "printf '%s\\n' {{ research.summary }}",
+        "workspace": { "mode": "scratch" },
+        "timeoutMin": 1,
+        "allowFailure": false,
+        "ui": { "x": 480, "y": 0 }
+      },
+      {
+        "id": "done",
+        "type": "end",
+        "name": "Done",
+        "status": "success",
+        "result": "{ \"summary\": research.summary }",
+        "ui": { "x": 720, "y": 0 }
+      }
+    ],
+    "edges": [
+      { "id": "e-start-research", "from": "start", "to": "research" },
+      { "id": "e-research-render", "from": "research", "to": "render" },
+      { "id": "e-render-done", "from": "render", "to": "done" }
+    ]
+  }
+}

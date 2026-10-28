@@ -36,32 +36,6 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
-  demos:
-    name: demos / ubuntu-latest / node 22
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10.14.0
-          run_install: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22.x"
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - run: pnpm demo:p0
-      - run: pnpm demo:p1
-      - run: pnpm --filter @relay/p2-smoke exec playwright install --with-deps chromium
-      - name: Point the P2 demo at the installed Chromium
-        run: |
-          chrome="$(pnpm --filter @relay/p2-smoke exec node --input-type=module -e 'import { chromium } from "playwright"; console.log(chromium.executablePath())')"
-          test -x "$chrome"
-          echo "RELAY_CHROMIUM_PATH=$chrome" >> "$GITHUB_ENV"
-      - run: pnpm demo:p2
-      - run: pnpm demo:p3
-
   browser:
     name: browser / ubuntu-latest / node 22
     runs-on: ubuntu-latest

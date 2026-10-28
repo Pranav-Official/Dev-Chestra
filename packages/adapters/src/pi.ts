@@ -4,7 +4,7 @@ import { ok, type RelayError, type Result } from "@relay/core";
 import { clip, NdjsonParser, num, parseObject, record, str } from "./parsers.js";
 import { checkDir, classifyExit, fail, requireOptionKeys } from "./plan.js";
 import { probeVersion } from "./probe.js";
-import { piProvider } from "./provider.js";
+import { piStatic } from "./provider-config.js";
 import type {
   AdapterEvent,
   AdapterOptions,
@@ -384,12 +384,12 @@ function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
         throw new Error("provider must be a safe provider name");
       }
       if (provider !== undefined) args.push("--provider", provider);
-      args.push(piProvider.modelArg, req.model);
+      args.push(piStatic.modelArg, req.model);
     } else if (providerOpt !== undefined) {
       throw new Error("provider requires a model");
     }
 
-    const permissions = piProvider.permissionMap;
+    const permissions = piStatic.permissionMap;
     const denied: string[] = [];
     if (req.permissions.write.length === 0) denied.push(...permissions.readOnlyDeniedTools);
     if (!req.permissions.network) denied.push(...permissions.networkTools);

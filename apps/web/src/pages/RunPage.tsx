@@ -74,6 +74,15 @@ function RunPage({ rid }: { rid: string }) {
     setParams(next, { replace: true });
   };
 
+  const selectReplay = (eventId: number | null): void => {
+    // Apply the target immediately so rapid keyboard scrubs accumulate step by
+    // step instead of collapsing to one step. The URL stays the source of
+    // truth for deep links; the ?at= effect above re-applies the same value
+    // idempotently once it runs.
+    setReplay(eventId);
+    update({ at: eventId === null ? null : String(eventId) });
+  };
+
   const view = session.view;
   const run = detail?.run ?? null;
   const workflowName = run?.workflowName ?? detail?.snapshot.name ?? run?.workflowId ?? "Workflow";
@@ -338,7 +347,7 @@ function RunPage({ rid }: { rid: string }) {
           events={session.events}
           replayAt={session.replayAt}
           headEventId={session.head.lastEventId}
-          onChange={(eventId) => update({ at: eventId === null ? null : String(eventId) })}
+          onChange={(eventId) => selectReplay(eventId)}
         />
       ) : (
         <div className="replay-bar" aria-busy="true">

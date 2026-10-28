@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "id": "p4-gate-multiple-ends",
+  "name": "P4 gate with exclusive multiple ends",
+  "description": "Each gate branch reaches its own end",
+  "graph": {
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "name": "Inputs",
+        "params": [
+          {
+            "name": "route",
+            "type": "string",
+            "required": true,
+            "default": "a"
+          }
+        ],
+        "ui": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": "route_gate",
+        "type": "gate",
+        "name": "Route",
+        "branches": [
+          {
+            "id": "ok",
+            "when": "start.route = \"ok\""
+          },
+          {
+            "id": "bad",
+            "otherwise": true
+          }
+        ],
+        "ui": {
+          "x": 180,
+          "y": 0
+        }
+      },
+      {
+        "id": "end_ok",
+        "type": "end",
+        "name": "end_ok",
+        "status": "success",
+        "result": "{ \"route\": \"ok\" }",
+        "ui": {
+          "x": 820,
+          "y": -80
+        }
+      },
+      {
+        "id": "end_bad",
+        "type": "end",
+        "name": "end_bad",
+        "status": "failed",
+        "result": "{ \"route\": \"bad\" }",
+        "ui": {
+          "x": 820,
+          "y": 80
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e-start-gate",
+        "from": "start",
+        "to": "route_gate"
+      },
+      {
+        "id": "e-gate-ok",
+        "from": "route_gate.ok",
+        "to": "end_ok"
+      },
+      {
+        "id": "e-gate-bad",
+        "from": "route_gate.bad",
+        "to": "end_bad"
+      }
+    ]
+  }
+}

@@ -1,6 +1,7 @@
 export * from "./clock.js";
 export * from "./error.js";
 export * from "./events.js";
+export * from "./guard.js";
 export * from "./hash.js";
 export * from "./identity.js";
 export * from "./ids.js";

@@ -1,0 +1,31 @@
+{
+  "name": "@relay/p2-smoke",
+  "version": "0.1.0",
+  "private": true,
+  "description": "P2 acceptance: real server, SQLite, SSE replay and browser run viewer",
+  "type": "module",
+  "main": "./dist/main.js",
+  "types": "./dist/main.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
+    "test": "vitest run",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts"
+  },
+  "dependencies": {
+    "@relay/core": "workspace:*",
+    "@relay/cli": "workspace:*",
+    "@relay/adapters": "workspace:*"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0",
+    "@types/node": "22.20.5",
+    "axe-core": "4.14.0",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "5.0.4"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

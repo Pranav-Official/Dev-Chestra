@@ -1,0 +1,5 @@
+{"type":"thread.started","thread_id":"thread-1"}
+{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"echo hi"}}
+{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"echo hi","aggregated_output":"hi\n","exit_code":0,"status":"completed"}}
+{"type":"turn.completed","usage":{"input_tokens":100,"output_tokens":20}}
+{"type":"turn.completed","usage":{"input_tokens":150,"output_tokens":35}}

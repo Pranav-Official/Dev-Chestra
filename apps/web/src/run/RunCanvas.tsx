@@ -354,10 +354,7 @@ export function RunCanvas({
 
   const routing = useMemo(
     () =>
-      deriveRouting(
-        { nodes: snapshot.graph.nodes, edges: snapshot.graph.edges },
-        view.executions as unknown as Parameters<typeof deriveRouting>[1],
-      ),
+      deriveRouting({ nodes: snapshot.graph.nodes, edges: snapshot.graph.edges }, view.executions),
     [snapshot, view],
   );
 

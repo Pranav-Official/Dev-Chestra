@@ -1,0 +1,10 @@
+[
+  { "type": "say", "text": "P3 acceptance agent working" },
+  {
+    "type": "submit",
+    "output": {
+      "summary": "P3 acceptance summary",
+      "points": ["authoring", "conflict safety", "live runs"]
+    }
+  }
+]

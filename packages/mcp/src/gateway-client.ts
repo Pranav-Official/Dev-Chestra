@@ -1,5 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { isRecord } from "@relay/core";
 import {
   type AgentCallResult,
   type AgentGatewayClient,
@@ -15,10 +16,6 @@ const SUBMIT_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_REQUEST_BYTES = 1024 * 1024;
 const DEFAULT_MAX_RESPONSE_BYTES = 256 * 1024;
 const DEFAULT_RETRIES = 1;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function stripBrackets(hostname: string): string {
   return hostname.startsWith("[") && hostname.endsWith("]") ? hostname.slice(1, -1) : hostname;
