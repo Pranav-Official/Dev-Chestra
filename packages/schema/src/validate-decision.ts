@@ -14,6 +14,17 @@ function isConfidence(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1;
 }
 
+/**
+ * Names that collide with Object.prototype members. As option values or level
+ * labels they would be silently dropped from (or misread in) plain-object
+ * maps; as branch/band ids they invite the same confusion downstream (F9).
+ */
+const RESERVED_DECISION_NAMES: ReadonlySet<string> = new Set([
+  "__proto__",
+  "constructor",
+  "prototype",
+]);
+
 export function validateDecision(
   node: DecisionNode,
   pointer: string,
@@ -166,6 +177,16 @@ export function validateDecision(
               node.id,
             ),
           );
+        } else if (RESERVED_DECISION_NAMES.has(opt.value)) {
+          addError(
+            issue(
+              "error",
+              "E_DECISION_OPTIONS",
+              `Decision choice option '${opt.value}' is reserved and cannot be used.`,
+              `${at}/value`,
+              node.id,
+            ),
+          );
         } else if (seen.has(opt.value)) {
           addError(
             issue(
@@ -223,6 +244,17 @@ export function validateDecision(
                 "error",
                 "E_DECISION_BRANCH_ID",
                 `'${DECISION_UNCERTAIN_HANDLE}' is reserved and cannot be a branch id.`,
+                `${at}/id`,
+                node.id,
+              ),
+            );
+          }
+          if (RESERVED_DECISION_NAMES.has(b.id)) {
+            addError(
+              issue(
+                "error",
+                "E_DECISION_BRANCH_ID",
+                `Decision branch id '${b.id}' is reserved and cannot be used.`,
                 `${at}/id`,
                 node.id,
               ),
@@ -350,6 +382,16 @@ export function validateDecision(
               node.id,
             ),
           );
+        } else if (RESERVED_DECISION_NAMES.has(l.label)) {
+          addError(
+            issue(
+              "error",
+              "E_DECISION_LEVELS",
+              `Decision score level '${l.label}' is reserved and cannot be used.`,
+              `${at}/label`,
+              node.id,
+            ),
+          );
         } else if (seen.has(l.label)) {
           addError(
             issue(
@@ -408,6 +450,17 @@ export function validateDecision(
                 "error",
                 "E_DECISION_BRANCH_ID",
                 `'${DECISION_UNCERTAIN_HANDLE}' is reserved and cannot be a band id.`,
+                `${at}/id`,
+                node.id,
+              ),
+            );
+          }
+          if (RESERVED_DECISION_NAMES.has(b.id)) {
+            addError(
+              issue(
+                "error",
+                "E_DECISION_BRANCH_ID",
+                `Decision band id '${b.id}' is reserved and cannot be used.`,
                 `${at}/id`,
                 node.id,
               ),
