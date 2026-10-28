@@ -418,7 +418,9 @@ describe("engine decision executor", () => {
     const standin = await startStandin();
     trackStandin(standin);
     const { deps } = setup(standin);
-    const engine = createEngine({ ...deps, decisions: undefined });
+    const { decisions: _omitted, ...withoutDecisions } = deps;
+    void _omitted;
+    const engine = createEngine(withoutDecisions);
     const snap = snapshot(
       [start(), decision("d"), end("done")],
       [
