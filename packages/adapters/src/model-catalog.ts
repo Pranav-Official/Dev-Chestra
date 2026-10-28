@@ -1,5 +1,13 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
+import { isRecord } from "@relay/core";
+import {
+  boundCount,
+  boundMs,
+  hasControl,
+  printable,
+  validateDiscoveryRequest,
+} from "./discovery-util.js";
 import { isGroupAlive, killTree } from "./identity.js";
 import { waitSpawn } from "./spawn-util.js";
 import type {
@@ -62,41 +70,6 @@ function success(
   return { status: "ready", items, cliVersion, truncated };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function boundMs(value: number | undefined, fallback: number): number {
-  if (value === undefined || !Number.isFinite(value)) return fallback;
-  return Math.min(fallback, Math.max(1, Math.floor(value)));
-}
-
-function boundCount(value: number | undefined, fallback: number): number {
-  if (value === undefined || !Number.isFinite(value)) return fallback;
-  return Math.min(fallback, Math.max(1, Math.floor(value)));
-}
-
-function validRequest(request: CodexModelDiscoveryRequest): boolean {
-  if (typeof request.cwd !== "string" || request.cwd === "" || request.cwd.includes("\u0000")) {
-    return false;
-  }
-  if (
-    request.bin !== undefined &&
-    (typeof request.bin !== "string" ||
-      request.bin === "" ||
-      request.bin.length > 4096 ||
-      request.bin.includes("\u0000"))
-  ) {
-    return false;
-  }
-  if (!isRecord(request.env)) return false;
-  for (const [name, value] of Object.entries(request.env)) {
-    if (name === "" || name.includes("=") || name.includes("\u0000")) return false;
-    if (typeof value !== "string" || value.includes("\u0000")) return false;
-  }
-  return true;
-}
-
 function rpcError(error: Record<string, unknown>): DiscoveryError {
   const code = typeof error.code === "number" ? error.code : undefined;
   if (code === -32601) return new DiscoveryError("unsupported", MESSAGES.unsupported);
@@ -124,25 +97,8 @@ function parseVersion(result: Record<string, unknown>): string | null {
   return null;
 }
 
-function hasControl(value: string): boolean {
-  for (const char of value) {
-    const code = char.codePointAt(0) ?? 0;
-    if (code < 0x20 || code === 0x7f) return true;
-  }
-  return false;
-}
-
 function safeId(value: string): boolean {
   return value.length > 0 && value.length <= ID_MAX && !hasControl(value);
-}
-
-function printable(value: string): string {
-  let out = "";
-  for (const char of value) {
-    const code = char.codePointAt(0) ?? 0;
-    out += code < 0x20 || code === 0x7f ? " " : char;
-  }
-  return out.replace(/\s+/g, " ").trim();
 }
 
 function capped(value: string, max: number): string {
@@ -246,7 +202,7 @@ export async function discoverCodexModels(
   if (typeof request !== "object" || request === null) {
     return failure("unavailable", MESSAGES.invalidRequest);
   }
-  if (!validRequest(request)) return failure("unavailable", MESSAGES.invalidRequest);
+  if (!validateDiscoveryRequest(request)) return failure("unavailable", MESSAGES.invalidRequest);
 
   const totalMs = boundMs(request.timeoutMs, TOTAL_MS);
   const initMs = boundMs(request.initTimeoutMs, Math.min(INIT_MS, totalMs));

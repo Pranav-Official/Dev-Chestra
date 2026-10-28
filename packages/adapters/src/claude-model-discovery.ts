@@ -8,6 +8,7 @@ import {
   type SpawnedProcess,
   type SpawnOptions,
 } from "@anthropic-ai/claude-agent-sdk";
+import { isRecord } from "@relay/core";
 import {
   type ClaudeFailureReason,
   type ClaudeLimits,
@@ -15,7 +16,6 @@ import {
   classifyClaudeError,
   claudeFailure,
   claudeLimits,
-  isRecord,
   normalizeInitialization,
 } from "./claude-model-normalizer.js";
 import { type ClaudeOwnedProcess, spawnClaudeForDiscovery } from "./claude-sdk-spawn.js";

@@ -1,3 +1,4 @@
+import { isRecord } from "@relay/core";
 import type { Edge, WorkflowFile, WorkflowNode } from "@relay/schema";
 import {
   checkConnection,
@@ -24,10 +25,6 @@ export const HISTORY_LIMIT = 100;
 
 function change(layoutOnly: boolean, nodeId?: string): DocumentChange {
   return nodeId === undefined ? { layoutOnly } : { layoutOnly, nodeId };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function sameJson(left: unknown, right: unknown): boolean {

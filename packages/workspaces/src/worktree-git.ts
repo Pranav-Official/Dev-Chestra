@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { RelayError } from "@relay/core";
+import { isRecord, RelayError } from "@relay/core";
 
 export const BINDING_NAME = "project-worktree.json";
 export const INTENT_NAME = "project-worktree.intent.json";
@@ -56,8 +56,6 @@ export const ferr = (message: string, details?: unknown): RelayError =>
   new RelayError("E_FORBIDDEN_PATH", message, details === undefined ? {} : { details });
 export const conflict = (message: string, details?: unknown): RelayError =>
   new RelayError("E_CONFLICT", message, details === undefined ? {} : { details });
-export const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
 export function toRelayError(e: unknown): RelayError {
   if (e instanceof RelayError) return e;
   const code = (e as NodeJS.ErrnoException | undefined)?.code ?? "unknown";

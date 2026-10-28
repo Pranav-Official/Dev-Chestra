@@ -1,4 +1,4 @@
-import { err, ok, RelayError, type Result } from "@relay/core";
+import { err, isRecord, ok, RelayError, type Result } from "@relay/core";
 
 export type LinearNodeKind = "start" | "agent" | "shell" | "end";
 
@@ -26,10 +26,6 @@ const SUPPORTED_TYPES = new Set<string>(["start", "agent", "shell", "end"]);
 
 function invalid(message: string, details?: unknown): RelayError {
   return new RelayError("E_WORKFLOW_INVALID", message, details === undefined ? {} : { details });
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function readNodes(snapshot: unknown): Record<string, unknown>[] {

@@ -4,6 +4,7 @@ import {
   type EventDraft,
   type ExecutionIdentity,
   hashJson,
+  isRecord,
   isRunWorkspaceBinding,
   type Path,
   RelayError,
@@ -33,10 +34,6 @@ export interface ActiveRunState {
   reason: "user" | "shutdown" | null;
   readonly tokens: Set<() => void>;
   overrideApprovedBy?: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**

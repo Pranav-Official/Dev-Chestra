@@ -1,3 +1,4 @@
+import { isRecord } from "@relay/core";
 import type { ValidationReport, WorkflowFile } from "@relay/schema";
 import { errorReport } from "./validation-report.js";
 
@@ -31,10 +32,6 @@ interface Reply {
   revision: number;
   report?: unknown;
   message?: unknown;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function isReply(value: unknown): value is Reply {

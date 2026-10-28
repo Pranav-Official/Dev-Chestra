@@ -1,3 +1,4 @@
+import { isRecord } from "@relay/core";
 import { hashJsonSync } from "./hash.js";
 import { fail } from "./util.js";
 
@@ -48,10 +49,6 @@ type Cursor = RunsCursor | EventsCursor | OutputsCursor;
 
 export function encodeCursor(cursor: Cursor): string {
   return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function requireString(row: Record<string, unknown>, name: string, max: number): string {

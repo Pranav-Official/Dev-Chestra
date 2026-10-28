@@ -1,3 +1,4 @@
+import { isRecord } from "@relay/core";
 import type { AgentNode } from "@relay/schema";
 import { Bot } from "lucide-react";
 import { AgentLimits } from "./AgentLimits.js";
@@ -9,7 +10,6 @@ import { fieldIssue } from "./issues.js";
 import { useAvailableClis } from "./model/useAvailableClis.js";
 import { InspectorSection } from "./Section.js";
 import { SchemaEditor } from "./schema/SchemaEditor.js";
-import { isRecord } from "./stableStringify.js";
 import type { FormProps } from "./types.js";
 
 export function AgentForm({
