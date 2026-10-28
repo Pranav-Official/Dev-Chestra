@@ -34,7 +34,7 @@ function Icon({ type }: { type: string }) {
 }
 
 /** Handle geometry is cached by React Flow, so programmatic id/order changes need a remeasure. */
-function handleSignature(node: WorkflowNode): string | null {
+export function handleSignature(node: WorkflowNode): string | null {
   const t = (node as { type: string }).type;
   if (t === "gate")
     return `gate:${(node as unknown as { branches: { id: string }[] }).branches.map((branch) => branch.id).join("|")}`;
@@ -43,7 +43,7 @@ function handleSignature(node: WorkflowNode): string | null {
   return null;
 }
 
-function subtitle(node: WorkflowNode): string {
+export function subtitle(node: WorkflowNode): string {
   const t = (node as { type: string }).type;
   switch (t) {
     case "start":
