@@ -1,6 +1,6 @@
 import { ok, type RelayError, type Result } from "@relay/core";
-import { clip, NdjsonParser, num, parseObject, record, str } from "./parsers.js";
 import { hasControl } from "./discovery-util.js";
+import { clip, NdjsonParser, num, parseObject, record, str } from "./parsers.js";
 import { checkDir, classifyExit, fail, requireOptionKeys } from "./plan.js";
 import { probeVersion } from "./probe.js";
 import { opencodeStatic } from "./provider-config.js";

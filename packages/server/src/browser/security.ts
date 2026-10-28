@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import type { Context, MiddlewareHandler } from "hono";
 import { isRecord } from "@relay/core";
+import type { Context, MiddlewareHandler } from "hono";
 import { RelayError } from "../errors.js";
 
 export const SESSION_COOKIE = "relay_session";

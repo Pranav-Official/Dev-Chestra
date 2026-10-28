@@ -1,5 +1,5 @@
-import type { AgentNode } from "@relay/schema";
 import { isRecord } from "@relay/core";
+import type { AgentNode } from "@relay/schema";
 import { Bot } from "lucide-react";
 import { AgentLimits } from "./AgentLimits.js";
 import { AgentModelField } from "./AgentModelField.js";

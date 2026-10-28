@@ -1,5 +1,5 @@
-import type { ValidationReport, WorkflowFile } from "@relay/schema";
 import { isRecord } from "@relay/core";
+import type { ValidationReport, WorkflowFile } from "@relay/schema";
 import { errorReport } from "./validation-report.js";
 
 export const VALIDATION_DEBOUNCE_MS = 150;

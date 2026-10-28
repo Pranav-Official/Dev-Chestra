@@ -1,5 +1,5 @@
-import type { JsonSchemaObject } from "@relay/schema";
 import { isRecord } from "@relay/core";
+import type { JsonSchemaObject } from "@relay/schema";
 import { stableStringify } from "../stableStringify.js";
 
 export type PropertyKind =

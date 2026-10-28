@@ -1,5 +1,5 @@
-import type { Edge, WorkflowFile, WorkflowNode } from "@relay/schema";
 import { isRecord } from "@relay/core";
+import type { Edge, WorkflowFile, WorkflowNode } from "@relay/schema";
 import {
   checkConnection,
   createDefaultNode,
