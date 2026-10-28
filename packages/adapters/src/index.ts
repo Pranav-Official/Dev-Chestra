@@ -28,6 +28,17 @@ export {
   readProcessIdentity,
 } from "./identity.js";
 export { materializeInvocation } from "./invocation.js";
+export { CODEX_INTERNAL_CONNECTOR_NAMES } from "./mcp-discovery/codex.js";
+export {
+  createMcpResolver,
+  type DiscoveredMcpServer,
+  type InternalMcpServer,
+  type McpListResult,
+  type McpResolveResult,
+  type McpResolver,
+  type McpResolverOptions,
+  scannedMcpPaths,
+} from "./mcp-discovery/index.js";
 export { discoverCodexModels } from "./model-catalog.js";
 export { discoverOpencodeModels, opencodeConfigIdentity } from "./opencode-discovery.js";
 export { piCredentialScope } from "./pi.js";
