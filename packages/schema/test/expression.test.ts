@@ -128,6 +128,24 @@ describe("JSONata execution", () => {
     await expect(executor.evaluate("1 + 1", {}, { timeoutMs: 1000 })).resolves.toBe(2);
   });
 
+  it("does not count worker cold start against the evaluation budget", async () => {
+    // The worker takes ~300ms to boot but the evaluation budget is 100ms: the old
+    // behavior started the timer at spawn and failed a healthy expression.
+    const slowBoot = createNodeExpressionExecutor({
+      workerUrl: new URL("./fixtures/slow-boot-worker.mjs", import.meta.url),
+    });
+    await expect(slowBoot.evaluate("1 + 1", {}, { timeoutMs: 100 })).resolves.toBe(2);
+  });
+
+  it("still enforces the evaluation budget once the worker is running", async () => {
+    const started = Date.now();
+    await expect(
+      executor.evaluate("(function($f){$f($f)})(function($f){$f($f)})", {}, { timeoutMs: 150 }),
+    ).rejects.toThrow(/timed out|stack|depth|exceed/i);
+    // Generous upper bound: cold start is outside the budget but the loop must still be cut.
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+
   it("compares a null operand to false instead of failing", async () => {
     // Decision refusals store confidence null; thresholds must read false.
     for (const source of [

@@ -140,3 +140,6 @@ parentPort.once("message", async (request) => {
     parentPort.postMessage(workerError(error));
   }
 });
+
+// Cold start is finished: tell the parent so it can start the evaluation budget.
+parentPort.postMessage({ ready: true });
