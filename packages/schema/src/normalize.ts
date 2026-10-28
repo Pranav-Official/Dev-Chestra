@@ -3,12 +3,14 @@ import { normalizeOutputSchema } from "./output-schema.js";
 import type {
   AgentNode,
   ApprovalNode,
+  DecisionNode,
   EndNode,
   GateNode,
   JoinNode,
   JsonSchemaObject,
   NormalizedAgentNode,
   NormalizedApprovalNode,
+  NormalizedDecisionNode,
   NormalizedEndNode,
   NormalizedGateNode,
   NormalizedJoinNode,
@@ -193,6 +195,23 @@ function normalizeApproval(node: ApprovalNode): NormalizedApprovalNode {
   return out;
 }
 
+function normalizeDecision(node: DecisionNode): NormalizedDecisionNode {
+  const out: NormalizedDecisionNode = {
+    id: node.id,
+    type: "decision",
+    name: node.name,
+    supervise: "default",
+    env: [],
+    provider: node.provider,
+    state: node.state,
+    instructions: node.instructions,
+    mode: structuredClone(node.mode),
+    onError: node.onError ?? "fail",
+  };
+  if (node.model !== undefined) out.model = node.model;
+  return out;
+}
+
 function normalizeNode(
   file: WorkflowFile,
   node: WorkflowNode,
@@ -211,6 +230,8 @@ function normalizeNode(
       return normalizeJoin(node);
     case "approval":
       return normalizeApproval(node as ApprovalNode);
+    case "decision":
+      return normalizeDecision(node as DecisionNode);
     case "end":
       return normalizeEnd(node);
   }

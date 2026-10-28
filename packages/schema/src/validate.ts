@@ -10,6 +10,7 @@ import { compileTemplate } from "./template.js";
 import type {
   AgentNode,
   ApprovalNode,
+  DecisionNode,
   EndNode,
   GateNode,
   Issue,
@@ -23,6 +24,7 @@ import type {
 } from "./types.js";
 import { PROD_CLIS } from "./types.js";
 import { validateApproval } from "./validate-approval.js";
+import { validateDecision } from "./validate-decision.js";
 import {
   isRecord,
   issue,
@@ -544,6 +546,11 @@ export function validateWorkflow(
 
     if (node.type === "approval") {
       validateApproval(node as ApprovalNode, pointer, allowed, addError, addRelay);
+      continue;
+    }
+
+    if (node.type === "decision") {
+      validateDecision(node as DecisionNode, pointer, allowed, addError, addRelay);
       continue;
     }
 

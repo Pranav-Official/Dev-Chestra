@@ -158,6 +158,43 @@ export interface ApprovalNode extends NodeBase {
   irreversible: boolean;
 }
 
+export const DECISION_MODEL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+export const DECISION_UNCERTAIN_HANDLE = "uncertain";
+
+export interface DecisionBooleanMode {
+  kind: "boolean";
+  trueAt?: number;
+  falseAt?: number;
+}
+
+export interface DecisionChoiceMode {
+  kind: "choice";
+  options: { value: string; description?: string }[];
+  branches: { id: string; values: string[] }[];
+  minConfidence?: number;
+}
+
+export interface DecisionScoreMode {
+  kind: "score";
+  levels: { label: string; description?: string }[];
+  bands: { id: string; atLeast: number | null }[];
+  minConfidence?: number;
+}
+
+export type DecisionMode = DecisionBooleanMode | DecisionChoiceMode | DecisionScoreMode;
+
+export interface DecisionNode extends NodeBase {
+  type: "decision";
+  provider: DecisionProviderId;
+  model?: string;
+  /** Template over run params and ancestor outputs (same engine as prompts/shell). */
+  state: string;
+  /** 1..4000 chars question for the decision model. */
+  instructions: string;
+  mode: DecisionMode;
+  onError: "fail" | "uncertain";
+}
+
 export interface GateBranch {
   id: string;
   when?: string;
@@ -185,6 +222,7 @@ export type WorkflowNode =
   | GateNode
   | JoinNode
   | ApprovalNode
+  | DecisionNode
   | EndNode;
 export type NodeType = WorkflowNode["type"];
 
@@ -270,6 +308,16 @@ export interface NormalizedApprovalNode extends NormalizedNodeBase {
   irreversible: boolean;
 }
 
+export interface NormalizedDecisionNode extends NormalizedNodeBase {
+  type: "decision";
+  provider: DecisionProviderId;
+  model?: string;
+  state: string;
+  instructions: string;
+  mode: DecisionMode;
+  onError: "fail" | "uncertain";
+}
+
 export type NormalizedNode =
   | NormalizedStartNode
   | NormalizedAgentNode
@@ -277,6 +325,7 @@ export type NormalizedNode =
   | NormalizedGateNode
   | NormalizedJoinNode
   | NormalizedApprovalNode
+  | NormalizedDecisionNode
   | NormalizedEndNode;
 
 export interface NormalizedEdge {
@@ -357,13 +406,13 @@ export interface Capabilities {
 
 export const SCHEMA_CAPABILITIES: Capabilities = {
   schemaVersion: 1,
-  nodeTypes: ["start", "agent", "shell", "gate", "join", "approval", "end"],
+  nodeTypes: ["start", "agent", "shell", "gate", "join", "approval", "decision", "end"],
   clis: [...PROD_CLIS],
   workspaces: ["scratch", "worktree"],
   runWorkspaces: ["project", "existing-worktree", "new-worktree"],
   defaultRunWorkspace: "project",
   unsupported: [
-    "node types other than start/agent/shell/gate/join/approval/end",
+    "node types other than start/agent/shell/gate/join/approval/decision/end",
     "cli fake (test-only, behind RELAY_ALLOW_FAKE)",
     "per-node workspace selection (legacy metadata is ignored on fresh runs)",
     "per-node worktree base/setup/from options",
