@@ -8,118 +8,35 @@ import { createOpencodeAdapter } from "./opencode.js";
 import { discoverOpencodeModels } from "./opencode-discovery.js";
 import { createPiAdapter } from "./pi.js";
 import { discoverPiModels } from "./pi-discovery.js";
-import type { AdapterOptions, CliAdapter, CliId, ProdCliId } from "./types.js";
+import type { CliProvider, ModelDiscoveryResult } from "./provider-config.js";
+import {
+  claudeStatic,
+  codexStatic,
+  fakeStatic,
+  opencodeStatic,
+  piStatic,
+} from "./provider-config.js";
+import type { AdapterOptions, CliId, ProdCliId } from "./types.js";
 
-export type ModelDiscoveryStatus = "ready" | "unsupported" | "unavailable" | "authRequired";
-
-export type ModelDiscoverySource =
-  | "codex-app-server"
-  | "claude-sdk"
-  | "pi-list-models"
-  | "opencode-models";
-
-export interface ModelDiscoveryItem {
-  id: string;
-  label: string;
-  provider?: string;
-  description?: string;
-  aliases?: string[];
-  isDefault?: boolean;
-  source: ModelDiscoverySource;
-}
-
-export interface ModelDiscoveryRequest {
-  cwd: string;
-  bin?: string;
-  env: Record<string, string>;
-  signal?: AbortSignal;
-  timeoutMs?: number;
-}
-
-export interface ModelDiscoveryResult {
-  status: ModelDiscoveryStatus;
-  items: ModelDiscoveryItem[];
-  cliVersion: string | null;
-  truncated: boolean;
-  message?: string;
-}
-
-export interface ModelDiscoveryProvider {
-  readonly source: ModelDiscoverySource | "none";
-  discover(request: ModelDiscoveryRequest): Promise<ModelDiscoveryResult>;
-}
-
-export interface ContextIdentityProvider {
-  readonly configDirName: string;
-  readonly configFiles: readonly string[];
-  /** Provider-specific env names for child-env allowlist and identity presence. */
-  readonly envNames: readonly string[];
-  /** Extra env prefixes copied into the child env and observed by presence. */
-  readonly extraEnvPrefixes: readonly string[];
-  /** Codex observes the config dir dev/ino; Claude excludes volatile dir mtime/size. */
-  readonly includeConfigDirIdentity: boolean;
-  /** e.g. ".claude.json": presence (not content) is identity. Absent when undefined. */
-  readonly userPresenceFile?: string;
-  /** Env var overriding the home config dir (e.g. CODEX_HOME); "" means none. */
-  readonly homeEnvVar: string;
-  /** Home config subdir (e.g. ".codex"); "" means no home config. */
-  readonly homeSubdir: string;
-}
-
-export interface PermissionMap {
-  readonly writeMode: string;
-  readonly readOnlyMode: string;
-  readonly networkTools: readonly string[];
-  readonly writeTools: readonly string[];
-  readonly readOnlyDeniedTools: readonly string[];
-}
-
-export interface CliProvider {
-  readonly id: CliId;
-  readonly label: string;
-  readonly binNames: readonly string[];
-  readonly defaultBin: string;
-  adapter(options?: AdapterOptions): CliAdapter;
-  readonly discovery: ModelDiscoveryProvider;
-  readonly contextIdentity: ContextIdentityProvider;
-  /** CLI flag carrying an explicit model id ("" when the CLI has none). */
-  readonly modelArg: string;
-  readonly permissionMap: PermissionMap;
-  /** Real CLIs need an explicit experimental opt-in; the fake never does. */
-  readonly experimental: boolean;
-}
-
-export const claudePermissionMap: PermissionMap = {
-  writeMode: "dontAsk",
-  readOnlyMode: "dontAsk",
-  networkTools: ["WebFetch", "WebSearch"],
-  writeTools: ["Edit", "Write", "Bash"],
-  readOnlyDeniedTools: ["Edit", "Write", "NotebookEdit", "Bash"],
-};
-
-export const codexPermissionMap: PermissionMap = {
-  writeMode: "workspace-write",
-  readOnlyMode: "read-only",
-  networkTools: [],
-  writeTools: [],
-  readOnlyDeniedTools: [],
-};
-
-export const piPermissionMap: PermissionMap = {
-  writeMode: "advisory",
-  readOnlyMode: "advisory",
-  networkTools: ["web_search", "web_fetch"],
-  writeTools: [],
-  readOnlyDeniedTools: ["edit", "write", "bash", "powershell"],
-};
-
-export const fakePermissionMap: PermissionMap = {
-  writeMode: "advisory",
-  readOnlyMode: "advisory",
-  networkTools: [],
-  writeTools: [],
-  readOnlyDeniedTools: [],
-};
+export type {
+  CliProvider,
+  ContextIdentityProvider,
+  ModelDiscoveryItem,
+  ModelDiscoveryProvider,
+  ModelDiscoveryRequest,
+  ModelDiscoveryResult,
+  ModelDiscoverySource,
+  ModelDiscoveryStatus,
+  PermissionMap,
+  ProviderStatic,
+} from "./provider-config.js";
+export {
+  claudePermissionMap,
+  codexPermissionMap,
+  fakePermissionMap,
+  piPermissionMap,
+  providerStatics,
+} from "./provider-config.js";
 
 const FAKE_CATALOG_MESSAGE = "This CLI does not provide a model catalog.";
 
@@ -128,146 +45,36 @@ async function discoverFake(): Promise<ModelDiscoveryResult> {
 }
 
 export const claudeProvider: CliProvider = {
-  id: "claude-code",
-  label: "Claude Code",
-  binNames: ["claude"],
-  defaultBin: "claude",
+  ...claudeStatic,
   adapter: (options: AdapterOptions = {}) => createClaudeAdapter(options),
   discovery: {
     source: "claude-sdk",
-    // Lazy wrappers: provider.ts sits inside the claude/codex/probe/env import
-    // cycle, so adapter and discovery bindings are only touched at call time.
-    discover: (request) => discoverClaudeModels(request),
+    discover: discoverClaudeModels,
   },
-  contextIdentity: {
-    configDirName: ".claude",
-    configFiles: ["settings.json", "settings.local.json", ".credentials.json"],
-    envNames: [
-      "ANTHROPIC_API_KEY",
-      "ANTHROPIC_AUTH_TOKEN",
-      "ANTHROPIC_BASE_URL",
-      "CLAUDE_CONFIG_DIR",
-    ],
-    extraEnvPrefixes: ["CLAUDE_CODE_"],
-    includeConfigDirIdentity: false,
-    userPresenceFile: ".claude.json",
-    homeEnvVar: "CLAUDE_CONFIG_DIR",
-    homeSubdir: ".claude",
-  },
-  modelArg: "--model",
-  permissionMap: claudePermissionMap,
-  experimental: true,
 };
 
 export const codexProvider: CliProvider = {
-  id: "codex",
-  label: "Codex",
-  binNames: ["codex"],
-  defaultBin: "codex",
+  ...codexStatic,
   adapter: (options: AdapterOptions = {}) => createCodexAdapter(options),
   discovery: {
     source: "codex-app-server",
-    discover: (request) => discoverCodexModels(request),
+    discover: discoverCodexModels,
   },
-  contextIdentity: {
-    configDirName: ".codex",
-    configFiles: ["config.toml", "config.json", "auth.json"],
-    envNames: ["CODEX_HOME", "OPENAI_API_KEY", "CODEX_API_KEY", "OPENAI_BASE_URL"],
-    extraEnvPrefixes: [],
-    includeConfigDirIdentity: true,
-    homeEnvVar: "CODEX_HOME",
-    homeSubdir: ".codex",
-  },
-  modelArg: "-m",
-  permissionMap: codexPermissionMap,
-  experimental: true,
 };
 
 export const piProvider: CliProvider = {
-  id: "pi",
-  label: "Pi",
-  binNames: ["pi"],
-  defaultBin: "pi",
+  ...piStatic,
   adapter: (options: AdapterOptions = {}) => createPiAdapter(options),
   discovery: {
     source: "pi-list-models",
-    discover: (request) => discoverPiModels(request),
+    discover: discoverPiModels,
   },
-  contextIdentity: {
-    configDirName: ".pi",
-    configFiles: ["mcp.json", "models.json", "auth.json"],
-    // Pi resolves provider credentials from the process environment (see
-    // pi.dev/docs/latest/providers), so API-key providers only authenticate
-    // in the isolated agent dir when their variables pass the child-env
-    // allowlist. Discovery and execution both build env through here.
-    envNames: [
-      "PI_CODING_AGENT_DIR",
-      "PI_CODING_AGENT_SESSION_DIR",
-      "PI_OFFLINE",
-      "OPENCODE_API_KEY",
-      "ANTHROPIC_API_KEY",
-      "ANTHROPIC_AUTH_TOKEN",
-      "OPENAI_API_KEY",
-      "DEEPSEEK_API_KEY",
-      "NVIDIA_API_KEY",
-      "GEMINI_API_KEY",
-      "COPILOT_GITHUB_TOKEN",
-      "MISTRAL_API_KEY",
-      "GROQ_API_KEY",
-      "CEREBRAS_API_KEY",
-      "XAI_API_KEY",
-      "OPENROUTER_API_KEY",
-      "AI_GATEWAY_API_KEY",
-      "ZAI_API_KEY",
-      "ZAI_CODING_CN_API_KEY",
-      "RADIUS_API_KEY",
-      "TYPESAFE_API_KEY",
-      "HF_TOKEN",
-      "FIREWORKS_API_KEY",
-      "TOGETHER_API_KEY",
-      "BASETEN_API_KEY",
-      "KIMI_API_KEY",
-      "META_API_KEY",
-      "MINIMAX_API_KEY",
-      "MINIMAX_CN_API_KEY",
-      "MOONSHOT_API_KEY",
-      "QWEN_TOKEN_PLAN_API_KEY",
-      "QWEN_TOKEN_PLAN_CN_API_KEY",
-      "XIAOMI_API_KEY",
-      "XIAOMI_TOKEN_PLAN_CN_API_KEY",
-      "XIAOMI_TOKEN_PLAN_AMS_API_KEY",
-      "XIAOMI_TOKEN_PLAN_SGP_API_KEY",
-      "ANT_LING_API_KEY",
-    ],
-    extraEnvPrefixes: [],
-    includeConfigDirIdentity: true,
-    homeEnvVar: "PI_CODING_AGENT_DIR",
-    homeSubdir: ".pi/agent",
-  },
-  modelArg: "--model",
-  permissionMap: piPermissionMap,
-  experimental: true,
 };
 
 export const fakeProvider: CliProvider = {
-  id: "fake",
-  label: "Fake",
-  binNames: ["node"],
-  defaultBin: "node",
+  ...fakeStatic,
   adapter: (options: AdapterOptions = {}) => createFakeAdapter(options),
   discovery: { source: "none", discover: discoverFake },
-  contextIdentity: {
-    configDirName: ".fake",
-    configFiles: [],
-    envNames: [],
-    extraEnvPrefixes: [],
-    includeConfigDirIdentity: false,
-    homeEnvVar: "",
-    homeSubdir: "",
-  },
-  modelArg: "",
-  permissionMap: fakePermissionMap,
-  experimental: false,
 };
 
 /** Test-only gate: the fake provider is invisible unless explicitly enabled. */
@@ -278,27 +85,12 @@ export function isFakeProviderEnabled(env: NodeJS.ProcessEnv = process.env): boo
 }
 
 export const opencodeProvider: CliProvider = {
-  id: "opencode",
-  label: "Opencode",
-  binNames: ["opencode"],
-  defaultBin: "opencode",
+  ...opencodeStatic,
   adapter: (options: AdapterOptions = {}) => createOpencodeAdapter(options),
   discovery: {
     source: "opencode-models",
-    discover: (request) => discoverOpencodeModels(request),
+    discover: discoverOpencodeModels,
   },
-  contextIdentity: {
-    configDirName: ".opencode",
-    configFiles: ["opencode.json", "auth.json"],
-    envNames: ["OPENCODE_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"],
-    extraEnvPrefixes: ["OPENCODE_"],
-    includeConfigDirIdentity: true,
-    homeEnvVar: "",
-    homeSubdir: ".opencode",
-  },
-  modelArg: "--model",
-  permissionMap: codexPermissionMap,
-  experimental: true,
 };
 
 export function fakeCatalogMessage(): string {

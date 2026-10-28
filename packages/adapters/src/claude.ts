@@ -11,7 +11,7 @@ import {
   uuid,
 } from "./plan.js";
 import { probeVersion } from "./probe.js";
-import { claudeProvider } from "./provider.js";
+import { claudeStatic } from "./provider-config.js";
 import type {
   AdapterEvent,
   AdapterOptions,
@@ -166,7 +166,7 @@ function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
     const addDirs = options.addDirs === undefined ? [] : stringList(options.addDirs, "addDirs");
     for (const dir of addDirs) checkDir(dir, "addDirs");
 
-    const permissions = claudeProvider.permissionMap;
+    const permissions = claudeStatic.permissionMap;
     const writable = req.permissions.write.length > 0;
     const allowed = new Set(["mcp__relay__*", "Read", "Glob", "Grep", ...extraAllowed]);
     const denied = new Set<string>(extraDenied);
@@ -197,7 +197,7 @@ function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
       }
       args.push("--max-turns", String(req.limits.maxTurns));
     }
-    if (req.model !== undefined && req.model !== "") args.push(claudeProvider.modelArg, req.model);
+    if (req.model !== undefined && req.model !== "") args.push(claudeStatic.modelArg, req.model);
     for (const dir of new Set([...req.permissions.extraReadDirs, ...addDirs])) {
       checkDir(dir, "extraReadDirs");
       args.push("--add-dir", dir);

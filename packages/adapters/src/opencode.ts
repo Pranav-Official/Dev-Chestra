@@ -2,7 +2,7 @@ import { ok, type RelayError, type Result } from "@relay/core";
 import { clip, NdjsonParser, num, parseObject, record, str } from "./parsers.js";
 import { checkDir, classifyExit, fail, requireOptionKeys } from "./plan.js";
 import { probeVersion } from "./probe.js";
-import { opencodeProvider } from "./provider.js";
+import { opencodeStatic } from "./provider-config.js";
 import type {
   AdapterEvent,
   AdapterOptions,
@@ -162,7 +162,7 @@ function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
     }
 
     const args = ["run", req.prompt];
-    if (model !== undefined) args.push(opencodeProvider.modelArg, model);
+    if (model !== undefined) args.push(opencodeStatic.modelArg, model);
     args.push("--format", "json", "--dir", req.cwd);
     if (req.mode === "resume") {
       const session = req.sessionId;

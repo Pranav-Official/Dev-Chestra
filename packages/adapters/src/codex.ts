@@ -3,7 +3,7 @@ import { ok, type RelayError, type Result } from "@relay/core";
 import { clip, NdjsonParser, num, parseObject, record, str, UsageDelta } from "./parsers.js";
 import { checkDir, classifyExit, fail, isRecord, requireOptionKeys, stringList } from "./plan.js";
 import { probeVersion } from "./probe.js";
-import { codexProvider } from "./provider.js";
+import { codexStatic } from "./provider-config.js";
 import type {
   AdapterEvent,
   AdapterOptions,
@@ -155,7 +155,7 @@ function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
     }
     const options = req.cliOptions ?? {};
     requireOptionKeys(options, ["configOverrides", "addDirs"]);
-    const permissions = codexProvider.permissionMap;
+    const permissions = codexStatic.permissionMap;
     const writable = req.permissions.write.length > 0;
     const mode = writable ? permissions.writeMode : permissions.readOnlyMode;
     const overrides: string[] = [];
@@ -195,7 +195,7 @@ function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
     if (req.mode === "fresh") args.push("--sandbox", mode, "--cd", req.cwd);
     args.push("--skip-git-repo-check");
     for (const dir of addDirs) args.push("--add-dir", dir);
-    if (req.model !== undefined && req.model !== "") args.push(codexProvider.modelArg, req.model);
+    if (req.model !== undefined && req.model !== "") args.push(codexStatic.modelArg, req.model);
     if (req.mode === "resume") args.push("-c", `sandbox_mode=${toml(mode)}`);
     args.push("-c", `sandbox_workspace_write.network_access=${String(req.permissions.network)}`);
 

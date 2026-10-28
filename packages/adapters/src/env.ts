@@ -1,5 +1,5 @@
 import { RelayError } from "@relay/core";
-import { getProvider } from "./provider.js";
+import { providerStatics } from "./provider-config.js";
 import type { BuildEnvOptions, CliId } from "./types.js";
 
 const ALWAYS = [
@@ -67,7 +67,10 @@ export function buildChildEnv(cli: CliId, options: BuildEnvOptions = {}): Record
     if (name.startsWith("RELAY_")) reject(name, "RELAY_* must be supplied through injected env");
   };
 
-  const identity = getProvider(cli).contextIdentity;
+  const identity = providerStatics[cli]?.contextIdentity;
+  if (identity === undefined) {
+    throw new RelayError("E_VALIDATION", `Unknown CLI provider '${String(cli)}'`);
+  }
   for (const name of ALWAYS) copy(name);
   for (const name of Object.keys(base)) if (name.startsWith("LC_")) copy(name);
   for (const name of identity.envNames) copy(name);
