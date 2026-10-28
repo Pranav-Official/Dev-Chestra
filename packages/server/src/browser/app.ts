@@ -12,6 +12,7 @@ import {
   RUN_STATUSES,
   type RunStatus,
 } from "@relay/core";
+import type { DecisionService } from "@relay/decisions";
 import { type Context, Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
@@ -93,6 +94,12 @@ export interface BrowserAppDeps {
   workflowService?: ManagedWorkflowService;
   modelCatalog?: BrowserModelCatalogPort;
   workspaceService?: BrowserWorkspacePort;
+  /**
+   * Decision-model service for the provider routes. Defaults to a live
+   * `createDecisionService()` (process.env then cwd `.env`); tests inject a
+   * stand-in-backed service.
+   */
+  decisions?: DecisionService;
 }
 
 const MAX_JSON_BYTES = 2 * 1024 * 1024;

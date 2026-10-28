@@ -164,6 +164,9 @@ importers:
       '@relay/core':
         specifier: workspace:*
         version: link:../core
+      '@relay/decisions':
+        specifier: workspace:*
+        version: link:../decisions
       '@relay/engine':
         specifier: workspace:*
         version: link:../engine
@@ -319,6 +322,9 @@ importers:
       '@relay/core':
         specifier: workspace:*
         version: link:../core
+      '@relay/decisions':
+        specifier: workspace:*
+        version: link:../decisions
       '@relay/mcp':
         specifier: workspace:*
         version: link:../mcp
