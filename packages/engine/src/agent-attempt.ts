@@ -220,7 +220,14 @@ export async function runSingleAttempt(
   const tools = { shell: shell ?? null, servers: mcpNames(selection) };
   const inputs = { prompt, scope: prepared.scope, tools };
   const inputsHash = await hashJson(inputs);
+  // Cancel race guard: resolveAgentMcp/hashJson await without holding the
+  // abort signal. Recheck before any durable input event or token mint so
+  // a cancel landing during those awaits cannot mint a token/emit input.
+  if (active.abort.signal.aborted) throw new StopSignal(active.reason ?? "user");
   ctx.appendInputResolved(identity, inputsHash, inputs);
+  // Resolve the exec root before minting any token: realpathSync can throw
+  // and must not leak a minted token outside all cleanup catches.
+  const execRoot = realpathSync.native(ctx.deps.dataDir);
   const issued = ctx.deps.gateway.issue({
     identity,
     outputSchema: node.raw.output as Record<string, unknown>,
@@ -235,31 +242,43 @@ export async function runSingleAttempt(
   };
   active.tokens.add(revoke);
 
-  const execRoot = realpathSync.native(ctx.deps.dataDir);
-  // Fake resumes need a stable per-node/attempt directory; real adapters
-  // keep the generation-specific exec dir.
+  // All filesystem setup after the token mint shares one guarded block so a
+  // single revoke path covers resolveInside/mkdir/transcript failures.
+  // stableFake is hoisted: the later fake-checkpoint block reads it outside
+  // this guarded setup.
   const stableFake = adapter.id === "fake" && run.workspace !== null;
-  const execSegment = stableFake
-    ? `fake-a${identity.attempt}`
-    : `a${identity.attempt}g${identity.generation}`;
-  const execResolved = resolveInside(
-    execRoot,
-    join("exec", run.id, fsSlug(node.id as Path), execSegment),
-  );
-  if (!execResolved.ok) throw execResolved.error;
-  const execDir = execResolved.value;
-  mkdirSync(execDir, { recursive: true, mode: 0o700 });
-  chmodSync(execDir, 0o700);
-
-  const transcript = openTranscript({
-    dataDir: ctx.deps.dataDir,
-    projectId: run.project.id,
-    runId: run.id,
-    path: node.id as Path,
-    attempt: identity.attempt,
-    generation: identity.generation,
-    secrets: secretValues(ctx, issued.token),
-  });
+  let execDir: string;
+  let transcript: ReturnType<typeof openTranscript>;
+  try {
+    const execSegment = stableFake
+      ? `fake-a${identity.attempt}`
+      : `a${identity.attempt}g${identity.generation}`;
+    const execResolved = resolveInside(
+      execRoot,
+      join("exec", run.id, fsSlug(node.id as Path), execSegment),
+    );
+    if (!execResolved.ok) throw execResolved.error;
+    execDir = execResolved.value;
+    mkdirSync(execDir, { recursive: true, mode: 0o700 });
+    chmodSync(execDir, 0o700);
+    transcript = openTranscript({
+      dataDir: ctx.deps.dataDir,
+      projectId: run.project.id,
+      runId: run.id,
+      path: node.id as Path,
+      attempt: identity.attempt,
+      generation: identity.generation,
+      secrets: secretValues(ctx, issued.token),
+    });
+  } catch (error) {
+    active.tokens.delete(revoke);
+    try {
+      revoke();
+    } catch {
+      // Token cleanup is best-effort; the original setup error is preserved.
+    }
+    throw error;
+  }
 
   let finishTimer: NodeJS.Timeout | undefined;
   let finishedByGrace = false;
@@ -471,26 +490,16 @@ export async function runSingleAttempt(
   } catch (error) {
     cleanup();
     if (error instanceof ProcessGroupAliveError) throw error;
-    if (error instanceof StopSignal) {
-      const current = ctx.currentStatus(identity);
-      if (current === "running" || current === "validating") {
-        const shutdown = active.reason === "shutdown";
-        const evidence = ctx.persistedStop(identity) ?? {
-          reason: "killed" as const,
-          exitCode: null,
-        };
-        try {
-          await ctx.finalize(workspace, identity, "cancelled", evidence);
-        } catch {
-          // Cleanup continues; no result state is created after cancel.
-        }
-        ctx.transition(
-          identity,
-          shutdown ? "interrupted" : "cancelled",
-          shutdown ? "shutdown" : "cancelled",
-        );
-      }
-      throw error;
+    // Cancellation finalization lives in the retry-loop / outer guards
+    // (single cancelAgentGeneration site): just normalize the pre-spawn
+    // E_CANCELLED abort race into a StopSignal here.
+    if (error instanceof StopSignal) throw error;
+    if (
+      error instanceof DevChestraError &&
+      error.code === "E_CANCELLED" &&
+      active.abort.signal.aborted
+    ) {
+      throw new StopSignal(active.reason ?? "user");
     }
     throw toDevChestraError(error);
   }

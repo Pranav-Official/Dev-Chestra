@@ -11,7 +11,7 @@ import {
   prepareRunWorkspace,
   releaseScratch,
 } from "@devchestra/workspaces";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createEngine } from "../src/index.js";
 
 const shim = join(process.cwd(), "packages/mcp/dist/bin/shim.js");
@@ -565,6 +565,87 @@ describe("approval engine", () => {
         if (store.view.get(r2.value.runId as never).status === "succeeded") break;
         else await new Promise((rr) => setTimeout(rr, 20));
       expect(store.approvals.listOutstandingWakes(r2.value.runId as never).length).toBe(0);
+    });
+  });
+
+  it("parked approval cancel fans out node cancelled with no invented stop evidence", async () => {
+    await withIsolatedEngine(async ({ store, engine }) => {
+      await engine.start();
+      const wf = makeWorkflow(
+        [startNode(), approvalNode("a1"), endNode()],
+        [
+          { id: "e1", from: "start", to: "a1" },
+          { id: "e2", from: "a1", to: "end" },
+        ],
+      );
+      const r = await engine.launch({
+        projectId: "p1",
+        workflowId: "aprv",
+        snapshot: wf,
+        snapshotRaw: JSON.stringify(wf),
+        params: { topic: "t" },
+      });
+      if (!r.ok) throw r.error;
+      for (let i = 0; i < 50; i++) {
+        if (store.view.get(r.value.runId as never).executions.a1?.status === "waiting_approval")
+          break;
+        await new Promise((rr) => setTimeout(rr, 20));
+      }
+      expect(store.view.get(r.value.runId as never).executions.a1?.status).toBe("waiting_approval");
+      // Parked: completion already resolved waiting_approval with no active
+      // drive slot held.
+      const parked = await r.value.completion;
+      expect(parked.status).toBe("waiting_approval");
+      const cancelled = await engine.cancel(r.value.runId);
+      expect(cancelled.ok).toBe(true);
+      const view = store.view.get(r.value.runId as never);
+      expect(view.status).toBe("cancelled");
+      expect(view.executions.a1?.status).toBe("cancelled");
+      // No invented process stop/workspace finalization for a parked
+      // approval node that never spawned a process.
+      expect(view.executions.a1?.processStopped ?? null).toBe(null);
+      expect(view.executions.a1?.workspaceFinalized ?? null).toBe(null);
+    });
+  });
+
+  it("keeps parked cancellation blocked on unknown liveness, including a retry while paused", async () => {
+    await withIsolatedEngine(async ({ store, engine }) => {
+      await engine.start();
+      const wf = makeWorkflow(
+        [startNode(), approvalNode("a1"), endNode()],
+        [
+          { id: "e1", from: "start", to: "a1" },
+          { id: "e2", from: "a1", to: "end" },
+        ],
+      );
+      const launched = await engine.launch({
+        projectId: "p1",
+        workflowId: "aprv",
+        snapshot: wf,
+        snapshotRaw: JSON.stringify(wf),
+        params: { topic: "t" },
+      });
+      if (!launched.ok) throw launched.error;
+      const { runId, completion } = launched.value;
+      expect((await completion).status).toBe("waiting_approval");
+      const lookup = vi.spyOn(store.executions, "getProcess").mockImplementation(() => {
+        throw new Error("Process identity lookup unavailable");
+      });
+      try {
+        for (let retry = 0; retry < 2; retry++) {
+          const result = await engine.cancel(runId);
+          expect(result.ok).toBe(false);
+          if (!result.ok) expect(result.error.code).toBe("E_WORKSPACE");
+          const view = store.view.get(runId as never);
+          expect(view.status).toBe("paused");
+          expect(view.executions.a1?.status).toBe("waiting_approval");
+          expect(view.executions.a1?.processStopped ?? null).toBe(null);
+        }
+      } finally {
+        lookup.mockRestore();
+      }
+      expect((await engine.cancel(runId)).ok).toBe(true);
+      expect(store.view.get(runId as never).status).toBe("cancelled");
     });
   });
 });

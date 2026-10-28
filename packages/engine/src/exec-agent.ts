@@ -8,10 +8,21 @@ import {
 import { type ExecutionIdentity, hashJson, type Path } from "@devchestra/core";
 import type { RunRecord } from "@devchestra/store";
 import type { ScratchWorkspace } from "@devchestra/workspaces";
-import { type AttemptLoop, type AttemptPrepared, runSingleAttempt } from "./agent-attempt.js";
+import {
+  type AttemptLoop,
+  type AttemptPrepared,
+  runSingleAttempt,
+  type SingleAttemptResult,
+} from "./agent-attempt.js";
 import { decideAttemptOutcome } from "./agent-outcome.js";
 import { readCliId, resolveAgentAdapter } from "./agent-preflight.js";
-import { countNoSubmit, finalizeAccepted } from "./agent-support.js";
+import {
+  cancelAgentGeneration,
+  countNoSubmit,
+  failAgentGeneration,
+  finalizeAccepted,
+  toStopSignal,
+} from "./agent-support.js";
 import { type ActiveRunState, type EngineContext, toDevChestraError } from "./context.js";
 import type { PlanNode, ScopeSource } from "./graph-plan.js";
 import { stripUi } from "./hash-config.js";
@@ -74,41 +85,40 @@ export async function executeAgent(
     resolvedConfigHash: configHash,
   });
 
-  const workspace = await ctx.acquire(
-    run,
-    node.id,
-    identity.attempt,
-    identity.generation,
-    active.abort.signal,
-  );
-  ctx.appendWorkspaceCreated(identity, workspace);
-
-  // Pi runs that share a canonical credential store serialize here, for the
-  // whole attempt sequence: Pi's auth.json lock is per supplied path
-  // (proper-lockfile realpath:false), so per-run symlinks alone cannot
-  // exclude each other and concurrent OAuth refreshes lose updates. The
-  // scope matches plan()'s symlink predicate over the same base env, so a
-  // null scope means this run touches no shared store and skips the lock.
-  const agentCli = readCliId(node.raw.cli);
-  const agentAdapter = ctx.deps.adapters.get(getProvider(agentCli).id);
-  const credentialScope =
-    agentAdapter.id === "pi" ? piCredentialScope(ctx.baseEnv(agentCli), workspace.dir) : null;
+  let workspace: ScratchWorkspace | undefined;
   let releaseCredentialLock: ReleaseFileLock | undefined;
-  if (credentialScope !== null) {
-    try {
-      releaseCredentialLock = await acquireFileLock(
-        join(credentialScope, "auth.json.devchestra-lock"),
-        {
-          signal: active.abort.signal,
-        },
-      );
-    } catch (error) {
-      if (active.abort.signal.aborted) throw new StopSignal(active.reason ?? "user");
-      throw toDevChestraError(error);
-    }
-  }
-
   try {
+    workspace = await ctx.acquire(
+      run,
+      node.id,
+      identity.attempt,
+      identity.generation,
+      active.abort.signal,
+    );
+    ctx.appendWorkspaceCreated(identity, workspace);
+
+    // Pi runs that share a canonical credential store serialize here, for the
+    // whole attempt sequence: Pi's auth.json lock is per supplied path
+    // (proper-lockfile realpath:false), so per-run symlinks alone cannot
+    // exclude each other and concurrent OAuth refreshes lose updates. The
+    // scope matches plan()'s symlink predicate over the same base env, so a
+    // null scope means this run touches no shared store and skips the lock.
+    const agentCli = readCliId(node.raw.cli);
+    const agentAdapter = ctx.deps.adapters.get(getProvider(agentCli).id);
+    const credentialScope =
+      agentAdapter.id === "pi" ? piCredentialScope(ctx.baseEnv(agentCli), workspace.dir) : null;
+    if (credentialScope !== null) {
+      try {
+        releaseCredentialLock = await acquireFileLock(
+          join(credentialScope, "auth.json.devchestra-lock"),
+          { signal: active.abort.signal },
+        );
+      } catch (error) {
+        if (active.abort.signal.aborted) throw new StopSignal(active.reason ?? "user");
+        throw toDevChestraError(error);
+      }
+    }
+
     await runAttempts(ctx, run, source, node, active, workspace, {
       identity,
       validationLimit,
@@ -116,8 +126,25 @@ export async function executeAgent(
       configHash,
       initialMode: mode,
     });
+  } catch (error) {
+    // Outer guard covers acquire/lock/setup only; retry-loop outcomes were
+    // already finalized inside runAttempts. Helpers no-op once terminal.
+    if (error instanceof ProcessGroupAliveError) throw error;
+    const stopSignal = toStopSignal(error, active);
+    if (stopSignal !== null) {
+      await cancelAgentGeneration(ctx, run, node, workspace, identity, active);
+      throw stopSignal;
+    }
+    const devchestra = toDevChestraError(error);
+    try {
+      await failAgentGeneration(ctx, run, node, workspace, identity, devchestra);
+    } catch (failError) {
+      if (failError instanceof ProcessGroupAliveError) throw failError;
+      ctx.appendError(run.id, node.id, toDevChestraError(failError, "E_WORKSPACE"));
+    }
+    throw devchestra;
   } finally {
-    ctx.release(workspace);
+    if (workspace !== undefined) ctx.release(workspace);
     if (releaseCredentialLock !== undefined) await releaseCredentialLock().catch(() => undefined);
   }
 }
@@ -169,18 +196,25 @@ async function runAttempts(
   };
 
   for (;;) {
-    if (active.abort.signal.aborted) throw new StopSignal(active.reason ?? "user");
-    const attempt = await runSingleAttempt(
-      ctx,
-      run,
-      node,
-      active,
-      prepared,
-      loop,
-      state.validationLimit,
-    );
-
+    // Single guarded attempt: setup/plan failures and outcome failures share
+    // one failure path for the current loop.identity/workspace. attempt is
+    // optional because runSingleAttempt may throw before returning (inner
+    // cleanup already ran); attempt?.cleanup() is then a safe no-op.
+    // The abort check lives INSIDE the try so a cancel landing after a retry
+    // finalizes the current generation (loop.identity), not the stale
+    // initial outer identity.
+    let attempt: SingleAttemptResult | undefined;
     try {
+      if (active.abort.signal.aborted) throw new StopSignal(active.reason ?? "user");
+      attempt = await runSingleAttempt(
+        ctx,
+        run,
+        node,
+        active,
+        prepared,
+        loop,
+        state.validationLimit,
+      );
       const outcome = await decideAttemptOutcome(
         ctx,
         run,
@@ -198,32 +232,20 @@ async function runAttempts(
       );
       if (outcome.action === "done") return;
     } catch (error) {
-      attempt.cleanup();
+      attempt?.cleanup();
       if (error instanceof ProcessGroupAliveError) throw error;
-      if (error instanceof StopSignal) {
-        const identity = attempt.identity;
-        const workspace = loop.workspace;
-        const current = ctx.currentStatus(identity);
-        if (current === "running" || current === "validating") {
-          const shutdown = active.reason === "shutdown";
-          const evidence = ctx.persistedStop(identity) ?? {
-            reason: "killed" as const,
-            exitCode: null,
-          };
-          try {
-            await ctx.finalize(workspace, identity, "cancelled", evidence);
-          } catch {
-            // Cleanup continues; no result state is created after cancel.
-          }
-          ctx.transition(
-            identity,
-            shutdown ? "interrupted" : "cancelled",
-            shutdown ? "shutdown" : "cancelled",
-          );
-        }
-        throw error;
+      const stopSignal = toStopSignal(error, active);
+      if (stopSignal !== null) {
+        await cancelAgentGeneration(ctx, run, node, loop.workspace, loop.identity, active);
+        throw stopSignal;
       }
-      throw toDevChestraError(error);
+      // Setup/planning or outcome-classification failure: persist the
+      // original error with crash stop + failed workspace so no Running
+      // execution survives a Failed run. Live processes are never marked
+      // stopped (failAgentGeneration pauses instead).
+      const devchestra = toDevChestraError(error);
+      await failAgentGeneration(ctx, run, node, loop.workspace, loop.identity, devchestra);
+      throw devchestra;
     }
   }
 }

@@ -177,6 +177,42 @@
   color: var(--text-3);
 }
 
+/* run-level stop control (topbar actions) */
+.run-stop-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.run-stop-note {
+  color: var(--text-3);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.run-stop-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 280px;
+  color: var(--red);
+  font-size: 12px;
+}
+.run-stop-error .msg {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+@media (max-width: 560px) {
+  .run-stop-note {
+    display: none;
+  }
+  .run-stop-error {
+    max-width: 150px;
+  }
+}
+
 /* flow nodes */
 .flow-node {
   width: 184px;

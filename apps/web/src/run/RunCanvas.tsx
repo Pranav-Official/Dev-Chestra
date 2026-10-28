@@ -13,7 +13,7 @@ import {
 } from "@xyflow/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "@xyflow/react/dist/style.css";
-import { deriveRouting, type RunView } from "@devchestra/core";
+import { deriveRouting, isTerminalRunStatus, type RunView } from "@devchestra/core";
 import { type DecisionMode, type DecisionNode, decisionHandles } from "@devchestra/schema";
 import {
   Bot,
@@ -29,10 +29,12 @@ import {
   Play,
   ShieldCheck,
   TerminalSquare,
+  TriangleAlert,
 } from "lucide-react";
 import { resolveApproval } from "../api/approvals.js";
 import { StatusPill, statusLabel } from "../ui/StatusPill.js";
 import { approvalForPath, isActionable } from "./approval.js";
+import { isUnresolvedExecution, unresolvedSummary } from "./staleExecution.js";
 
 interface SnapshotNode {
   id: string;
@@ -89,6 +91,7 @@ interface NodeData extends Record<string, unknown> {
   kind: string;
   subtitle: string;
   status: string;
+  runStatus: string;
   selected: boolean;
   testId: string;
   gateBranch: string | null;
@@ -113,7 +116,10 @@ function nodeColor(kind: string): string {
   return "var(--text-2)";
 }
 
-function NodeStatusIcon({ status }: { status: string }) {
+function NodeStatusIcon({ status, unresolved }: { status: string; unresolved: boolean }) {
+  // A terminal run with a still-live execution is stale history, not live
+  // work: never show the animated spinner for it.
+  if (unresolved) return <TriangleAlert size={10} aria-hidden="true" />;
   if (status === "succeeded") return <CheckCircle2 size={10} aria-hidden="true" />;
   if (status === "failed" || status === "rejected")
     return <OctagonX size={10} aria-hidden="true" />;
@@ -207,13 +213,21 @@ function ApprovalNodeActions({ data }: { data: NodeData }) {
 }
 
 function WorkflowNode({ data }: NodeProps<Node<NodeData>>) {
+  // Raw execution status stays in data attributes and labels; only the
+  // liveness presentation changes when the run outlived the execution state.
+  const unresolved = isUnresolvedExecution(data.runStatus, data.status);
   return (
     <div
       className={`flow-node st-${data.status}${data.selected ? " selected" : ""}`}
       data-testid={data.testId}
       data-path={String(data.id)}
       data-node-status={data.status}
-      title={`${data.name} — ${statusLabel(data.status)}`}
+      {...(unresolved ? { "data-node-unresolved": "true" } : {})}
+      title={
+        unresolved
+          ? `${data.name} — State unresolved: ${unresolvedSummary(data.runStatus, data.status)}`
+          : `${data.name} — ${statusLabel(data.status)}`
+      }
     >
       <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
       <div className="flow-node-head" style={{ color: nodeColor(data.kind) }}>
@@ -221,14 +235,23 @@ function WorkflowNode({ data }: NodeProps<Node<NodeData>>) {
         <span>{data.kind}</span>
         <span className="sp" />
         <span className="sr-only" data-testid={`run-node-status-${String(data.id)}`}>
-          {statusLabel(data.status)}
+          {unresolved
+            ? `State unresolved: ${unresolvedSummary(data.runStatus, data.status)}`
+            : statusLabel(data.status)}
         </span>
       </div>
       <div className="flow-node-body">{data.name}</div>
       <div className="flow-node-meta row" style={{ gap: 4 }}>
-        <NodeStatusIcon status={data.status} />
+        <NodeStatusIcon status={data.status} unresolved={unresolved} />
         <span>
-          {statusLabel(data.status)}
+          {unresolved ? (
+            <>
+              State unresolved
+              <span className="faint"> · {unresolvedSummary(data.runStatus, data.status)}</span>
+            </>
+          ) : (
+            statusLabel(data.status)
+          )}
           {data.subtitle ? ` · ${data.subtitle}` : ""}
         </span>
       </div>
@@ -452,6 +475,7 @@ export function RunCanvas({
           kind: node.type,
           subtitle: subtitle(node),
           status,
+          runStatus: view.status,
           selected: selectedPath === node.id,
           testId: `run-node-${node.id}`,
           gateBranch: exec?.gateDecision?.branch ?? null,
@@ -487,14 +511,17 @@ export function RunCanvas({
       const target = edge.to.split(".")[0] ?? edge.to;
       const state = routing.edges[edge.id] ?? "pending";
       const targetStatus = executionFor(view, target)?.status ?? "pending";
+      // A terminal run has no live progress: keep the routing evidence but
+      // stop animating the edge as if work were still flowing.
       const className = edgeClass(state, targetStatus);
+      const animated = className === "live" && !isTerminalRunStatus(view.status);
       const dead = state === "dead";
       return {
         id: edge.id,
         source,
         target,
         type: "smoothstep",
-        animated: className === "live",
+        animated,
         className,
         ariaLabel: `${edge.id} ${state}`,
         style: {
@@ -554,6 +581,8 @@ export function RunCanvas({
             maskColor="var(--bg-muted)"
             nodeColor={(node) => {
               const status = (node.data as NodeData | undefined)?.status ?? "pending";
+              const runStatus = (node.data as NodeData | undefined)?.runStatus ?? view.status;
+              if (isUnresolvedExecution(runStatus, status)) return "var(--amber)";
               if (status === "succeeded") return "var(--green)";
               if (status === "failed" || status === "rejected") return "var(--red)";
               if (status === "running" || status === "validating") return "var(--blue)";

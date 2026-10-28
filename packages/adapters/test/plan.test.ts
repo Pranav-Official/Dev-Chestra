@@ -286,6 +286,112 @@ describe("codex mcp selection", () => {
     expect(inv.args.join("\n")).toContain("apps.connector_gmail.enabled=true");
   });
 
+  it("accepts human-readable connector display names and configures by connectorId", () => {
+    const adapter = createAdapter("codex");
+    for (const name of ["Atlassian Rovo (Legacy)", "My Connector", "Figma (ab12cd)"]) {
+      const result = adapter.plan(
+        request({
+          extraMcp: [
+            { name, scope: "connector", transport: "http", connectorId: "connector_atlass" },
+          ],
+        }),
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) continue;
+      const joined = result.value.args.join("\n");
+      expect(joined).toContain("features.apps=true");
+      expect(joined).toContain("apps.connector_atlass.enabled=true");
+      // The display name never becomes a `-c` key-path segment.
+      expect(joined).not.toContain(name);
+      expect(joined).not.toContain("mcp_servers.Atlas");
+    }
+  });
+
+  it("rejects invalid connectorIds while ordinary names stay strict", () => {
+    const adapter = createAdapter("codex");
+    const badIds = ["has space", "evil.id", "../escape", "devchestra", ""];
+    for (const connectorId of badIds) {
+      const result = adapter.plan(
+        request({
+          extraMcp: [
+            {
+              name: "Atlassian Rovo (Legacy)",
+              scope: "connector",
+              transport: "http",
+              connectorId,
+            },
+          ],
+        }),
+      );
+      expect(result.ok).toBe(false);
+    }
+    // Missing connectorId still fails fast.
+    expect(
+      adapter.plan(
+        request({
+          extraMcp: [{ name: "Atlassian Rovo (Legacy)", scope: "connector", transport: "http" }],
+        }),
+      ).ok,
+    ).toBe(false);
+    // Ordinary (non-connector) servers keep the strict safe-name gate.
+    const unsafeNames = ["has space", "Atlassian Rovo (Legacy)", "evil.name", "../escape", ""];
+    for (const name of unsafeNames) {
+      expect(
+        adapter.plan(
+          request({
+            extraMcp: [{ name, scope: "global", transport: "stdio", command: "x" }],
+          }),
+        ).ok,
+      ).toBe(false);
+    }
+  });
+
+  it("rejects duplicate connector IDs", () => {
+    const adapter = createAdapter("codex");
+    // Same connectorId twice under different display names.
+    expect(
+      adapter.plan(
+        request({
+          extraMcp: [
+            {
+              name: "Atlassian Rovo (Legacy)",
+              scope: "connector",
+              transport: "http",
+              connectorId: "connector_dup",
+            },
+            {
+              name: "Atlassian Rovo",
+              scope: "connector",
+              transport: "http",
+              connectorId: "connector_dup",
+            },
+          ],
+        }),
+      ).ok,
+    ).toBe(false);
+    // Same display name + id twice is also a duplicate selection.
+    expect(
+      adapter.plan(
+        request({
+          extraMcp: [
+            {
+              name: "Atlassian Rovo (Legacy)",
+              scope: "connector",
+              transport: "http",
+              connectorId: "connector_dup",
+            },
+            {
+              name: "Atlassian Rovo (Legacy)",
+              scope: "connector",
+              transport: "http",
+              connectorId: "connector_dup",
+            },
+          ],
+        }),
+      ).ok,
+    ).toBe(false);
+  });
+
   it("maps the shell toggle without touching the sandbox mode", () => {
     const writable = {
       network: true,

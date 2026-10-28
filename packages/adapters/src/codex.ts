@@ -111,9 +111,10 @@ function planExtraMcp(req: RunRequest): ExtraMcpPlan {
   const selectedServers = new Set<string>();
   const selectedConnectors = new Set<string>();
   for (const extra of extras) {
-    checkMcpName(extra.name, "extraMcp[].name");
-    if (seen.has(extra.name)) throw new Error(`Duplicate extraMcp server: ${extra.name}`);
-    seen.add(extra.name);
+    // Connectors first: discovery intentionally uses human-readable display
+    // names (spaces, parentheses, etc.); only the connectorId becomes a `-c`
+    // key-path segment, so only it needs the strict safe-name check. The
+    // display name is never interpolated into config and must not fail here.
     if (extra.scope === "connector") {
       if (extra.connectorId === undefined || extra.connectorId === "") {
         throw new Error(`extraMcp connector ${extra.name} is missing its connectorId`);
@@ -125,6 +126,9 @@ function planExtraMcp(req: RunRequest): ExtraMcpPlan {
       selectedConnectors.add(extra.connectorId);
       continue;
     }
+    checkMcpName(extra.name, "extraMcp[].name");
+    if (seen.has(extra.name)) throw new Error(`Duplicate extraMcp server: ${extra.name}`);
+    seen.add(extra.name);
     selectedServers.add(extra.name);
     if (extra.transport === "http" || extra.transport === "sse") {
       if (extra.url === undefined || extra.url === "") {

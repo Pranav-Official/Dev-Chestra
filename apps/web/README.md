@@ -1,7 +1,9 @@
 # @devchestra/web
 
-Read-only React 19 + Vite viewer for DevChestra projects, runs, live events and replay. The UI never
-starts, cancels, resumes or edits a run. Mutations remain CLI/API only.
+Read-only React 19 + Vite viewer for DevChestra projects, runs, live events and replay. Snapshots are
+never edited from the UI and the viewer never starts or resumes a run — those mutations remain
+CLI/API only. The single exception is the run-level Stop control, which posts to the existing
+`POST /api/runs/:rid/cancel` endpoint.
 
 ## Commands
 
@@ -50,6 +52,16 @@ after rebuilding the web app: the server caches `index.html` in memory at startu
 - The event list renders a 100-row window. Transcript pages are lazy and the newest 2,000 lines are
   rendered at most. All agent text is a React text node; there is no
   `dangerouslySetInnerHTML`.
+- The run page topbar carries one run-level Stop control, independent of the selected node and
+  tab. It renders while the authoritative live head status is nonterminal (including
+  paused and waiting-for-approval runs) and unmounts once the head turns terminal. While
+  replaying, the button is labelled "Stop live run" and still acts on the live head, never on
+  the replay position. `cancelRun` resolves as accepted (the controller reports the early
+  `running` status for active runs while cancellation completes asynchronously), so the UI
+  stays in "Stopping…" — busy and disabled — until live terminal evidence arrives via the
+  stream; it never marks the run Cancelled optimistically and a second click after the 202
+  does not re-post. Failures surface an inline retry/dismiss error; a terminal head meanwhile
+  suppresses the error as a completion race.
 - Theme preference is UI-only (`data-theme`, `data-theme-mode`, `localStorage: devchestra.theme`) and
   defaults to `prefers-color-scheme`. No gradients, external fonts or CDNs.
 

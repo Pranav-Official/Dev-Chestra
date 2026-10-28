@@ -8,6 +8,7 @@ import { DetailPanel } from "../run/DetailPanel.js";
 import { EventsPanel } from "../run/EventsPanel.js";
 import { ReplayBar } from "../run/ReplayBar.js";
 import { RunCanvas } from "../run/RunCanvas.js";
+import { StopRunButton } from "../run/StopRunButton.js";
 import { TranscriptPanel } from "../run/TranscriptPanel.js";
 import { Topbar } from "../shell/Topbar.js";
 import { showReconnectBanner } from "../state/runSession.js";
@@ -93,15 +94,32 @@ function RunPage({ rid }: { rid: string }) {
     { label: `Run #${run?.runNumber ?? view?.runNumber ?? "—"}` },
   ];
 
+  // Replay derivations live above the topbar so the run-level stop control can
+  // rely on the authoritative live head status even while replaying history.
+  const replayPending = atParam !== null && !malformedAt && session.replayAt === null;
+  const replayMissing = malformedAt || session.replayMissing;
+  const replayUnavailable = atParam !== null && session.historyError !== null;
+  const isReplay = session.replayAt !== null && !session.replayMissing;
+  // The stop control is run-level: it ignores the selected node/tab and the
+  // replay position, and stays mounted while the live head is nonterminal.
+  // `readonly` only covers snapshot editing, so it never suppresses the stop.
+  const stopControl =
+    view !== null && session.phase !== "error" ? (
+      <StopRunButton runId={rid} headStatus={session.head.status} isReplay={isReplay} />
+    ) : null;
+
   const topbar = (
     <Topbar
       crumbs={crumbs}
       {...(view === null ? {} : { status: { value: view.status, testId: "run-status" } })}
       readonly
       actions={
-        <Link className="btn sm" to={`/p/${pid}/runs`}>
-          Project runs
-        </Link>
+        <>
+          {stopControl}
+          <Link className="btn sm" to={`/p/${pid}/runs`}>
+            Project runs
+          </Link>
+        </>
       }
     />
   );
@@ -145,11 +163,6 @@ function RunPage({ rid }: { rid: string }) {
       </>
     );
   }
-
-  const replayPending = atParam !== null && !malformedAt && session.replayAt === null;
-  const replayMissing = malformedAt || session.replayMissing;
-  const replayUnavailable = atParam !== null && session.historyError !== null;
-  const isReplay = session.replayAt !== null && !session.replayMissing;
 
   if (view === null || replayPending || replayUnavailable || replayMissing) {
     return (
