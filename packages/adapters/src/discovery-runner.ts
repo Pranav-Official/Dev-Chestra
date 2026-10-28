@@ -52,7 +52,7 @@ export interface DiscoveryRunnerSpec<TItem, TResult> {
     bin: string;
     cwd: string;
     env: Record<string, string>;
-    signal?: AbortSignal;
+    signal: AbortSignal | undefined;
     remaining: () => number;
   }) => Promise<string | null>;
   parse: (stdout: string) => { items: TItem[]; truncated: boolean };
