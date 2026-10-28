@@ -181,6 +181,10 @@ Files are canonical 2-space JSON with a trailing newline; the unquoted SHA-256 c
 
 `relay run` defaults to the project root and accepts `--workspace project|new-worktree|existing-worktree`; use `--worktree-path <dir>` with `existing-worktree`. `relay resume` has no workspace flag and reuses the run's frozen selection.
 
+### Decision providers
+
+Decision nodes ask one of three fixed providers: `typesafe-jev` (Jev), `cloudflare-clef` (Clef 27B) or `cloudflare-clef-flash` (Clef-flash 9B). Keys come from environment variables or a `.env` file in the directory you run `relay` from (see `.env.example`); real shell exports take priority, and only these three names are ever read: `TYPESAFE_API_KEY`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_AUTH_TOKEN`. `relay doctor` reports each provider as ready or missing (names only), and the browser tester at `POST /api/projects/:pid/decisions/test` previews one question without creating a run.
+
 ## Workspace
 
 ```text
