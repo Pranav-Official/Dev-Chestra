@@ -21,6 +21,7 @@ import type {
   Invocation,
   ProbeCtx,
   ProbeResult,
+  ResolvedMcpServer,
   RunRequest,
   StreamParser,
   Tail,
@@ -33,6 +34,51 @@ const ALLOWED = new Set([
   "maxBudgetUsd",
   "addDirs",
 ]);
+
+const MCP_NAME_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** Validated extra servers: safe unique names, none colliding with relay. */
+function extraMcpServers(req: RunRequest): ResolvedMcpServer[] {
+  const extra = req.extraMcp ?? [];
+  const seen = new Set<string>();
+  for (const server of extra) {
+    if (!MCP_NAME_RE.test(server.name)) {
+      throw new Error(`extraMcp server name is not safe: ${server.name}`);
+    }
+    if (server.name === "relay" || server.name === req.mcp.serverName) {
+      throw new Error(`extraMcp server name is reserved: ${server.name}`);
+    }
+    if (seen.has(server.name)) {
+      throw new Error(`extraMcp duplicate server name: ${server.name}`);
+    }
+    seen.add(server.name);
+  }
+  return extra;
+}
+
+/** mcp.json entry for one extra server. Secrets stay in the file, never argv. */
+function extraMcpEntry(server: ResolvedMcpServer): Record<string, unknown> {
+  if (server.transport === "http" || server.transport === "sse") {
+    if (server.url === undefined || server.url === "") {
+      throw new Error(`extraMcp server ${server.name} needs a url`);
+    }
+    return {
+      type: server.transport,
+      url: server.url,
+      ...(server.headers !== undefined ? { headers: server.headers } : {}),
+    };
+  }
+  if (server.command === undefined || server.command === "" || server.args === undefined) {
+    throw new Error(`extraMcp server ${server.name} needs command and args`);
+  }
+  if (server.cwd !== undefined) checkDir(server.cwd, "extraMcp cwd");
+  return {
+    command: server.command,
+    args: server.args,
+    ...(server.env !== undefined ? { env: server.env } : {}),
+    ...(server.cwd !== undefined && server.cwd !== "" ? { cwd: server.cwd } : {}),
+  };
+}
 
 function contentText(content: unknown): string {
   if (typeof content === "string") return content;
@@ -174,6 +220,16 @@ function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
     else for (const tool of permissions.readOnlyDeniedTools) denied.add(tool);
     if (req.permissions.network) for (const tool of permissions.networkTools) allowed.add(tool);
     else for (const tool of permissions.networkTools) denied.add(tool);
+    // Shell is independent of write when explicitly set; undefined keeps legacy.
+    if (req.permissions.shell === false) {
+      denied.add("Bash");
+      allowed.delete("Bash");
+    } else if (req.permissions.shell === true) {
+      allowed.add("Bash");
+      denied.delete("Bash");
+    }
+    const extra = extraMcpServers(req);
+    for (const server of extra) allowed.add(`mcp__${server.name}__*`);
     for (const tool of extraAllowed) {
       if (denied.has(tool)) {
         throw new Error(`cliOptions.allowedTools cannot enable permission-disabled tool ${tool}`);
@@ -209,11 +265,12 @@ function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
       args.push("--max-budget-usd", String(options.maxBudgetUsd));
     }
 
-    const mcp = {
+    const mcp: { mcpServers: Record<string, unknown> } = {
       mcpServers: {
         [req.mcp.serverName]: { command: req.mcp.command, args: req.mcp.args, env: req.mcp.env },
       },
     };
+    for (const server of extra) mcp.mcpServers[server.name] = extraMcpEntry(server);
     return ok({
       bin,
       args,
@@ -249,6 +306,8 @@ export function createClaudeAdapter(options: AdapterOptions = {}): CliAdapter {
         "--max-turns is hidden but parses in 2.1.310",
         "stream shapes, cost accounting and resume re-attachment are UNVERIFIED",
         "bounded live fresh+resume submit passed 2026-10-26; sandbox/permission enforcement is still unverified",
+        "extraMcp verified live 2026-10-28 (claude 2.1.311, haiku): fixture stdio server in the generated mcp.json called as mcp__fixture__fixture_echo; --strict-mcp-config left a project .mcp.json server unstarted (no start logged)",
+        "permissions.shell verified live 2026-10-28: false+write keeps Bash absent (model reports tool unavailable, no workaround via allowed tools); true+read-only runs Bash",
       ],
     },
     plan: (req) => plan(req, bin),

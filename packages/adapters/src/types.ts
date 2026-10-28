@@ -32,6 +32,8 @@ export interface AdapterEvidence {
 export interface RunPermissions {
   network: boolean;
   write: ("workspace" | "project")[];
+  /** Built-in shell tool. Undefined keeps the legacy rule: shell follows `write` being non-empty. */
+  shell?: boolean;
   extraReadDirs: string[];
 }
 
@@ -43,6 +45,23 @@ export interface McpConfig {
   envNames?: string[];
 }
 
+/** One extra MCP server resolved by the engine right before launch. May carry secrets: never log or persist. */
+export interface ResolvedMcpServer {
+  name: string;
+  scope: "global" | "project" | "connector";
+  transport: "stdio" | "http" | "sse";
+  /** stdio */
+  command?: string;
+  args?: string[];
+  cwd?: string;
+  env?: Record<string, string>;
+  /** http / sse */
+  url?: string;
+  headers?: Record<string, string>;
+  /** Connectors only: id of the connector inside the CLI's built-in apps server. */
+  connectorId?: string;
+}
+
 export interface RunRequest {
   mode: "fresh" | "resume";
   sessionId?: string;
@@ -52,6 +71,10 @@ export interface RunRequest {
   permissions: RunPermissions;
   limits: { timeoutMs: number; maxTurns?: number };
   mcp: McpConfig;
+  /** Servers the node switched on. Everything else the CLI knows about must stay off. */
+  extraMcp?: ResolvedMcpServer[];
+  /** Every server the CLI knows for this project (names only), so adapters can switch the unselected ones off. */
+  knownMcp?: { name: string; scope: "global" | "project" | "connector"; connectorId?: string }[];
   cliOptions?: Record<string, unknown>;
   execDir: string;
   env: Record<string, string>;

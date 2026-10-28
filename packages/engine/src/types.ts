@@ -1,4 +1,4 @@
-import type { AdapterRegistry } from "@relay/adapters";
+import type { AdapterRegistry, ResolvedMcpServer, RunRequest } from "@relay/adapters";
 import type {
   Clock,
   EventEnvelope,
@@ -12,7 +12,7 @@ import type {
   SerializedError,
 } from "@relay/core";
 import type { DecisionService } from "@relay/decisions";
-import type { NormalizedWorkflow, ProdCliId } from "@relay/schema";
+import type { McpScope, McpSelection, NormalizedWorkflow, ProdCliId } from "@relay/schema";
 import type { Store } from "@relay/store";
 import type {
   AcquireScratchRequest,
@@ -41,6 +41,37 @@ export interface IssuedToken {
 export interface GatewayPort {
   readonly url: string;
   issue(scope: GatewayScope): IssuedToken;
+}
+
+/**
+ * Names-only view of an MCP server the CLI knows, for switching unselected
+ * servers off. Mirrors the discovery contract (`@relay/adapters`
+ * `McpResolver`); method syntax keeps the real implementation assignable to
+ * this structural slot.
+ */
+export interface KnownMcpServer {
+  readonly name: string;
+  readonly scope: McpScope;
+  readonly connectorId?: string;
+}
+
+/**
+ * Structural resolver the engine calls right before an agent launch. The real
+ * implementation is built by the discovery worker and exported from
+ * `@relay/adapters`; tests use an in-test fake. `list` never fails the node,
+ * `resolve` fails it fast (never silent skip).
+ */
+export interface McpResolver {
+  /** Everything the CLI knows for this project. Names only (no secrets). */
+  list(cli: string, projectDir: string): Promise<{ servers: KnownMcpServer[]; warnings: string[] }>;
+  /** Selected servers with launch details. Fails (never skips) when one is missing. */
+  resolve(
+    cli: string,
+    projectDir: string,
+    selection: readonly McpSelection[],
+  ): Promise<
+    Result<{ extra: ResolvedMcpServer[]; known: NonNullable<RunRequest["knownMcp"]> }, RelayError>
+  >;
 }
 
 export interface WorkspacePort {
@@ -90,6 +121,12 @@ export interface EngineDeps {
    * with an actionable `E_PROVIDER` error instead of hanging or defaulting.
    */
   readonly decisions?: DecisionService;
+  /**
+   * MCP resolver for agent `mcpServers` selections. The coordinator wires the
+   * real implementation; when a selection exists but no resolver is
+   * configured, the node fails with an actionable error.
+   */
+  readonly mcpResolver?: McpResolver;
 }
 
 export interface RunIdempotency {

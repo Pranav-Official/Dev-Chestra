@@ -36,8 +36,10 @@ import {
   previewFromOutput,
 } from "./execution.js";
 import { mountGateRoutes } from "./gate-routes.js";
+import { mountMcpRoutes } from "./mcp-routes.js";
 import { mountModelRoutes } from "./model-routes.js";
 import type {
+  BrowserMcpServersPort,
   BrowserModelCatalogPort,
   BrowserQueryPort,
   BrowserRunControllerPort,
@@ -94,6 +96,7 @@ export interface BrowserAppDeps {
   defaults?: { agentTimeoutMin: number; shellTimeoutMin: number };
   workflowService?: ManagedWorkflowService;
   modelCatalog?: BrowserModelCatalogPort;
+  mcpServers?: BrowserMcpServersPort;
   workspaceService?: BrowserWorkspacePort;
   /**
    * Decision-model service for the provider routes. Defaults to a live
@@ -259,6 +262,11 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
   mountModelRoutes(app, {
     store: deps.store,
     ...(deps.modelCatalog === undefined ? {} : { modelCatalog: deps.modelCatalog }),
+    validate,
+  });
+  mountMcpRoutes(app, {
+    store: deps.store,
+    ...(deps.mcpServers === undefined ? {} : { mcpServers: deps.mcpServers }),
     validate,
   });
   mountCliRoutes(app, { validate });

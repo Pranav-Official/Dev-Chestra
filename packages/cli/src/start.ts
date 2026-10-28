@@ -22,6 +22,7 @@ import type {
 } from "@relay/server";
 import {
   createBrowserStream,
+  createMcpServersPort,
   createStoreQueryPort,
   RelayError as ServerRelayError,
   startBrowserServer,
@@ -162,6 +163,9 @@ async function defaultBrowserFactory(wiring: BrowserWiring): Promise<BrowserList
     store: createStoreQueryPort(wiring.store),
     controller: wiring.controller,
     modelCatalog: wiring.modelCatalog,
+    mcpServers: createMcpServersPort({
+      getProjectDir: (projectId) => wiring.store.projects.get(projectId)?.path ?? null,
+    }),
     workspaceService: createBrowserWorkspaceService(),
     stream: createBrowserStream(wiring.store),
     decisions: createDecisionService(),

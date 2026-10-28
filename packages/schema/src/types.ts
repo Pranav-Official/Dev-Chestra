@@ -106,6 +106,17 @@ export type NormalizedWorkspaceSpec = { mode: "scratch" } | { mode: "worktree" }
 export interface AgentPermissions {
   network: boolean;
   write: ("workspace" | "project")[];
+  /** Built-in shell tool. Absent keeps the legacy rule: shell follows `write` being non-empty. */
+  shell?: boolean;
+}
+
+export const MCP_SCOPES = ["global", "project", "connector"] as const;
+export type McpScope = (typeof MCP_SCOPES)[number];
+
+/** A server the user switched on for an agent node. Names only: never commands, URLs or secrets. */
+export interface McpSelection {
+  name: string;
+  scope: McpScope;
 }
 
 export interface AgentLimits {
@@ -128,6 +139,8 @@ export interface AgentNode extends NodeBase {
   promptFile?: string;
   output: JsonSchemaObject;
   permissions: AgentPermissions;
+  /** Extra MCP servers (besides Relay's own). Absent or empty means only `relay`. */
+  mcpServers?: McpSelection[];
   /** Legacy per-node metadata; fresh runs use the run-level workspace choice. */
   workspace?: WorkspaceSpec;
   limits?: AgentLimits;
@@ -270,6 +283,7 @@ export interface NormalizedAgentNode extends NormalizedNodeBase {
   prompt: string;
   output: JsonSchemaObject;
   permissions: AgentPermissions;
+  mcpServers?: McpSelection[];
   workspace: NormalizedWorkspaceSpec;
   limits: Required<Pick<AgentLimits, "timeoutMin" | "validationRetries" | "crashRetries">>;
   context: { project: "none"; workflow: "none" };

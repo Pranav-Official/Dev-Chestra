@@ -112,21 +112,90 @@ class OpencodeParser extends NdjsonParser {
 }
 
 const ENV_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const MCP_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+
+/** Server names become inline-config keys; `relay` is the always-attached shim. */
+function checkMcpName(name: string, field: string): string {
+  if (!MCP_NAME_RE.test(name)) {
+    throw new Error(`${field} is not a safe MCP server name: ${name}`);
+  }
+  if (name === "relay") {
+    throw new Error(`${field} must not be "relay" (reserved for the Relay shim)`);
+  }
+  return name;
+}
+
+/** Split an OpenCode tool name into its MCP server and tool parts. OpenCode
+ *  registers MCP tools as `<server>_<tool>`; returns null when the name does
+ *  not start with a known `server_` prefix (longest match wins). Built-in
+ *  tools such as `bash` never match. */
+export function splitOpencodeMcpTool(
+  name: string,
+  servers: readonly string[],
+): { server: string; tool: string } | null {
+  let best: { server: string; tool: string } | null = null;
+  for (const server of servers) {
+    const prefix = `${server}_`;
+    if (name.startsWith(prefix) && name.length > prefix.length) {
+      const candidate = { server, tool: name.slice(prefix.length) };
+      if (best === null || candidate.server.length > best.server.length) best = candidate;
+    }
+  }
+  return best;
+}
 
 /** Per-invocation MCP attachment: env-only merges never register a server, so
- * the relay shim is injected through inline JSON config (highest precedence,
- * merged with the user's own config, never replacing it). */
+ *  the relay shim is injected through inline JSON config (highest precedence,
+ *  merged with the user's own config, never replacing it). */
 function mcpConfigContent(req: RunRequest): string {
-  return JSON.stringify({
-    mcp: {
-      [req.mcp.serverName]: {
-        type: "local",
-        command: [req.mcp.command, ...req.mcp.args],
-        environment: req.mcp.env,
-        enabled: true,
-      },
+  const seen = new Set<string>([req.mcp.serverName]);
+  const mcp: Record<string, unknown> = {
+    [req.mcp.serverName]: {
+      type: "local",
+      command: [req.mcp.command, ...req.mcp.args],
+      environment: req.mcp.env,
+      enabled: true,
     },
-  });
+  };
+  for (const extra of req.extraMcp ?? []) {
+    checkMcpName(extra.name, "extraMcp[].name");
+    if (seen.has(extra.name)) throw new Error(`Duplicate extraMcp server: ${extra.name}`);
+    seen.add(extra.name);
+    if (extra.transport === "http" || extra.transport === "sse") {
+      if (extra.url === undefined || extra.url === "") {
+        throw new Error(`extraMcp server ${extra.name} needs a url`);
+      }
+      mcp[extra.name] = {
+        type: "remote",
+        url: extra.url,
+        headers: extra.headers ?? {},
+        enabled: true,
+      };
+    } else {
+      if (extra.command === undefined || extra.command === "") {
+        throw new Error(`extraMcp server ${extra.name} needs a command`);
+      }
+      mcp[extra.name] = {
+        type: "local",
+        command: [extra.command, ...(extra.args ?? [])],
+        environment: extra.env ?? {},
+        ...(extra.cwd !== undefined ? { cwd: extra.cwd } : {}),
+        enabled: true,
+      };
+    }
+  }
+  // Exact selection: everything the CLI knows but the node did not select
+  // stays off, so the merged user config cannot start it.
+  for (const known of req.knownMcp ?? []) {
+    if (known.name === req.mcp.serverName) continue; // our own shim, always on
+    checkMcpName(known.name, "knownMcp[].name");
+    if (!seen.has(known.name)) mcp[known.name] = { enabled: false };
+  }
+  const config: Record<string, unknown> = { mcp };
+  // Built-in shell tool: undefined keeps the legacy rule (no shell switch);
+  // false denies bash. Verified live against opencode 1.19.4 (see evidence).
+  if (req.permissions.shell === false) config.permission = { bash: "deny" };
+  return JSON.stringify(config);
 }
 
 function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
@@ -203,8 +272,12 @@ export function createOpencodeAdapter(options: AdapterOptions = {}): CliAdapter 
         "argv from opencode 1.19.4 run --help: run [prompt] --model provider/model --format json --dir <cwd> --session <ses_...>",
         "prompt travels as argv (promptViaStdin false), capped at 256 KiB; --session resumes, no --cd/--sandbox flags exist",
         "MCP server attaches via OPENCODE_CONFIG_CONTENT inline JSON (type local, command [shim, ...args], environment, enabled); env travels on fresh and resume",
-        "MCP tools register as <server>_<tool>; submit_result is relay_submit_result",
-        "JSON stream shapes (step_start/text/tool_use/step_finish/error) come from published cheatsheets, not a live capture",
+        "LIVE opencode 1.19.4: inline JSON merges with the user config - a user-configured fixture server starts when the inline config only carries relay, and does NOT start when the inline config adds mcp.<name>.enabled=false",
+        "LIVE: inline local extra starts and is callable as <server>_<tool> (fixture_fixture_echo, log: start+call); remote extras use {type:remote,url,headers,enabled:true} per the installed config shape (no live remote server exercised)",
+        "LIVE: inline permission:{bash:deny} removes the built-in bash tool (model reports NOSHELL, no tool_use); without it the same prompt runs echo. tools.bash=false was not needed and stays untested",
+        "LIVE route-around: with bash denied, the model ran the same echo via an attached MCP exec tool (linremote_shell) - shell:false is advisory, never a sandbox",
+        "MCP tools register as <server>_<tool>; splitOpencodeMcpTool attributes them to known servers (longest prefix wins); relay_submit_result is the submit ref",
+        "JSON stream shapes (step_start/text/tool_use/step_finish/error) confirmed against live --format json output",
         "usageIsCumulative false: step_finish tokens are per-step deltas emitted directly",
       ],
     },

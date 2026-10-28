@@ -187,14 +187,14 @@ function contextBlock(prompt: string): Record<string, unknown> {
 function resolvedInputs(
   store: Store,
   runId: string,
-): Array<{ prompt: string; scope: unknown; inputsHash: string }> {
+): Array<{ prompt: string; scope: unknown; tools: unknown; inputsHash: string }> {
   return store.events
     .list(runId as never, { limit: 10_000 })
     .filter((event) => event.type === "node.input.resolved" && event.path === "work")
     .map((event) => {
       const payload = event.payload as {
         inputsHash: string;
-        inputs: { prompt: string; scope: unknown };
+        inputs: { prompt: string; scope: unknown; tools: unknown };
       };
       return { ...payload.inputs, inputsHash: payload.inputsHash };
     });
@@ -245,8 +245,13 @@ describe("automatic agent input handoff", () => {
     expect(resolved).toHaveLength(2);
     for (const [index, recorded] of resolved.entries()) {
       expect(recorded.prompt).toBe(s.requests[index]?.prompt);
+      expect(recorded.tools).toEqual({ shell: null, servers: [] });
       expect(recorded.inputsHash).toBe(
-        await hashJson({ prompt: recorded.prompt, scope: recorded.scope }),
+        await hashJson({
+          prompt: recorded.prompt,
+          scope: recorded.scope,
+          tools: recorded.tools,
+        }),
       );
     }
   }, 20_000);

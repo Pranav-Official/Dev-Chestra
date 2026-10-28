@@ -109,6 +109,7 @@ function normalizeAgent(
     permissions: {
       network: node.permissions.network,
       write: [...new Set(node.permissions.write)].sort(),
+      ...(node.permissions.shell === undefined ? {} : { shell: node.permissions.shell }),
     },
     workspace: normalizeWorkspace(node.workspace),
     limits: {
@@ -119,6 +120,13 @@ function normalizeAgent(
     context: { project: "none", workflow: "none" },
   };
   if (node.model !== undefined) out.model = node.model;
+  // Absent stays absent: only Relay's own server runs for the node.
+  if (node.mcpServers !== undefined) {
+    out.mcpServers = node.mcpServers.map((selection) => ({
+      name: selection.name,
+      scope: selection.scope,
+    }));
+  }
   return out;
 }
 

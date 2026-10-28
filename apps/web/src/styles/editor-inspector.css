@@ -668,6 +668,87 @@ select.inspector-input {
   flex: none;
 }
 
+.inspector-tools-divided {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.inspector-tools-subhead {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.inspector-tools-refresh {
+  margin-left: auto;
+}
+
+.inspector-tools-row {
+  gap: 2px;
+}
+
+.inspector-tools-row .inspector-check {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.inspector-tools-row .inspector-check label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.inspector-tools-name {
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.inspector-tools-locked {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+
+.inspector-tools-group-label {
+  margin: 2px 0 0;
+  color: var(--text-3);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.inspector-tools-warn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  color: var(--amber);
+  font-size: 11px;
+}
+
+.inspector-tools-missing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+}
+
+.inspector-tools-missing .btn {
+  margin-left: auto;
+}
+
 .inspector-head-meta .inspector-id-input {
   max-width: none;
 }

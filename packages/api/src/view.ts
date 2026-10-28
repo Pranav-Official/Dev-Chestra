@@ -254,7 +254,17 @@ const normalizedAgentNodeSchema = strict({
   permissions: strict({
     network: z.boolean(),
     write: z.array(z.enum(["workspace", "project"])),
+    shell: z.boolean().optional(),
   }),
+  mcpServers: z
+    .array(
+      strict({
+        name: z.string().min(1).max(128),
+        scope: z.enum(["global", "project", "connector"]),
+      }),
+    )
+    .max(32)
+    .optional(),
   workspace: normalizedWorkspaceSchema,
   limits: strict({
     timeoutMin: z.number(),

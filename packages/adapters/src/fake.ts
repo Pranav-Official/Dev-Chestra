@@ -204,9 +204,29 @@ export function createFakeAdapter(options: FakeAdapterOptions = {}): CliAdapter 
         script === undefined || Object.hasOwn(req.env, "FAKE_AGENT_SCRIPT")
           ? req.env
           : { ...req.env, FAKE_AGENT_SCRIPT: script };
+      // Names-only MCP/shell reflection for engine tests: asserts what the
+      // engine attached without ever carrying secrets (no env, headers, urls).
+      const reflected: Record<string, string> = {};
+      if (typeof req.permissions.shell === "boolean") {
+        reflected.FAKE_RELAY_SHELL = String(req.permissions.shell);
+      }
+      if (req.extraMcp !== undefined) {
+        reflected.FAKE_RELAY_MCP = JSON.stringify(
+          req.extraMcp.map((server) => ({ name: server.name, scope: server.scope })),
+        );
+      }
+      if (req.knownMcp !== undefined) {
+        reflected.FAKE_RELAY_MCP_KNOWN = JSON.stringify(
+          req.knownMcp.map((server) => ({ name: server.name, scope: server.scope })),
+        );
+      }
       const cliOptions: Record<string, unknown> = { ...(req.cliOptions ?? {}) };
       cliOptions.checkpoint ??= ".relay/fake-checkpoint.json";
-      return plan({ ...req, cliOptions, env: { ...merged, ...req.mcp.env } }, node, fake);
+      return plan(
+        { ...req, cliOptions, env: { ...merged, ...reflected, ...req.mcp.env } },
+        node,
+        fake,
+      );
     },
     parser: (): StreamParser => new FakeParser(),
     classify: (exit: ExitInfo, _tail: Tail): FailureClass => classifyExit(exit),

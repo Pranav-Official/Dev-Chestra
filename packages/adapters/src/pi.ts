@@ -14,10 +14,13 @@ import type {
   Invocation,
   ProbeCtx,
   ProbeResult,
+  ResolvedMcpServer,
   RunRequest,
   StreamParser,
   Tail,
 } from "./types.js";
+
+const MCP_NAME_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
 const SESSION_RE = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9])?$/;
 const PROVIDER_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -280,6 +283,51 @@ class PiParser extends NdjsonParser {
   }
 }
 
+/** mcp.json entry for one extra server (Pi's mcpServers shape). Secrets stay in the file. */
+function extraMcpEntry(server: ResolvedMcpServer): Record<string, unknown> {
+  if (server.transport === "http" || server.transport === "sse") {
+    if (server.url === undefined || server.url === "") {
+      throw new Error(`extraMcp server ${server.name} needs a url`);
+    }
+    return {
+      url: server.url,
+      ...(server.headers !== undefined ? { headers: server.headers } : {}),
+    };
+  }
+  if (server.command === undefined || server.command === "" || server.args === undefined) {
+    throw new Error(`extraMcp server ${server.name} needs command and args`);
+  }
+  if (server.cwd !== undefined) checkDir(server.cwd, "extraMcp cwd");
+  for (const name of Object.keys(server.env ?? {})) {
+    if (!ENV_NAME_RE.test(name)) throw new Error(`Invalid extraMcp env name: ${name}`);
+  }
+  return {
+    command: server.command,
+    args: server.args,
+    ...(server.env !== undefined ? { env: server.env } : {}),
+    ...(server.cwd !== undefined && server.cwd !== "" ? { cwd: server.cwd } : {}),
+  };
+}
+
+/** Validated extra servers: safe unique names, none colliding with relay. */
+function extraMcpServers(req: RunRequest): ResolvedMcpServer[] {
+  const extra = req.extraMcp ?? [];
+  const seen = new Set<string>();
+  for (const server of extra) {
+    if (!MCP_NAME_RE.test(server.name)) {
+      throw new Error(`extraMcp server name is not safe: ${server.name}`);
+    }
+    if (server.name === "relay" || server.name === req.mcp.serverName) {
+      throw new Error(`extraMcp server name is reserved: ${server.name}`);
+    }
+    if (seen.has(server.name)) {
+      throw new Error(`extraMcp duplicate server name: ${server.name}`);
+    }
+    seen.add(server.name);
+  }
+  return extra;
+}
+
 /**
  * Canonical agent dir shared by every Pi run on this host, or null when no
  * canonical credential store is in play (then plan() links nothing and runs
@@ -393,6 +441,16 @@ function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
     const denied: string[] = [];
     if (req.permissions.write.length === 0) denied.push(...permissions.readOnlyDeniedTools);
     if (!req.permissions.network) denied.push(...permissions.networkTools);
+    // Shell is independent of write when explicitly set; undefined keeps legacy.
+    if (req.permissions.shell === false) {
+      for (const tool of ["bash", "powershell"]) {
+        if (!denied.includes(tool)) denied.push(tool);
+      }
+    } else if (req.permissions.shell === true) {
+      const kept = denied.filter((tool) => tool !== "bash");
+      denied.length = 0;
+      denied.push(...kept);
+    }
     if (denied.length > 0) args.push("--exclude-tools", denied.join(","));
 
     // Default --no-approve: ignore trust-gated project-local files unless the
@@ -403,18 +461,18 @@ function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
 
     const piHome = join(req.execDir, "pi-home");
     const mcpPath = join(piHome, "mcp.json");
-    const mcp = {
-      mcpServers: {
-        [req.mcp.serverName]: {
-          command: req.mcp.command,
-          args: req.mcp.args,
-          env: req.mcp.env,
-          // Relay tools are small and model-called: declare them like built-ins
-          // instead of hiding them behind codemode/tool_search.
-          exposure: "direct",
-        },
+    const mcpServers: Record<string, unknown> = {
+      [req.mcp.serverName]: {
+        command: req.mcp.command,
+        args: req.mcp.args,
+        env: req.mcp.env,
+        // Relay tools are small and model-called: declare them like built-ins
+        // instead of hiding them behind codemode/tool_search.
+        exposure: "direct",
       },
     };
+    for (const server of extraMcpServers(req)) mcpServers[server.name] = extraMcpEntry(server);
+    const mcp = { mcpServers };
     for (const name of Object.keys(req.mcp.env)) {
       if (!ENV_NAME_RE.test(name)) throw new Error(`Invalid MCP env name: ${name}`);
     }
@@ -467,7 +525,9 @@ export function createPiAdapter(options: AdapterOptions = {}): CliAdapter {
         "isolated PI_CODING_AGENT_DIR carries relay mcp.json plus symlinks to the canonical auth.json/models.json/settings.json when present; API-key providers also pass through documented env vars",
         "symlinks alone cannot serialize Pi's per-path auth.json lock (proper-lockfile realpath:false): the engine holds auth.json.relay-lock in the canonical dir across Pi runs sharing it",
         "toolResult ok comes from ToolResultMessage.isError; turn_end error comes from stopReason/errorMessage",
-        "permission mapping (--exclude-tools) and direct MCP exposure are UNVERIFIED against a live run",
+        "extraMcp verified live 2026-10-28 (pi 1.4.0, opencode-go/deepseek-v4.1-flash): fixture stdio server in the isolated mcp.json called as mcp__fixture__fixture_echo (model found it via codemode searchTools; extras default to codemode exposure, only relay is direct); canonical-home unselected server not started",
+        "permissions.shell verified live 2026-10-28: false+write excludes bash+powershell (model reports no bash tool); true+read-only runs bash (echo hi -> hi)",
+        "live-run caveats 2026-10-28: isolated runs reinstall settings `packages` (npm is absent on this machine, so the run used settings minus packages); nvidia catalog models 404 for this account, ollama provider is down; opencode-go/deepseek-v4.1-flash worked",
       ],
     },
     plan: (req) => plan(req, bin),
