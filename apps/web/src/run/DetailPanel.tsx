@@ -26,6 +26,42 @@ function errorDiagnostic(details: unknown): string | null {
   return null;
 }
 
+export interface McpToolsSummary {
+  shell: boolean | null;
+  servers: { name: string; scope: string }[];
+}
+
+/** Compact Tools summary from resolved agent input (`mcp: { shell, servers }`). Names and scopes only. */
+export function extractMcpTools(data: unknown): McpToolsSummary | null {
+  if (typeof data !== "object" || data === null) return null;
+  const mcp = (data as Record<string, unknown>).mcp;
+  if (typeof mcp !== "object" || mcp === null) return null;
+  const record = mcp as Record<string, unknown>;
+  if (record.shell === undefined && !Array.isArray(record.servers)) return null;
+  const shell = typeof record.shell === "boolean" ? record.shell : null;
+  const servers = (Array.isArray(record.servers) ? record.servers : []).flatMap((entry) => {
+    if (typeof entry !== "object" || entry === null) return [];
+    const { name, scope } = entry as Record<string, unknown>;
+    return typeof name === "string" && typeof scope === "string" ? [{ name, scope }] : [];
+  });
+  return { shell, servers };
+}
+
+export function ToolsLine({ data }: { data: unknown }) {
+  const tools = extractMcpTools(data);
+  if (tools === null) return null;
+  return (
+    <p className="faint" data-testid="detail-tools" style={{ fontSize: 12 }}>
+      Tools: Shell {tools.shell === true ? "on" : tools.shell === false ? "off" : "default"}
+      {tools.servers.map((server) => (
+        <span key={`${server.scope}:${server.name}`} className="chip" style={{ marginLeft: 6 }}>
+          {server.name} · {server.scope}
+        </span>
+      ))}
+    </p>
+  );
+}
+
 function execFor(view: RunView, path: string): RunView["executions"][string] | undefined {
   const direct = view.executions[path];
   if (direct !== undefined) return direct;
@@ -111,7 +147,10 @@ function ReplayDetail({
           {derived.input.inputs === null ? (
             <p className="faint">The event recorded an input hash but not the input value.</p>
           ) : (
-            <JsonView value={derived.input.inputs} testId="detail-output" />
+            <>
+              <ToolsLine data={derived.input.inputs} />
+              <JsonView value={derived.input.inputs} testId="detail-output" />
+            </>
           )}
         </>
       )}
@@ -254,7 +293,10 @@ function LiveDetail({ data, path }: { data: ExecutionDetailResponse; path: strin
           {input.data === null ? (
             <p className="faint">Input content was not inlined (over 64 KiB).</p>
           ) : (
-            <JsonView value={input.data} testId="detail-input" />
+            <>
+              <ToolsLine data={input.data} />
+              <JsonView value={input.data} testId="detail-input" />
+            </>
           )}
         </>
       )}
