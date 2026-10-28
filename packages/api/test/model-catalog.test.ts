@@ -17,7 +17,7 @@ interface Call {
 function response(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", "X-Relay-Api": "1" },
+    headers: { "Content-Type": "application/json", "X-DevChestra-Api": "1" },
   });
 }
 
@@ -38,7 +38,7 @@ function catalog(overrides: Partial<CliModelCatalog> = {}): CliModelCatalog {
     cli: "codex",
     projectId: "proj/one",
     status: "ready",
-    scope: "relay-runtime",
+    scope: "devchestra-runtime",
     source: "codex-app-server",
     cliVersion: "0.164.0",
     items: [
@@ -141,8 +141,8 @@ describe("model catalog client", () => {
     expect(call.url).toBe("http://127.0.0.1:4821/api/projects/proj%2Fone/clis/codex/models");
     expect(call.init.method).toBe("GET");
     expect(call.init.body).toBeUndefined();
-    expect(header(call, "X-Relay-Csrf")).toBeNull();
-    expect(header(call, "X-Relay-Token")).toBeNull();
+    expect(header(call, "X-DevChestra-Csrf")).toBeNull();
+    expect(header(call, "X-DevChestra-Token")).toBeNull();
   });
 
   it("POSTs a bodyless CSRF-protected refresh", async () => {
@@ -155,7 +155,7 @@ describe("model catalog client", () => {
     expect(call.url).toBe("http://127.0.0.1:4821/api/projects/proj-1/clis/codex/models/refresh");
     expect(call.init.method).toBe("POST");
     expect(call.init.body).toBeUndefined();
-    expect(header(call, "X-Relay-Csrf")).toBe("1");
+    expect(header(call, "X-DevChestra-Csrf")).toBe("1");
     expect(header(call, "Content-Type")).toBe("application/json");
   });
 
@@ -173,7 +173,7 @@ describe("model catalog client", () => {
       token: TOKEN,
     });
     await client.getCliModels("proj-1", "claude-code");
-    expect(header(calls[0] as Call, "X-Relay-Token")).toBe(TOKEN);
+    expect(header(calls[0] as Call, "X-DevChestra-Token")).toBe(TOKEN);
   });
 
   it("rejects an unknown CLI before calling fetch", async () => {

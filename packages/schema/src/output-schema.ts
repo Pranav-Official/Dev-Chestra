@@ -1,4 +1,4 @@
-import { canonicalJson, err, ok, RelayError, type Result } from "@relay/core";
+import { canonicalJson, DevChestraError, err, ok, type Result } from "@devchestra/core";
 import type { JsonSchemaObject } from "./types.js";
 
 const MAX_DEPTH = 8;
@@ -38,14 +38,14 @@ interface NormalizeContext {
   isRoot: boolean;
 }
 
-function invalid(message: string, pointer?: string): RelayError {
-  return new RelayError("E_WORKFLOW_INVALID", message, {
+function invalid(message: string, pointer?: string): DevChestraError {
+  return new DevChestraError("E_WORKFLOW_INVALID", message, {
     details: pointer === undefined ? undefined : { pointer },
   });
 }
 
-function unsupported(message: string, pointer?: string): RelayError {
-  return new RelayError("E_WORKFLOW_INVALID", message, {
+function unsupported(message: string, pointer?: string): DevChestraError {
+  return new DevChestraError("E_WORKFLOW_INVALID", message, {
     details: pointer === undefined ? undefined : { pointer },
   });
 }
@@ -324,9 +324,9 @@ function normalizeSchema(
   }
 
   if (raw.format !== undefined) {
-    if (raw.format === "relay-artifact") {
+    if (raw.format === "devchestra-artifact") {
       throw unsupported(
-        "Artifact outputs (format: 'relay-artifact') are not implemented in P1; return a path or inline value instead.",
+        "Artifact outputs (format: 'devchestra-artifact') are not implemented in P1; return a path or inline value instead.",
         joinPath(pointer, "format"),
       );
     }
@@ -416,7 +416,7 @@ function assertNoRecursiveRefs(root: JsonSchemaObject): void {
 }
 
 /**
- * Validate and normalize an agent output schema against Relay's restricted
+ * Validate and normalize an agent output schema against DevChestra's restricted
  * profile. Annotations are dropped from the normalized/hash form; arrays get a
  * required maxItems; object schemas default to additionalProperties:false
  * unless the author explicitly sets true (Raw JSON object); a nested empty (or
@@ -425,7 +425,7 @@ function assertNoRecursiveRefs(root: JsonSchemaObject): void {
  */
 export function normalizeOutputSchema(
   schema: JsonSchemaObject,
-): Result<JsonSchemaObject, RelayError> {
+): Result<JsonSchemaObject, DevChestraError> {
   try {
     if (!isRecord(schema) || schema.type !== "object") {
       throw invalid("Agent output schema must declare type 'object' at the top level", "/type");
@@ -441,7 +441,9 @@ export function normalizeOutputSchema(
     }
     return ok(normalized);
   } catch (error) {
-    if (error instanceof RelayError) return err(error);
-    return err(new RelayError("E_INTERNAL", "Could not normalize output schema", { cause: error }));
+    if (error instanceof DevChestraError) return err(error);
+    return err(
+      new DevChestraError("E_INTERNAL", "Could not normalize output schema", { cause: error }),
+    );
   }
 }

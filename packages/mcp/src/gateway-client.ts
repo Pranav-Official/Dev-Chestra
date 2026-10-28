@@ -1,6 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
-import { isRecord } from "@relay/core";
+import { isRecord } from "@devchestra/core";
 import {
   type AgentCallResult,
   type AgentGatewayClient,
@@ -56,26 +56,35 @@ export async function resolveLoopbackGatewayUrl(
   lookupAll: (hostname: string) => Promise<LoopbackAddress[]> = defaultLookupAll,
 ): Promise<URL> {
   if (typeof raw !== "string" || raw.trim() === "") {
-    throw new GatewayClientError("E_CONFIG", "RELAY_GATEWAY_URL is required.");
+    throw new GatewayClientError("E_CONFIG", "DEVCHESTRA_GATEWAY_URL is required.");
   }
 
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
-    throw new GatewayClientError("E_CONFIG", "RELAY_GATEWAY_URL must be a valid absolute URL.");
+    throw new GatewayClientError(
+      "E_CONFIG",
+      "DEVCHESTRA_GATEWAY_URL must be a valid absolute URL.",
+    );
   }
 
   if (url.protocol !== "http:") {
-    throw new GatewayClientError("E_CONFIG", "RELAY_GATEWAY_URL must use plain http on loopback.");
+    throw new GatewayClientError(
+      "E_CONFIG",
+      "DEVCHESTRA_GATEWAY_URL must use plain http on loopback.",
+    );
   }
   if (url.username !== "" || url.password !== "") {
-    throw new GatewayClientError("E_CONFIG", "RELAY_GATEWAY_URL must not contain credentials.");
+    throw new GatewayClientError(
+      "E_CONFIG",
+      "DEVCHESTRA_GATEWAY_URL must not contain credentials.",
+    );
   }
   if (url.search !== "" || url.hash !== "") {
     throw new GatewayClientError(
       "E_CONFIG",
-      "RELAY_GATEWAY_URL must not contain a query or fragment.",
+      "DEVCHESTRA_GATEWAY_URL must not contain a query or fragment.",
     );
   }
 
@@ -90,7 +99,7 @@ export async function resolveLoopbackGatewayUrl(
   if (hostname !== "localhost") {
     throw new GatewayClientError(
       "E_CONFIG",
-      "RELAY_GATEWAY_URL must use a loopback literal (127.0.0.1 or [::1]); other hostnames are rejected.",
+      "DEVCHESTRA_GATEWAY_URL must use a loopback literal (127.0.0.1 or [::1]); other hostnames are rejected.",
     );
   }
 
@@ -98,18 +107,18 @@ export async function resolveLoopbackGatewayUrl(
   try {
     addresses = await lookupAll(hostname);
   } catch {
-    throw new GatewayClientError("E_CONFIG", "RELAY_GATEWAY_URL host could not be resolved.");
+    throw new GatewayClientError("E_CONFIG", "DEVCHESTRA_GATEWAY_URL host could not be resolved.");
   }
   if (addresses.length === 0 || !addresses.every((entry) => isLoopbackAddress(entry.address))) {
     throw new GatewayClientError(
       "E_CONFIG",
-      "RELAY_GATEWAY_URL host must resolve only to loopback addresses.",
+      "DEVCHESTRA_GATEWAY_URL host must resolve only to loopback addresses.",
     );
   }
 
   const first = addresses[0];
   if (first === undefined) {
-    throw new GatewayClientError("E_CONFIG", "RELAY_GATEWAY_URL host could not be resolved.");
+    throw new GatewayClientError("E_CONFIG", "DEVCHESTRA_GATEWAY_URL host could not be resolved.");
   }
   const rewritten = replaceHostWithLiteral(url, first.address);
   if (!rewritten.pathname.endsWith("/")) {
@@ -194,7 +203,7 @@ function parseCallResult(rawBody: string, token: string): AgentCallResult {
   } catch {
     return {
       content: [
-        { type: "text", text: "Relay gateway returned an invalid tool result (not JSON)." },
+        { type: "text", text: "DevChestra gateway returned an invalid tool result (not JSON)." },
       ],
       isError: true,
     };
@@ -202,7 +211,7 @@ function parseCallResult(rawBody: string, token: string): AgentCallResult {
 
   if (!isRecord(parsed) || typeof parsed.isError !== "boolean" || !Array.isArray(parsed.content)) {
     return {
-      content: [{ type: "text", text: "Relay gateway returned an invalid tool result." }],
+      content: [{ type: "text", text: "DevChestra gateway returned an invalid tool result." }],
       isError: true,
     };
   }
@@ -211,7 +220,7 @@ function parseCallResult(rawBody: string, token: string): AgentCallResult {
   for (const item of parsed.content) {
     if (!isRecord(item) || item.type !== "text" || typeof item.text !== "string") {
       return {
-        content: [{ type: "text", text: "Relay gateway returned an invalid tool result." }],
+        content: [{ type: "text", text: "DevChestra gateway returned an invalid tool result." }],
         isError: true,
       };
     }
@@ -228,13 +237,13 @@ function parseTools(rawBody: string, token: string): AgentToolDescriptor[] {
   } catch {
     throw new GatewayClientError(
       "E_BAD_GATEWAY",
-      "Relay gateway returned an invalid tools response.",
+      "DevChestra gateway returned an invalid tools response.",
     );
   }
   if (!isRecord(parsed) || !Array.isArray(parsed.tools)) {
     throw new GatewayClientError(
       "E_BAD_GATEWAY",
-      "Relay gateway returned an invalid tools response.",
+      "DevChestra gateway returned an invalid tools response.",
     );
   }
 
@@ -248,7 +257,7 @@ function parseTools(rawBody: string, token: string): AgentToolDescriptor[] {
     ) {
       throw new GatewayClientError(
         "E_BAD_GATEWAY",
-        "Relay gateway returned an invalid tool descriptor.",
+        "DevChestra gateway returned an invalid tool descriptor.",
       );
     }
     const tool: AgentToolDescriptor = {
@@ -269,7 +278,7 @@ async function readLimitedBody(response: Response, maxBytes: number): Promise<st
     await response.body?.cancel();
     throw new GatewayClientError(
       "E_RESPONSE_TOO_LARGE",
-      "Relay gateway response exceeded the size limit.",
+      "DevChestra gateway response exceeded the size limit.",
     );
   }
   if (response.body === null) {
@@ -290,7 +299,7 @@ async function readLimitedBody(response: Response, maxBytes: number): Promise<st
         await reader.cancel();
         throw new GatewayClientError(
           "E_RESPONSE_TOO_LARGE",
-          "Relay gateway response exceeded the size limit.",
+          "DevChestra gateway response exceeded the size limit.",
         );
       }
       chunks.push(next.value);
@@ -324,10 +333,10 @@ export async function createAgentGatewayClient(
   options: GatewayClientOptions,
 ): Promise<AgentGatewayClient> {
   if (options.token === "") {
-    throw new GatewayClientError("E_CONFIG", "RELAY_EXEC_TOKEN is required.");
+    throw new GatewayClientError("E_CONFIG", "DEVCHESTRA_EXEC_TOKEN is required.");
   }
   if (options.toolset !== "agent" && options.toolset !== "supervisor") {
-    throw new GatewayClientError("E_CONFIG", 'RELAY_TOOLSET must be "agent" or "supervisor".');
+    throw new GatewayClientError("E_CONFIG", 'DEVCHESTRA_TOOLSET must be "agent" or "supervisor".');
   }
 
   const baseUrl = await resolveLoopbackGatewayUrl(
@@ -359,7 +368,7 @@ export async function createAgentGatewayClient(
     if (externalSignal !== undefined) {
       if (externalSignal.aborted) {
         clearTimeout(timer);
-        throw new GatewayClientError("E_ABORTED", "Relay gateway request was cancelled.");
+        throw new GatewayClientError("E_ABORTED", "DevChestra gateway request was cancelled.");
       }
       externalSignal.addEventListener("abort", onAbort, { once: true });
     }
@@ -372,7 +381,7 @@ export async function createAgentGatewayClient(
       headers.set("content-type", "application/json");
     }
     if (spec.callId !== undefined) {
-      headers.set("x-relay-call-id", spec.callId);
+      headers.set("x-devchestra-call-id", spec.callId);
     }
 
     const init: RequestInit = {
@@ -391,12 +400,12 @@ export async function createAgentGatewayClient(
       return { status: response.status, body };
     } catch (error) {
       if (timedOut) {
-        throw new GatewayClientError("E_TIMEOUT", "Relay gateway request timed out.", {
+        throw new GatewayClientError("E_TIMEOUT", "DevChestra gateway request timed out.", {
           cause: error,
         });
       }
       if (externalSignal?.aborted === true) {
-        throw new GatewayClientError("E_ABORTED", "Relay gateway request was cancelled.", {
+        throw new GatewayClientError("E_ABORTED", "DevChestra gateway request was cancelled.", {
           cause: error,
         });
       }
@@ -405,7 +414,7 @@ export async function createAgentGatewayClient(
       }
       throw new GatewayClientError(
         "E_GATEWAY_UNAVAILABLE",
-        `Relay is not reachable${safeCauseSuffix(error)}.`,
+        `DevChestra is not reachable${safeCauseSuffix(error)}.`,
         { cause: error },
       );
     } finally {
@@ -427,7 +436,7 @@ export async function createAgentGatewayClient(
           attempt < maxAttempts
         ) {
           if (externalSignal?.aborted === true) {
-            throw new GatewayClientError("E_ABORTED", "Relay gateway request was cancelled.");
+            throw new GatewayClientError("E_ABORTED", "DevChestra gateway request was cancelled.");
           }
           await abortableSleep(25 * attempt);
           continue;
@@ -440,7 +449,7 @@ export async function createAgentGatewayClient(
           attempt < maxAttempts
         ) {
           if (externalSignal?.aborted === true) {
-            throw new GatewayClientError("E_ABORTED", "Relay gateway request was cancelled.");
+            throw new GatewayClientError("E_ABORTED", "DevChestra gateway request was cancelled.");
           }
           await abortableSleep(25 * attempt);
           continue;
@@ -448,7 +457,7 @@ export async function createAgentGatewayClient(
         throw error;
       }
     }
-    throw new GatewayClientError("E_GATEWAY_UNAVAILABLE", "Relay is not reachable.");
+    throw new GatewayClientError("E_GATEWAY_UNAVAILABLE", "DevChestra is not reachable.");
   }
 
   return {
@@ -463,7 +472,7 @@ export async function createAgentGatewayClient(
         const detail = formatErrorBody(result.body, token);
         throw new GatewayClientError(
           errorCodeForStatus(result.status),
-          detail === "" ? `Relay gateway returned HTTP ${result.status}.` : detail,
+          detail === "" ? `DevChestra gateway returned HTTP ${result.status}.` : detail,
           { status: result.status },
         );
       }
@@ -484,7 +493,7 @@ export async function createAgentGatewayClient(
       const body = JSON.stringify({ name: input.name, arguments: input.arguments });
       if (Buffer.byteLength(body, "utf8") > maxRequestBytes) {
         return {
-          content: [{ type: "text", text: "Relay gateway request exceeded the size limit." }],
+          content: [{ type: "text", text: "DevChestra gateway request exceeded the size limit." }],
           isError: true,
         };
       }
@@ -508,7 +517,7 @@ export async function createAgentGatewayClient(
           content: [
             {
               type: "text",
-              text: detail === "" ? `Relay gateway returned HTTP ${result.status}.` : detail,
+              text: detail === "" ? `DevChestra gateway returned HTTP ${result.status}.` : detail,
             },
           ],
           isError: true,

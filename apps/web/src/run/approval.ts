@@ -1,4 +1,4 @@
-import type { ApprovalDecisionRef, ApprovalRequestRef, RunView } from "@relay/core";
+import type { ApprovalDecisionRef, ApprovalRequestRef, RunView } from "@devchestra/core";
 
 export type FrozenApproval = ApprovalRequestRef & { path: string };
 export type ResolvedApproval = ApprovalDecisionRef & { path: string };

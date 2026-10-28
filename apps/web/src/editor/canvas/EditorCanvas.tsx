@@ -1,4 +1,4 @@
-import { DECISION_UNCERTAIN_HANDLE, type Issue, type WorkflowFile } from "@relay/schema";
+import { DECISION_UNCERTAIN_HANDLE, type Issue, type WorkflowFile } from "@devchestra/schema";
 import {
   applyNodeChanges,
   Background,
@@ -353,7 +353,7 @@ export function EditorCanvas({
       if (readOnly) return;
       event.preventDefault();
       const raw =
-        event.dataTransfer.getData("application/relay-node") ||
+        event.dataTransfer.getData("application/devchestra-node") ||
         event.dataTransfer.getData("text/node");
       if (!isSupportedNodeType(raw)) return;
       const type = raw as string;

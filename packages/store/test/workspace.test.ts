@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { isRunWorkspaceBinding, RelayError } from "@relay/core";
+import { DevChestraError, isRunWorkspaceBinding } from "@devchestra/core";
 import Database from "better-sqlite3";
 import { afterEach, describe, expect, it } from "vitest";
 import { openStore } from "../src/index.js";
@@ -13,8 +13,8 @@ afterEach(() => {
 });
 
 function harness() {
-  const dir = mkdtempSync(join(tmpdir(), "relay-store-workspace-"));
-  const file = join(dir, "relay.db");
+  const dir = mkdtempSync(join(tmpdir(), "devchestra-store-workspace-"));
+  const file = join(dir, "devchestra.db");
   const store = openStore({ file });
   store.projects.ensure({ id: "p1", name: "P1", path: join(dir, "project"), kind: "git" });
   cleanups.push(() => {
@@ -56,10 +56,10 @@ describe("run workspace persistence", () => {
 
   it("rejects a malformed binding at create time", () => {
     const { store } = harness();
-    expect(() => create(store, { selection: { mode: "project" } })).toThrow(RelayError);
+    expect(() => create(store, { selection: { mode: "project" } })).toThrow(DevChestraError);
     expect(() =>
       create(store, { selection: { mode: "existing-worktree" }, projectRoot: "/repo" }),
-    ).toThrow(RelayError);
+    ).toThrow(DevChestraError);
   });
 
   it("fails closed when a non-null stored binding is corrupt", () => {
@@ -81,13 +81,13 @@ describe("run workspace persistence", () => {
     } catch (error) {
       thrown = error;
     }
-    expect(thrown).toBeInstanceOf(RelayError);
-    expect((thrown as RelayError).code).toBe("E_INTERNAL");
+    expect(thrown).toBeInstanceOf(DevChestraError);
+    expect((thrown as DevChestraError).code).toBe("E_INTERNAL");
   });
 
   it("migrates a v2 database with existing runs to null workspace and preserves them", () => {
-    const dir = mkdtempSync(join(tmpdir(), "relay-store-v2-"));
-    const file = join(dir, "relay.db");
+    const dir = mkdtempSync(join(tmpdir(), "devchestra-store-v2-"));
+    const file = join(dir, "devchestra.db");
     cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
     const db = new Database(file);
     const migration = (name: string) =>
@@ -119,11 +119,11 @@ describe("run workspace persistence", () => {
 
     const created = create(store, {
       selection: { mode: "project" },
-      projectRoot: join(dir, "relay-project"),
+      projectRoot: join(dir, "devchestra-project"),
     });
     expect(store.runs.get(created.runId)?.workspace).toEqual({
       selection: { mode: "project" },
-      projectRoot: join(dir, "relay-project"),
+      projectRoot: join(dir, "devchestra-project"),
     });
   });
 

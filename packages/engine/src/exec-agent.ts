@@ -4,15 +4,15 @@ import {
   getProvider,
   piCredentialScope,
   type ReleaseFileLock,
-} from "@relay/adapters";
-import { type ExecutionIdentity, hashJson, type Path } from "@relay/core";
-import type { RunRecord } from "@relay/store";
-import type { ScratchWorkspace } from "@relay/workspaces";
+} from "@devchestra/adapters";
+import { type ExecutionIdentity, hashJson, type Path } from "@devchestra/core";
+import type { RunRecord } from "@devchestra/store";
+import type { ScratchWorkspace } from "@devchestra/workspaces";
 import { type AttemptLoop, type AttemptPrepared, runSingleAttempt } from "./agent-attempt.js";
 import { decideAttemptOutcome } from "./agent-outcome.js";
 import { readCliId, resolveAgentAdapter } from "./agent-preflight.js";
 import { countNoSubmit, finalizeAccepted } from "./agent-support.js";
-import { type ActiveRunState, type EngineContext, toRelayError } from "./context.js";
+import { type ActiveRunState, type EngineContext, toDevChestraError } from "./context.js";
 import type { PlanNode, ScopeSource } from "./graph-plan.js";
 import { stripUi } from "./hash-config.js";
 import { composeAgentPrompt, renderAgentInputContext, renderSubmitContract } from "./prompt.js";
@@ -96,12 +96,15 @@ export async function executeAgent(
   let releaseCredentialLock: ReleaseFileLock | undefined;
   if (credentialScope !== null) {
     try {
-      releaseCredentialLock = await acquireFileLock(join(credentialScope, "auth.json.relay-lock"), {
-        signal: active.abort.signal,
-      });
+      releaseCredentialLock = await acquireFileLock(
+        join(credentialScope, "auth.json.devchestra-lock"),
+        {
+          signal: active.abort.signal,
+        },
+      );
     } catch (error) {
       if (active.abort.signal.aborted) throw new StopSignal(active.reason ?? "user");
-      throw toRelayError(error);
+      throw toDevChestraError(error);
     }
   }
 
@@ -220,7 +223,7 @@ async function runAttempts(
         }
         throw error;
       }
-      throw toRelayError(error);
+      throw toDevChestraError(error);
     }
   }
 }

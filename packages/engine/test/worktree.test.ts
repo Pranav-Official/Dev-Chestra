@@ -2,9 +2,9 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { createAdapterRegistry } from "@relay/adapters";
-import { err, ok, type Path, RelayError } from "@relay/core";
-import { openStore, type Store } from "@relay/store";
+import { createAdapterRegistry } from "@devchestra/adapters";
+import { DevChestraError, err, ok, type Path } from "@devchestra/core";
+import { openStore, type Store } from "@devchestra/store";
 import {
   type AcquireScratchRequest,
   acquireScratch,
@@ -13,7 +13,7 @@ import {
   prepareRunWorkspace,
   releaseScratch,
   type ScratchWorkspace,
-} from "@relay/workspaces";
+} from "@devchestra/workspaces";
 import { afterEach, describe, expect, it } from "vitest";
 import { finalizeAccepted } from "../src/agent-support.js";
 import { type ActiveRunState, EngineContext } from "../src/context.js";
@@ -30,14 +30,14 @@ function git(cwd: string, ...args: string[]): string {
 }
 
 function tempRepo(): { project: string; dataDir: string; head: string } {
-  const base = mkdtempSync(join(tmpdir(), "relay-worktree-"));
+  const base = mkdtempSync(join(tmpdir(), "devchestra-worktree-"));
   const project = join(base, "project");
   const dataDir = join(base, "data");
   mkdirSync(project);
   mkdirSync(dataDir);
   git(project, "init", "-q");
-  git(project, "config", "user.email", "relay@test.invalid");
-  git(project, "config", "user.name", "Relay Test");
+  git(project, "config", "user.email", "devchestra@test.invalid");
+  git(project, "config", "user.name", "DevChestra Test");
   writeFileSync(join(project, "committed.txt"), "committed\n");
   git(project, "add", "committed.txt");
   git(project, "commit", "-q", "-m", "initial");
@@ -76,7 +76,7 @@ function testPort(dataDir: string) {
       attempt: request.attempt,
       generation: request.generation,
       dir,
-      markerFile: join(dir, `.relay-finalized.${request.attempt}.${request.generation}.json`),
+      markerFile: join(dir, `.devchestra-finalized.${request.attempt}.${request.generation}.json`),
       reused: request.requireExisting === true,
       projectRoot: request.projectRoot ?? null,
     }) as unknown as ScratchWorkspace;
@@ -116,7 +116,7 @@ function testPort(dataDir: string) {
       }
       if (request.requireExisting) {
         return err(
-          new RelayError("E_WORKSPACE", "worktree is missing", {
+          new DevChestraError("E_WORKSPACE", "worktree is missing", {
             details: { step: "workspace_lost" },
           }),
         );
@@ -156,7 +156,7 @@ function testPort(dataDir: string) {
         if (existing !== undefined) return ok(workspace(request, "new-worktree", existing));
         if (request.requireExisting) {
           return err(
-            new RelayError("E_WORKSPACE", "worktree is missing", {
+            new DevChestraError("E_WORKSPACE", "worktree is missing", {
               details: { step: "workspace_lost" },
             }),
           );
@@ -179,13 +179,13 @@ function testPort(dataDir: string) {
         if (existing !== undefined) return ok(workspace(request, "worktree", existing));
         if (request.requireExisting) {
           return err(
-            new RelayError("E_WORKSPACE", "worktree is missing", {
+            new DevChestraError("E_WORKSPACE", "worktree is missing", {
               details: { step: "workspace_lost" },
             }),
           );
         }
         if (request.projectRoot === undefined) {
-          return err(new RelayError("E_WORKSPACE", "projectRoot is required"));
+          return err(new DevChestraError("E_WORKSPACE", "projectRoot is required"));
         }
         const dir = join(dataDir, "worktrees", request.runId);
         mkdirSync(dirname(dir), { recursive: true });
@@ -228,7 +228,7 @@ const realPort: WorkspacePort = {
 
 function harness(kind: "real" | "fake" = "real") {
   const repo = tempRepo();
-  const store = openStore({ file: join(repo.dataDir, "relay.db") });
+  const store = openStore({ file: join(repo.dataDir, "devchestra.db") });
   store.projects.ensure({ id: "p1", name: "P1", path: repo.project, kind: "git" });
   cleanups.push(() => store.close());
   const fake = testPort(repo.dataDir);

@@ -69,7 +69,9 @@ describe("stdio shim against a real loopback gateway", () => {
         expect(headerValue(request.headers, "cookie")).toBeUndefined();
         const body = request.json as { name?: unknown; arguments?: unknown };
         expect(body).toEqual({ name: "submit_result", arguments: { answer: "ok" } });
-        expect(headerValue(request.headers, "x-relay-call-id")).toMatch(/^shim_[A-Za-z0-9_-]{32}$/);
+        expect(headerValue(request.headers, "x-devchestra-call-id")).toMatch(
+          /^shim_[A-Za-z0-9_-]{32}$/,
+        );
         sendJson(response, 200, {
           content: [
             { type: "text", text: "Result accepted. You are done; do not call any other tool." },
@@ -141,7 +143,7 @@ describe("stdio shim against a real loopback gateway", () => {
     expect(textOf(invalid)).toContain("invalid tool result");
   });
 
-  it("reuses X-Relay-Call-Id across a transport retry and differs per model call", async () => {
+  it("reuses X-DevChestra-Call-Id across a transport retry and differs per model call", async () => {
     let calls = 0;
     const gateway = await setupGateway((request, response) => {
       if (request.method === "GET" && request.path === "/internal/agent/tools") {
@@ -160,7 +162,7 @@ describe("stdio shim against a real loopback gateway", () => {
       sendJson(response, 200, { content: [{ type: "text", text: "ok" }], isError: false });
     });
 
-    const shim = await setupClient(gateway, { RELAY_GATEWAY_RETRIES: "1" });
+    const shim = await setupClient(gateway, { DEVCHESTRA_GATEWAY_RETRIES: "1" });
     const first = await shim.client.callTool({ name: "submit_result", arguments: { n: 1 } });
     const second = await shim.client.callTool({ name: "submit_result", arguments: { n: 1 } });
     expect(first.isError).toBe(false);
@@ -168,7 +170,7 @@ describe("stdio shim against a real loopback gateway", () => {
 
     const callIds = gateway.requests
       .filter((request) => request.method === "POST")
-      .map((request) => headerValue(request.headers, "x-relay-call-id"));
+      .map((request) => headerValue(request.headers, "x-devchestra-call-id"));
     expect(callIds).toHaveLength(3);
     expect(callIds[0]).toBeDefined();
     expect(callIds[0]).toBe(callIds[1]);
@@ -177,24 +179,24 @@ describe("stdio shim against a real loopback gateway", () => {
 
   it("exits safely when required env is missing and maps an unreachable gateway", async () => {
     const missing = await runShimProcess({
-      RELAY_EXEC_TOKEN: "",
-      RELAY_GATEWAY_URL: "http://127.0.0.1:1",
-      RELAY_TOOLSET: "agent",
+      DEVCHESTRA_EXEC_TOKEN: "",
+      DEVCHESTRA_GATEWAY_URL: "http://127.0.0.1:1",
+      DEVCHESTRA_TOOLSET: "agent",
     });
     expect(missing.code).not.toBe(0);
     expect(missing.stdout.trim()).toBe("");
-    expect(missing.stderr).toContain("RELAY_EXEC_TOKEN");
+    expect(missing.stderr).toContain("DEVCHESTRA_EXEC_TOKEN");
 
     const closed = await startTestGateway(() => undefined);
     const closedUrl = closed.url;
     const closedToken = closed.token;
     await closed.close();
 
-    const unreachable = await connectShim(closedUrl, closedToken, { RELAY_MCP_DEBUG: "1" });
+    const unreachable = await connectShim(closedUrl, closedToken, { DEVCHESTRA_MCP_DEBUG: "1" });
     cleanups.push(unreachable.close);
     const result = await unreachable.client.callTool({ name: "submit_result", arguments: {} });
     expect(result.isError).toBe(true);
-    expect(textOf(result)).toBe("Relay is not reachable. Stop and report this.");
+    expect(textOf(result)).toBe("DevChestra is not reachable. Stop and report this.");
     expect(unreachable.stderr()).not.toContain(closedToken);
   });
 
@@ -203,10 +205,10 @@ describe("stdio shim against a real loopback gateway", () => {
       sendJson(response, 200, { tools: TOOLS });
     });
     const child = spawnRawShim({
-      RELAY_EXEC_TOKEN: gateway.token,
-      RELAY_GATEWAY_URL: gateway.url,
-      RELAY_TOOLSET: "agent",
-      RELAY_MCP_DEBUG: "1",
+      DEVCHESTRA_EXEC_TOKEN: gateway.token,
+      DEVCHESTRA_GATEWAY_URL: gateway.url,
+      DEVCHESTRA_TOOLSET: "agent",
+      DEVCHESTRA_MCP_DEBUG: "1",
     });
     cleanups.push(async () => {
       if (child.exitCode === null && child.signalCode === null) {

@@ -3,7 +3,7 @@ import {
   validateWorkflow,
   type WorkflowFile,
   type WorkflowNode,
-} from "@relay/schema";
+} from "@devchestra/schema";
 import { describe, expect, it } from "vitest";
 import {
   addNodeToFile,

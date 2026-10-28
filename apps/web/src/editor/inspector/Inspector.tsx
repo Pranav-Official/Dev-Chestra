@@ -1,4 +1,4 @@
-import type { Issue, WorkflowNode } from "@relay/schema";
+import type { Issue, WorkflowNode } from "@devchestra/schema";
 import { AlertTriangle, Info, Pickaxe } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "../../styles/editor-inspector.css";

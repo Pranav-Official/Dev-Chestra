@@ -5,7 +5,7 @@ import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { CLI, REPO_ROOT, scriptPath, sleep } from "../../src/fixtures.js";
-import type { HttpResult, RelayHttp } from "../../src/http.js";
+import type { DevChestraHttp, HttpResult } from "../../src/http.js";
 import { type OwnedServer, shutdownOwned, startSentinel, startServer } from "../../src/owned.js";
 import { collectSpawnedAgents } from "../../src/store-read.js";
 import {
@@ -140,7 +140,7 @@ export function workflowWithCommit(): WorkflowFileLike {
 }
 
 export async function startRun(
-  http: RelayHttp,
+  http: DevChestraHttp,
   projectId: string,
   workflowId: string,
   etag: string,
@@ -164,7 +164,7 @@ export async function startRun(
   return { status: result.status, body: parsed, text: result.text, result };
 }
 
-export async function runDetail(http: RelayHttp, runId: string): Promise<RunDetail> {
+export async function runDetail(http: DevChestraHttp, runId: string): Promise<RunDetail> {
   const result = await http.api("GET", `/api/runs/${encodeURIComponent(runId)}`);
   assert.equal(result.status, 200, `GET run: ${result.text.slice(0, 600)}`);
   const body = result.body as Record<string, unknown>;
@@ -176,7 +176,7 @@ export async function runDetail(http: RelayHttp, runId: string): Promise<RunDeta
 }
 
 export async function execution(
-  http: RelayHttp,
+  http: DevChestraHttp,
   runId: string,
   path: string,
 ): Promise<ExecutionDetail> {
@@ -188,7 +188,10 @@ export async function execution(
   return result.body as ExecutionDetail;
 }
 
-export async function cwdsFor(http: RelayHttp, runId: string): Promise<Record<string, string>> {
+export async function cwdsFor(
+  http: DevChestraHttp,
+  runId: string,
+): Promise<Record<string, string>> {
   const paths = ["first", "agent", "second"] as const;
   const cwds: Record<string, string> = {};
   for (const path of paths) {
@@ -234,13 +237,13 @@ async function canonicalEventPage(body: unknown): Promise<EventPageLike> {
   return eventPageSchema.parse(body) as EventPageLike;
 }
 
-export async function readEventPage(http: RelayHttp, runId: string): Promise<EventPageLike> {
+export async function readEventPage(http: DevChestraHttp, runId: string): Promise<EventPageLike> {
   const result = await http.api("GET", `/api/runs/${encodeURIComponent(runId)}/events?limit=200`);
   assert.equal(result.status, 200, `GET run events: ${result.text.slice(0, 500)}`);
   return canonicalEventPage(result.body);
 }
 
-export async function waitSpawn(http: RelayHttp, runId: string, path: string): Promise<void> {
+export async function waitSpawn(http: DevChestraHttp, runId: string, path: string): Promise<void> {
   await waitFor(
     async () => {
       const result = await http.api(
@@ -267,7 +270,7 @@ export async function waitSpawn(http: RelayHttp, runId: string, path: string): P
 }
 
 export function patchRunWorkspaceColumnToNull(dataDir: string, runId: string): number {
-  const db = new DatabaseSync(join(dataDir, "relay.db"));
+  const db = new DatabaseSync(join(dataDir, "devchestra.db"));
   try {
     const columns = db.prepare("SELECT name FROM pragma_table_info('runs')").all() as Array<{
       name: string;
@@ -364,7 +367,7 @@ export async function cleanupRestarted(
 }
 
 export async function createManaged(
-  http: RelayHttp,
+  http: DevChestraHttp,
   projectRoot: string,
   workflow: WorkflowFileLike,
 ): Promise<{ projectId: string; workflowId: string; etag: string }> {

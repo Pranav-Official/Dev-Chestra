@@ -10,8 +10,8 @@ import {
   type WorkflowDocumentResponse,
   type WorkflowListResponse,
   type WorkflowTemplate,
-} from "@relay/api";
-import type { DecisionNode, GateNode, ValidationReport, WorkflowFile } from "@relay/schema";
+} from "@devchestra/api";
+import type { DecisionNode, GateNode, ValidationReport, WorkflowFile } from "@devchestra/schema";
 import { api } from "../../api/client.js";
 
 export type WorkflowDocument = WorkflowDocumentResponse;
@@ -21,7 +21,7 @@ export type {
   WorkflowListResponse,
   WorkflowTemplate,
   WorkflowValidationSummary,
-} from "@relay/api";
+} from "@devchestra/api";
 
 export interface WorkflowSaveInput {
   workflow: WorkflowFile;

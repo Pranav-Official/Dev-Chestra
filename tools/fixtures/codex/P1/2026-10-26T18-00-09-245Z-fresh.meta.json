@@ -27,7 +27,7 @@
     "submitResultToolCalls": 1,
     "acceptedOutput": true,
     "sessionCaptured": true,
-    "approvalMode": "mcp_servers.relay.default_tools_approval_mode=approve (per-server only)",
+    "approvalMode": "mcp_servers.devchestra.default_tools_approval_mode=approve (per-server only)",
     "sandboxConfig": "read-only; network_access=false (wiring only, no negative escape test)",
     "reasoning": "low via model_reasoning_effort config override"
   },

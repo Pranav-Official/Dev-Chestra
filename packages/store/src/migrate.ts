@@ -33,7 +33,7 @@ export function applyMigrations(db: SqliteDb, now: number): number {
   const newest = MIGRATIONS[MIGRATIONS.length - 1]?.version ?? 0;
   if (current > newest) {
     throw new Error(
-      `Relay database schema version ${current} is newer than this build (${newest}); refusing to open. Restore a backup.`,
+      `DevChestra database schema version ${current} is newer than this build (${newest}); refusing to open. Restore a backup.`,
     );
   }
 

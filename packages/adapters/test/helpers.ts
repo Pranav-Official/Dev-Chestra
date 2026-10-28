@@ -24,13 +24,13 @@ export function request(overrides: Partial<RunRequest> = {}): RunRequest {
     permissions: { network: false, write: [], extraReadDirs: [] },
     limits: { timeoutMs: 5_000, maxTurns: 2 },
     mcp: {
-      serverName: "relay",
+      serverName: "devchestra",
       command: "/usr/bin/node",
       args: ["/abs/shim.js"],
       env: {
-        RELAY_EXEC_TOKEN: TOKEN,
-        RELAY_GATEWAY_URL: "http://127.0.0.1:4310",
-        RELAY_TOOLSET: "agent",
+        DEVCHESTRA_EXEC_TOKEN: TOKEN,
+        DEVCHESTRA_GATEWAY_URL: "http://127.0.0.1:4310",
+        DEVCHESTRA_TOOLSET: "agent",
       },
     },
     execDir: "/run",

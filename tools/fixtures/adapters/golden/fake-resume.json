@@ -7,11 +7,11 @@
   "args": [
     "/fake/main.js",
     "--format",
-    "relay-fake",
+    "devchestra-fake",
     "--cwd",
     "/work",
     "--checkpoint",
-    "/work/.relay/fake-checkpoint.json",
+    "/work/.devchestra/fake-checkpoint.json",
     "--resume"
   ]
 }

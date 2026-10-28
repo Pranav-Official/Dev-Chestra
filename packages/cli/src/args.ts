@@ -1,4 +1,5 @@
-import { isFakeCliEnabled } from "@relay/schema";
+import { isFakeCliEnabled } from "@devchestra/schema";
+import { defaultDataDir } from "./data-dir.js";
 
 export type CommandName = "run" | "resume" | "start" | "doctor" | "version" | "help";
 
@@ -13,7 +14,10 @@ export interface CliOptions {
   embedded: boolean;
   nonInteractive: boolean;
   retryUncertainShell: boolean;
+  /** Deprecated no-op; kept so existing scripts keep working. */
   allowExperimentalAdapters: boolean;
+  /** Deprecated flags that were passed, so the entry point can print one notice. */
+  deprecatedFlags?: string[];
   workspaceMode?: "project" | "new-worktree" | "existing-worktree";
   worktreePath?: string;
   budgetUsd?: number;
@@ -108,6 +112,10 @@ export function parseArgs(argv: string[]): CliOptions {
     }
     if (arg === "--allow-experimental-adapters") {
       options.allowExperimentalAdapters = true;
+      options.deprecatedFlags = [
+        ...(options.deprecatedFlags ?? []),
+        "--allow-experimental-adapters",
+      ];
       continue;
     }
     if (arg === "--no-open") {
@@ -175,7 +183,7 @@ export function parseArgs(argv: string[]): CliOptions {
     }
     if (arg === "--fake-script") {
       if (!isFakeScriptEnabled()) {
-        throw new UsageError("--fake-script is test-only (RELAY_ALLOW_FAKE=1).");
+        throw new UsageError("--fake-script is test-only (DEVCHESTRA_ALLOW_FAKE=1).");
       }
       const taken = takeValue(argv, index, arg);
       options.fakeScript = taken.value;
@@ -233,9 +241,7 @@ export function parseArgs(argv: string[]): CliOptions {
   if (options.command === "run" && options.project === undefined) {
     throw new UsageError("run requires --project <dir>.");
   }
-  if (options.dataDir === undefined) {
-    throw new UsageError(`${options.command} requires --data-dir <dir>.`);
-  }
+  options.dataDir ??= defaultDataDir();
   if (options.project !== undefined && options.command !== "run") {
     throw new UsageError("--project is only valid with run.");
   }
@@ -280,14 +286,14 @@ export function parseArgs(argv: string[]): CliOptions {
   return options;
 }
 
-export const HELP = `relay — local Relay runner and browser API
+export const HELP = `devchestra — local DevChestra runner and browser API
 
 Usage:
-  relay start --data-dir <dir> [--port N] [--no-open] [--print-url] [options]
-  relay run <workflow.json> --project <dir> --data-dir <dir> [options]
-  relay resume <runId> --data-dir <dir> [--retry-uncertain-shell] [options]
-  relay doctor --data-dir <dir> [--json] [--probe-decisions]
-  relay version
+  devchestra start --data-dir <dir> [--port N] [--no-open] [--print-url] [options]
+  devchestra run <workflow.json> --project <dir> --data-dir <dir> [options]
+  devchestra resume <runId> --data-dir <dir> [--retry-uncertain-shell] [options]
+  devchestra doctor --data-dir <dir> [--json] [--probe-decisions]
+  devchestra version
 
 Options:
   --port N                    Start only: 0 = ephemeral; on EADDRINUSE retries ephemeral
@@ -297,15 +303,15 @@ Options:
   --workspace MODE            Run only: project (default), new-worktree or existing-worktree
   --worktree-path <dir>       Run only: existing worktree of the project (with --workspace)
   --budget-usd N              Rejected in P1 (not enforced)
-  --fake-script <file>        Test-only fake-agent JSON script (RELAY_ALLOW_FAKE=1)
+  --fake-script <file>        Test-only fake-agent JSON script (DEVCHESTRA_ALLOW_FAKE=1)
   --json                      NDJSON events plus a final summary
   --embedded                  In-process engine (this milestone is always embedded)
   --non-interactive           Never prompt
   --allow-experimental-adapters
-                              Allow real claude-code/codex adapters; not verified
+                              Deprecated and ignored: all adapters are official
   --retry-uncertain-shell     Resume only: retry an uncertain shell effect
   --probe-decisions           Doctor only: send one tiny live request per ready
                               decision provider and print the redacted shape
-  --data-dir <dir>            Required; no default in this milestone
+  --data-dir <dir>            Default: $DEVCHESTRA_DATA_DIR, else ~/.local/share/devchestra
   --project <dir>             Run only: workflow must be inside it
 `;

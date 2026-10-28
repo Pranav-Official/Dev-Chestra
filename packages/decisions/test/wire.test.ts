@@ -1,4 +1,4 @@
-import { RelayError } from "@relay/core";
+import { DevChestraError } from "@devchestra/core";
 import { describe, expect, it } from "vitest";
 import { DECISION_PRESETS } from "../src/presets.js";
 import type { DecisionQuestion, DecisionRequest } from "../src/types.js";
@@ -73,7 +73,7 @@ describe("request body goldens", () => {
         { provider: "typesafe-jev", model: "../evil", state: "s", question: booleanQ },
         DECISION_PRESETS["typesafe-jev"],
       ),
-    ).toThrowError(RelayError);
+    ).toThrowError(DevChestraError);
   });
 });
 
@@ -323,8 +323,8 @@ describe("Cloudflare failure envelopes (F8)", () => {
       });
       throw new Error("expected E_PROVIDER");
     } catch (error) {
-      expect(error).toBeInstanceOf(RelayError);
-      expect((error as RelayError).code).toBe("E_PROVIDER");
+      expect(error).toBeInstanceOf(DevChestraError);
+      expect((error as DevChestraError).code).toBe("E_PROVIDER");
     }
   });
 
@@ -463,8 +463,8 @@ describe("local limits", () => {
     try {
       fn();
     } catch (error) {
-      expect(error).toBeInstanceOf(RelayError);
-      expect((error as RelayError).code).toBe("E_VALIDATION");
+      expect(error).toBeInstanceOf(DevChestraError);
+      expect((error as DevChestraError).code).toBe("E_VALIDATION");
       return;
     }
     throw new Error("expected E_VALIDATION");

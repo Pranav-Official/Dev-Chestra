@@ -34,7 +34,7 @@ afterEach(async () => {
 });
 
 async function stubBin(): Promise<{ dir: string; bin: string; logPath: string }> {
-  const dir = await mkdtemp(join(tmpdir(), "relay-pi-"));
+  const dir = await mkdtemp(join(tmpdir(), "devchestra-pi-"));
   temps.push(dir);
   const bin = join(dir, "pi-stub.mjs");
   await copyFile(STUB, bin);
@@ -127,12 +127,12 @@ describe("pi plan", () => {
     expect(result.value.files[0]?.path).toBe("/run/pi-home/mcp.json");
     expect(result.value.files[0]?.mode).toBe(0o600);
     const mcp = JSON.parse(result.value.files[0]?.content ?? "{}") as {
-      mcpServers: { relay: { exposure: string; env: Record<string, string> } };
+      mcpServers: { devchestra: { exposure: string; env: Record<string, string> } };
     };
-    expect(mcp.mcpServers.relay.exposure).toBe("direct");
-    expect(mcp.mcpServers.relay.env.RELAY_EXEC_TOKEN).toBe(TOKEN);
+    expect(mcp.mcpServers.devchestra.exposure).toBe("direct");
+    expect(mcp.mcpServers.devchestra.env.DEVCHESTRA_EXEC_TOKEN).toBe(TOKEN);
     expect(result.value.env.PI_CODING_AGENT_DIR).toBe("/run/pi-home");
-    expect(result.value.env.RELAY_EXEC_TOKEN).toBe(TOKEN);
+    expect(result.value.env.DEVCHESTRA_EXEC_TOKEN).toBe(TOKEN);
     expect(result.value.stdin).toBeUndefined();
   });
 
@@ -318,7 +318,7 @@ describe("pi discovery", () => {
   });
 
   it("links the canonical auth/models/settings store into the isolated home", async () => {
-    const base = await mkdtemp(join(tmpdir(), "relay-pi-home-"));
+    const base = await mkdtemp(join(tmpdir(), "devchestra-pi-home-"));
     temps.push(base);
     const canonical = join(base, "home", ".pi", "agent");
     await mkdir(canonical, { recursive: true });
@@ -336,10 +336,10 @@ describe("pi discovery", () => {
         // Provider keys must reach the child so API-key providers
         // authenticate without auth.json as well.
         mcp: {
-          serverName: "relay",
+          serverName: "devchestra",
           command: "/usr/bin/node",
           args: ["/abs/shim.js"],
-          env: { RELAY_EXEC_TOKEN: TOKEN, OPENCODE_API_KEY: "oc-test-key" },
+          env: { DEVCHESTRA_EXEC_TOKEN: TOKEN, OPENCODE_API_KEY: "oc-test-key" },
         },
       }),
     );
@@ -363,7 +363,7 @@ describe("pi discovery", () => {
   });
 
   it("scopes the credential lock to the canonical store only when it exists", async () => {
-    const base = await mkdtemp(join(tmpdir(), "relay-pi-scope-"));
+    const base = await mkdtemp(join(tmpdir(), "devchestra-pi-scope-"));
     temps.push(base);
     const home = join(base, "home");
     expect(piCredentialScope({ PATH: "/usr/bin", HOME: home }, base)).toBeNull();
@@ -412,7 +412,7 @@ describe("pi discovery", () => {
   });
 
   it("stats mcp.json/models.json/auth.json for context identity without reading values", async () => {
-    const base = await mkdtemp(join(tmpdir(), "relay-pi-identity-"));
+    const base = await mkdtemp(join(tmpdir(), "devchestra-pi-identity-"));
     temps.push(base);
     const home = join(base, "agent");
     await mkdir(home, { recursive: true });
@@ -436,7 +436,7 @@ describe("pi wiring", () => {
     expect(provider.contextIdentity.configFiles).toEqual(["mcp.json", "models.json", "auth.json"]);
     const adapter = createAdapter("pi", { piBin: "/bin/pi" });
     expect(adapter.id).toBe("pi");
-    expect(adapter.toolRef("submit_result")).toBe("mcp__relay__submit_result");
+    expect(adapter.toolRef("submit_result")).toBe("mcp__devchestra__submit_result");
     expect(
       adapter.classify(
         {

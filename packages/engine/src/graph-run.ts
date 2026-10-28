@@ -4,7 +4,7 @@ import {
   type RoutingExecutionState,
   type RoutingGraph,
   type RoutingView,
-} from "@relay/core";
+} from "@devchestra/core";
 import type { JoinRouting } from "./exec-routing.js";
 import type { WorkflowPlan } from "./graph-plan.js";
 

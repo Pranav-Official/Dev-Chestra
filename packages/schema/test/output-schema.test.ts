@@ -152,7 +152,7 @@ describe("restricted output schema profile", () => {
   it("rejects artifact format in P1 with an unsupported diagnostic", () => {
     const result = normalizeOutputSchema({
       type: "object",
-      properties: { report: { type: "string", format: "relay-artifact" } },
+      properties: { report: { type: "string", format: "devchestra-artifact" } },
     });
     expect(result.ok).toBe(false);
     if (!result.ok) {

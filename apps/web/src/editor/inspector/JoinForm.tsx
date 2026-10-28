@@ -1,4 +1,4 @@
-import type { Edge, JoinNode } from "@relay/schema";
+import type { Edge, JoinNode } from "@devchestra/schema";
 import { GitMerge, Plus, Trash2 } from "lucide-react";
 import {
   addJoinInput,
@@ -181,7 +181,7 @@ export function JoinForm({ node, issues, edges, onRoutingChange }: RoutingFormPr
                 onRoutingChange(
                   event.currentTarget.checked
                     ? { output: { type: "object", additionalProperties: true } }
-                    : ({ output: undefined } as Partial<import("@relay/schema").WorkflowNode>),
+                    : ({ output: undefined } as Partial<import("@devchestra/schema").WorkflowNode>),
                 )
               }
             />

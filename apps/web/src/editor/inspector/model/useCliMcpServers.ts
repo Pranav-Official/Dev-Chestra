@@ -40,7 +40,7 @@ function emptyState(key: string | null): McpServersState {
 
 function errorMessage(error: unknown, timedOut: boolean): string {
   if (timedOut) {
-    return "The MCP server request timed out. Only Relay tools will be attached.";
+    return "The MCP server request timed out. Only DevChestra tools will be attached.";
   }
   if (error instanceof Error && error.name === "AbortError") {
     return "The MCP server request was cancelled.";
@@ -48,7 +48,7 @@ function errorMessage(error: unknown, timedOut: boolean): string {
   if (error instanceof Error && /no getCliMcpServers/i.test(error.message)) {
     return error.message;
   }
-  return "MCP server discovery is unavailable. Only Relay tools will be attached.";
+  return "MCP server discovery is unavailable. Only DevChestra tools will be attached.";
 }
 
 /**

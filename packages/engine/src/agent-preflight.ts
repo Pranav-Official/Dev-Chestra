@@ -4,8 +4,8 @@ import {
   getProvider,
   isCliId,
   isProdCliId,
-} from "@relay/adapters";
-import { RelayError } from "@relay/core";
+} from "@devchestra/adapters";
+import { DevChestraError } from "@devchestra/core";
 import type { EngineContext } from "./context.js";
 import type { PlanNode } from "./graph-plan.js";
 
@@ -13,7 +13,7 @@ import type { PlanNode } from "./graph-plan.js";
  * id fails here instead of compiling through a cast. */
 export function readCliId(value: unknown): CliId {
   if (isCliId(value)) return value;
-  throw new RelayError("E_CLI_MISSING", `Adapter '${String(value)}' is not available`);
+  throw new DevChestraError("E_CLI_MISSING", `Adapter '${String(value)}' is not available`);
 }
 
 export interface AgentAdapter {
@@ -33,7 +33,7 @@ export function resolveAgentAdapter(ctx: EngineContext, node: PlanNode): AgentAd
   if (provider.experimental) {
     const allowed = ctx.deps.allowExperimentalClis ?? [];
     if (!(isProdCliId(provider.id) && allowed.includes(provider.id))) {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_CLI_MISSING",
         `Adapter '${provider.id}' is not enabled in this build. The caller must opt in with an explicit experimental flag after a live contract check.`,
         { details: { cli: provider.id, behaviorVerified: adapter.evidence.behaviorVerified } },

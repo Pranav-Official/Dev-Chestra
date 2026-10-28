@@ -1,6 +1,6 @@
-import type { FailureClass } from "@relay/adapters";
-import { type Path, RelayError } from "@relay/core";
-import type { RunRecord } from "@relay/store";
+import type { FailureClass } from "@devchestra/adapters";
+import { DevChestraError, type Path } from "@devchestra/core";
+import type { RunRecord } from "@devchestra/store";
 import type { AttemptLoop, SingleAttemptResult } from "./agent-attempt.js";
 import { consumeNoSubmit, finalizeAccepted } from "./agent-support.js";
 import type { ActiveRunState, EngineContext } from "./context.js";
@@ -105,7 +105,7 @@ export async function decideAttemptOutcome(
   const view = ctx.store.view.get(run.id).executions[node.id];
   let mapped = mapFailure(failure);
   if (mapped === null) {
-    throw new RelayError("E_CLI_MISSING", `Adapter '${adapterId}' binary is missing`);
+    throw new DevChestraError("E_CLI_MISSING", `Adapter '${adapterId}' binary is missing`);
   }
   if (mapped.kind === "no_submit") {
     if (consumeNoSubmit(ctx, identity) === "exhausted") {
@@ -160,7 +160,7 @@ export async function decideAttemptOutcome(
         : rawDiagnostic.length <= 2000
           ? rawDiagnostic
           : `${rawDiagnostic.slice(0, 2000)}…[truncated]`;
-    const error = new RelayError(decision.code, `Agent node failed: ${decision.reason}`, {
+    const error = new DevChestraError(decision.code, `Agent node failed: ${decision.reason}`, {
       details: {
         reason: decision.reason,
         exitCode: exit.code,

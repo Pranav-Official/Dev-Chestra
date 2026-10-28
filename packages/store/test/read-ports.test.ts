@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { FakeClock, FakeIdGen, type Path, RelayError, type RunId } from "@relay/core";
+import { DevChestraError, FakeClock, FakeIdGen, type Path, type RunId } from "@devchestra/core";
 import Database from "better-sqlite3";
 import { afterEach, describe, expect, it } from "vitest";
 import { encodeCursor, queryFingerprint } from "../src/cursor.js";
@@ -23,8 +23,8 @@ afterEach(() => {
 });
 
 function harness(clockStart = 1_700_000_000_000): Harness {
-  const dir = mkdtempSync(join(tmpdir(), "relay-store-read-"));
-  const file = join(dir, "relay.db");
+  const dir = mkdtempSync(join(tmpdir(), "devchestra-store-read-"));
+  const file = join(dir, "devchestra.db");
   const clock = new FakeClock(clockStart);
   const store = openStore({ file, clock, idGen: new FakeIdGen("rp") });
   store.projects.ensure({ id: "p1", name: "One", path: join(dir, "one"), kind: "folder" });
@@ -89,15 +89,15 @@ function append(
   return event?.id ?? -1;
 }
 
-function expectRelayError(fn: () => unknown, code: string): void {
+function expectDevChestraError(fn: () => unknown, code: string): void {
   try {
     fn();
   } catch (error) {
-    expect(error).toBeInstanceOf(RelayError);
-    expect((error as RelayError).code).toBe(code);
+    expect(error).toBeInstanceOf(DevChestraError);
+    expect((error as DevChestraError).code).toBe(code);
     return;
   }
-  throw new Error(`Expected RelayError ${code}`);
+  throw new Error(`Expected DevChestraError ${code}`);
 }
 
 function walkRunPages(
@@ -195,7 +195,7 @@ describe("projects registration and relink", () => {
     const before = h.store.projects.get("p1");
     createRun(h);
 
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.projects.relink({
           projectId: "p1",
@@ -203,7 +203,7 @@ describe("projects registration and relink", () => {
         }),
       "E_CONFLICT",
     );
-    expectRelayError(
+    expectDevChestraError(
       () => h.store.projects.relink({ projectId: "nope", path: join(h.dir, "x") }),
       "E_NOT_FOUND",
     );
@@ -269,11 +269,11 @@ describe("run list keyset pagination", () => {
     expect(page.nextCursor).not.toBeNull();
     const cursor = page.nextCursor ?? "";
 
-    expectRelayError(
+    expectDevChestraError(
       () => h.store.runs.list({ projectId: "p2", limit: 1, cursor }),
       "E_VALIDATION",
     );
-    expectRelayError(() => h.store.runs.list({ cursor: "not-a-cursor" }), "E_VALIDATION");
+    expectDevChestraError(() => h.store.runs.list({ cursor: "not-a-cursor" }), "E_VALIDATION");
 
     const fingerprint = queryFingerprint({
       kind: "runs",
@@ -282,7 +282,7 @@ describe("run list keyset pagination", () => {
       status: null,
       archived: false,
     });
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.runs.list({
           cursor: encodeCursor({
@@ -295,7 +295,7 @@ describe("run list keyset pagination", () => {
         }),
       "E_CONFLICT",
     );
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.runs.list({
           cursor: encodeCursor({
@@ -393,18 +393,18 @@ describe("event paging and replay", () => {
     const foreignId = h.store.events.list(other.runId)[0]?.id;
     if (foreignId === undefined) throw new Error("missing foreign event");
 
-    expectRelayError(
+    expectDevChestraError(
       () => h.store.events.page(run.runId, { after: foreignId, limit: 10 }),
       "E_CONFLICT",
     );
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.events.page(run.runId, {
           after: (h.store.events.page(run.runId, { limit: 1 }).watermark ?? 0) + 100,
         }),
       "E_CONFLICT",
     );
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.events.page(other.runId, {
           cursor: h.store.events.page(run.runId, { limit: 1 }).nextCursor ?? "",
@@ -559,7 +559,7 @@ describe("output provenance", () => {
       limit: 1,
     });
     expect(firstPage.nextCursor).not.toBeNull();
-    expectRelayError(
+    expectDevChestraError(
       () =>
         reopened.outputs.listByProvenance({
           runId: run.runId,
@@ -570,7 +570,7 @@ describe("output provenance", () => {
         }),
       "E_VALIDATION",
     );
-    expectRelayError(
+    expectDevChestraError(
       () =>
         reopened.outputs.listByProvenance({
           runId: run.runId,
@@ -579,7 +579,7 @@ describe("output provenance", () => {
         }),
       "E_VALIDATION",
     );
-    expectRelayError(
+    expectDevChestraError(
       () => reopened.outputs.listByProvenance({ runId: "missing-run" as RunId, path }),
       "E_NOT_FOUND",
     );
@@ -692,7 +692,10 @@ describe("execution history from immutable events", () => {
       bytes: 34,
     });
 
-    expectRelayError(() => h.store.executions.history(run.runId, "missing" as Path), "E_NOT_FOUND");
+    expectDevChestraError(
+      () => h.store.executions.history(run.runId, "missing" as Path),
+      "E_NOT_FOUND",
+    );
   });
 
   it("returns stored INTEGER epoch-ms timestamps, not Date.parse fallbacks", () => {
@@ -782,7 +785,7 @@ describe("execution history from immutable events", () => {
 
     const reopened = h.reopen();
     try {
-      expectRelayError(() => reopened.executions.history(run.runId, path), "E_INTERNAL");
+      expectDevChestraError(() => reopened.executions.history(run.runId, path), "E_INTERNAL");
     } finally {
       reopened.close();
     }
@@ -809,18 +812,18 @@ describe("durable start idempotency", () => {
       duplicate: true,
     });
 
-    expectRelayError(
+    expectDevChestraError(
       () => createRun(h, { idempotency: { key: "key-1", fingerprint: "different" } }),
       "E_CONFLICT",
     );
-    expectRelayError(
+    expectDevChestraError(
       () =>
         createRun(h, {
           idempotency: { key: "key-2", fingerprint: "fp-2", scope: "p2" },
         }),
       "E_VALIDATION",
     );
-    expectRelayError(
+    expectDevChestraError(
       () => createRun(h, { idempotency: { key: "", fingerprint: "fp" } }),
       "E_VALIDATION",
     );

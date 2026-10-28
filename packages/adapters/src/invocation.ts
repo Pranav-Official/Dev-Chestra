@@ -1,6 +1,6 @@
 import { chmod, mkdir, symlink, unlink, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { RelayError } from "@relay/core";
+import { DevChestraError } from "@devchestra/core";
 import type { Invocation } from "./types.js";
 
 export async function materializeInvocation(inv: Invocation): Promise<void> {
@@ -24,7 +24,7 @@ export async function materializeInvocation(inv: Invocation): Promise<void> {
       await writeFile(file.path, file.content, { encoding: "utf8", mode: file.mode ?? 0o600 });
       await chmod(file.path, file.mode ?? 0o600);
     } catch (error) {
-      throw new RelayError("E_WORKSPACE", `Cannot write invocation file ${file.path}`, {
+      throw new DevChestraError("E_WORKSPACE", `Cannot write invocation file ${file.path}`, {
         cause: error,
       });
     }

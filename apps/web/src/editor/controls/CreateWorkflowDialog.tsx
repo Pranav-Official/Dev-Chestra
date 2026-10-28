@@ -1,4 +1,4 @@
-import type { WorkflowTemplate } from "@relay/api";
+import type { WorkflowTemplate } from "@devchestra/api";
 import { FilePlus2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { classifyError } from "../../api/client.js";

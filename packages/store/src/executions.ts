@@ -5,7 +5,7 @@ import {
   isCurrentInvocation,
   type Path,
   type RunId,
-} from "@relay/core";
+} from "@devchestra/core";
 import { appendEvents } from "./events.js";
 import { assertRunActive, loadView } from "./projection.js";
 import { now, type Runtime } from "./runtime.js";

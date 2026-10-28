@@ -12,9 +12,9 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { WorkflowFile } from "@relay/schema";
+import type { WorkflowFile } from "@devchestra/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { RelayError } from "../src/errors.js";
+import { DevChestraError } from "../src/errors.js";
 import { ManagedWorkflowService, type WorkflowProject } from "../src/workflows/service.js";
 
 let root: string;
@@ -23,23 +23,23 @@ let projectPath: string;
 let service: ManagedWorkflowService;
 let project: WorkflowProject;
 
-function failure(promise: Promise<unknown>): Promise<RelayError> {
+function failure(promise: Promise<unknown>): Promise<DevChestraError> {
   return promise.then(
     () => {
       throw new Error("expected failure");
     },
     (error: unknown) => {
-      if (!(error instanceof RelayError)) throw error;
+      if (!(error instanceof DevChestraError)) throw error;
       return error;
     },
   );
 }
 
-function failureSync(run: () => unknown): RelayError {
+function failureSync(run: () => unknown): DevChestraError {
   try {
     run();
   } catch (error) {
-    if (error instanceof RelayError) return error;
+    if (error instanceof DevChestraError) return error;
     throw error;
   }
   throw new Error("expected failure");
@@ -51,7 +51,7 @@ function etagOf(text: string): string {
 
 async function tempFiles(): Promise<string[]> {
   try {
-    return (await readdir(join(projectPath, ".relay", "workflows"))).filter((name) =>
+    return (await readdir(join(projectPath, ".devchestra", "workflows"))).filter((name) =>
       name.endsWith(".tmp"),
     );
   } catch {
@@ -93,7 +93,7 @@ function linear(id: string, name: string): WorkflowFile {
 }
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "relay-wf-"));
+  root = await mkdtemp(join(tmpdir(), "devchestra-wf-"));
   dataDir = join(root, "data");
   projectPath = join(root, "project");
   await mkdir(dataDir, { recursive: true });
@@ -107,10 +107,10 @@ afterEach(async () => {
 });
 
 describe("managed workflow persistence", () => {
-  it("creates drafts under .relay/workflows and lists them with validation", async () => {
+  it("creates drafts under .devchestra/workflows and lists them with validation", async () => {
     const document = await service.create(project, { name: "My Workflow", template: "blank" });
     expect(document.workflow.id).toBe("my-workflow");
-    expect(document.relativeFile).toBe(".relay/workflows/my-workflow.json");
+    expect(document.relativeFile).toBe(".devchestra/workflows/my-workflow.json");
     expect(document.validation.ok).toBe(false);
     const text = await readFile(join(projectPath, document.relativeFile), "utf8");
     expect(text).toBe(document.text);
@@ -192,8 +192,8 @@ describe("managed workflow persistence", () => {
     expect(fulfilled).toHaveLength(1);
     expect(rejected).toHaveLength(1);
     const reason = (rejected[0] as PromiseRejectedResult).reason;
-    expect(reason).toBeInstanceOf(RelayError);
-    expect((reason as RelayError).code).toBe("E_CONFLICT");
+    expect(reason).toBeInstanceOf(DevChestraError);
+    expect((reason as DevChestraError).code).toBe("E_CONFLICT");
   });
 
   it("detects an ordinary external edit as a conflict and preserves it", async () => {
@@ -263,7 +263,7 @@ describe("managed workflow persistence", () => {
       name: "Crash Window",
       template: "linear-fake",
     });
-    const directory = join(projectPath, ".relay", "workflows");
+    const directory = join(projectPath, ".devchestra", "workflows");
     const target = join(directory, `${document.workflow.id}.json`);
     await rm(target);
     const temp = join(directory, `.${document.workflow.id}.${process.pid}.${"a".repeat(16)}.tmp`);
@@ -286,7 +286,7 @@ describe("managed workflow persistence", () => {
   it("still rejects generic external hard links, including reserved-looking temps", async () => {
     const outside = join(root, "outside.json");
     await writeFile(outside, JSON.stringify(linear("evil", "Evil")), "utf8");
-    const directory = join(projectPath, ".relay", "workflows");
+    const directory = join(projectPath, ".devchestra", "workflows");
     await mkdir(directory, { recursive: true });
     await link(outside, join(directory, "evil.json"));
     const fakeTemp = join(directory, `.evil.${process.pid}.${"b".repeat(16)}.tmp`);
@@ -305,7 +305,7 @@ describe("managed workflow persistence", () => {
   it("rejects a symlinked workflow file and skips it in listings", async () => {
     const outside = join(root, "outside.json");
     await writeFile(outside, JSON.stringify(linear("evil", "Evil")), "utf8");
-    const dir = join(projectPath, ".relay", "workflows");
+    const dir = join(projectPath, ".devchestra", "workflows");
     await mkdir(dir, { recursive: true });
     await symlink(outside, join(dir, "evil.json"));
     expect(failureSync(() => service.get(project, "evil")).code).toBe("E_FORBIDDEN_PATH");
@@ -316,11 +316,11 @@ describe("managed workflow persistence", () => {
     await rm(projectPath, { recursive: true, force: true });
     const error = await failure(service.create(project, { name: "Gone" }));
     expect(error.code).toBe("E_CONFLICT");
-    await expect(readFile(join(projectPath, ".relay"), "utf8")).rejects.toThrow();
+    await expect(readFile(join(projectPath, ".devchestra"), "utf8")).rejects.toThrow();
   });
 
   it("caps oversized files on read", async () => {
-    const dir = join(projectPath, ".relay", "workflows");
+    const dir = join(projectPath, ".devchestra", "workflows");
     await mkdir(dir, { recursive: true });
     const big = "x".repeat(1024 * 1024 + 1);
     await writeFile(join(dir, "big.json"), big, "utf8");

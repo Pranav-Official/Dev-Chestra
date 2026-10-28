@@ -1,5 +1,5 @@
-import type { ProjectWorkspacesResponse, RunWorkspaceSelection } from "@relay/api";
-import { RelayError } from "../errors.js";
+import type { ProjectWorkspacesResponse, RunWorkspaceSelection } from "@devchestra/api";
+import { DevChestraError } from "../errors.js";
 import type { BrowserWorkspacePort } from "./ports.js";
 
 /** New runs default to the registered project root when no workspace is sent. */
@@ -13,7 +13,7 @@ export function normalizeRunWorkspace(
 
 function requirePort(service: BrowserWorkspacePort | undefined): BrowserWorkspacePort {
   if (service === undefined) {
-    throw new RelayError(
+    throw new DevChestraError(
       "E_NOT_SUPPORTED",
       "Run workspace selection is not available on this server.",
     );

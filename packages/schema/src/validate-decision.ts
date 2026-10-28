@@ -1,4 +1,4 @@
-import type { RelayError } from "@relay/core";
+import type { DevChestraError } from "@devchestra/core";
 import { HANDLE_ID_PATTERN } from "./ids.js";
 import { compileTemplate } from "./template.js";
 import {
@@ -30,7 +30,7 @@ export function validateDecision(
   pointer: string,
   allowed: Set<string>,
   addError: (i: Issue) => void,
-  addRelay: (e: RelayError, p: string, n?: string) => void,
+  addDevChestra: (e: DevChestraError, p: string, n?: string) => void,
 ): void {
   if (!isDecisionProviderId((node as { provider?: unknown }).provider)) {
     addError(
@@ -69,7 +69,7 @@ export function validateDecision(
     );
   } else {
     const c = compileTemplate(node.state, { shell: false });
-    if (!c.ok) addRelay(c.error, `${pointer}/state`, node.id);
+    if (!c.ok) addDevChestra(c.error, `${pointer}/state`, node.id);
     else
       for (const p of c.value.parts)
         if (p.kind === "expression")

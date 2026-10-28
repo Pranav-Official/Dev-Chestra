@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { loadDecisionSecrets, missingSecretNames, redactSecrets } from "../src/secrets.js";
 
 function tempDotenv(content: string): string {
-  const dir = mkdtempSync(join(tmpdir(), "relay-decisions-"));
+  const dir = mkdtempSync(join(tmpdir(), "devchestra-decisions-"));
   const path = join(dir, ".env");
   writeFileSync(path, content);
   return path;

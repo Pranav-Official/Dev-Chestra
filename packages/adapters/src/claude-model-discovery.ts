@@ -8,7 +8,7 @@ import {
   type SpawnedProcess,
   type SpawnOptions,
 } from "@anthropic-ai/claude-agent-sdk";
-import { isRecord } from "@relay/core";
+import { isRecord } from "@devchestra/core";
 import {
   type ClaudeFailureReason,
   type ClaudeLimits,

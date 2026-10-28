@@ -1,4 +1,4 @@
-import type { ValidationReport, WorkflowFile } from "@relay/schema";
+import type { ValidationReport, WorkflowFile } from "@devchestra/schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createValidationClient,

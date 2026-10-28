@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, afterEach, describe, it } from "vitest";
 import { CLI } from "../src/fixtures.js";
-import { RelayHttp } from "../src/http.js";
+import { DevChestraHttp } from "../src/http.js";
 import { startSentinel, startServer } from "../src/owned.js";
 import {
   createWorkflow,
@@ -36,7 +36,7 @@ afterAll(() => {
 function load(n: string): WorkflowFileLike {
   return JSON.parse(readFileSync(join(FIX, `${n}.json`), "utf8")) as WorkflowFileLike;
 }
-async function manage(http: RelayHttp, root: string, name: string) {
+async function manage(http: DevChestraHttp, root: string, name: string) {
   const file = load(name);
   const p = await registerProject(http, root);
   await createWorkflow(http, p.id, { name: file.name, id: file.id, template: "blank" });
@@ -49,7 +49,7 @@ async function manage(http: RelayHttp, root: string, name: string) {
   return { projectId: p.id, workflowId: saved.id, etag: saved.etag };
 }
 async function startManaged(
-  http: RelayHttp,
+  http: DevChestraHttp,
   m: { projectId: string; workflowId: string; etag: string },
 ) {
   const r = await http.api(
@@ -76,7 +76,7 @@ const RESOLVE = (runId: string, path: string) =>
   `/api/runs/${encodeURIComponent(runId)}/approvals/${encodeURIComponent(path)}/resolve`;
 const INBOX = "/api/approvals";
 async function resolveApproval(
-  http: RelayHttp,
+  http: DevChestraHttp,
   runId: string,
   path: string,
   body: Record<string, unknown>,
@@ -90,7 +90,11 @@ function approvalRequested(page: {
     | Record<string, unknown>
     | undefined;
 }
-async function getInboxRequestId(http: RelayHttp, runId: string, path: string): Promise<string> {
+async function getInboxRequestId(
+  http: DevChestraHttp,
+  runId: string,
+  path: string,
+): Promise<string> {
   const inbox = await http.api("GET", INBOX);
   assert.equal(inbox.status, 200, `GET ${INBOX} must be 200: ${inbox.text.slice(0, 600)}`);
   const body = inbox.body as { items: Array<{ runId: string; path: string; requestId: string }> };
@@ -117,8 +121,8 @@ async function getInboxRequestId(http: RelayHttp, runId: string, path: string): 
 
 describe("P3.5 approval recovery — durable, lost-wake, no broad scan", () => {
   it("lost-wake: close/restart while waiting then resolve", async () => {
-    const ws = await makeRunWorkspaceRepo("relay-p35-lost-");
-    const dataDir = tempRoot("relay-p35-lost-data-").dir;
+    const ws = await makeRunWorkspaceRepo("devchestra-p35-lost-");
+    const dataDir = tempRoot("devchestra-p35-lost-data-").dir;
     const env = {
       HOME: ws.home,
       GIT_CONFIG_GLOBAL: join(ws.home, "gitconfig"),
@@ -130,7 +134,7 @@ describe("P3.5 approval recovery — durable, lost-wake, no broad scan", () => {
     let fail: unknown;
     try {
       first = await startServer({ cli: CLI, dataDir, cwd: ws.root, fakeScript: FAKE, env });
-      const http = new RelayHttp(first.baseUrl);
+      const http = new DevChestraHttp(first.baseUrl);
       await http.health();
       await http.bootstrap(first.meta.token);
       const m = await manage(http, ws.root, "p3-5-approval-simple");
@@ -153,7 +157,7 @@ describe("P3.5 approval recovery — durable, lost-wake, no broad scan", () => {
     let fail2: unknown;
     try {
       second = await startServer({ cli: CLI, dataDir, cwd: ws.root, fakeScript: FAKE, env });
-      const http = new RelayHttp(second.baseUrl);
+      const http = new DevChestraHttp(second.baseUrl);
       await http.health();
       await http.bootstrap(second.meta.token);
       const inbox = await http.api("GET", INBOX);
@@ -195,8 +199,8 @@ describe("P3.5 approval recovery — durable, lost-wake, no broad scan", () => {
   }, 300_000);
 
   it("approval startup does not auto-resume unrelated crashed/uncertain-shell runs", async () => {
-    const ws = await makeRunWorkspaceRepo("relay-p35-unrelated-");
-    const dataDir = tempRoot("relay-p35-unrelated-data-").dir;
+    const ws = await makeRunWorkspaceRepo("devchestra-p35-unrelated-");
+    const dataDir = tempRoot("devchestra-p35-unrelated-data-").dir;
     const env = {
       HOME: ws.home,
       GIT_CONFIG_GLOBAL: join(ws.home, "gitconfig"),
@@ -210,7 +214,7 @@ describe("P3.5 approval recovery — durable, lost-wake, no broad scan", () => {
     let fail: unknown;
     try {
       first = await startServer({ cli: CLI, dataDir, cwd: ws.root, fakeScript: FAKE, env });
-      const http = new RelayHttp(first.baseUrl);
+      const http = new DevChestraHttp(first.baseUrl);
       await http.health();
       await http.bootstrap(first.meta.token);
       const m1 = await manage(http, ws.root, "p3-5-approval-simple");
@@ -264,7 +268,7 @@ describe("P3.5 approval recovery — durable, lost-wake, no broad scan", () => {
     let fail2: unknown;
     try {
       second = await startServer({ cli: CLI, dataDir, cwd: ws.root, fakeScript: FAKE, env });
-      const http = new RelayHttp(second.baseUrl);
+      const http = new DevChestraHttp(second.baseUrl);
       await http.health();
       await http.bootstrap(second.meta.token);
       const detA = await runDetail(http, approvalRunId);
@@ -312,8 +316,8 @@ describe("P3.5 approval recovery — durable, lost-wake, no broad scan", () => {
   }, 360_000);
 
   it("approve then shell interrupted honors uncertain pause, not auto-dispatched", async () => {
-    const ws = await makeRunWorkspaceRepo("relay-p35-approve-shell-");
-    const dataDir = tempRoot("relay-p35-approve-shell-data-").dir;
+    const ws = await makeRunWorkspaceRepo("devchestra-p35-approve-shell-");
+    const dataDir = tempRoot("devchestra-p35-approve-shell-data-").dir;
     const env = {
       HOME: ws.home,
       GIT_CONFIG_GLOBAL: join(ws.home, "gitconfig"),
@@ -327,7 +331,7 @@ describe("P3.5 approval recovery — durable, lost-wake, no broad scan", () => {
     let fail: unknown;
     try {
       first = await startServer({ cli: CLI, dataDir, cwd: ws.root, fakeScript: FAKE, env });
-      const http = new RelayHttp(first.baseUrl);
+      const http = new DevChestraHttp(first.baseUrl);
       await http.health();
       await http.bootstrap(first.meta.token);
       const m = await manage(http, ws.root, "p3-5-approval-shell");
@@ -374,7 +378,7 @@ describe("P3.5 approval recovery — durable, lost-wake, no broad scan", () => {
     let fail2: unknown;
     try {
       second = await startServer({ cli: CLI, dataDir, cwd: ws.root, fakeScript: FAKE, env });
-      const http = new RelayHttp(second.baseUrl);
+      const http = new DevChestraHttp(second.baseUrl);
       await http.health();
       await http.bootstrap(second.meta.token);
       const det = await runDetail(http, runId);

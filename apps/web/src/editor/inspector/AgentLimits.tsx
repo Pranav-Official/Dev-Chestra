@@ -1,4 +1,4 @@
-import type { AgentNode, Issue, AgentLimits as Limits } from "@relay/schema";
+import type { AgentNode, Issue, AgentLimits as Limits } from "@devchestra/schema";
 import { useBufferFlag } from "./BufferContext.js";
 import { describedBy, Field } from "./fields/fields.js";
 import { useBufferedNumber } from "./fields/useBufferedNumber.js";

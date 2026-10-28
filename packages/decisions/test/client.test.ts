@@ -1,4 +1,4 @@
-import { RelayError } from "@relay/core";
+import { DevChestraError } from "@devchestra/core";
 import { describe, expect, it } from "vitest";
 import {
   createDecisionClient,
@@ -590,7 +590,7 @@ describe("error codes", () => {
     const result = await client.ask(BOOLEAN_REQ, new AbortController().signal);
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toBeInstanceOf(RelayError);
+      expect(result.error).toBeInstanceOf(DevChestraError);
       expect(result.error.code).toBe("E_PROVIDER");
     }
   });

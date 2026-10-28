@@ -120,9 +120,9 @@ describe("raw tools/call argument passthrough", () => {
       sendJson(response, 200, { content: [{ type: "text", text: "ok" }], isError: false });
     });
     const session = await startRawSession({
-      RELAY_EXEC_TOKEN: gateway.token,
-      RELAY_GATEWAY_URL: gateway.url,
-      RELAY_TOOLSET: "agent",
+      DEVCHESTRA_EXEC_TOKEN: gateway.token,
+      DEVCHESTRA_GATEWAY_URL: gateway.url,
+      DEVCHESTRA_TOOLSET: "agent",
     });
 
     const rawArguments =
@@ -163,9 +163,9 @@ describe("raw tools/call argument passthrough", () => {
       sendJson(response, 200, { content: [{ type: "text", text: "ok" }], isError: false });
     });
     const session = await startRawSession({
-      RELAY_EXEC_TOKEN: gateway.token,
-      RELAY_GATEWAY_URL: gateway.url,
-      RELAY_TOOLSET: "agent",
+      DEVCHESTRA_EXEC_TOKEN: gateway.token,
+      DEVCHESTRA_GATEWAY_URL: gateway.url,
+      DEVCHESTRA_TOOLSET: "agent",
     });
 
     const malformed: Array<{ id: number; params: string }> = [

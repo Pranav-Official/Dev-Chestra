@@ -1,16 +1,16 @@
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAdapterRegistry } from "@relay/adapters";
-import { createDecisionService } from "@relay/decisions";
-import { normalizeWorkflow, parseWorkflow } from "@relay/schema";
-import { openStore, type RunRecord, type Store } from "@relay/store";
+import { createAdapterRegistry } from "@devchestra/adapters";
+import { createDecisionService } from "@devchestra/decisions";
+import { normalizeWorkflow, parseWorkflow } from "@devchestra/schema";
+import { openStore, type RunRecord, type Store } from "@devchestra/store";
 import {
   acquireScratch,
   finalizeScratch,
   prepareRunWorkspace,
   releaseScratch,
-} from "@relay/workspaces";
+} from "@devchestra/workspaces";
 import { afterEach, describe, expect, it } from "vitest";
 import type { StandinHandle } from "../../../tools/fixtures/decisions/standin.mjs";
 import { startStandin } from "../../../tools/fixtures/decisions/standin.mjs";
@@ -80,13 +80,13 @@ function setup(standin: StandinHandle): {
   dataDir: string;
   deps: EngineDeps;
 } {
-  const base = mkdtempSync(join(tmpdir(), "relay-engine-decision-"));
+  const base = mkdtempSync(join(tmpdir(), "devchestra-engine-decision-"));
   const dataDir = join(base, "data");
   const project = join(base, "project");
   mkdirSync(dataDir, { recursive: true });
   mkdirSync(project, { recursive: true });
   cleanups.push(() => rmSync(base, { recursive: true, force: true }));
-  const file = join(dataDir, "relay.db");
+  const file = join(dataDir, "devchestra.db");
   const store = openStore({ file });
   cleanups.push(() => store.close());
   store.projects.ensure({ id: "p1", name: "P1", path: project, kind: "folder" });

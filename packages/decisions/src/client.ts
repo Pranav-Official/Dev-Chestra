@@ -1,7 +1,7 @@
-import type { Result } from "@relay/core";
-import { err, ok, RelayError } from "@relay/core";
-import type { DecisionProviderId } from "@relay/schema";
-import { DECISION_PROVIDERS, isDecisionProviderId } from "@relay/schema";
+import type { Result } from "@devchestra/core";
+import { DevChestraError, err, ok } from "@devchestra/core";
+import type { DecisionProviderId } from "@devchestra/schema";
+import { DECISION_PROVIDERS, isDecisionProviderId } from "@devchestra/schema";
 import type { SecretMap } from "./http.js";
 import { parseJsonBody, postDecisionJson } from "./http.js";
 import { DECISION_PRESETS, resolvePresetUrl } from "./presets.js";
@@ -69,7 +69,7 @@ async function withSlot<T>(
 ): Promise<T> {
   const sem = semaphoreFor(provider);
   if (signal?.aborted === true) {
-    throw new RelayError("E_CANCELLED", "Decision request was cancelled.");
+    throw new DevChestraError("E_CANCELLED", "Decision request was cancelled.");
   }
   // Recheck after every wake-up: several released waiters may resume in the
   // same microtask drain, and only the first may take the freed slot.
@@ -82,7 +82,7 @@ async function withSlot<T>(
         if (index >= 0) {
           sem.waiting.splice(index, 1);
         }
-        reject(new RelayError("E_CANCELLED", "Decision request was cancelled."));
+        reject(new DevChestraError("E_CANCELLED", "Decision request was cancelled."));
       };
       if (signal !== undefined) {
         signal.addEventListener("abort", onAbort, { once: true });
@@ -140,20 +140,20 @@ export function resolveRequestUrl(
   try {
     origin = new URL(baseUrlOverride);
   } catch {
-    throw new RelayError(
+    throw new DevChestraError(
       "E_VALIDATION",
       `Invalid decision base URL override ${redactSecrets(baseUrlOverride, secrets)}.`,
     );
   }
   if (origin.protocol !== "http:" && origin.protocol !== "https:") {
-    throw new RelayError("E_VALIDATION", "Decision base URL override must be http(s).");
+    throw new DevChestraError("E_VALIDATION", "Decision base URL override must be http(s).");
   }
   if (
     origin.hostname !== "127.0.0.1" &&
     origin.hostname !== "::1" &&
     origin.hostname !== "localhost"
   ) {
-    throw new RelayError("E_VALIDATION", "Decision base URL override must be loopback.");
+    throw new DevChestraError("E_VALIDATION", "Decision base URL override must be loopback.");
   }
   return { url: new URL(new URL(path).pathname, origin).toString(), allowLoopbackHttp: true };
 }
@@ -163,7 +163,10 @@ export function createDecisionClient(
   options: DecisionClientOptions = {},
 ): DecisionClient {
   if (!isDecisionProviderId(provider)) {
-    throw new RelayError("E_VALIDATION", `Unknown decision provider ${JSON.stringify(provider)}.`);
+    throw new DevChestraError(
+      "E_VALIDATION",
+      `Unknown decision provider ${JSON.stringify(provider)}.`,
+    );
   }
   const preset = DECISION_PRESETS[provider];
 
@@ -180,10 +183,10 @@ export function createDecisionClient(
   async function ask(
     req: DecisionRequest,
     signal: AbortSignal,
-  ): Promise<Result<DecisionResponse, RelayError>> {
+  ): Promise<Result<DecisionResponse, DevChestraError>> {
     if (req.provider !== provider) {
       return err(
-        new RelayError(
+        new DevChestraError(
           "E_VALIDATION",
           `Decision client for ${provider} cannot ask ${String(req.provider)}.`,
         ),
@@ -194,16 +197,16 @@ export function createDecisionClient(
       bodyJson = JSON.stringify(buildDecisionBody(req, preset));
     } catch (error) {
       return err(
-        error instanceof RelayError
+        error instanceof DevChestraError
           ? error
-          : new RelayError("E_VALIDATION", "Invalid decision request."),
+          : new DevChestraError("E_VALIDATION", "Invalid decision request."),
       );
     }
     const secrets = readSecrets();
     const missing = missingSecretNames(secrets, preset.requiredEnv);
     if (missing.length > 0) {
       return err(
-        new RelayError(
+        new DevChestraError(
           "E_PROVIDER",
           `Missing or invalid decision secret(s): ${missing.join(", ")}. Set them in the environment or .env.`,
         ),
@@ -220,9 +223,9 @@ export function createDecisionClient(
       ));
     } catch (error) {
       return err(
-        error instanceof RelayError
+        error instanceof DevChestraError
           ? error
-          : new RelayError("E_VALIDATION", "Invalid decision request."),
+          : new DevChestraError("E_VALIDATION", "Invalid decision request."),
       );
     }
     const timeoutMs = options.timeoutMs ?? preset.timeoutMs;
@@ -266,7 +269,7 @@ export function createDecisionClient(
       }
       return ok(response);
     } catch (error) {
-      if (error instanceof RelayError) {
+      if (error instanceof DevChestraError) {
         error.message = redactSecrets(error.message, secrets);
         return err(error);
       }
@@ -275,7 +278,9 @@ export function createDecisionClient(
         secrets,
       );
       return err(
-        new RelayError("E_PROVIDER", `Decision request failed: ${message}`, { retryable: true }),
+        new DevChestraError("E_PROVIDER", `Decision request failed: ${message}`, {
+          retryable: true,
+        }),
       );
     }
   }

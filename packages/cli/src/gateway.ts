@@ -1,11 +1,11 @@
-import type { GatewayPort, GatewayScope } from "@relay/engine";
+import type { GatewayPort, GatewayScope } from "@devchestra/engine";
 import {
   createAgentGateway,
   ExecTokenRegistry,
   OutputValidator,
   startLoopbackServer,
-} from "@relay/server";
-import type { Store } from "@relay/store";
+} from "@devchestra/server";
+import type { Store } from "@devchestra/store";
 
 export interface RunningGateway {
   port: GatewayPort;

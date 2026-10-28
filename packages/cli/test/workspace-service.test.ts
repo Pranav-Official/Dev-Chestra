@@ -13,7 +13,7 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0).reverse()) cleanup();
 });
 
-function tempDir(prefix = "relay-cli-ws-"): string {
+function tempDir(prefix = "devchestra-cli-ws-"): string {
   const dir = mkdtempSync(join(tmpdir(), prefix));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   return dir;
@@ -25,19 +25,19 @@ function git(cwd: string, args: string[]): string {
     encoding: "utf8",
     env: {
       ...process.env,
-      GIT_AUTHOR_NAME: "Relay Test",
-      GIT_AUTHOR_EMAIL: "relay@example.invalid",
-      GIT_COMMITTER_NAME: "Relay Test",
-      GIT_COMMITTER_EMAIL: "relay@example.invalid",
+      GIT_AUTHOR_NAME: "DevChestra Test",
+      GIT_AUTHOR_EMAIL: "devchestra@example.invalid",
+      GIT_COMMITTER_NAME: "DevChestra Test",
+      GIT_COMMITTER_EMAIL: "devchestra@example.invalid",
     },
   }).trim();
 }
 
 function repo(): { root: string; worktree: string } {
-  const root = tempDir("relay-cli-repo-");
+  const root = tempDir("devchestra-cli-repo-");
   git(root, ["init", "-q"]);
   git(root, ["commit", "-q", "--allow-empty", "-m", "base"]);
-  const worktree = join(tempDir("relay-cli-wt-"), "tree");
+  const worktree = join(tempDir("devchestra-cli-wt-"), "tree");
   git(root, ["worktree", "add", "--detach", "-q", worktree, "HEAD"]);
   return { root, worktree };
 }
@@ -63,7 +63,7 @@ describe("CLI workspace selection", () => {
 
   it("rejects unlisted paths, the project root and non-Git projects", async () => {
     const { root } = repo();
-    const elsewhere = tempDir("relay-cli-elsewhere-");
+    const elsewhere = tempDir("devchestra-cli-elsewhere-");
     await expect(
       validateWorkspaceSelection(root, { mode: "existing-worktree", path: elsewhere }),
     ).rejects.toMatchObject({ code: "E_VALIDATION" });
@@ -71,7 +71,7 @@ describe("CLI workspace selection", () => {
       validateWorkspaceSelection(root, { mode: "existing-worktree", path: root }),
     ).rejects.toMatchObject({ code: "E_VALIDATION" });
 
-    const plain = tempDir("relay-cli-plain-");
+    const plain = tempDir("devchestra-cli-plain-");
     await expect(validateWorkspaceSelection(plain, { mode: "new-worktree" })).rejects.toMatchObject(
       { code: "E_VALIDATION" },
     );

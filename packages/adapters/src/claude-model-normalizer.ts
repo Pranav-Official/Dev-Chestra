@@ -1,4 +1,4 @@
-import { isRecord } from "@relay/core";
+import { isRecord } from "@devchestra/core";
 import { boundCount, boundMs, hasControl, printable } from "./discovery-util.js";
 import type { ClaudeModelDiscovery, ClaudeModelDiscoveryStatus, ClaudeModelItem } from "./types.js";
 

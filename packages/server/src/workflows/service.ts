@@ -9,9 +9,9 @@ import {
   validateParams,
   validateWorkflow,
   type WorkflowFile,
-} from "@relay/schema";
+} from "@devchestra/schema";
 import { assertProjectPathAllowed } from "../browser/workflow.js";
-import { RelayError } from "../errors.js";
+import { DevChestraError } from "../errors.js";
 import {
   assertWorkflowId,
   createManagedFile,
@@ -97,7 +97,7 @@ export class ManagedWorkflowService {
 
   #root(project: WorkflowProject): string {
     if (project.missing) {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_CONFLICT",
         "Project path is missing; relink the project before editing workflows.",
       );
@@ -105,8 +105,8 @@ export class ManagedWorkflowService {
     try {
       return assertProjectPathAllowed(project.path, this.#dataDir);
     } catch (error) {
-      if (error instanceof RelayError && error.code === "E_NOT_FOUND") {
-        throw new RelayError(
+      if (error instanceof DevChestraError && error.code === "E_NOT_FOUND") {
+        throw new DevChestraError(
           "E_CONFLICT",
           "Project path is missing; relink the project before editing workflows.",
         );
@@ -119,7 +119,7 @@ export class ManagedWorkflowService {
     const root = this.#root(project);
     const paths = managedPaths(root, { create });
     if (paths === null) {
-      throw new RelayError("E_NOT_FOUND", "The project has no managed workflows yet.");
+      throw new DevChestraError("E_NOT_FOUND", "The project has no managed workflows yet.");
     }
     return paths;
   }
@@ -138,7 +138,7 @@ export class ManagedWorkflowService {
   #document(project: WorkflowProject, file: ManagedFile): WorkflowDocumentView {
     const parsed = parseWorkflowJsonOrThrow(file.text);
     if (parsed.id !== file.id) {
-      throw new RelayError("E_VALIDATION", "Workflow id must equal the file stem.", {
+      throw new DevChestraError("E_VALIDATION", "Workflow id must equal the file stem.", {
         field: "id",
         expected: file.id,
       });
@@ -164,7 +164,7 @@ export class ManagedWorkflowService {
     if (options.cursor !== undefined) {
       const index = ids.indexOf(options.cursor);
       if (index === -1) {
-        throw new RelayError("E_VALIDATION", "Workflow cursor is not valid for this list.");
+        throw new DevChestraError("E_VALIDATION", "Workflow cursor is not valid for this list.");
       }
       start = index + 1;
     }
@@ -180,7 +180,7 @@ export class ManagedWorkflowService {
       try {
         const workflow = parseWorkflowJsonOrThrow(file.text);
         if (workflow.id !== file.id) {
-          throw new RelayError("E_VALIDATION", "Workflow id must equal the file stem.");
+          throw new DevChestraError("E_VALIDATION", "Workflow id must equal the file stem.");
         }
         const validation = this.#validate(workflow, project);
         items.push({
@@ -242,13 +242,17 @@ export class ManagedWorkflowService {
           const created = createManagedFile(paths, id, Buffer.from(text, "utf8"));
           return this.#document(project, created);
         } catch (error) {
-          if (explicitId === null && error instanceof RelayError && error.code === "E_CONFLICT") {
+          if (
+            explicitId === null &&
+            error instanceof DevChestraError &&
+            error.code === "E_CONFLICT"
+          ) {
             continue;
           }
           throw error;
         }
       }
-      throw new RelayError("E_CONFLICT", "Could not allocate a workflow id.");
+      throw new DevChestraError("E_CONFLICT", "Could not allocate a workflow id.");
     });
   }
 
@@ -260,7 +264,7 @@ export class ManagedWorkflowService {
   ): Promise<WorkflowDocumentView> {
     assertWorkflowId(id);
     if (workflow.id !== id) {
-      throw new RelayError("E_VALIDATION", "Workflow id must equal the file stem.", {
+      throw new DevChestraError("E_VALIDATION", "Workflow id must equal the file stem.", {
         field: "id",
         expected: id,
       });
@@ -314,7 +318,7 @@ export class ManagedWorkflowService {
     const paths = this.#paths(project, false);
     const file = readManagedFile(paths, id);
     if (file.etag !== input.etag) {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_CONFLICT",
         "The workflow changed on disk. Review and save it before running.",
         { currentEtag: file.etag },
@@ -322,7 +326,7 @@ export class ManagedWorkflowService {
     }
     const workflow = parseWorkflowJsonOrThrow(file.text);
     if (workflow.id !== id) {
-      throw new RelayError("E_VALIDATION", "Workflow id must equal the file stem.", {
+      throw new DevChestraError("E_VALIDATION", "Workflow id must equal the file stem.", {
         field: "id",
         expected: id,
       });
@@ -331,7 +335,7 @@ export class ManagedWorkflowService {
       (node) => node.type === "agent" && node.promptFile !== undefined,
     );
     if (prompts.length > 0) {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_NOT_SUPPORTED",
         "promptFile is not supported for managed workflow runs yet; inline the prompt and save.",
         { nodeIds: prompts.map((node) => node.id) },
@@ -339,7 +343,7 @@ export class ManagedWorkflowService {
     }
     const validation = this.#validate(workflow, project);
     if (!validation.ok) {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_VALIDATION",
         `Workflow is invalid: ${validation.errors[0]?.message ?? "unknown error"}`,
         { issues: validation.errors, warnings: validation.warnings },
@@ -350,13 +354,13 @@ export class ManagedWorkflowService {
       (input.params ?? {}) as Record<string, string | number | boolean>,
     );
     if (!params.ok) {
-      throw new RelayError("E_VALIDATION", "Run parameters are invalid", {
+      throw new DevChestraError("E_VALIDATION", "Run parameters are invalid", {
         issues: params.errors,
       });
     }
     const normalized = normalizeWorkflow(workflow);
     if (!normalized.ok) {
-      throw new RelayError("E_VALIDATION", normalized.error.message, normalized.error.details);
+      throw new DevChestraError("E_VALIDATION", normalized.error.message, normalized.error.details);
     }
     const workflowHash = await hashWorkflow(normalized.value);
     return {
@@ -372,7 +376,8 @@ export class ManagedWorkflowService {
 
 function parseWorkflowOrThrow(value: unknown): WorkflowFile {
   const parsed = parseWorkflowDraft(value);
-  if (!parsed.ok) throw new RelayError("E_VALIDATION", parsed.error.message, parsed.error.details);
+  if (!parsed.ok)
+    throw new DevChestraError("E_VALIDATION", parsed.error.message, parsed.error.details);
   return parsed.value;
 }
 
@@ -381,7 +386,7 @@ function parseWorkflowJsonOrThrow(text: string): WorkflowFile {
   try {
     raw = JSON.parse(text);
   } catch {
-    throw new RelayError("E_VALIDATION", "Workflow file is not valid JSON.");
+    throw new DevChestraError("E_VALIDATION", "Workflow file is not valid JSON.");
   }
   return parseWorkflowOrThrow(raw);
 }
@@ -391,9 +396,9 @@ function serializeOrThrow(file: WorkflowFile): string {
   if (!serialized.ok) {
     const details = serialized.error.details;
     if (typeof details === "object" && details !== null && "maxBytes" in details) {
-      throw new RelayError("E_PAYLOAD_TOO_LARGE", serialized.error.message, details);
+      throw new DevChestraError("E_PAYLOAD_TOO_LARGE", serialized.error.message, details);
     }
-    throw new RelayError("E_VALIDATION", serialized.error.message, details);
+    throw new DevChestraError("E_VALIDATION", serialized.error.message, details);
   }
   return serialized.value;
 }
@@ -401,7 +406,7 @@ function serializeOrThrow(file: WorkflowFile): string {
 function assertSize(text: string): void {
   const bytes = Buffer.byteLength(text, "utf8");
   if (bytes > MAX_WORKFLOW_FILE_BYTES) {
-    throw new RelayError("E_PAYLOAD_TOO_LARGE", "Workflow file exceeds the 1 MiB limit.", {
+    throw new DevChestraError("E_PAYLOAD_TOO_LARGE", "Workflow file exceeds the 1 MiB limit.", {
       bytes,
       maxBytes: MAX_WORKFLOW_FILE_BYTES,
     });

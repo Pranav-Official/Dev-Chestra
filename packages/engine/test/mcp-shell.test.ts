@@ -1,14 +1,14 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { err, ok, type Path, RelayError, type Result } from "@relay/core";
-import { openStore, type Store } from "@relay/store";
+import { DevChestraError, err, ok, type Path, type Result } from "@devchestra/core";
+import { openStore, type Store } from "@devchestra/store";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ runAgent: vi.fn() }));
 
-vi.mock("@relay/adapters", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@relay/adapters")>();
+vi.mock("@devchestra/adapters", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@devchestra/adapters")>();
   return { ...actual, runAgent: mocks.runAgent };
 });
 
@@ -18,8 +18,8 @@ import type {
   FailureClass,
   ResolvedMcpServer,
   RunRequest,
-} from "@relay/adapters";
-import type { McpSelection } from "@relay/schema";
+} from "@devchestra/adapters";
+import type { McpSelection } from "@devchestra/schema";
 import { type ActiveRunState, EngineContext } from "../src/context.js";
 import { executeAgent } from "../src/exec-agent.js";
 import { analyzeLinearWorkflow, type LinearChain, type LinearNode } from "../src/sequence.js";
@@ -60,7 +60,7 @@ interface ResolverCalls {
 function fakeResolver(options: {
   extra?: ResolvedMcpServer[];
   known?: NonNullable<RunRequest["knownMcp"]>;
-  resolveError?: RelayError;
+  resolveError?: DevChestraError;
   listThrows?: boolean;
   calls?: ResolverCalls;
 }): McpResolver {
@@ -81,7 +81,7 @@ function fakeResolver(options: {
       _cli: string,
       _projectDir: string,
       selection: readonly McpSelection[],
-    ): Promise<Result<{ extra: ResolvedMcpServer[]; known: typeof KNOWN }, RelayError>> => {
+    ): Promise<Result<{ extra: ResolvedMcpServer[]; known: typeof KNOWN }, DevChestraError>> => {
       calls.resolve += 1;
       if (options.listThrows === true && selection.length === 0) {
         throw new Error("mcp discovery exploded");
@@ -149,13 +149,13 @@ function setup(
     resolver?: McpResolver;
   } = {},
 ): Harness {
-  const base = mkdtempSync(join(tmpdir(), "relay-engine-mcpshell-"));
+  const base = mkdtempSync(join(tmpdir(), "devchestra-engine-mcpshell-"));
   const project = join(base, "project");
   const dataDir = join(base, "data");
   mkdirSync(project, { recursive: true });
   mkdirSync(dataDir, { recursive: true });
   cleanups.push(() => rmSync(base, { recursive: true, force: true }));
-  const store = openStore({ file: join(dataDir, "relay.db") });
+  const store = openStore({ file: join(dataDir, "devchestra.db") });
   cleanups.push(() => store.close());
   store.projects.ensure({ id: "p1", name: "P1", path: project, kind: "folder" });
   const snapshot = workflow(options.agent ?? {}, options.limits);
@@ -289,7 +289,7 @@ function setup(
     adapters: registry,
     workspaces: {
       prepare: async () => {
-        throw new RelayError("E_INTERNAL", "run-level workspace is not used in this test");
+        throw new DevChestraError("E_INTERNAL", "run-level workspace is not used in this test");
       },
       acquire: async (request) => {
         const dir = join(dataDir, "scratch", request.path as string);
@@ -327,7 +327,7 @@ function setup(
     dataDir,
     nodeBin: process.execPath,
     mcpShimEntry: join(dataDir, "unused.js"),
-    env: { ...process.env, RELAY_ALLOW_FAKE: "1" },
+    env: { ...process.env, DEVCHESTRA_ALLOW_FAKE: "1" },
     ...(options.resolver === undefined ? {} : { mcpResolver: options.resolver }),
   });
   const active: ActiveRunState = { abort: abortController, reason: null, tokens: new Set() };
@@ -410,7 +410,7 @@ describe("engine agent MCP servers and shell toggle", () => {
         mcpServers: [{ name: "nope", scope: "global" }],
       },
       resolver: fakeResolver({
-        resolveError: new RelayError("E_CLI_MISSING", "unknown MCP server 'global:nope'"),
+        resolveError: new DevChestraError("E_CLI_MISSING", "unknown MCP server 'global:nope'"),
       }),
     });
     const { error } = await runAgent(h);
@@ -430,7 +430,7 @@ describe("engine agent MCP servers and shell toggle", () => {
         mcpServers: [{ name: "nope", scope: "global" }],
       },
       resolver: fakeResolver({
-        resolveError: new RelayError("E_CLI_MISSING", "unknown MCP server 'global:nope'", {
+        resolveError: new DevChestraError("E_CLI_MISSING", "unknown MCP server 'global:nope'", {
           details: { token: SECRET, servers: [{ name: "nope", scope: "global" }] },
         }),
       }),
@@ -438,7 +438,7 @@ describe("engine agent MCP servers and shell toggle", () => {
     const { error } = await runAgent(h);
     expect(error).toMatchObject({ code: "E_CLI_MISSING" });
     expect(JSON.stringify(error)).not.toContain(SECRET);
-    expect(JSON.stringify((error as RelayError).details)).toContain("nope");
+    expect(JSON.stringify((error as DevChestraError).details)).toContain("nope");
     expect(leakScan(h)).toEqual([]);
   });
 

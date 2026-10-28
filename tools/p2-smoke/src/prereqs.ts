@@ -30,7 +30,7 @@ export function ensurePrereqs(options: { browser: boolean }): PrereqState {
   if (!state.shim) missing.push("packages/mcp/dist/bin/shim.js");
   if (!state.fakeAgent) missing.push("tools/fake-agent/dist/main.js");
   if (options.browser && !existsSync(state.chromium)) {
-    missing.push(`chromium at RELAY_CHROMIUM_PATH || ${state.chromium}`);
+    missing.push(`chromium at DEVCHESTRA_CHROMIUM_PATH || ${state.chromium}`);
   }
   if (missing.length > 0) {
     throw new Error(

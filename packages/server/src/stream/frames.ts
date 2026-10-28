@@ -1,4 +1,4 @@
-import type { EventEnvelope } from "@relay/core";
+import type { EventEnvelope } from "@devchestra/core";
 import type { GlobalStreamHint, StreamSnapshot } from "./types.js";
 
 export const DEFAULT_HEARTBEAT_MS = 15_000;

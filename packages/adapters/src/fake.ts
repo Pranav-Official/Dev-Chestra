@@ -1,7 +1,7 @@
 import { lstatSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ok, type RelayError, type Result } from "@relay/core";
+import { type DevChestraError, ok, type Result } from "@devchestra/core";
 import { clip, NdjsonParser, parseObject, str } from "./parsers.js";
 import { checkDir, classifyExit, fail, requireOptionKeys } from "./plan.js";
 import { probeVersion } from "./probe.js";
@@ -28,7 +28,7 @@ class FakeParser extends NdjsonParser {
 
   protected line(line: string): AdapterEvent[] {
     const event = parseObject(line);
-    if (event === null || event.type !== "relay-fake") return [{ t: "raw", line }];
+    if (event === null || event.type !== "devchestra-fake") return [{ t: "raw", line }];
     const kind = str(event.event);
     const events: AdapterEvent[] = [];
     const session = str(event.sessionId);
@@ -133,7 +133,7 @@ function checkpointPath(req: RunRequest, value: unknown): string {
   return target;
 }
 
-function plan(req: RunRequest, bin: string, fake: string): Result<Invocation, RelayError> {
+function plan(req: RunRequest, bin: string, fake: string): Result<Invocation, DevChestraError> {
   try {
     checkDir(req.cwd, "cwd");
     checkDir(req.execDir, "execDir");
@@ -148,7 +148,7 @@ function plan(req: RunRequest, bin: string, fake: string): Result<Invocation, Re
     if (options.session !== undefined && typeof options.session !== "string") {
       throw new Error("session must be a string");
     }
-    const args = [fake, "--format", "relay-fake", "--cwd", req.cwd];
+    const args = [fake, "--format", "devchestra-fake", "--cwd", req.cwd];
     if (checkpoint !== undefined) args.push("--checkpoint", checkpoint);
     if (req.mode === "resume") args.push("--resume");
     else if (typeof options.session === "string") args.push("--session", options.session);
@@ -195,7 +195,7 @@ export function createFakeAdapter(options: FakeAdapterOptions = {}): CliAdapter 
       argvSource: "synthetic",
       behaviorVerified: true,
       notes: [
-        "explicit Relay fake, never live-CLI evidence",
+        "explicit DevChestra fake, never live-CLI evidence",
         "checkpoint resume requires the same cwd; engine handles no-submit fallback",
       ],
     },
@@ -208,20 +208,20 @@ export function createFakeAdapter(options: FakeAdapterOptions = {}): CliAdapter 
       // engine attached without ever carrying secrets (no env, headers, urls).
       const reflected: Record<string, string> = {};
       if (typeof req.permissions.shell === "boolean") {
-        reflected.FAKE_RELAY_SHELL = String(req.permissions.shell);
+        reflected.FAKE_DEVCHESTRA_SHELL = String(req.permissions.shell);
       }
       if (req.extraMcp !== undefined) {
-        reflected.FAKE_RELAY_MCP = JSON.stringify(
+        reflected.FAKE_DEVCHESTRA_MCP = JSON.stringify(
           req.extraMcp.map((server) => ({ name: server.name, scope: server.scope })),
         );
       }
       if (req.knownMcp !== undefined) {
-        reflected.FAKE_RELAY_MCP_KNOWN = JSON.stringify(
+        reflected.FAKE_DEVCHESTRA_MCP_KNOWN = JSON.stringify(
           req.knownMcp.map((server) => ({ name: server.name, scope: server.scope })),
         );
       }
       const cliOptions: Record<string, unknown> = { ...(req.cliOptions ?? {}) };
-      cliOptions.checkpoint ??= ".relay/fake-checkpoint.json";
+      cliOptions.checkpoint ??= ".devchestra/fake-checkpoint.json";
       return plan(
         { ...req, cliOptions, env: { ...merged, ...reflected, ...req.mcp.env } },
         node,

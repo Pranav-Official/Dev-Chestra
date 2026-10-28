@@ -396,7 +396,7 @@ export function AgentModelPicker({
           {STATUS_LABEL[status] ?? status}
         </span>
         <span className="model-picker-source" data-testid="inspector-agent-model-source">
-          Runtime catalog · scope: {catalog?.scope ?? "relay-runtime"} · source:{" "}
+          Runtime catalog · scope: {catalog?.scope ?? "devchestra-runtime"} · source:{" "}
           {catalog?.source ?? "none"}
         </span>
         <span className="model-picker-count" data-testid="inspector-agent-model-count">

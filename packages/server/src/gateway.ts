@@ -1,7 +1,7 @@
-import { isRecord } from "@relay/core";
+import { isRecord } from "@devchestra/core";
 import { type Context, Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { errorBody, RelayError, relayErrorCode, toRelayError } from "./errors.js";
+import { DevChestraError, devchestraErrorCode, errorBody, toDevChestraError } from "./errors.js";
 import type { SubmissionPort, SubmitOutcome } from "./ports.js";
 import { type ExecScope, type ExecTokenRegistry, scopeKey } from "./tokens.js";
 import { formatIssues, type OutputValidator } from "./validate.js";
@@ -171,8 +171,8 @@ function sameScope(left: ExecScope, right: ExecScope): boolean {
   );
 }
 
-function timeoutError(): RelayError {
-  return new RelayError("E_INTERNAL", "Request timed out.");
+function timeoutError(): DevChestraError {
+  return new DevChestraError("E_INTERNAL", "Request timed out.");
 }
 
 async function raceAbort<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
@@ -204,12 +204,12 @@ async function readJsonObject(
 ): Promise<Record<string, unknown>> {
   const declared = Number(c.req.header("content-length"));
   if (Number.isFinite(declared) && declared > maxBytes) {
-    throw new RelayError("E_PAYLOAD_TOO_LARGE", "Request body is too large.");
+    throw new DevChestraError("E_PAYLOAD_TOO_LARGE", "Request body is too large.");
   }
 
   const body = c.req.raw.body;
   if (body === null) {
-    throw new RelayError("E_VALIDATION", "Request body must be a JSON object.");
+    throw new DevChestraError("E_VALIDATION", "Request body must be a JSON object.");
   }
 
   const reader = body.getReader();
@@ -236,7 +236,7 @@ async function readJsonObject(
       total += value.byteLength;
       if (total > maxBytes) {
         await reader.cancel().catch(() => undefined);
-        throw new RelayError("E_PAYLOAD_TOO_LARGE", "Request body is too large.");
+        throw new DevChestraError("E_PAYLOAD_TOO_LARGE", "Request body is too large.");
       }
       chunks.push(value);
     }
@@ -262,10 +262,10 @@ async function readJsonObject(
   try {
     parsed = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)));
   } catch {
-    throw new RelayError("E_VALIDATION", "Request body must be valid UTF-8 JSON.");
+    throw new DevChestraError("E_VALIDATION", "Request body must be valid UTF-8 JSON.");
   }
   if (!isRecord(parsed)) {
-    throw new RelayError("E_VALIDATION", "Request body must be a JSON object.");
+    throw new DevChestraError("E_VALIDATION", "Request body must be a JSON object.");
   }
   return parsed;
 }
@@ -371,10 +371,10 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
   app.post("/internal/agent/call", async (c) => {
     const scope = c.get("execScope");
     const execToken = c.get("execToken");
-    const callId = c.req.header("x-relay-call-id");
+    const callId = c.req.header("x-devchestra-call-id");
     if (callId === undefined || !/^[A-Za-z0-9._:-]{1,200}$/.test(callId)) {
       return c.json(
-        errorBody("E_VALIDATION", "X-Relay-Call-Id is required and must be a stable id."),
+        errorBody("E_VALIDATION", "X-DevChestra-Call-Id is required and must be a stable id."),
         400,
       );
     }
@@ -427,10 +427,10 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
         if (validation.ok) {
           const current = tokens.resolve(execToken, now());
           if (current === null) {
-            throw new RelayError("E_AUTH", "The execution token is no longer valid.");
+            throw new DevChestraError("E_AUTH", "The execution token is no longer valid.");
           }
           if (!sameScope(current, scope)) {
-            throw new RelayError("E_CONFLICT", "This execution is no longer current.");
+            throw new DevChestraError("E_CONFLICT", "This execution is no longer current.");
           }
           let outcome: SubmitOutcome;
           try {
@@ -443,7 +443,7 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
               schemaHash: scope.outputSchemaHash,
             });
           } catch (error) {
-            if (relayErrorCode(error) === "E_ATTEMPTS_EXHAUSTED") {
+            if (devchestraErrorCode(error) === "E_ATTEMPTS_EXHAUSTED") {
               return c.json(
                 callResult("No attempts left. Stop now and report the failure.", true),
                 200,
@@ -457,15 +457,15 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
               200,
             );
           }
-          throw new RelayError("E_INTERNAL", "The store rejected a valid submission.");
+          throw new DevChestraError("E_INTERNAL", "The store rejected a valid submission.");
         }
 
         const current = tokens.resolve(execToken, now());
         if (current === null) {
-          throw new RelayError("E_AUTH", "The execution token is no longer valid.");
+          throw new DevChestraError("E_AUTH", "The execution token is no longer valid.");
         }
         if (!sameScope(current, scope)) {
-          throw new RelayError("E_CONFLICT", "This execution is no longer current.");
+          throw new DevChestraError("E_CONFLICT", "This execution is no longer current.");
         }
         let outcome: SubmitOutcome;
         try {
@@ -477,7 +477,7 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
             errors: validation.issues,
           });
         } catch (error) {
-          if (relayErrorCode(error) === "E_ATTEMPTS_EXHAUSTED") {
+          if (devchestraErrorCode(error) === "E_ATTEMPTS_EXHAUSTED") {
             return c.json(
               callResult("No attempts left. Stop now and report the failure.", true),
               200,
@@ -492,7 +492,7 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
           );
         }
         if (outcome.kind !== "rejected") {
-          throw new RelayError("E_INTERNAL", "The store accepted an invalid submission.");
+          throw new DevChestraError("E_INTERNAL", "The store accepted an invalid submission.");
         }
         const remaining = outcome.validationAttemptsLeft;
         if (remaining <= 0) {
@@ -516,7 +516,7 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
   app.notFound((c) => c.json(errorBody("E_NOT_FOUND", "Not found."), 404));
 
   app.onError((error, c) => {
-    const safe = toRelayError(error);
+    const safe = toDevChestraError(error);
     if (safe.code === "E_INTERNAL") {
       log(`gateway error: ${safe.message}`);
     }

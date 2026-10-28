@@ -1,4 +1,9 @@
-import type { ApiRequestOptions, CatalogCli, CliMcpServers, DiscoveredMcpServer } from "@relay/api";
+import type {
+  ApiRequestOptions,
+  CatalogCli,
+  CliMcpServers,
+  DiscoveredMcpServer,
+} from "@devchestra/api";
 import { api } from "../../../api/client.js";
 
 export type { CatalogCli, CliMcpServers, DiscoveredMcpServer };

@@ -1,5 +1,5 @@
-import type { EventEnvelope } from "@relay/core";
-import { fieldString, type HttpResult, type RelayHttp } from "./http.js";
+import type { EventEnvelope } from "@devchestra/core";
+import { type DevChestraHttp, fieldString, type HttpResult } from "./http.js";
 
 export interface EventPage {
   items: EventEnvelope[];
@@ -39,7 +39,7 @@ export function parseEventPage(result: HttpResult): EventPage {
 }
 
 export async function fetchEventPage(
-  http: RelayHttp,
+  http: DevChestraHttp,
   runId: string,
   query: { after?: number; limit?: number; types?: string; pathPrefix?: string; upTo?: number },
 ): Promise<EventPage> {
@@ -61,7 +61,7 @@ export interface FullEvents {
 }
 
 export async function fetchAllEvents(
-  http: RelayHttp,
+  http: DevChestraHttp,
   runId: string,
   options: { limit?: number; upTo?: number } = {},
 ): Promise<FullEvents> {
@@ -89,7 +89,7 @@ export async function fetchAllEvents(
 }
 
 export async function waitForRun(
-  http: RelayHttp,
+  http: DevChestraHttp,
   runId: string,
   predicate: (body: Record<string, unknown>) => boolean,
   timeoutMs = 60_000,

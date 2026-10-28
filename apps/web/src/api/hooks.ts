@@ -1,4 +1,4 @@
-import type { RunStatus } from "@relay/core";
+import type { RunStatus } from "@devchestra/core";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { workflowApi } from "../editor/api/workflowApi.js";

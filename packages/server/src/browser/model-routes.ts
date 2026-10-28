@@ -3,9 +3,9 @@ import {
   type CliModelCatalog,
   catalogCliSchema,
   cliModelCatalogSchema,
-} from "@relay/api";
+} from "@devchestra/api";
 import type { Context, Hono } from "hono";
-import { errorBody, RelayError } from "../errors.js";
+import { DevChestraError, errorBody } from "../errors.js";
 import type { BrowserModelCatalogPort, BrowserQueryPort } from "./ports.js";
 
 const BODY_READ_TIMEOUT_MS = 2_000;
@@ -71,7 +71,7 @@ function safeCatalog(
     cli,
     projectId,
     status,
-    scope: "relay-runtime",
+    scope: "devchestra-runtime",
     source: "none",
     cliVersion: null,
     items: [],
@@ -86,11 +86,11 @@ function safeCatalog(
 function assertOutbound(value: unknown, projectId: string, cli: CatalogCli): CliModelCatalog {
   const parsed = cliModelCatalogSchema.safeParse(value);
   if (!parsed.success) {
-    throw new RelayError("E_INTERNAL", "Model catalog response was invalid.");
+    throw new DevChestraError("E_INTERNAL", "Model catalog response was invalid.");
   }
   const catalog = parsed.data as CliModelCatalog;
   if (catalog.projectId !== projectId || catalog.cli !== cli) {
-    throw new RelayError("E_INTERNAL", "Model catalog response did not match the request.");
+    throw new DevChestraError("E_INTERNAL", "Model catalog response did not match the request.");
   }
   return catalog;
 }

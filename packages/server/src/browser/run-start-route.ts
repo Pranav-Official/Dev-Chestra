@@ -1,6 +1,6 @@
-import { startRunRequestSchema } from "@relay/api";
+import { startRunRequestSchema } from "@devchestra/api";
 import type { Hono } from "hono";
-import { errorBody, RelayError } from "../errors.js";
+import { DevChestraError, errorBody } from "../errors.js";
 import { parseParams } from "./execution.js";
 import type { BrowserQueryPort, BrowserRunControllerPort, BrowserWorkspacePort } from "./ports.js";
 import { readJsonObject } from "./security.js";
@@ -50,7 +50,7 @@ export function mountRunStartRoute(app: Hono, deps: RunStartRouteDeps): void {
     try {
       root = assertProjectPathAllowed(project.path, deps.dataDir);
     } catch (error) {
-      if (error instanceof RelayError && error.code === "E_NOT_FOUND") {
+      if (error instanceof DevChestraError && error.code === "E_NOT_FOUND") {
         return c.json(
           errorBody(
             "E_CONFLICT",

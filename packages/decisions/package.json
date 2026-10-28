@@ -1,7 +1,7 @@
 {
-  "name": "@relay/decisions",
+  "name": "@devchestra/decisions",
   "version": "0.1.0",
-  "description": "Relay System One decision-model provider client (Jev / Clef presets, secrets, wire format)",
+  "description": "DevChestra System One decision-model provider client (Jev / Clef presets, secrets, wire format)",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -21,8 +21,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@relay/core": "workspace:*",
-    "@relay/schema": "workspace:*"
+    "@devchestra/core": "workspace:*",
+    "@devchestra/schema": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

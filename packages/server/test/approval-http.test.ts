@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openStore } from "@relay/store";
+import { openStore } from "@devchestra/store";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type RunningBrowserServer, startBrowserServer } from "../src/browser/server.js";
 import { createStoreQueryPort } from "../src/browser/store-query.js";
@@ -18,7 +18,7 @@ let cookie: string;
 function headers(mutation = false): Record<string, string> {
   return {
     Cookie: cookie,
-    ...(mutation ? { "Content-Type": "application/json", "X-Relay-Csrf": "1" } : {}),
+    ...(mutation ? { "Content-Type": "application/json", "X-DevChestra-Csrf": "1" } : {}),
   };
 }
 function url(p: string): string {
@@ -40,10 +40,10 @@ async function fetchJson<T>(
 }
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "relay-approval-http-"));
+  root = await mkdtemp(join(tmpdir(), "devchestra-approval-http-"));
   dataDir = join(root, "data");
   await (await import("node:fs/promises")).mkdir(dataDir, { recursive: true });
-  store = openStore({ file: join(dataDir, "relay.db") });
+  store = openStore({ file: join(dataDir, "devchestra.db") });
   // Seed project and run with approval execution
   const projPath = join(root, "proj");
   await (await import("node:fs/promises")).mkdir(projPath, { recursive: true });
@@ -201,7 +201,7 @@ afterEach(async () => {
 
 describe("approval HTTP", () => {
   it("global inbox requires auth and lists pending across projects", async () => {
-    const anon = await fetch(url("/api/approvals"), { headers: { "X-Relay-Csrf": "1" } });
+    const anon = await fetch(url("/api/approvals"), { headers: { "X-DevChestra-Csrf": "1" } });
     expect(anon.status).toBe(401);
     const ok = await fetchJson<{
       items: { projectId: string; runNumber: number; runId: string }[];
@@ -773,13 +773,13 @@ describe("approval HTTP", () => {
     const { mkdtemp } = await import("node:fs/promises");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
-    const { openStore } = await import("@relay/store");
+    const { openStore } = await import("@devchestra/store");
     const { createStoreQueryPort } = await import("../src/browser/store-query.js");
     const { startBrowserServer } = await import("../src/browser/server.js");
-    const legacyRoot = await mkdtemp(join(tmpdir(), "relay-legacy-"));
+    const legacyRoot = await mkdtemp(join(tmpdir(), "devchestra-legacy-"));
     const legacyData = join(legacyRoot, "data");
     await (await import("node:fs/promises")).mkdir(legacyData, { recursive: true });
-    const legacyStore = openStore({ file: join(legacyData, "relay.db") });
+    const legacyStore = openStore({ file: join(legacyData, "devchestra.db") });
     const projPath = join(legacyRoot, "proj");
     await (await import("node:fs/promises")).mkdir(projPath, { recursive: true });
     legacyStore.projects.ensure({ id: "proj-legacy", name: "P", path: projPath, kind: "folder" });
@@ -985,13 +985,13 @@ describe("approval HTTP", () => {
     const { mkdtemp } = await import("node:fs/promises");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
-    const { openStore } = await import("@relay/store");
+    const { openStore } = await import("@devchestra/store");
     const { createStoreQueryPort } = await import("../src/browser/store-query.js");
     const { startBrowserServer } = await import("../src/browser/server.js");
-    const regRoot = await mkdtemp(join(tmpdir(), "relay-events-"));
+    const regRoot = await mkdtemp(join(tmpdir(), "devchestra-events-"));
     const regData = join(regRoot, "data");
     await (await import("node:fs/promises")).mkdir(regData, { recursive: true });
-    const regStore = openStore({ file: join(regData, "relay.db") });
+    const regStore = openStore({ file: join(regData, "devchestra.db") });
     const projPath = join(regRoot, "proj");
     await (await import("node:fs/promises")).mkdir(projPath, { recursive: true });
     regStore.projects.ensure({ id: "proj-e", name: "P", path: projPath, kind: "folder" });

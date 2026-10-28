@@ -3,11 +3,11 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { join } from "node:path";
+import { project } from "@devchestra/core";
 import { type BrowserContext, chromium, type Page } from "@playwright/test";
-import { project } from "@relay/core";
 import { defaultIdempotencyKey, registerProject, startRun, waitTerminal } from "./api-ops.js";
 import { CLI, makeWorkspace, REPO_ROOT, scriptPath, sleep } from "./fixtures.js";
-import { RelayHttp } from "./http.js";
+import { DevChestraHttp } from "./http.js";
 import {
   collectAgent,
   type OwnedServer,
@@ -34,7 +34,7 @@ export interface BrowserEvidence {
 }
 
 export function chromiumPath(): string {
-  const configured = process.env.RELAY_CHROMIUM_PATH;
+  const configured = process.env.DEVCHESTRA_CHROMIUM_PATH;
   if (configured !== undefined && configured !== "") return configured;
   return "/usr/bin/chromium";
 }
@@ -94,10 +94,10 @@ export async function runBrowserScenario(): Promise<BrowserEvidence> {
   const browserPath = chromiumPath();
   assert.ok(
     existsSync(browserPath),
-    `Chromium is required at ${browserPath} (RELAY_CHROMIUM_PATH)`,
+    `Chromium is required at ${browserPath} (DEVCHESTRA_CHROMIUM_PATH)`,
   );
-  const ws = await makeWorkspace("relay-p2-browser-");
-  const html = await makeWorkspace("relay-p2-html-");
+  const ws = await makeWorkspace("devchestra-p2-browser-");
+  const html = await makeWorkspace("devchestra-p2-html-");
   const sentinel = startSentinel();
   const htmlSentinel = startSentinel();
   let mainRunId: string | null = null;
@@ -116,7 +116,7 @@ export async function runBrowserScenario(): Promise<BrowserEvidence> {
       cwd: ws.projectDir,
       fakeScript: scriptPath("browser"),
     });
-    const http = new RelayHttp(server.baseUrl);
+    const http = new DevChestraHttp(server.baseUrl);
     await http.health();
     await http.bootstrap(server.meta.token);
     const projectView = await registerProject(http, ws.projectDir);
@@ -294,7 +294,7 @@ export async function runBrowserScenario(): Promise<BrowserEvidence> {
       cwd: html.projectDir,
       fakeScript: scriptPath("html"),
     });
-    const htmlHttp = new RelayHttp(htmlServer.baseUrl);
+    const htmlHttp = new DevChestraHttp(htmlServer.baseUrl);
     await htmlHttp.health();
     await htmlHttp.bootstrap(htmlServer.meta.token);
     const htmlProject = await registerProject(htmlHttp, html.projectDir);
@@ -325,7 +325,9 @@ export async function runBrowserScenario(): Promise<BrowserEvidence> {
     assert.equal(await output.locator("img").count(), 0, "no img element may be injected");
     assert.equal(await output.locator("script").count(), 0, "no script element may be injected");
     assert.equal(
-      await htmlPage.evaluate(() => (window as unknown as { __relayPwned?: unknown }).__relayPwned),
+      await htmlPage.evaluate(
+        () => (window as unknown as { __devchestraPwned?: unknown }).__devchestraPwned,
+      ),
       undefined,
       "injected handler must not execute",
     );

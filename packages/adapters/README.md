@@ -1,7 +1,7 @@
-# @relay/adapters
+# @devchestra/adapters
 
 Headless CLI profiles, pure planning, stream parsing and a POSIX process
-runner for Relay. The engine depends only on this package's generic interface,
+runner for DevChestra. The engine depends only on this package's generic interface,
 never on a CLI's flags.
 
 No live calls are made by this package itself. Bounded research runs on
@@ -16,9 +16,9 @@ enforcement is `partial` for Claude and `advisory`/unproven for Codex.
 type CliId = "claude-code" | "codex" | "opencode" | "pi" | "fake";
 
 createAdapter(id, options?): CliAdapter
-createAdapterRegistry(options?): { get(id), has(id), ids() }  // prod ids plus fake only when RELAY_ALLOW_FAKE=1
+createAdapterRegistry(options?): { get(id), has(id), ids() }  // prod ids plus fake only when DEVCHESTRA_ALLOW_FAKE=1
 listProviders()/providerIds()  // static registry, no live probes; GET /api/clis serves the same list
-createAdapter(id).plan(req: RunRequest): Result<Invocation, RelayError>  // pure
+createAdapter(id).plan(req: RunRequest): Result<Invocation, DevChestraError>  // pure
 createAdapter(id).parser(): StreamParser
 createAdapter(id).classify(exit: ExitInfo, tail: Tail): FailureClass
 createAdapter(id).toolRef(tool: string): string
@@ -43,7 +43,7 @@ killOrphan(identity, { graceMs? }): Promise<{ matched, killed }>
 `AdapterOptions` takes absolute `claudeBin`, `codexBin`, `opencodeBin`, `piBin`,
 `fakeAgentBin` and `nodeBin` from the composition root. `fakeAgentBin` defaults to the workspace
 build at `tools/fake-agent/dist/main.js`; installed builds should pass it.
-`fakeScript` (factory) is test-only injection behind `RELAY_ALLOW_FAKE=1`. Fake CLI options are
+`fakeScript` (factory) is test-only injection behind `DEVCHESTRA_ALLOW_FAKE=1`. Fake CLI options are
 `checkpoint` and `session` only; everything else is rejected. `opencode`/`pi` are experimental
 registry entries backed by a generic adapter until a live contract check lands.
 
@@ -110,7 +110,7 @@ no container or OS-level guarantee here.
 
 `buildChildEnv` never copies `process.env` wholesale. It copies a fixed base
 allowlist, per-CLI auth names, explicitly declared `nodeEnv`/`nodeEnvNames`,
-user `cliEnv`, and trusted `injected` values. `RELAY_*` comes only from
+user `cliEnv`, and trusted `injected` values. `DEVCHESTRA_*` comes only from
 `injected`; declaring it is an error. Loader/injection variables (`NODE_OPTIONS`,
 `NODE_PATH`, `LD_PRELOAD`, `DYLD_*`, `BASH_ENV`, `PYTHONPATH`, …) are refused
 even when declared. `TERM=dumb` and `CI=1` are forced.
@@ -122,7 +122,7 @@ even when declared. `TERM=dumb` and `CI=1` are forced.
   the engine must delete the exec dir on revocation/exit or explicitly retain an
   owner-only expired config. Do not claim the token is absent from every
   runtime file for Claude; only that it never enters argv/logs/transcripts.
-- Codex: `-c mcp_servers.relay.env_vars=["NAME",...]` carries names only; values
+- Codex: `-c mcp_servers.devchestra.env_vars=["NAME",...]` carries names only; values
   are merged into the child environment from `RunRequest.mcp.env`.
 - Fake: `RunRequest.mcp.env` is merged into the fake child's environment.
 - Opencode: the token travels in the child environment and inside the
@@ -143,23 +143,23 @@ even when declared. `TERM=dumb` and `CI=1` are forced.
 - Codex 0.164.0: fresh `exec --json --sandbox read-only|workspace-write --cd
   <cwd>`; resume uses `exec resume <id> -c sandbox_mode=...` with no
   `--sandbox`/`--cd`/`--add-dir`/`-a`/`-p`; cwd comes from spawn. Network is a
-  `-c sandbox_workspace_write.network_access=<bool>` override. Per-Relay-server
-  MCP approval is `-c mcp_servers.relay.default_tools_approval_mode="approve"`.
+  `-c sandbox_workspace_write.network_access=<bool>` override. Per-DevChestra-server
+  MCP approval is `-c mcp_servers.devchestra.default_tools_approval_mode="approve"`.
   `danger-full-access` and `--dangerously-bypass-*` are never generated.
   `enforcesPermissions: advisory` until negative sandbox evidence exists.
 - Fake: real child `node tools/fake-agent/dist/main.js`, prompt stdin, checkpoint
   `--checkpoint`/`--resume`, same cwd. Default checkpoint is
-  `<cwd>/.relay/fake-checkpoint.json` on fresh and resume; override with
+  `<cwd>/.devchestra/fake-checkpoint.json` on fresh and resume; override with
   `cliOptions.checkpoint` (must stay inside cwd). The fake writes checkpoints
   atomically after each completed step. No-submit fallback belongs to the
   engine. A trusted default script can be injected via `fakeScript` or
   `FAKE_AGENT_SCRIPT`; workflow `cliOptions` can never choose a script or binary.
 - Opencode 1.19.4: fresh `run <prompt> --model provider/model --format json
   --dir <cwd>`; resume adds `--session ses_...`. Prompt travels as argv
-  (capped at 256 KiB); the relay MCP server attaches via
+  (capped at 256 KiB); the devchestra MCP server attaches via
   `OPENCODE_CONFIG_CONTENT` inline JSON (`type: local`, command
   `[shim, ...args]`, environment, enabled) on fresh and resume alike, and
-  `submit_result` is addressed as `relay_submit_result`.
+  `submit_result` is addressed as `devchestra_submit_result`.
   `step_start`/`text`/`tool_use`/`step_finish`/`error` map to
   session/text/tool/usage/turn_end; `step_finish` tokens are per-step deltas
   emitted directly (`usageIsCumulative: false`). Model catalog is
@@ -169,12 +169,12 @@ even when declared. `TERM=dumb` and `CI=1` are forced.
   [--session-id <id>] -- <prompt>`; model via `piProvider.modelArg`, provider
   via `--provider`. Discovery returns provider-qualified `provider/model` ids
   so catalog selection round-trips through `--model`/`--provider` without
-  ambiguity. The isolated `PI_CODING_AGENT_DIR` carries relay `mcp.json` plus
+  ambiguity. The isolated `PI_CODING_AGENT_DIR` carries devchestra `mcp.json` plus
   symlinks to the canonical `auth.json`/`models.json`/`settings.json` when
   present (refresh writes persist back); provider API-key variables also pass
   the child-env allowlist. Symlinks share the file but not Pi's lock
   (proper-lockfile `realpath:false` locks beside the supplied path), so the
-  engine holds `auth.json.relay-lock` in the canonical dir across Pi runs
+  engine holds `auth.json.devchestra-lock` in the canonical dir across Pi runs
   sharing it. Catalog is `pi --list-models [search]`.
   Each completed message's usage is counted once from `message_end`;
   streaming deltas and the `turn_end` echo are not counted.

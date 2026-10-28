@@ -1,9 +1,9 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import { isRecord } from "@relay/core";
+import { isRecord } from "@devchestra/core";
 import type { Context, MiddlewareHandler } from "hono";
-import { RelayError } from "../errors.js";
+import { DevChestraError } from "../errors.js";
 
-export const SESSION_COOKIE = "relay_session";
+export const SESSION_COOKIE = "devchestra_session";
 export const SESSION_COOKIE_HEADER = `${SESSION_COOKIE}=`;
 
 export function constantTimeEqual(left: string, right: string): boolean {
@@ -51,7 +51,7 @@ export function clearSessionCookie(): string {
 }
 
 export function applySecurityHeaders(headers: Headers, path: string): void {
-  headers.set("X-Relay-Api", "1");
+  headers.set("X-DevChestra-Api", "1");
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("Referrer-Policy", "no-referrer");
   headers.set(
@@ -122,9 +122,9 @@ export function csrfGuard(): MiddlewareHandler {
       await next();
       return;
     }
-    if (c.req.header("x-relay-csrf") !== "1") {
+    if (c.req.header("x-devchestra-csrf") !== "1") {
       return c.json(
-        { error: { code: "E_FORBIDDEN_PATH", message: "X-Relay-Csrf: 1 is required." } },
+        { error: { code: "E_FORBIDDEN_PATH", message: "X-DevChestra-Csrf: 1 is required." } },
         403,
       );
     }
@@ -156,11 +156,11 @@ export async function readJsonObject(
 ): Promise<Record<string, unknown>> {
   const declared = Number(c.req.header("content-length"));
   if (Number.isFinite(declared) && declared > options.maxBytes) {
-    throw new RelayError("E_PAYLOAD_TOO_LARGE", "Request body is too large.");
+    throw new DevChestraError("E_PAYLOAD_TOO_LARGE", "Request body is too large.");
   }
   const body = c.req.raw.body;
   if (body === null) {
-    throw new RelayError("E_VALIDATION", "Request body must be a JSON object.");
+    throw new DevChestraError("E_VALIDATION", "Request body must be a JSON object.");
   }
   const controller = new AbortController();
   const timeoutMs = options.timeoutMs ?? 30_000;
@@ -175,7 +175,7 @@ export async function readJsonObject(
   try {
     for (;;) {
       if (controller.signal.aborted) {
-        throw new RelayError("E_VALIDATION", "Request body was not received in time.");
+        throw new DevChestraError("E_VALIDATION", "Request body was not received in time.");
       }
       const next = await reader.read();
       if (next.done) break;
@@ -184,7 +184,7 @@ export async function readJsonObject(
       total += value.byteLength;
       if (total > options.maxBytes) {
         await reader.cancel().catch(() => undefined);
-        throw new RelayError("E_PAYLOAD_TOO_LARGE", "Request body is too large.");
+        throw new DevChestraError("E_PAYLOAD_TOO_LARGE", "Request body is too large.");
       }
       chunks.push(value);
     }
@@ -198,16 +198,16 @@ export async function readJsonObject(
     }
   }
   if (controller.signal.aborted) {
-    throw new RelayError("E_VALIDATION", "Request body was not received in time.");
+    throw new DevChestraError("E_VALIDATION", "Request body was not received in time.");
   }
   let parsed: unknown;
   try {
     parsed = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)));
   } catch {
-    throw new RelayError("E_VALIDATION", "Request body must be valid UTF-8 JSON.");
+    throw new DevChestraError("E_VALIDATION", "Request body must be valid UTF-8 JSON.");
   }
   if (!isRecord(parsed)) {
-    throw new RelayError("E_VALIDATION", "Request body must be a JSON object.");
+    throw new DevChestraError("E_VALIDATION", "Request body must be a JSON object.");
   }
   return parsed;
 }

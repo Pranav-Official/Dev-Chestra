@@ -25,7 +25,7 @@ log({
     HOME: process.env.HOME ?? null,
     CODEX_HOME: process.env.CODEX_HOME ?? null,
     UNRELATED_SECRET: process.env.UNRELATED_SECRET ?? null,
-    RELAY_LEAK_SENTINEL: process.env.RELAY_LEAK_SENTINEL ?? null,
+    DEVCHESTRA_LEAK_SENTINEL: process.env.DEVCHESTRA_LEAK_SENTINEL ?? null,
     STUB_SCENARIO: process.env.STUB_SCENARIO ?? null,
   },
 });

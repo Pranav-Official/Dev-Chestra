@@ -1,4 +1,4 @@
-import { canonicalJson, type RelayError, type Result } from "@relay/core";
+import { canonicalJson, type DevChestraError, type Result } from "@devchestra/core";
 import { analyzeGraph } from "./graph.js";
 import { normalizeOutputSchema } from "./output-schema.js";
 import type { Graph, Issue, JoinNode, JsonSchemaObject, WorkflowNode } from "./types.js";
@@ -323,7 +323,9 @@ export function assignableOutputSchemas(
 }
 
 /** Normalize a declared join output; returns null when absent. */
-export function normalizeJoinOutput(join: JoinNode): Result<JsonSchemaObject | null, RelayError> {
+export function normalizeJoinOutput(
+  join: JoinNode,
+): Result<JsonSchemaObject | null, DevChestraError> {
   if (join.output === undefined) return { ok: true, value: null };
   const result = normalizeOutputSchema(join.output);
   return result.ok ? { ok: true, value: result.value } : result;

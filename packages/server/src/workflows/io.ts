@@ -18,8 +18,8 @@ import {
   writeSync,
 } from "node:fs";
 import { isAbsolute, join, relative, sep } from "node:path";
-import { MAX_WORKFLOW_FILE_BYTES, WORKFLOW_ID_PATTERN } from "@relay/schema";
-import { RelayError } from "../errors.js";
+import { MAX_WORKFLOW_FILE_BYTES, WORKFLOW_ID_PATTERN } from "@devchestra/schema";
+import { DevChestraError } from "../errors.js";
 
 export const MAX_WORKFLOW_BYTES = MAX_WORKFLOW_FILE_BYTES;
 export { WORKFLOW_ID_PATTERN };
@@ -45,12 +45,12 @@ export interface ManagedFile {
   updatedAt: number;
 }
 
-function forbidden(message: string): RelayError {
-  return new RelayError("E_FORBIDDEN_PATH", message);
+function forbidden(message: string): DevChestraError {
+  return new DevChestraError("E_FORBIDDEN_PATH", message);
 }
 
-function conflict(currentEtag: string): RelayError {
-  return new RelayError("E_CONFLICT", "The workflow changed on disk. Reload it and retry.", {
+function conflict(currentEtag: string): DevChestraError {
+  return new DevChestraError("E_CONFLICT", "The workflow changed on disk. Reload it and retry.", {
     currentEtag,
   });
 }
@@ -62,7 +62,7 @@ function within(root: string, candidate: string): boolean {
 
 export function assertWorkflowId(value: unknown): string {
   if (typeof value !== "string" || !WORKFLOW_ID_PATTERN.test(value)) {
-    throw new RelayError(
+    throw new DevChestraError(
       "E_VALIDATION",
       "Workflow id must match ^[a-z0-9-]{1,64}$ and equal the file stem.",
     );
@@ -80,17 +80,17 @@ export function quoteEtag(etag: string): string {
 
 export function parseIfMatch(value: string | undefined): string {
   if (value === undefined || value === "") {
-    throw new RelayError("E_VALIDATION", "If-Match is required for this request.");
+    throw new DevChestraError("E_VALIDATION", "If-Match is required for this request.");
   }
   if (value.includes(",") || value.startsWith("W/") || value === "*") {
-    throw new RelayError("E_VALIDATION", "If-Match must be one strong ETag.");
+    throw new DevChestraError("E_VALIDATION", "If-Match must be one strong ETag.");
   }
   if (value.length < 3 || !value.startsWith('"') || !value.endsWith('"')) {
-    throw new RelayError("E_VALIDATION", "If-Match must be a quoted strong ETag.");
+    throw new DevChestraError("E_VALIDATION", "If-Match must be a quoted strong ETag.");
   }
   const inner = value.slice(1, -1);
   if (inner === "" || /[\r\n\t ]/u.test(inner)) {
-    throw new RelayError("E_VALIDATION", "If-Match must be a quoted strong ETag.");
+    throw new DevChestraError("E_VALIDATION", "If-Match must be a quoted strong ETag.");
   }
   return inner;
 }
@@ -100,7 +100,7 @@ function checkedDirectory(path: string, root: string): void {
   try {
     stat = lstatSync(path);
   } catch {
-    throw new RelayError("E_NOT_FOUND", "The project workflow directory does not exist.");
+    throw new DevChestraError("E_NOT_FOUND", "The project workflow directory does not exist.");
   }
   if (stat.isSymbolicLink() || !stat.isDirectory()) {
     throw forbidden("Managed workflow paths must be real directories, not symlinks.");
@@ -129,24 +129,24 @@ export function managedPaths(
   options: { create: boolean },
 ): ManagedPaths | null {
   const root = realpathSync.native(projectRoot);
-  const relay = join(root, ".relay");
-  const workflows = join(relay, "workflows");
+  const devchestra = join(root, ".devchestra");
+  const workflows = join(devchestra, "workflows");
   if (options.create) {
-    ensureDirectory(relay, root);
+    ensureDirectory(devchestra, root);
     ensureDirectory(workflows, root);
   } else {
     try {
-      checkedDirectory(relay, root);
+      checkedDirectory(devchestra, root);
       checkedDirectory(workflows, root);
     } catch (error) {
-      if (error instanceof RelayError && error.code === "E_NOT_FOUND") return null;
+      if (error instanceof DevChestraError && error.code === "E_NOT_FOUND") return null;
       throw error;
     }
   }
   return {
     root,
     workflows,
-    relativeWorkflows: ".relay/workflows",
+    relativeWorkflows: ".devchestra/workflows",
   };
 }
 
@@ -159,7 +159,7 @@ function readCapped(fd: number, maxBytes: number): Buffer {
     if (read === 0) break;
     total += read;
     if (total > maxBytes) {
-      throw new RelayError("E_PAYLOAD_TOO_LARGE", "Workflow file exceeds the 1 MiB limit.");
+      throw new DevChestraError("E_PAYLOAD_TOO_LARGE", "Workflow file exceeds the 1 MiB limit.");
     }
     chunks.push(chunk.subarray(0, read));
   }
@@ -177,7 +177,7 @@ function readFileCapped(
     fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
-    if (code === "ENOENT") throw new RelayError("E_NOT_FOUND", `${label} not found.`);
+    if (code === "ENOENT") throw new DevChestraError("E_NOT_FOUND", `${label} not found.`);
     if (code === "ELOOP") throw forbidden("File must be a regular file, not a symlink.");
     throw error;
   }
@@ -195,7 +195,7 @@ function readFileCapped(
       }
     }
     if (stat.size > maxBytes) {
-      throw new RelayError("E_PAYLOAD_TOO_LARGE", `${label} exceeds the 1 MiB limit.`);
+      throw new DevChestraError("E_PAYLOAD_TOO_LARGE", `${label} exceeds the 1 MiB limit.`);
     }
     return readCapped(fd, maxBytes);
   } finally {
@@ -269,8 +269,8 @@ export function readManagedFile(paths: ManagedPaths, id: string): ManagedFile {
       recoverOrphanedPublish(paths, id, path, stat),
     );
   } catch (error) {
-    if (error instanceof RelayError && error.code === "E_NOT_FOUND") {
-      throw new RelayError("E_NOT_FOUND", `Workflow '${id}' not found.`);
+    if (error instanceof DevChestraError && error.code === "E_NOT_FOUND") {
+      throw new DevChestraError("E_NOT_FOUND", `Workflow '${id}' not found.`);
     }
     throw error;
   }
@@ -373,7 +373,7 @@ export function createManagedFile(paths: ManagedPaths, id: string, bytes: Buffer
       linked = true;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "EEXIST") {
-        throw new RelayError("E_CONFLICT", `Workflow '${id}' already exists.`);
+        throw new DevChestraError("E_CONFLICT", `Workflow '${id}' already exists.`);
       }
       throw error;
     }
@@ -381,7 +381,7 @@ export function createManagedFile(paths: ManagedPaths, id: string, bytes: Buffer
   } finally {
     rmSync(temp, { force: true });
   }
-  if (!linked) throw new RelayError("E_INTERNAL", "Workflow was not created.");
+  if (!linked) throw new DevChestraError("E_INTERNAL", "Workflow was not created.");
   return committedFile(paths, id, bytes);
 }
 

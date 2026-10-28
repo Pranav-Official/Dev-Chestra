@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { readFile, readlink } from "node:fs/promises";
 import { basename } from "node:path";
-import { RelayError } from "@relay/core";
+import { DevChestraError } from "@devchestra/core";
 import type { ProcessIdentity, SpawnIdentity } from "./types.js";
 
 const DEFAULT_GRACE = 5_000;
@@ -178,7 +178,7 @@ export async function spawnIdentity(
 ): Promise<SpawnIdentity> {
   const identity = await identityWithRetry(pid);
   if (identity === null) {
-    throw new RelayError("E_INTERNAL", `Cannot read process identity for pid ${pid}`);
+    throw new DevChestraError("E_INTERNAL", `Cannot read process identity for pid ${pid}`);
   }
   return { ...identity, bin: identity.binary, pgid: pid, cwd, generation };
 }

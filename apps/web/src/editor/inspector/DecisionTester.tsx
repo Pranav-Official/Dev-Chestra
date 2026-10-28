@@ -1,6 +1,6 @@
-import type { DecisionTestResult } from "@relay/api";
-import { MAX_DECISION_TEST_STATE_BYTES } from "@relay/api";
-import type { DecisionNode } from "@relay/schema";
+import type { DecisionTestResult } from "@devchestra/api";
+import { MAX_DECISION_TEST_STATE_BYTES } from "@devchestra/api";
+import type { DecisionNode } from "@devchestra/schema";
 import { AlertCircle, CheckCircle2, PlayCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { DecisionResultView } from "../../ui/DecisionResult.js";

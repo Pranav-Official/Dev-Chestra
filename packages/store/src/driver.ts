@@ -20,7 +20,7 @@ export interface SqliteOpenOptions {
   readonly?: boolean;
 }
 
-/** The only seam through which @relay/store touches a SQLite implementation. */
+/** The only seam through which @devchestra/store touches a SQLite implementation. */
 export interface SqliteDriver {
   open(file: string, options?: SqliteOpenOptions): SqliteDb;
 }

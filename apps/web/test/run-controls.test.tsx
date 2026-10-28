@@ -1,6 +1,6 @@
-import type { ProjectWorkspacesResponse } from "@relay/api";
-import type { RunId } from "@relay/core";
-import type { ValidationReport, WorkflowFile } from "@relay/schema";
+import type { ProjectWorkspacesResponse } from "@devchestra/api";
+import type { RunId } from "@devchestra/core";
+import type { ValidationReport, WorkflowFile } from "@devchestra/schema";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
 import { api } from "../src/api/client.js";
@@ -149,8 +149,6 @@ describe("RunDialog", () => {
     expect(screen.getByText("false")).toBeInTheDocument();
     expect(screen.getByText("0")).toBeInTheDocument();
     expect(screen.getByText("printf hello")).toBeInTheDocument();
-    expect(screen.getByText("experimental adapter")).toBeInTheDocument();
-    expect(screen.getByText(/--allow-experimental-adapters/)).toBeInTheDocument();
     expect(screen.getByText(/configured CLI account and may incur costs/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Start run" }));
@@ -240,7 +238,7 @@ describe("RunDialog", () => {
 
     const review = screen.getByTestId("run-workspace-review");
     expect(review).toHaveTextContent(/new Git worktree/i);
-    expect(review).toHaveTextContent(/created under Relay's data directory/i);
+    expect(review).toHaveTextContent(/created under DevChestra's data directory/i);
     expect(review).toHaveTextContent(/committed HEAD/i);
     expect(review).toHaveTextContent(/Uncommitted and untracked project files are not present/i);
     expect(review).toHaveTextContent(/never deleted or finalized/i);

@@ -1,6 +1,6 @@
-# @relay/p3-smoke
+# @devchestra/p3-smoke
 
-Bounded P3 acceptance driver. It starts the real CLI (`relay start`) with an
+Bounded P3 acceptance driver. It starts the real CLI (`devchestra start`) with an
 owned temporary data directory, real SQLite, the real MCP shim, the real fake
 agent and the built web app. It never mocks route handlers and never calls a paid
 model CLI.
@@ -8,25 +8,25 @@ model CLI.
 ## Commands
 
 ```sh
-pnpm --filter @relay/p3-smoke typecheck
-pnpm --filter @relay/p3-smoke test        # real HTTP/ETag/conflict/security
-pnpm --filter @relay/p3-smoke test:e2e    # real Chromium authoring/run/conflicts/models/a11y
-pnpm --filter @relay/p3-smoke demo        # all scenarios, JSON summary
-pnpm --filter @relay/p3-smoke demo -- --scenario claude  # Claude SDK discovery only
+pnpm --filter @devchestra/p3-smoke typecheck
+pnpm --filter @devchestra/p3-smoke test        # real HTTP/ETag/conflict/security
+pnpm --filter @devchestra/p3-smoke test:e2e    # real Chromium authoring/run/conflicts/models/a11y
+pnpm --filter @devchestra/p3-smoke demo        # all scenarios, JSON summary
+pnpm --filter @devchestra/p3-smoke demo -- --scenario claude  # Claude SDK discovery only
 ```
 
 Root aliases: `pnpm test:p3`, `pnpm test:e2e:p3`, `pnpm demo:p3`.
 
 Prerequisites fail the run rather than skipping: `packages/cli/dist`,
 `apps/web/dist/index.html`, the MCP shim, `tools/fake-agent/dist/main.js`,
-`node:sqlite` and Chromium (`RELAY_CHROMIUM_PATH` or `/usr/bin/chromium`).
+`node:sqlite` and Chromium (`DEVCHESTRA_CHROMIUM_PATH` or `/usr/bin/chromium`).
 
 ## Ports and isolation
 
-There is no fixed port. `relay start --port 0` chooses an ephemeral loopback
+There is no fixed port. `devchestra start --port 0` chooses an ephemeral loopback
 port, read from `<temp-data-dir>/server.json`. Chromium uses a temporary
 persistent profile. Every test workspace is under `mkdtemp`; nothing is written
-inside the repository or to `~/.relay`.
+inside the repository or to `~/.devchestra`.
 
 Cleanup stops only the launched server (pid + canonical pidStart), the recorded
 agent processes and the run sandboxes owned by that temp data directory. A
@@ -49,14 +49,14 @@ sentinel process must survive cleanup. Timeout uses the same cleanup path.
   with items.maxLength 500).
 - Automatic handoff: a real two-agent Chrome flow with plain prompts and no
   templates. Agent 1 returns a runtime nonce plus 14 records; Agent 2's actual
-  fake process extracts the automatic `<relay_input_context>` data block and
+  fake process extracts the automatic `<devchestra_input_context>` data block and
   submits the received value through the real MCP/gateway.
 - Model selector: a real `codex`/`claude` PATH stand-in, cache-only GET with no
   spawn, explicit app-server `initialize`/`initialized`/`model/list` refresh with
   pagination, fuzzy/default/custom selection, CLI-change undo, stale/failure
   fencing, exact `-m` on the run argv, light/dark/narrow axe and screenshots.
   Test HOME/CODEX_HOME are temporary sentinels; no user auth is read.
-- Claude discovery: the built `@relay/adapters` uses the published
+- Claude discovery: the built `@devchestra/adapters` uses the published
   `@anthropic-ai/claude-agent-sdk` against the PATH `claude` stand-in. Cold GET
   is lazy `unavailable` with zero spawn; explicit refresh is `ready` /
   `claude-sdk` with dynamic `ModelInfo.value` ids, one SDK child, and only an

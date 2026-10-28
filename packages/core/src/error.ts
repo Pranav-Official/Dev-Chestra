@@ -24,19 +24,19 @@ export type ErrorCode =
   | "E_CANCELLED"
   | "E_INTERNAL";
 
-export interface RelayErrorOptions {
+export interface DevChestraErrorOptions {
   details?: unknown;
   cause?: unknown;
   retryable?: boolean;
 }
 
-export class RelayError extends Error {
-  override readonly name = "RelayError";
+export class DevChestraError extends Error {
+  override readonly name = "DevChestraError";
   readonly code: ErrorCode;
   readonly details?: unknown;
   readonly retryable?: boolean;
 
-  constructor(code: ErrorCode, message: string, opts: RelayErrorOptions = {}) {
+  constructor(code: ErrorCode, message: string, opts: DevChestraErrorOptions = {}) {
     super(message, opts.cause === undefined ? undefined : { cause: opts.cause });
     this.code = code;
     if (opts.details !== undefined) this.details = opts.details;
@@ -44,14 +44,14 @@ export class RelayError extends Error {
   }
 
   toJSON(): {
-    name: "RelayError";
+    name: "DevChestraError";
     code: ErrorCode;
     message: string;
     details?: unknown;
     retryable?: boolean;
   } {
     return {
-      name: "RelayError",
+      name: "DevChestraError",
       code: this.code,
       message: this.message,
       ...(this.details === undefined ? {} : { details: this.details }),
@@ -60,6 +60,6 @@ export class RelayError extends Error {
   }
 }
 
-export function isRelayError(value: unknown): value is RelayError {
-  return value instanceof RelayError;
+export function isDevChestraError(value: unknown): value is DevChestraError {
+  return value instanceof DevChestraError;
 }

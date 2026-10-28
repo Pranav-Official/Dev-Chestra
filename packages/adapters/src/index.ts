@@ -1,4 +1,4 @@
-import { RelayError } from "@relay/core";
+import { DevChestraError } from "@devchestra/core";
 import type { FakeAdapterOptions } from "./fake.js";
 import { getProvider, providerIds } from "./provider.js";
 import type { AdapterOptions, AdapterRegistry, CliAdapter, CliId, Invocation } from "./types.js";
@@ -87,7 +87,7 @@ export function createAdapterRegistry(options: AdapterRegistryOptions = {}): Ada
     get: (id) => {
       const existing = cache.get(id);
       if (existing !== undefined) return existing;
-      if (!ids.includes(id)) throw new RelayError("E_VALIDATION", `Adapter ${id} is disabled`);
+      if (!ids.includes(id)) throw new DevChestraError("E_VALIDATION", `Adapter ${id} is disabled`);
       const adapter = createAdapter(id, options);
       cache.set(id, adapter);
       return adapter;

@@ -1,4 +1,4 @@
-import { canonicalJson, err, ok, RelayError, type Result } from "@relay/core";
+import { canonicalJson, DevChestraError, err, ok, type Result } from "@devchestra/core";
 import {
   type CompiledExpression,
   compileExpression,
@@ -32,8 +32,8 @@ export interface RenderedTemplate {
   warnings: Issue[];
 }
 
-function templateError(message: string): RelayError {
-  return new RelayError("E_EXPR", message);
+function templateError(message: string): DevChestraError {
+  return new DevChestraError("E_EXPR", message);
 }
 
 function quotePosix(value: string): string {
@@ -66,7 +66,7 @@ function assertShellTemplate(parts: readonly TemplatePart[]): void {
       }
       if (quote !== "none") {
         fail(
-          `placeholder {{ ${part.source} }} is inside ${quote} quotes. Move it outside quotes; Relay only supports unquoted placeholder contexts.`,
+          `placeholder {{ ${part.source} }} is inside ${quote} quotes. Move it outside quotes; DevChestra only supports unquoted placeholder contexts.`,
         );
       }
       if (substitutions.length > 0) {
@@ -170,7 +170,7 @@ function assertShellTemplate(parts: readonly TemplatePart[]): void {
 export function compileTemplate(
   source: string,
   options: CompileTemplateOptions = {},
-): Result<CompiledTemplate, RelayError> {
+): Result<CompiledTemplate, DevChestraError> {
   const parts: TemplatePart[] = [];
   let literal = "";
   const flush = (): void => {
@@ -217,7 +217,7 @@ export function compileTemplate(
     try {
       assertShellTemplate(parts);
     } catch (error) {
-      return err(error instanceof RelayError ? error : templateError(String(error)));
+      return err(error instanceof DevChestraError ? error : templateError(String(error)));
     }
   }
   return ok({ source, parts, shell });
@@ -228,7 +228,7 @@ export async function renderTemplate(
   template: string | CompiledTemplate,
   scope: Readonly<Record<string, unknown>>,
   options: RenderOptions = {},
-): Promise<Result<RenderedTemplate, RelayError>> {
+): Promise<Result<RenderedTemplate, DevChestraError>> {
   const shell = options.shell === true;
   let compiled: CompiledTemplate;
   if (typeof template === "string") {
@@ -241,7 +241,7 @@ export async function renderTemplate(
       try {
         assertShellTemplate(compiled.parts);
       } catch (error) {
-        return err(error instanceof RelayError ? error : templateError(String(error)));
+        return err(error instanceof DevChestraError ? error : templateError(String(error)));
       }
     }
   }

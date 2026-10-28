@@ -21,7 +21,7 @@ import {
   waitValidation,
 } from "../../src/browser-ui.js";
 import { CLI, makeWorkspace, scriptPath } from "../../src/fixtures.js";
-import { RelayHttp } from "../../src/http.js";
+import { DevChestraHttp } from "../../src/http.js";
 import { type OwnedServer, shutdownOwned, startSentinel, startServer } from "../../src/owned.js";
 import { collectSpawnedAgents } from "../../src/store-read.js";
 import { getWorkflow, type WorkflowFileLike } from "../../src/workflow-api.js";
@@ -64,7 +64,7 @@ function nodeOf(file: WorkflowFileLike, type: "agent" | "shell"): Record<string,
 }
 
 async function executionDetail(
-  http: RelayHttp,
+  http: DevChestraHttp,
   runId: string,
   path: string,
 ): Promise<ExecutionDetail> {
@@ -93,7 +93,7 @@ beforeAll(() => {
 
 describe("run-level workspace review", () => {
   it("selects a new run worktree in Run Start and confirms it in the run review and details", async () => {
-    const ws = await makeWorkspace("relay-p3-worktree-review-");
+    const ws = await makeWorkspace("devchestra-p3-worktree-review-");
     const home = join(ws.root, "home");
     const codexHome = join(ws.root, "codex-home");
     const gitConfig = join(ws.root, "gitconfig");
@@ -192,7 +192,7 @@ describe("run-level workspace review", () => {
           GIT_CONFIG_NOSYSTEM: "1",
         },
       });
-      const http = new RelayHttp(server.baseUrl);
+      const http = new DevChestraHttp(server.baseUrl);
       await http.health();
       await http.bootstrap(server.meta.token);
 
@@ -301,7 +301,7 @@ describe("run-level workspace review", () => {
       await dialog.getByTestId("run-workspace-mode-new").check();
       await dialog.getByRole("button", { name: /review and run|review/i }).click();
       const reviewText = (await dialog.getByTestId("run-workspace-review").textContent()) ?? "";
-      assert.match(reviewText, /new Git worktree is created under Relay's data directory/u);
+      assert.match(reviewText, /new Git worktree is created under DevChestra's data directory/u);
       assert.match(reviewText, /Uncommitted and untracked project files are not present/u);
       assert.match(reviewText, /workspace is fixed for this run/u);
       const reviewShot = join(EVIDENCE_DIR, "run-review-workspace.png");

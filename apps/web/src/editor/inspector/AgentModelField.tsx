@@ -1,4 +1,4 @@
-import type { AgentNode, Issue } from "@relay/schema";
+import type { AgentNode, Issue } from "@devchestra/schema";
 import { useState } from "react";
 import { AgentModelPicker } from "./AgentModelPicker.js";
 import { describedBy, Field } from "./fields/fields.js";

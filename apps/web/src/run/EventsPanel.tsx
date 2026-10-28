@@ -1,4 +1,4 @@
-import type { EventEnvelope } from "@relay/core";
+import type { EventEnvelope } from "@devchestra/core";
 import { useEffect, useMemo, useState } from "react";
 import { formatEventTime } from "../ui/format.js";
 import {

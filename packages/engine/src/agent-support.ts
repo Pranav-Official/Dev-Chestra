@@ -1,8 +1,8 @@
-import { killOrphan } from "@relay/adapters";
-import { type AcceptedResultRef, type ExecutionIdentity, RelayError } from "@relay/core";
-import type { RunRecord } from "@relay/store";
-import type { ScratchWorkspace } from "@relay/workspaces";
-import { type ActiveRunState, type EngineContext, toRelayError } from "./context.js";
+import { killOrphan } from "@devchestra/adapters";
+import { type AcceptedResultRef, DevChestraError, type ExecutionIdentity } from "@devchestra/core";
+import type { RunRecord } from "@devchestra/store";
+import type { ScratchWorkspace } from "@devchestra/workspaces";
+import { type ActiveRunState, type EngineContext, toDevChestraError } from "./context.js";
 import type { PlanNode } from "./graph-plan.js";
 
 export function secretValues(ctx: EngineContext, token: string): string[] {
@@ -22,14 +22,18 @@ export function consumeNoSubmit(
     ctx.store.submissions.submit({
       identity,
       callId: `engine-no-submit-${identity.attempt}-${identity.generation}`,
-      request: { name: "relay.engine.no_submit", arguments: { generation: identity.generation } },
+      request: {
+        name: "devchestra.engine.no_submit",
+        arguments: { generation: identity.generation },
+      },
       ok: false,
       errors: [{ path: "/", message: "Agent ended without calling submit_result" }],
       errorCode: "E_NO_SUBMIT",
     });
     return "consumed";
   } catch (error) {
-    if (error instanceof RelayError && error.code === "E_ATTEMPTS_EXHAUSTED") return "exhausted";
+    if (error instanceof DevChestraError && error.code === "E_ATTEMPTS_EXHAUSTED")
+      return "exhausted";
     throw error;
   }
 }
@@ -76,13 +80,13 @@ export async function finalizeAccepted(
         { graceMs: 5_000 },
       );
     } catch (error) {
-      throw toRelayError(error, "E_WORKSPACE");
+      throw toDevChestraError(error, "E_WORKSPACE");
     }
     if (orphan.matched && !orphan.killed) {
       ctx.appendError(
         run.id,
         node.id,
-        new RelayError("E_WORKSPACE", "The accepted process group is still alive", {
+        new DevChestraError("E_WORKSPACE", "The accepted process group is still alive", {
           details: { step: "group_still_alive", pid: process.pid },
         }),
       );
@@ -90,7 +94,7 @@ export async function finalizeAccepted(
         reason: "shutdown",
         detail: "An accepted process group is still alive; retry after it exits",
       });
-      throw new RelayError("E_WORKSPACE", "Accepted process group is still alive");
+      throw new DevChestraError("E_WORKSPACE", "Accepted process group is still alive");
     }
   }
   let workspace: ScratchWorkspace;
@@ -107,28 +111,32 @@ export async function finalizeAccepted(
         true,
       );
     } catch (error) {
-      const relay = toRelayError(error, "E_WORKSPACE");
-      ctx.appendError(run.id, node.id, relay);
+      const devchestra = toDevChestraError(error, "E_WORKSPACE");
+      ctx.appendError(run.id, node.id, devchestra);
       ctx.append(run.id, "", "run.paused", "engine", {
         reason: "shutdown",
         detail: "The accepted workspace cannot be opened; human recovery required",
       });
-      throw relay;
+      throw devchestra;
     }
   }
   if (existingWorkspace === undefined && !workspace.reused) {
     ctx.appendError(
       run.id,
       node.id,
-      new RelayError("E_WORKSPACE", "The accepted workspace is missing; refusing to recreate it", {
-        details: { step: "workspace_lost", dir: workspace.dir },
-      }),
+      new DevChestraError(
+        "E_WORKSPACE",
+        "The accepted workspace is missing; refusing to recreate it",
+        {
+          details: { step: "workspace_lost", dir: workspace.dir },
+        },
+      ),
     );
     ctx.append(run.id, "", "run.paused", "engine", {
       reason: "shutdown",
       detail: "An accepted workspace is missing; human recovery required",
     });
-    throw new RelayError("E_WORKSPACE", "Accepted workspace is missing");
+    throw new DevChestraError("E_WORKSPACE", "Accepted workspace is missing");
   }
   try {
     const view = ctx.store.view.get(run.id).executions[node.id];

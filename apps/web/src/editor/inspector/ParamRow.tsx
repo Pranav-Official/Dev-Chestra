@@ -1,4 +1,4 @@
-import type { Issue, ParamType, WorkflowParam } from "@relay/schema";
+import type { Issue, ParamType, WorkflowParam } from "@devchestra/schema";
 import { Plus, Trash2 } from "lucide-react";
 import { useBufferFlag } from "./BufferContext.js";
 import { CheckboxField, describedBy, Field } from "./fields/fields.js";

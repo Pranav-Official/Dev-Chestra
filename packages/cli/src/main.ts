@@ -9,7 +9,7 @@ import { executeStart } from "./start.js";
 const VERSION = "0.1.0";
 
 function versionLine(): string {
-  return `relay ${VERSION} node ${process.versions.node} ${process.platform}/${process.arch}`;
+  return `devchestra ${VERSION} node ${process.versions.node} ${process.platform}/${process.arch}`;
 }
 
 async function main(): Promise<number> {
@@ -18,7 +18,7 @@ async function main(): Promise<number> {
     options = parseArgs(process.argv.slice(2));
   } catch (error) {
     if (error instanceof UsageError) {
-      process.stderr.write(`relay: ${error.message}\n\n${HELP}`);
+      process.stderr.write(`devchestra: ${error.message}\n\n${HELP}`);
       return 4;
     }
     throw error;
@@ -33,6 +33,11 @@ async function main(): Promise<number> {
     return 0;
   }
 
+  for (const flag of options.deprecatedFlags ?? []) {
+    process.stderr.write(
+      `note: ${flag} is deprecated and has no effect; all adapters are official.\n`,
+    );
+  }
   const dataDir = resolve(options.dataDir ?? "");
   if (options.command === "doctor") {
     const result = await runDoctor(dataDir, { probeDecisions: options.probeDecisions });
@@ -54,11 +59,11 @@ async function main(): Promise<number> {
       });
     } catch (error) {
       if (error instanceof UsageError) {
-        process.stderr.write(`relay: ${error.message}\n`);
+        process.stderr.write(`devchestra: ${error.message}\n`);
         return 4;
       }
       const safe = safeError(error);
-      process.stderr.write(`relay: ${safe.code}: ${safe.message}\n`);
+      process.stderr.write(`devchestra: ${safe.code}: ${safe.message}\n`);
       return exitCodeForError(error);
     } finally {
       process.removeListener("SIGINT", onSignal);
@@ -71,7 +76,7 @@ async function main(): Promise<number> {
     lock = await acquireDataDirLock(dataDir, VERSION);
   } catch (error) {
     if (error instanceof DataDirLockedError) {
-      process.stderr.write(`relay: ${error.message}\n`);
+      process.stderr.write(`devchestra: ${error.message}\n`);
       return 4;
     }
     throw error;
@@ -84,13 +89,13 @@ async function main(): Promise<number> {
     return await executeResume(options, dataDir);
   } catch (error) {
     if (error instanceof UsageError) {
-      process.stderr.write(`relay: ${error.message}\n`);
+      process.stderr.write(`devchestra: ${error.message}\n`);
       return 4;
     }
     const safe = safeError(error);
     const exitCode = exitCodeForError(error);
     writeSummary({ status: "failed", error: safe, exitCode }, options.json);
-    process.stderr.write(`relay: ${safe.code}: ${safe.message}\n`);
+    process.stderr.write(`devchestra: ${safe.code}: ${safe.message}\n`);
     return exitCode;
   } finally {
     await lock.release();

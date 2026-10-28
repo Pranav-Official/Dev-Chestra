@@ -1,4 +1,4 @@
-import type { RunStatus } from "@relay/core";
+import type { RunStatus } from "@devchestra/core";
 import { Folder, FolderGit2, History, PlayCircle } from "lucide-react";
 import { useMemo } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
@@ -216,7 +216,7 @@ export function ProjectRunsPage() {
             <div className="card">
               <EmptyState
                 title="No runs match"
-                message="Start a workflow from the Relay CLI, or clear the filters."
+                message="Start a workflow from the DevChestra CLI, or clear the filters."
               />
             </div>
           ) : (

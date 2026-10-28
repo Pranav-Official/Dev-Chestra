@@ -1,5 +1,5 @@
-import type { EventPageResponse } from "@relay/api";
-import type { EventEnvelope, RunId } from "@relay/core";
+import type { EventPageResponse } from "@devchestra/api";
+import type { EventEnvelope, RunId } from "@devchestra/core";
 import { describe, expect, it, vi } from "vitest";
 import { collectHistory } from "../src/api/history.js";
 

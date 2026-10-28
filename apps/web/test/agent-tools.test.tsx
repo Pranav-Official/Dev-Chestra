@@ -1,4 +1,4 @@
-import type { AgentNode, WorkflowNode } from "@relay/schema";
+import type { AgentNode, WorkflowNode } from "@devchestra/schema";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AgentTools } from "../src/editor/inspector/AgentTools.js";
@@ -107,11 +107,11 @@ function renderTools(node: AgentNode, client: McpServersClient, projectId = "p1"
 }
 
 describe("AgentTools", () => {
-  it("renders groups, transports and statuses with the relay row locked on", async () => {
+  it("renders groups, transports and statuses with the devchestra row locked on", async () => {
     const { client } = fakeClient(payload());
     renderTools(agent, client);
 
-    expect(await screen.findByTestId("inspector-tools-relay")).toHaveTextContent(
+    expect(await screen.findByTestId("inspector-tools-devchestra")).toHaveTextContent(
       /locked, always on/,
     );
     expect(screen.getByTestId("inspector-tools-group-global")).toBeInTheDocument();

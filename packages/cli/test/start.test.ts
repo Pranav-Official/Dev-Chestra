@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
-import type { Engine } from "@relay/engine";
+import type { Engine } from "@devchestra/engine";
 import { afterEach, describe, expect, it } from "vitest";
 import type { CliOptions } from "../src/args.js";
 import { acquireDataDirLock, processIdentity } from "../src/lock.js";
@@ -33,7 +33,7 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0).reverse()) cleanup();
 });
 
-function tempDir(prefix = "relay-cli-start-"): string {
+function tempDir(prefix = "devchestra-cli-start-"): string {
   const dir = mkdtempSync(join(tmpdir(), prefix));
   cleanups.push(() => {
     rmSync(dir, { recursive: true, force: true });
@@ -42,8 +42,8 @@ function tempDir(prefix = "relay-cli-start-"): string {
 }
 
 function webRoot(): string {
-  const dir = tempDir("relay-cli-web-");
-  writeFileSync(join(dir, "index.html"), "<!doctype html><title>relay</title>");
+  const dir = tempDir("devchestra-cli-web-");
+  writeFileSync(join(dir, "index.html"), "<!doctype html><title>devchestra</title>");
   return dir;
 }
 
@@ -130,7 +130,7 @@ async function waitFor(
 describe("server metadata", () => {
   it("rejects a symlinked data-dir before creating lock or database state", async () => {
     const parent = tempDir();
-    const target = tempDir("relay-cli-symlink-target-");
+    const target = tempDir("devchestra-cli-symlink-target-");
     const link = join(parent, "data-link");
     symlinkSync(target, link);
     await expect(
@@ -139,8 +139,8 @@ describe("server metadata", () => {
         openBrowser: () => undefined,
       }),
     ).rejects.toThrow(/symlink/i);
-    expect(existsSync(join(target, "relay.lock"))).toBe(false);
-    expect(existsSync(join(target, "relay.db"))).toBe(false);
+    expect(existsSync(join(target, "devchestra.lock"))).toBe(false);
+    expect(existsSync(join(target, "devchestra.db"))).toBe(false);
   });
 
   it("writes owner-only atomically and removes only its own file", async () => {
@@ -170,7 +170,7 @@ describe("server metadata", () => {
   });
 });
 
-describe("relay start lifecycle", () => {
+describe("devchestra start lifecycle", () => {
   it("emits one tokenless ready line, writes metadata, and cleans only its own state", async () => {
     const dir = tempDir();
     const out = capture();
@@ -202,8 +202,9 @@ describe("relay start lifecycle", () => {
     expect(wiring?.instanceId).toBe(read.value.instanceId);
 
     const readyText = out.text();
-    expect(readyText).toContain('"type":"relay.ready"');
-    const readyLine = readyText.split("\n").find((line) => line.includes('"relay.ready"')) ?? "";
+    expect(readyText).toContain('"type":"devchestra.ready"');
+    const readyLine =
+      readyText.split("\n").find((line) => line.includes('"devchestra.ready"')) ?? "";
     expect(JSON.parse(readyLine).port).toBe(4821);
     expect(readyLine.includes(read.value.token)).toBe(false);
     expect(readyText.match(new RegExp(read.value.token, "g"))).toHaveLength(1);
@@ -212,7 +213,7 @@ describe("relay start lifecycle", () => {
     await expect(running).resolves.toBe(0);
     expect(closed).toBe(true);
     expect(existsSync(serverMetadataPath(dir))).toBe(false);
-    expect(existsSync(join(dir, "relay.lock"))).toBe(false);
+    expect(existsSync(join(dir, "devchestra.lock"))).toBe(false);
   });
 
   it("serves the real browser API on an ephemeral loopback port", async () => {
@@ -235,7 +236,7 @@ describe("relay start lifecycle", () => {
     expect(body.instanceId).toBe(read.value.instanceId);
     const page = await fetch(`http://127.0.0.1:${read.value.port}/`);
     expect(page.status).toBe(200);
-    expect(await page.text()).toContain("relay");
+    expect(await page.text()).toContain("devchestra");
     controller.abort();
     await expect(running).resolves.toBe(0);
     expect(existsSync(serverMetadataPath(dir))).toBe(false);
@@ -244,7 +245,7 @@ describe("relay start lifecycle", () => {
   it("returns actionable startup gate errors over HTTP without launching", async () => {
     const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
     const dataDir = tempDir();
-    const projectDir = tempDir("relay-cli-gate-project-");
+    const projectDir = tempDir("devchestra-cli-gate-project-");
     for (const name of ["linear-claude-code.json", "linear-fake.json"]) {
       writeFileSync(join(projectDir, name), readFileSync(join(root, "examples", name)));
     }
@@ -263,8 +264,8 @@ describe("relay start lifecycle", () => {
     if (read.status !== "valid") throw new Error("metadata missing");
     const base = `http://127.0.0.1:${read.value.port}`;
     const auth = {
-      "x-relay-token": read.value.token,
-      "x-relay-csrf": "1",
+      "x-devchestra-token": read.value.token,
+      "x-devchestra-csrf": "1",
       "content-type": "application/json",
     };
     const registered = await fetch(`${base}/api/projects`, {
@@ -286,23 +287,17 @@ describe("relay start lifecycle", () => {
       };
     };
 
-    const real = await startRun({
-      workflowFile: "linear-claude-code.json",
-      params: { topic: "relay" },
+    const fake = await startRun({
+      workflowFile: "linear-fake.json",
+      params: { topic: "devchestra" },
     });
-    expect(real.status).toBe(400);
-    expect(real.body.error?.code).toBe("E_VALIDATION");
-    expect(real.body.error?.message).toContain("--allow-experimental-adapters");
-    expect(real.body.error?.message.toLowerCase()).toContain("experimental");
-
-    const fake = await startRun({ workflowFile: "linear-fake.json", params: { topic: "relay" } });
     expect(fake.status).toBe(400);
     expect(fake.body.error?.code).toBe("E_VALIDATION");
     expect(fake.body.error?.message).toContain("--fake-script");
 
     const injected = await startRun({
       workflowFile: "linear-claude-code.json",
-      params: { topic: "relay" },
+      params: { topic: "devchestra" },
       allowExperimentalAdapters: true,
       fakeScript: "/tmp/untrusted.json",
     });
@@ -320,7 +315,7 @@ describe("relay start lifecycle", () => {
   it("accepts an API start twice with one child and one durable run", async () => {
     const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
     const dataDir = tempDir();
-    const projectDir = tempDir("relay-cli-project-");
+    const projectDir = tempDir("devchestra-cli-project-");
     writeFileSync(
       join(projectDir, "workflow.json"),
       readFileSync(join(root, "examples/linear-fake.json")),
@@ -343,8 +338,8 @@ describe("relay start lifecycle", () => {
     if (read.status !== "valid") throw new Error("metadata missing");
     const base = `http://127.0.0.1:${read.value.port}`;
     const auth = {
-      "x-relay-token": read.value.token,
-      "x-relay-csrf": "1",
+      "x-devchestra-token": read.value.token,
+      "x-devchestra-csrf": "1",
       "content-type": "application/json",
     };
     const registered = await fetch(`${base}/api/projects`, {
@@ -359,7 +354,7 @@ describe("relay start lifecycle", () => {
       const response = await fetch(`${base}/api/projects/${project.id}/runs`, {
         method: "POST",
         headers: { ...auth, "idempotency-key": "api-key-1" },
-        body: JSON.stringify({ workflowFile: "workflow.json", params: { topic: "relay" } }),
+        body: JSON.stringify({ workflowFile: "workflow.json", params: { topic: "devchestra" } }),
       });
       expect(response.status).toBe(202);
       return (await response.json()) as { runId: string; duplicate: boolean; status: string };

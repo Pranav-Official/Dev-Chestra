@@ -1,4 +1,4 @@
-# @relay/decisions
+# @devchestra/decisions
 
 System One decision-model provider client (contract §7). Fixed provider
 presets (Jev, Clef, Clef-flash), secret loading, the intersection wire format,
@@ -28,6 +28,6 @@ Everything public is re-exported from `src/index.ts`. Modules:
 
 ## Tests
 
-`pnpm --filter @relay/decisions test`. Unit tests use stub `fetch`
+`pnpm --filter @devchestra/decisions test`. Unit tests use stub `fetch`
 implementations; integration tests use the loopback stand-in at
 `tools/fixtures/decisions/standin.mjs` (fake keys only, no live network).

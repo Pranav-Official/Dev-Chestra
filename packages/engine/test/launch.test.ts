@@ -1,14 +1,14 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAdapterRegistry } from "@relay/adapters";
-import { openStore, type Store } from "@relay/store";
+import { createAdapterRegistry } from "@devchestra/adapters";
+import { openStore, type Store } from "@devchestra/store";
 import {
   acquireScratch,
   finalizeScratch,
   prepareRunWorkspace,
   releaseScratch,
-} from "@relay/workspaces";
+} from "@devchestra/workspaces";
 import { afterEach, describe, expect, it } from "vitest";
 import { createEngine } from "../src/engine.js";
 import type { Engine, StartRunInput } from "../src/types.js";
@@ -26,8 +26,8 @@ interface Harness {
 }
 
 function harness(): Harness {
-  const dataDir = mkdtempSync(join(tmpdir(), "relay-engine-launch-"));
-  const store = openStore({ file: join(dataDir, "relay.db") });
+  const dataDir = mkdtempSync(join(tmpdir(), "devchestra-engine-launch-"));
+  const store = openStore({ file: join(dataDir, "devchestra.db") });
   store.projects.ensure({ id: "p1", name: "P1", path: dataDir, kind: "folder" });
   const engine = createEngine({
     store,

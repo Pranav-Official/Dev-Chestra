@@ -1,4 +1,4 @@
-import { MCP_SCOPES } from "@relay/schema";
+import { MCP_SCOPES } from "@devchestra/schema";
 import { catalogCliSchema } from "./model-catalog.js";
 import { projectIdSchema } from "./primitives.js";
 import { z } from "./zod.js";

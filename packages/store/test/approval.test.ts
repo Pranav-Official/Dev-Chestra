@@ -1,13 +1,13 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { FakeClock, FakeIdGen, type Path, RelayError } from "@relay/core";
+import { DevChestraError, FakeClock, FakeIdGen, type Path } from "@devchestra/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { openStore } from "../src/index.js";
 
 function harness(snapshot?: unknown) {
-  const dir = mkdtempSync(join(tmpdir(), "relay-approval-"));
-  const file = join(dir, "relay.db");
+  const dir = mkdtempSync(join(tmpdir(), "devchestra-approval-"));
+  const file = join(dir, "devchestra.db");
   const clock = new FakeClock(1_700_000_000_000);
   const store = openStore({ file, clock, idGen: new FakeIdGen("t") });
   store.projects.ensure({ id: "proj", name: "P", path: dir, kind: "folder" });
@@ -81,7 +81,7 @@ describe("approval store", () => {
       1,
     );
     expect(() => h.store.approvals.request({ identity: h.id, message: "different" })).toThrow(
-      RelayError,
+      DevChestraError,
     );
   });
 
@@ -93,7 +93,7 @@ describe("approval store", () => {
     const before = h.store.events.list(h.runId).length;
     expect(() =>
       h.store.approvals.request({ identity: h.id, message: `prefix ${sentinel} suffix` }),
-    ).toThrow(RelayError);
+    ).toThrow(DevChestraError);
     expect(h.store.events.list(h.runId).length).toBe(before);
     expect(h.store.approvals.listPending({ runId: h.runId }).length).toBe(0);
   });
@@ -105,7 +105,7 @@ describe("approval store", () => {
     h.store.security.registerSecret(sentinel, "s");
     expect(() =>
       h.store.approvals.request({ identity: h.id, message: "m", criteria: [sentinel] }),
-    ).toThrow(RelayError);
+    ).toThrow(DevChestraError);
     expect(h.store.approvals.listPending({ runId: h.runId }).length).toBe(0);
     const req = h.store.approvals.request({ identity: h.id, message: "clean" });
     expect(() =>
@@ -116,7 +116,7 @@ describe("approval store", () => {
         by: "u",
         note: sentinel,
       }),
-    ).toThrow(RelayError);
+    ).toThrow(DevChestraError);
     expect(h.store.view.get(h.runId).executions["a"]?.status).toBe("waiting_approval");
   });
 
@@ -151,7 +151,7 @@ describe("approval store", () => {
         by: "u",
         note: "x",
       }),
-    ).toThrow(RelayError);
+    ).toThrow(DevChestraError);
   });
 
   it("stale requestId and legacy null not resolvable", () => {
@@ -166,9 +166,9 @@ describe("approval store", () => {
         decision: "approve",
         by: "u",
       }),
-    ).toThrow(RelayError);
-    const dir = mkdtempSync(join(tmpdir(), "relay-legacy-"));
-    const file = join(dir, "relay.db");
+    ).toThrow(DevChestraError);
+    const dir = mkdtempSync(join(tmpdir(), "devchestra-legacy-"));
+    const file = join(dir, "devchestra.db");
     const clock = new FakeClock(1_700_000_000_000);
     const store = openStore({ file, clock, idGen: new FakeIdGen("t") });
     const runStoreCleanup = () => {
@@ -218,7 +218,7 @@ describe("approval store", () => {
         decision: "approve",
         by: "u",
       }),
-    ).toThrow(RelayError);
+    ).toThrow(DevChestraError);
   });
 
   it("wake survives crash until atomically consumed with next step", () => {
@@ -339,7 +339,7 @@ describe("approval store", () => {
         decision: "approve",
         by: "u",
       }),
-    ).toThrow(RelayError);
+    ).toThrow(DevChestraError);
     const res2 = h.store.approvals.resolve({
       identity: id2,
       requestId: req2.requestId,
@@ -356,7 +356,7 @@ describe("approval store", () => {
         decision: "approve",
         by: "u",
       }),
-    ).toThrow(RelayError);
+    ).toThrow(DevChestraError);
     // exact replay after terminal of attempt2 still duplicate (same identity)
     const dup = h.store.approvals.resolve({
       identity: id2,
@@ -395,6 +395,6 @@ describe("approval store", () => {
         decision: "approve",
         by: "u",
       }),
-    ).toThrow(RelayError);
+    ).toThrow(DevChestraError);
   });
 });

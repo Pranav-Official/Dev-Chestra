@@ -8,10 +8,10 @@ import {
   writeSync,
 } from "node:fs";
 import { join } from "node:path";
-import type { TranscriptEntry } from "@relay/adapters";
-import { fsSlug, type Path, RelayError } from "@relay/core";
-import { redactJson } from "@relay/store";
-import { resolveInside } from "@relay/workspaces";
+import type { TranscriptEntry } from "@devchestra/adapters";
+import { DevChestraError, fsSlug, type Path } from "@devchestra/core";
+import { redactJson } from "@devchestra/store";
+import { resolveInside } from "@devchestra/workspaces";
 
 export interface TranscriptWriter {
   write(entry: TranscriptEntry): void;
@@ -47,7 +47,7 @@ export function openTranscript(input: {
   const stat = fstatSync(fd);
   if (!stat.isFile()) {
     closeSync(fd);
-    throw new RelayError("E_WORKSPACE", "Transcript path is not a regular file");
+    throw new DevChestraError("E_WORKSPACE", "Transcript path is not a regular file");
   }
   let closed = false;
   let total = stat.size;
@@ -69,7 +69,7 @@ export function openTranscript(input: {
       closeSync(fd);
     },
     write(entry: TranscriptEntry): void {
-      if (closed) throw new RelayError("E_INTERNAL", "Transcript writer is closed");
+      if (closed) throw new DevChestraError("E_INTERNAL", "Transcript writer is closed");
       const payload = `${JSON.stringify({
         ts: entry.ts,
         kind: entry.kind,

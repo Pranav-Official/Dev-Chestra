@@ -1,8 +1,8 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { ok, type Path } from "@relay/core";
-import { openStore } from "@relay/store";
+import { ok, type Path } from "@devchestra/core";
+import { openStore } from "@devchestra/store";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -15,12 +15,12 @@ const mocks = vi.hoisted(() => ({
   }[],
 }));
 
-vi.mock("@relay/adapters", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@relay/adapters")>();
+vi.mock("@devchestra/adapters", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@devchestra/adapters")>();
   return { ...actual, runAgent: mocks.runAgent };
 });
 
-import type { AdapterRegistry, RunRequest } from "@relay/adapters";
+import type { AdapterRegistry, RunRequest } from "@devchestra/adapters";
 import { type ActiveRunState, EngineContext } from "../src/context.js";
 import { executeAgent } from "../src/exec-agent.js";
 import { analyzeLinearWorkflow, type LinearChain, type LinearNode } from "../src/sequence.js";
@@ -115,13 +115,13 @@ function workflow(): unknown {
 }
 
 function setup(runLevel: boolean) {
-  const base = mkdtempSync(join(tmpdir(), "relay-engine-checkpoint-"));
+  const base = mkdtempSync(join(tmpdir(), "devchestra-engine-checkpoint-"));
   const project = join(base, "project");
   const dataDir = join(base, "data");
   mkdirSync(project);
   mkdirSync(dataDir);
   cleanups.push(() => rmSync(base, { recursive: true, force: true }));
-  const store = openStore({ file: join(dataDir, "relay.db") });
+  const store = openStore({ file: join(dataDir, "devchestra.db") });
   cleanups.push(() => store.close());
   store.projects.ensure({ id: "p1", name: "P1", path: project, kind: "folder" });
   const snapshot = workflow();
@@ -265,7 +265,7 @@ describe("fake checkpoint placement", () => {
     await runNode(s.ctx, s.created.runId, s.chain, a, s.active);
     const capture = mocks.captures.find((entry) => entry.checkpoint?.includes("/a/"));
     const legacyDir = join(s.dataDir, "scratch", "a");
-    expect(capture?.checkpoint).toBe(join(legacyDir, ".relay/fake-checkpoint.json"));
+    expect(capture?.checkpoint).toBe(join(legacyDir, ".devchestra/fake-checkpoint.json"));
     expect(capture?.cwd).toBe(legacyDir);
     expect(capture?.execDir.includes("/a1g")).toBe(true);
   });

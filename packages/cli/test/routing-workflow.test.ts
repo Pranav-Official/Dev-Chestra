@@ -47,13 +47,13 @@ function dag(
 }
 
 async function write(workflow: unknown): Promise<void> {
-  const dir = join(project, ".relay", "workflows");
+  const dir = join(project, ".devchestra", "workflows");
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, "dag.json"), `${JSON.stringify(workflow, null, 2)}\n`, "utf8");
 }
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "relay-cli-dag-"));
+  root = await mkdtemp(join(tmpdir(), "devchestra-cli-dag-"));
   project = join(root, "project");
   await mkdir(project, { recursive: true });
 });
@@ -65,7 +65,7 @@ afterEach(async () => {
 describe("CLI DAG loading", () => {
   it("accepts and normalizes a gate/join workflow through the shared schema", async () => {
     await write(dag());
-    const loaded = await loadWorkflow(project, ".relay/workflows/dag.json");
+    const loaded = await loadWorkflow(project, ".devchestra/workflows/dag.json");
     expect(loaded.normalized.graph.nodes.map((node) => node.type)).toEqual(
       expect.arrayContaining(["start", "shell", "gate", "join", "end"]),
     );
@@ -85,7 +85,7 @@ describe("CLI DAG loading", () => {
         { id: "also", when: "false" },
       ]),
     );
-    await expect(loadWorkflow(project, ".relay/workflows/dag.json")).rejects.toMatchObject({
+    await expect(loadWorkflow(project, ".devchestra/workflows/dag.json")).rejects.toMatchObject({
       code: "E_WORKFLOW_INVALID",
     });
   });

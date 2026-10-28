@@ -15,7 +15,7 @@ import {
   waitValidation,
 } from "../../src/browser-ui.js";
 import { CLI, REPO_ROOT } from "../../src/fixtures.js";
-import { RelayHttp } from "../../src/http.js";
+import { DevChestraHttp } from "../../src/http.js";
 import { shutdownOwned, startSentinel, startServer } from "../../src/owned.js";
 import { getWorkflow } from "../../src/workflow-api.js";
 import {
@@ -42,8 +42,8 @@ import { connectAndAssert, raiseCleanup } from "./approval-helpers.js";
 
 describe("P3.5 approval browser — real UI+inbox (launch held until freeze)", () => {
   it("authors valid exclusive-end approval graph, runs, inbox pending, approve with note, replay", async () => {
-    const repo = makeRunWorkspaceRepo("relay-p35-browser-");
-    const work = tempRoot("relay-p35-browser-work-");
+    const repo = makeRunWorkspaceRepo("devchestra-p35-browser-");
+    const work = tempRoot("devchestra-p35-browser-work-");
     const dataDir = join(work.dir, "data");
     const profileDir = join(work.dir, "profile");
     mkdirSync(dataDir, { recursive: true });
@@ -67,7 +67,7 @@ describe("P3.5 approval browser — real UI+inbox (launch held until freeze)", (
           GIT_CONFIG_NOSYSTEM: "1",
         },
       });
-      const http = new RelayHttp(server.baseUrl);
+      const http = new DevChestraHttp(server.baseUrl);
       await http.health();
       await http.bootstrap(server.meta.token);
       const { context: ctx, page: warm } = await launchBrowser({

@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import type { Path } from "@relay/core";
+import type { Path } from "@devchestra/core";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   type AcquireScratchRequest,
@@ -45,11 +45,11 @@ function git(cwd: string, ...args: string[]): string {
 }
 
 function makeRepo(): { root: string; base: string } {
-  const root = join(tempDir("relay-run-repo-"), "repo");
+  const root = join(tempDir("devchestra-run-repo-"), "repo");
   mkdirSync(root);
   git(root, "init", "-q", "-b", "main");
-  git(root, "config", "user.email", "relay@example.invalid");
-  git(root, "config", "user.name", "Relay Test");
+  git(root, "config", "user.email", "devchestra@example.invalid");
+  git(root, "config", "user.name", "DevChestra Test");
   writeFileSync(join(root, "tracked.txt"), "committed\n");
   git(root, "add", ".");
   git(root, "commit", "-q", "-m", "initial");
@@ -57,7 +57,7 @@ function makeRepo(): { root: string; base: string } {
 }
 
 function dataDir(): string {
-  return join(tempDir("relay-run-data-"), "data");
+  return join(tempDir("devchestra-run-data-"), "data");
 }
 
 type Selection =
@@ -100,7 +100,7 @@ function runDir(ws: ScratchWorkspace): string {
 
 describe("project root run workspace", () => {
   it("runs every node in the registered root, sees dirty files, and never removes it", async () => {
-    const root = tempDir("relay-run-project-");
+    const root = tempDir("devchestra-run-project-");
     writeFileSync(join(root, "README.md"), "project\n");
     writeFileSync(join(root, "dirty.txt"), "uncommitted\n");
     writeFileSync(join(root, "README.md"), "modified\n");
@@ -135,7 +135,7 @@ describe("project root run workspace", () => {
   });
 
   it("does not require Git for a project folder", async () => {
-    const root = tempDir("relay-run-folder-");
+    const root = tempDir("devchestra-run-folder-");
     writeFileSync(join(root, "note.txt"), "hello\n");
     const ws = unwrap(await acquire(dataDir(), runSelection(root, { mode: "project" })));
     expect(ws.mode).toBe("project");
@@ -149,7 +149,7 @@ describe("project root run workspace", () => {
 describe("existing worktree run workspace", () => {
   it("lists alternatives without the main root and selects a canonical listed worktree", async () => {
     const { root, base } = makeRepo();
-    const wt = join(tempDir("relay-run-wt-"), "existing");
+    const wt = join(tempDir("devchestra-run-wt-"), "existing");
     git(root, "worktree", "add", "-q", "-b", "feature", wt, base);
     writeFileSync(join(wt, "dirty.txt"), "dirty in worktree\n");
 
@@ -170,13 +170,13 @@ describe("existing worktree run workspace", () => {
     expect(ws.dir).toBe(realpathSync(wt));
     expect(readFileSync(join(ws.dir, "dirty.txt"), "utf8")).toBe("dirty in worktree\n");
     expect(ws.markerFile.startsWith(ws.dataDir)).toBe(true);
-    expect(existsSync(join(wt, ".relay-finalized.1.1.json"))).toBe(false);
+    expect(existsSync(join(wt, ".devchestra-finalized.1.1.json"))).toBe(false);
     expect(readdirSync(wt).sort()).toEqual([".git", "dirty.txt", "tracked.txt"]);
   });
 
   it("keeps the frozen base but allows ordinary commits and resume in the user's tree", async () => {
     const { root, base } = makeRepo();
-    const wt = join(tempDir("relay-run-wt-"), "existing");
+    const wt = join(tempDir("devchestra-run-wt-"), "existing");
     git(root, "worktree", "add", "-q", "-b", "feature", wt, base);
     const data = dataDir();
     const first = unwrap(
@@ -201,12 +201,12 @@ describe("existing worktree run workspace", () => {
     expect(readFileSync(join(resumed.dir, "work.txt"), "utf8")).toBe("committed by workflow\n");
     expect(unwrap(await finalize(resumed, 2, 2)).dir).toBe(realpathSync(wt));
     expect(git(wt, "rev-parse", "HEAD")).toBe(moved);
-    expect(existsSync(join(wt, ".relay-finalized.2.2.json"))).toBe(false);
+    expect(existsSync(join(wt, ".devchestra-finalized.2.2.json"))).toBe(false);
   });
 
   it("rejects unlisted directories, symlinked paths and the main root", async () => {
     const { root } = makeRepo();
-    const outside = join(tempDir("relay-run-outside-"), "other");
+    const outside = join(tempDir("devchestra-run-outside-"), "other");
     mkdirSync(outside);
     const data = dataDir();
 
@@ -217,7 +217,7 @@ describe("existing worktree run workspace", () => {
       expect(error.code).toBe("E_VALIDATION");
     }
 
-    const link = join(tempDir("relay-run-link-"), "link");
+    const link = join(tempDir("devchestra-run-link-"), "link");
     symlinkSync(root, link);
     const linked = expectError(
       await validateRunWorkspace(root, { mode: "existing-worktree", path: link }),
@@ -287,7 +287,7 @@ describe("new worktree run workspace", () => {
 
 describe("run workspace identity and recovery", () => {
   it("prepare persists the frozen identity before the first dispatch", async () => {
-    const root = tempDir("relay-run-prepare-");
+    const root = tempDir("devchestra-run-prepare-");
     const data = dataDir();
     const identity = unwrap(
       await prepareRunWorkspace({
@@ -310,8 +310,8 @@ describe("run workspace identity and recovery", () => {
   });
 
   it("fails closed when the run selection or project root changes", async () => {
-    const root = tempDir("relay-run-frozen-");
-    const other = tempDir("relay-run-other-");
+    const root = tempDir("devchestra-run-frozen-");
+    const other = tempDir("devchestra-run-other-");
     const data = dataDir();
     unwrap(await acquire(data, runSelection(root, { mode: "project" })));
 
@@ -323,7 +323,7 @@ describe("run workspace identity and recovery", () => {
   });
 
   it("prepare then acquires first and downstream nodes with requireExisting in project mode", async () => {
-    const root = tempDir("relay-run-recover-");
+    const root = tempDir("devchestra-run-recover-");
     const data = dataDir();
     unwrap(
       await prepareRunWorkspace({
@@ -368,7 +368,7 @@ describe("run workspace identity and recovery", () => {
 
   it("prepare then acquires first and downstream nodes with requireExisting in existing-worktree mode", async () => {
     const { root, base } = makeRepo();
-    const wt = join(tempDir("relay-run-recover-wt-"), "existing");
+    const wt = join(tempDir("devchestra-run-recover-wt-"), "existing");
     git(root, "worktree", "add", "-q", "-b", "feature", wt, base);
     const data = dataDir();
     unwrap(
@@ -395,7 +395,7 @@ describe("run workspace identity and recovery", () => {
     );
     expect(first.dir).toBe(realpathSync(wt));
     expect(second.dir).toBe(first.dir);
-    expect(existsSync(join(wt, ".relay-finalized.1.1.json"))).toBe(false);
+    expect(existsSync(join(wt, ".devchestra-finalized.1.1.json"))).toBe(false);
     expect(git(wt, "status", "--porcelain")).toBe("");
   });
 
@@ -430,7 +430,7 @@ describe("run workspace identity and recovery", () => {
   });
 
   it("rejects a missing run binding on resume and never recreates it", async () => {
-    const root = tempDir("relay-run-missing-binding-");
+    const root = tempDir("devchestra-run-missing-binding-");
     const data = dataDir();
     unwrap(await acquire(data, runSelection(root, { mode: "project" })));
     const file = join(data, "projects", "proj-1", "runs", "run-1", "run-workspace.json");
@@ -460,7 +460,7 @@ describe("run workspace identity and recovery", () => {
   });
 
   it("detects a project root replaced at the frozen path on acquire and finalize", async () => {
-    const root = join(tempDir("relay-run-replaced-"), "project");
+    const root = join(tempDir("devchestra-run-replaced-"), "project");
     mkdirSync(root);
     writeFileSync(join(root, "keep.txt"), "keep\n");
     const data = dataDir();
@@ -481,7 +481,7 @@ describe("run workspace identity and recovery", () => {
 
   it("detects a selected worktree replaced at the frozen path before finalize", async () => {
     const { root, base } = makeRepo();
-    const wt = join(tempDir("relay-run-replaced-wt-"), "existing");
+    const wt = join(tempDir("devchestra-run-replaced-wt-"), "existing");
     git(root, "worktree", "add", "-q", "-b", "feature", wt, base);
     const data = dataDir();
     const ws = unwrap(

@@ -1,15 +1,15 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ProjectWorkspacesResponse, RunWorkspaceSelection } from "@relay/api";
-import type { RunId } from "@relay/core";
+import type { ProjectWorkspacesResponse, RunWorkspaceSelection } from "@devchestra/api";
+import type { RunId } from "@devchestra/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   type BrowserQueryPort,
   type BrowserRunControllerPort,
   type BrowserWorkspacePort,
+  DevChestraError,
   type ProjectView,
-  RelayError,
   type RunningBrowserServer,
   type StartRunCommand,
   type StartRunResponse,
@@ -102,7 +102,7 @@ function workspaceService(): BrowserWorkspacePort {
     validate(_rootPath, selection) {
       validateCalls.push(selection);
       if (selection.mode === "existing-worktree" && selection.path !== worktreePath) {
-        throw new RelayError("E_VALIDATION", "That path is not a worktree of this project.");
+        throw new DevChestraError("E_VALIDATION", "That path is not a worktree of this project.");
       }
       return selection;
     },
@@ -116,7 +116,7 @@ function url(path: string): string {
 function headers(mutation = false): Record<string, string> {
   return {
     Cookie: cookie,
-    ...(mutation ? { "Content-Type": "application/json", "X-Relay-Csrf": "1" } : {}),
+    ...(mutation ? { "Content-Type": "application/json", "X-DevChestra-Csrf": "1" } : {}),
   };
 }
 
@@ -145,7 +145,7 @@ async function createWorkflow(): Promise<string> {
 }
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "relay-ws-http-"));
+  root = await mkdtemp(join(tmpdir(), "devchestra-ws-http-"));
   dataDir = join(root, "data");
   projectPath = join(root, "project");
   worktreePath = join(root, "worktree");
@@ -155,7 +155,7 @@ beforeEach(async () => {
   await mkdir(dataDir, { recursive: true });
   await mkdir(projectPath, { recursive: true });
   await mkdir(worktreePath, { recursive: true });
-  await mkdir(join(projectPath, ".relay", "workflows"), { recursive: true });
+  await mkdir(join(projectPath, ".devchestra", "workflows"), { recursive: true });
   server = await startBrowserServer({
     dataDir,
     store: store(),

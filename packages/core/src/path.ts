@@ -1,4 +1,4 @@
-import { RelayError } from "./error.js";
+import { DevChestraError } from "./error.js";
 import type { Brand, NodeId } from "./ids.js";
 import type { Result } from "./result.js";
 import { err, ok } from "./result.js";
@@ -18,8 +18,8 @@ const RESERVED_FS_RE = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 export const RUN_PATH = "" as Path;
 export const SUPERVISOR_PATH = "supervisor" as Path;
 
-function validation(message: string): RelayError {
-  return new RelayError("E_VALIDATION", message);
+function validation(message: string): DevChestraError {
+  return new DevChestraError("E_VALIDATION", message);
 }
 
 function isNodeId(node: string): node is NodeId {
@@ -30,7 +30,7 @@ function safeNonNegativeInt(value: number): boolean {
   return Number.isSafeInteger(value) && value >= 0;
 }
 
-export function parsePath(input: string): Result<Segment[], RelayError> {
+export function parsePath(input: string): Result<Segment[], DevChestraError> {
   if (input === "") return ok([]);
   if (input.startsWith("/") || input.endsWith("/")) {
     return err(validation(`Path cannot start or end with '/': ${input}`));

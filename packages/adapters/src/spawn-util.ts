@@ -1,17 +1,17 @@
 import type { spawn } from "node:child_process";
-import { RelayError } from "@relay/core";
+import { DevChestraError } from "@devchestra/core";
 import type { CommandHooks, RunHooks } from "./types.js";
 
 export function redacted(hook: RunHooks | CommandHooks, text: string): string {
   return hook.redact === undefined ? text : hook.redact(text);
 }
 
-export function spawnFailure(error: unknown): RelayError {
+export function spawnFailure(error: unknown): DevChestraError {
   const code = (error as NodeJS.ErrnoException).code;
   if (code === "ENOENT") {
-    return new RelayError("E_CLI_MISSING", "CLI executable was not found", { cause: error });
+    return new DevChestraError("E_CLI_MISSING", "CLI executable was not found", { cause: error });
   }
-  return new RelayError("E_INTERNAL", "Failed to spawn child process", { cause: error });
+  return new DevChestraError("E_INTERNAL", "Failed to spawn child process", { cause: error });
 }
 
 export function waitSpawn(child: ReturnType<typeof spawn>): Promise<void> {

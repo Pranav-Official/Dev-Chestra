@@ -1,4 +1,4 @@
-import { RelayError } from "./error.js";
+import { DevChestraError } from "./error.js";
 import type { EventEnvelope, KnownEventType } from "./events.js";
 import {
   assertIdentity,
@@ -227,7 +227,7 @@ export function reduceExecutionEvent(view: RunView, envelope: EventEnvelope): Ru
         });
       }
       if (exec.acceptedResult !== null) {
-        throw new RelayError(
+        throw new DevChestraError(
           "E_CONFLICT",
           "Accepted result must be finalized without starting a new process generation",
           { details: { path, generation: exec.generation } },
@@ -408,7 +408,7 @@ export function reduceExecutionEvent(view: RunView, envelope: EventEnvelope): Ru
           ) {
             return exec;
           }
-          throw new RelayError(
+          throw new DevChestraError(
             "E_CONFLICT",
             "Process spawn evidence is already recorded differently",
             { details: { path, existing: current, received: payload } },
@@ -442,7 +442,7 @@ export function reduceExecutionEvent(view: RunView, envelope: EventEnvelope): Ru
           ) {
             return exec;
           }
-          throw new RelayError(
+          throw new DevChestraError(
             "E_CONFLICT",
             "Process stop marker is already recorded differently",
             {
@@ -477,7 +477,7 @@ export function reduceExecutionEvent(view: RunView, envelope: EventEnvelope): Ru
           ) {
             return exec;
           }
-          throw new RelayError(
+          throw new DevChestraError(
             "E_CONFLICT",
             "Workspace finalization marker is already recorded differently",
             { details: { path, existing: current, received: payload } },

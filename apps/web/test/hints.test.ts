@@ -1,5 +1,5 @@
-import type { GlobalStreamMessage } from "@relay/api";
-import type { RunId } from "@relay/core";
+import type { GlobalStreamMessage } from "@devchestra/api";
+import type { RunId } from "@devchestra/core";
 import { describe, expect, it } from "vitest";
 import { hintInvalidations, RECONNECT_INVALIDATIONS } from "../src/api/hints.js";
 

@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import type { ExecutionIdentity } from "@relay/core";
+import type { ExecutionIdentity } from "@devchestra/core";
 
 export interface ExecScope {
   identity: ExecutionIdentity;

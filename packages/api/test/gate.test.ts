@@ -1,4 +1,4 @@
-import { emptyRunView } from "@relay/core";
+import { emptyRunView } from "@devchestra/core";
 import { describe, expect, it } from "vitest";
 import {
   ApiClient,
@@ -16,7 +16,7 @@ interface Call {
 function response(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", "X-Relay-Api": "1" },
+    headers: { "Content-Type": "application/json", "X-DevChestra-Api": "1" },
   });
 }
 
@@ -56,7 +56,7 @@ describe("gate test API", () => {
     if (call === undefined) throw new Error("fetch was not called");
     expect(call.init.method).toBe("POST");
     expect(new URL(call.url).pathname).toBe("/api/projects/p1/gates/test");
-    expect(new Headers(call.init.headers).get("X-Relay-Csrf")).toBe("1");
+    expect(new Headers(call.init.headers).get("X-DevChestra-Csrf")).toBe("1");
     expect(JSON.parse(String(call.init.body))).toEqual({ gate: GATE, scope: { score: 0.9 } });
   });
 

@@ -1,4 +1,4 @@
-import type { AgentNode, Issue } from "@relay/schema";
+import type { AgentNode, Issue } from "@devchestra/schema";
 import { ShieldAlert } from "lucide-react";
 import { CheckboxField } from "./fields/fields.js";
 import { containingIssue, fieldIssue } from "./issues.js";
@@ -72,7 +72,7 @@ export function AgentPermissions({
         </>
       ) : null}
       <p className="inspector-footnote" role="note">
-        <ShieldAlert size={12} aria-hidden="true" /> Advisory only. Relay is not an OS sandbox.
+        <ShieldAlert size={12} aria-hidden="true" /> Advisory only. DevChestra is not an OS sandbox.
       </p>
       {sectionIssue ? (
         <p className="inspector-error" role="alert">

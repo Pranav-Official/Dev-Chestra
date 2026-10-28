@@ -3,29 +3,29 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createAdapterRegistry } from "@relay/adapters";
-import type { JsonObject, RunId, RunStatus } from "@relay/core";
-import { createDecisionService, type DecisionService } from "@relay/decisions";
-import { createEngine, type Engine } from "@relay/engine";
+import { createAdapterRegistry } from "@devchestra/adapters";
+import type { JsonObject, RunId, RunStatus } from "@devchestra/core";
+import { createDecisionService, type DecisionService } from "@devchestra/decisions";
+import { createEngine, type Engine } from "@devchestra/engine";
 import {
   type BrowserRunControllerPort,
   createAgentGateway,
   createStoreQueryPort,
+  DevChestraError,
   ExecTokenRegistry,
   OutputValidator,
-  RelayError,
   type RunningBrowserServer,
   type StartRunResponse,
   startBrowserServer,
   startLoopbackServer,
-} from "@relay/server";
-import { openStore, type Store } from "@relay/store";
+} from "@devchestra/server";
+import { openStore, type Store } from "@devchestra/store";
 import {
   acquireScratch,
   finalizeScratch,
   prepareRunWorkspace,
   releaseScratch,
-} from "@relay/workspaces";
+} from "@devchestra/workspaces";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { StandinHandle } from "../../../tools/fixtures/decisions/standin.mjs";
 import { startStandin } from "../../../tools/fixtures/decisions/standin.mjs";
@@ -113,7 +113,7 @@ function statusOf(runId: string, fallback: RunStatus): RunStatus {
 const controller: BrowserRunControllerPort = {
   startRun: async (input): Promise<StartRunResponse> => {
     const engine = holder.engine;
-    if (engine === null) throw new RelayError("E_INTERNAL", "Engine is not running.");
+    if (engine === null) throw new DevChestraError("E_INTERNAL", "Engine is not running.");
     const launched = await engine.launch({
       projectId: input.projectId,
       workflowId: input.workflowId,
@@ -139,7 +139,7 @@ const controller: BrowserRunControllerPort = {
   },
   resumeRun: async (runId): Promise<StartRunResponse> => {
     const engine = holder.engine;
-    if (engine === null) throw new RelayError("E_INTERNAL", "Engine is not running.");
+    if (engine === null) throw new DevChestraError("E_INTERNAL", "Engine is not running.");
     const launched = await engine.launchResume(runId);
     if (!launched.ok) throw launched.error;
     void launched.value.completion.then(
@@ -204,7 +204,7 @@ function url(path: string): string {
 function headers(mutation = false): Record<string, string> {
   return {
     Cookie: cookie,
-    ...(mutation ? { "Content-Type": "application/json", "X-Relay-Csrf": "1" } : {}),
+    ...(mutation ? { "Content-Type": "application/json", "X-DevChestra-Csrf": "1" } : {}),
   };
 }
 
@@ -388,7 +388,7 @@ beforeAll(async () => {
   if (!existsSync(FAKE_AGENT_BIN) || !existsSync(SHIM_ENTRY)) {
     throw new Error("Acceptance prerequisites are missing; run `pnpm build` first.");
   }
-  root = await mkdtemp(join(tmpdir(), "relay-decision-accept-"));
+  root = await mkdtemp(join(tmpdir(), "devchestra-decision-accept-"));
   dataDir = join(root, "data");
   projectPath = join(root, "project");
   await mkdir(dataDir, { recursive: true });
@@ -399,7 +399,7 @@ beforeAll(async () => {
     dotenvPath: null,
     baseUrlOverride: standin.origin,
   });
-  store = openStore({ file: join(dataDir, "relay.db") });
+  store = openStore({ file: join(dataDir, "devchestra.db") });
   validator = new OutputValidator();
   const tokens = new ExecTokenRegistry({
     registerSecret: (value, name) => store.security.registerSecret(value, name),
@@ -781,7 +781,7 @@ describe("decision full-stack acceptance", () => {
     expect(huge.body.error.code).toBe("E_VALIDATION");
     const anonymous = await fetch(url(`/api/projects/${projectId}/decisions/test`), {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Relay-Csrf": "1" },
+      headers: { "Content-Type": "application/json", "X-DevChestra-Csrf": "1" },
       body: JSON.stringify({
         provider: "typesafe-jev",
         state: "x",

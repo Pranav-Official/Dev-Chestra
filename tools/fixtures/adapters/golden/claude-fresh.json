@@ -15,7 +15,7 @@
     "--permission-mode",
     "dontAsk",
     "--allowedTools",
-    "mcp__relay__*,Read,Glob,Grep",
+    "mcp__devchestra__*,Read,Glob,Grep",
     "--disallowedTools",
     "Edit,Write,NotebookEdit,Bash,WebFetch,WebSearch",
     "--max-turns",

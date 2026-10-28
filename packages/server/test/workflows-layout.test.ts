@@ -1,8 +1,8 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { normalizeWorkflow } from "@relay/schema";
-import { openStore } from "@relay/store";
+import { normalizeWorkflow } from "@devchestra/schema";
+import { openStore } from "@devchestra/store";
 import { afterEach, describe, expect, it } from "vitest";
 import { createStoreQueryPort } from "../src/index.js";
 
@@ -13,10 +13,10 @@ afterEach(async () => {
 
 describe("run layout", () => {
   it("derives coordinates from the immutable run snapshot, not the live file", async () => {
-    const root = await mkdtemp(join(tmpdir(), "relay-layout-"));
+    const root = await mkdtemp(join(tmpdir(), "devchestra-layout-"));
     const projectDir = join(root, "project");
     await mkdir(projectDir, { recursive: true });
-    const store = openStore({ file: join(root, "relay.db") });
+    const store = openStore({ file: join(root, "devchestra.db") });
     cleanups.push(async () => {
       store.close();
       await rm(root, { recursive: true, force: true });
@@ -66,9 +66,9 @@ describe("run layout", () => {
     const first = await port.runDetail(created.runId);
     expect(first?.layout).toEqual({ start: { x: 10, y: 20 }, done: { x: 30, y: 40 } });
 
-    await mkdir(join(projectDir, ".relay", "workflows"), { recursive: true });
+    await mkdir(join(projectDir, ".devchestra", "workflows"), { recursive: true });
     await writeFile(
-      join(projectDir, ".relay", "workflows", "wf.json"),
+      join(projectDir, ".devchestra", "workflows", "wf.json"),
       JSON.stringify({ graph: { nodes: [{ id: "start", ui: { x: 1, y: 2 } }] } }),
     );
     const second = await port.runDetail(created.runId);

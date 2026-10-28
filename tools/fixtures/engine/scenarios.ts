@@ -19,8 +19,8 @@ const root = fileURLToPath(new URL("../../../", import.meta.url));
 const shim = join(root, "packages/mcp/dist/bin/shim.js");
 const fakeAgent = join(root, "tools/fake-agent/dist/main.js");
 const baseSnapshot = JSON.parse(readFileSync(join(here, "linear-research.json"), "utf8"));
-const temp = mkdtempSync(join(tmpdir(), "relay-engine-scenarios-"));
-const store = openStore({ file: join(temp, "relay.db") });
+const temp = mkdtempSync(join(tmpdir(), "devchestra-engine-scenarios-"));
+const store = openStore({ file: join(temp, "devchestra.db") });
 const tokens = new ExecTokenRegistry({
   registerSecret: (value, name) => store.security.registerSecret(value, name),
 });
@@ -78,7 +78,7 @@ function snapshot(mutate?: (value: any) => void): unknown {
   return value;
 }
 
-function input(snap: unknown, params: Record<string, unknown> = { topic: "relay" }): StartRunInput {
+function input(snap: unknown, params: Record<string, unknown> = { topic: "devchestra" }): StartRunInput {
   return {
     projectId: "p1",
     workflowId: "linear-research",
@@ -225,7 +225,7 @@ try {
     const snap = snapshot((value) => {
       value.graph.nodes.find((node: any) => node.id === "report").command = "printf '%s' {{ start.topic }}";
     });
-    const topic = "a'b $(touch /tmp/relay-engine-pwned) `id`";
+    const topic = "a'b $(touch /tmp/devchestra-engine-pwned) `id`";
     const { engine, result } = await runScenario(
       "shell-quoting",
       [{ type: "submit", output: { summary: "ok" } }],

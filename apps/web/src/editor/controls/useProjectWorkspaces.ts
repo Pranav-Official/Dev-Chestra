@@ -1,4 +1,4 @@
-import type { ProjectWorkspacesResponse } from "@relay/api";
+import type { ProjectWorkspacesResponse } from "@devchestra/api";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api/client.js";
 

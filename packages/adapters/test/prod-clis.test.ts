@@ -1,4 +1,4 @@
-import { PROD_CLIS } from "@relay/schema";
+import { PROD_CLIS } from "@devchestra/schema";
 import { describe, expect, it } from "vitest";
 import { getProvider, prodProviderIds } from "../src/index.js";
 

@@ -1,4 +1,4 @@
-import type { EventEnvelope, RunId } from "@relay/core";
+import type { EventEnvelope, RunId } from "@devchestra/core";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { EventsPanel } from "../src/run/EventsPanel.js";

@@ -1,4 +1,4 @@
-// Fake System One host for @relay/decisions integration tests.
+// Fake System One host for @devchestra/decisions integration tests.
 //
 // A loopback HTTP server that emulates the three decision presets from
 // section 1 of the decision-node contract: bearer auth checks, bare (Jev)

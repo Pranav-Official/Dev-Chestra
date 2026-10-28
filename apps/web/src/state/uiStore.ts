@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 export type ThemeMode = "system" | "light" | "dark";
 
-const STORAGE_KEY = "relay.theme";
+const STORAGE_KEY = "devchestra.theme";
 
 function systemDark(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;

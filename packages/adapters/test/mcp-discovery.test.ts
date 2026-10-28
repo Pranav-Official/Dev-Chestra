@@ -15,8 +15,8 @@ afterEach(async () => {
 });
 
 async function makeHome(): Promise<{ home: string; project: string }> {
-  const home = await mkdtemp(join(tmpdir(), "relay-mcp-home-"));
-  const project = await mkdtemp(join(tmpdir(), "relay-mcp-proj-"));
+  const home = await mkdtemp(join(tmpdir(), "devchestra-mcp-home-"));
+  const project = await mkdtemp(join(tmpdir(), "devchestra-mcp-proj-"));
   temps.push(home, project);
   return { home, project };
 }
@@ -39,7 +39,9 @@ describe("mcp-discovery", () => {
     await write(
       join(home, ".claude.json"),
       JSON.stringify({
-        mcpServers: { global: { command: "npx", args: ["@x/y", "--flag"], env: { A: "1" } } },
+        mcpServers: {
+          global: { command: "npx", args: ["@x/y", "--flag"], env: { A: "planted-env-value" } },
+        },
         projects: {
           [project]: {
             mcpServers: { local: { command: "/bin/srv", args: [] } },
@@ -83,7 +85,7 @@ describe("mcp-discovery", () => {
     expect(byId.get("project:unapproved")).toMatchObject({ status: "needs-trust" });
     expect(byId.get("project:off")).toMatchObject({ status: "disabled-in-cli" });
     // No secret values leak into the listing.
-    expect(JSON.stringify(servers)).not.toContain("1");
+    expect(JSON.stringify(servers)).not.toContain("planted-env-value");
   });
 
   it("claude: project servers are ready with a note when no settings exist", async () => {

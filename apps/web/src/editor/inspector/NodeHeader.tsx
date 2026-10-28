@@ -1,4 +1,4 @@
-import type { Issue, WorkflowNode } from "@relay/schema";
+import type { Issue, WorkflowNode } from "@devchestra/schema";
 import {
   Bot,
   Flag,

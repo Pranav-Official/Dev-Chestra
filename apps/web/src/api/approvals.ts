@@ -1,7 +1,7 @@
-import type { ApprovalResolveRequest, ApprovalResolveResponse } from "@relay/api";
+import type { ApprovalResolveRequest, ApprovalResolveResponse } from "@devchestra/api";
 import { api } from "./client.js";
 
-// Thin typed wrapper over the canonical @relay/api client.
+// Thin typed wrapper over the canonical @devchestra/api client.
 // No duplicate transport, no raw JSON parse/casts — zod validation is inside ApiClient.
 export type ApprovalDecision = ApprovalResolveRequest["decision"];
 

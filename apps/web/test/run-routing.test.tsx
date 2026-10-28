@@ -1,4 +1,4 @@
-import { deriveRouting, type ExecView, emptyRunView, type RunView } from "@relay/core";
+import { deriveRouting, type ExecView, emptyRunView, type RunView } from "@devchestra/core";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { RunCanvas, toRoutingGraph, type WorkflowSnapshot } from "../src/run/RunCanvas.js";

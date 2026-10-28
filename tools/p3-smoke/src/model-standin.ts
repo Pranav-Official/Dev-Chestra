@@ -95,7 +95,7 @@ export async function installModelStandins(root: string): Promise<ModelStandin> 
   await mkdir(claudeHome, { recursive: true, mode: 0o700 });
 
   const sentinelFiles: SentinelFile[] = [
-    { path: join(home, ".relay-sentinel"), bytes: "test-home-sentinel\n" },
+    { path: join(home, ".devchestra-sentinel"), bytes: "test-home-sentinel\n" },
     { path: join(codexHome, "config.toml"), bytes: 'model = "sentinel-test-only"\n' },
     { path: join(codexHome, "auth.json"), bytes: '{"token":"dummy-test-token"}\n' },
     { path: join(claudeHome, "settings.json"), bytes: '{"model":"sentinel-test-only"}\n' },

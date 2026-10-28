@@ -5,14 +5,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const runCommandMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@relay/adapters", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@relay/adapters")>();
+vi.mock("@devchestra/adapters", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@devchestra/adapters")>();
   return { ...actual, runCommand: runCommandMock };
 });
 
-import type { Path } from "@relay/core";
-import { openStore } from "@relay/store";
-import { acquireScratch, finalizeScratch, releaseScratch } from "@relay/workspaces";
+import type { Path } from "@devchestra/core";
+import { openStore } from "@devchestra/store";
+import { acquireScratch, finalizeScratch, releaseScratch } from "@devchestra/workspaces";
 import { type ActiveRunState, EngineContext } from "../src/context.js";
 import { executeShell } from "../src/exec-shell.js";
 import { analyzeLinearWorkflow } from "../src/sequence.js";
@@ -51,9 +51,9 @@ afterEach(() => {
 
 describe("shell process group stop", () => {
   it("keeps the node running and pauses the run when the group survives", async () => {
-    const dataDir = mkdtempSync(join(tmpdir(), "relay-engine-group-"));
+    const dataDir = mkdtempSync(join(tmpdir(), "devchestra-engine-group-"));
     tempDirs.push(dataDir);
-    const store = openStore({ file: join(dataDir, "relay.db") });
+    const store = openStore({ file: join(dataDir, "devchestra.db") });
     try {
       store.projects.ensure({ id: "p1", name: "P1", path: dataDir, kind: "folder" });
       const created = store.runs.create({

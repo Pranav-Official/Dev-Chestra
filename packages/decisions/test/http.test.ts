@@ -1,4 +1,4 @@
-import { RelayError } from "@relay/core";
+import { DevChestraError } from "@devchestra/core";
 import { describe, expect, it } from "vitest";
 import {
   assertAllowedUrl,
@@ -16,10 +16,10 @@ describe("assertAllowedUrl", () => {
 
   it("refuses plain http unless it is an injected loopback override", () => {
     expect(assertAllowedUrl("http://127.0.0.1:9/x", true).hostname).toBe("127.0.0.1");
-    expect(() => assertAllowedUrl("http://127.0.0.1:9/x", false)).toThrowError(RelayError);
-    expect(() => assertAllowedUrl("http://example.com/x", true)).toThrowError(RelayError);
-    expect(() => assertAllowedUrl("file:///etc/passwd", true)).toThrowError(RelayError);
-    expect(() => assertAllowedUrl("::not a url::", false)).toThrowError(RelayError);
+    expect(() => assertAllowedUrl("http://127.0.0.1:9/x", false)).toThrowError(DevChestraError);
+    expect(() => assertAllowedUrl("http://example.com/x", true)).toThrowError(DevChestraError);
+    expect(() => assertAllowedUrl("file:///etc/passwd", true)).toThrowError(DevChestraError);
+    expect(() => assertAllowedUrl("::not a url::", false)).toThrowError(DevChestraError);
   });
 });
 
@@ -45,7 +45,9 @@ describe("readCappedText", () => {
     const lying = new Response("{}", {
       headers: { "content-length": String(MAX_RESPONSE_BYTES + 1) },
     });
-    await expect(readCappedText(lying, {}, MAX_RESPONSE_BYTES)).rejects.toThrowError(RelayError);
+    await expect(readCappedText(lying, {}, MAX_RESPONSE_BYTES)).rejects.toThrowError(
+      DevChestraError,
+    );
 
     const big = new Response("x".repeat(300));
     await expect(readCappedText(big, {}, 100)).rejects.toThrowError(/byte cap/);

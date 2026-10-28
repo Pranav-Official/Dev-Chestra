@@ -3,7 +3,7 @@ import {
   approvalListResponseSchema,
   approvalResolveRequestSchema,
   approvalResolveResponseSchema,
-} from "@relay/api";
+} from "@devchestra/api";
 import type { Hono } from "hono";
 import { errorBody } from "../errors.js";
 import type { BrowserQueryPort, BrowserRunControllerPort } from "./ports.js";

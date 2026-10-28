@@ -1,4 +1,4 @@
-import { deriveRouting, type ExecView, emptyRunView, type RunView } from "@relay/core";
+import { deriveRouting, type ExecView, emptyRunView, type RunView } from "@devchestra/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";

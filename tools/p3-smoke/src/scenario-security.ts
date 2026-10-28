@@ -11,7 +11,7 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 import { CLI, makeWorkspace, scriptPath } from "./fixtures.js";
-import { errorCode, type HttpResult, RelayHttp } from "./http.js";
+import { DevChestraHttp, errorCode, type HttpResult } from "./http.js";
 import { type OwnedServer, shutdownOwned, startSentinel, startServer } from "./owned.js";
 import {
   apiHeader,
@@ -42,15 +42,15 @@ function record(cases: SecurityEvidence["cases"], name: string, result: HttpResu
   cases.push({ name, status: result.status });
 }
 
-async function runCount(http: RelayHttp, projectId: string): Promise<number> {
+async function runCount(http: DevChestraHttp, projectId: string): Promise<number> {
   const result = await http.api("GET", `/api/runs?project=${encodeURIComponent(projectId)}`);
   assert.equal(result.status, 200);
   return ((result.body as { items?: unknown[] }).items ?? []).length;
 }
 
 export async function runSecurityScenario(): Promise<SecurityEvidence> {
-  const ws = await makeWorkspace("relay-p3-security-");
-  const other = await makeWorkspace("relay-p3-security-other-");
+  const ws = await makeWorkspace("devchestra-p3-security-");
+  const other = await makeWorkspace("devchestra-p3-security-other-");
   const sentinel = startSentinel();
   let server: OwnedServer | null = null;
   const cases: SecurityEvidence["cases"] = [];
@@ -61,7 +61,7 @@ export async function runSecurityScenario(): Promise<SecurityEvidence> {
       cwd: ws.projectDir,
       fakeScript: scriptPath("summary"),
     });
-    const http = new RelayHttp(server.baseUrl);
+    const http = new DevChestraHttp(server.baseUrl);
     await http.health();
     await http.bootstrap(server.meta.token);
     const project = await registerProject(http, ws.projectDir);
@@ -263,7 +263,7 @@ export async function runSecurityScenario(): Promise<SecurityEvidence> {
     const outsideFile = join(ws.root, "outside-workflow.json");
     const outsideText = JSON.stringify({ marker: "do-not-touch" });
     await writeFile(outsideFile, outsideText, "utf8");
-    const workflowsDir = join(ws.projectDir, ".relay/workflows");
+    const workflowsDir = join(ws.projectDir, ".devchestra/workflows");
     await symlink(outsideFile, join(workflowsDir, "escape.json"));
     const symlinkGet = await http.api(
       "GET",
@@ -308,9 +308,9 @@ export async function runSecurityScenario(): Promise<SecurityEvidence> {
     const symProject = join(ws.root, "sym-project");
     const symOutside = join(ws.root, "sym-outside");
     await mkdir(symProject, { recursive: true });
-    await mkdir(join(symProject, ".relay"), { recursive: true });
+    await mkdir(join(symProject, ".devchestra"), { recursive: true });
     await mkdir(symOutside, { recursive: true });
-    await symlink(symOutside, join(symProject, ".relay/workflows"));
+    await symlink(symOutside, join(symProject, ".devchestra/workflows"));
     const symProjectView = await registerProject(http, symProject);
     const symCreate = await http.api(
       "POST",

@@ -6,7 +6,7 @@ import {
   type RunId,
   type RunStatus,
   type RunView,
-} from "@relay/core";
+} from "@devchestra/core";
 import { describe, expect, it } from "vitest";
 import {
   applyLiveEvent,

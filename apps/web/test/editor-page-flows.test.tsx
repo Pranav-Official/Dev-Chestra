@@ -3,8 +3,8 @@ import type {
   ProjectView,
   WorkflowDocumentResponse,
   WorkflowListItem,
-} from "@relay/api";
-import type { ValidationReport, WorkflowFile } from "@relay/schema";
+} from "@devchestra/api";
+import type { ValidationReport, WorkflowFile } from "@devchestra/schema";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";

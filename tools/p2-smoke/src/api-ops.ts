@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import type { RunView } from "@relay/core";
-import { fieldString, type HttpResult, type RelayHttp } from "./http.js";
+import type { RunView } from "@devchestra/core";
+import { type DevChestraHttp, fieldString, type HttpResult } from "./http.js";
 
 export interface ProjectView {
   id: string;
@@ -18,7 +18,7 @@ export interface StartRunResult {
   body: Record<string, unknown>;
 }
 
-export async function registerProject(http: RelayHttp, path: string): Promise<ProjectView> {
+export async function registerProject(http: DevChestraHttp, path: string): Promise<ProjectView> {
   const result = await http.api("POST", "/api/projects", { body: { path } });
   assert.equal(result.status, 200, `POST /api/projects: ${JSON.stringify(result.body)}`);
   if (typeof result.body !== "object" || result.body === null) {
@@ -36,7 +36,7 @@ export async function registerProject(http: RelayHttp, path: string): Promise<Pr
 }
 
 export async function startRun(
-  http: RelayHttp,
+  http: DevChestraHttp,
   projectId: string,
   input: {
     workflowFile: string;
@@ -77,7 +77,7 @@ export interface RunBody {
   status: string;
 }
 
-export async function getRun(http: RelayHttp, runId: string): Promise<RunBody> {
+export async function getRun(http: DevChestraHttp, runId: string): Promise<RunBody> {
   const result = await http.api("GET", `/api/runs/${encodeURIComponent(runId)}`);
   assert.equal(result.status, 200, `GET run: ${JSON.stringify(result.body)}`);
   return parseRunBody(result);
@@ -103,7 +103,7 @@ export function isTerminal(status: string): boolean {
 }
 
 export async function waitTerminal(
-  http: RelayHttp,
+  http: DevChestraHttp,
   runId: string,
   timeoutMs = 90_000,
 ): Promise<RunBody> {

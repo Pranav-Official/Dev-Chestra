@@ -1,4 +1,4 @@
-import type { Issue } from "@relay/schema";
+import type { Issue } from "@devchestra/schema";
 import { Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { useBufferFlag } from "./BufferContext.js";
 import { CheckboxField, describedBy, Field } from "./fields/fields.js";

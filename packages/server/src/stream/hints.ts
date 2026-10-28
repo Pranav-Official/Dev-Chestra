@@ -1,4 +1,4 @@
-import type { EventEnvelope } from "@relay/core";
+import type { EventEnvelope } from "@devchestra/core";
 import type { GlobalStreamHint, StreamStorePort } from "./types.js";
 
 function isRunLifecycle(type: string): boolean {

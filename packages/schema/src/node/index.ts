@@ -1,5 +1,5 @@
 import { Worker } from "node:worker_threads";
-import { RelayError } from "@relay/core";
+import { DevChestraError } from "@devchestra/core";
 import type { ExpressionExecutor } from "../expression.js";
 
 export type { ExpressionExecutor } from "../expression.js";
@@ -58,7 +58,9 @@ export function createNodeExpressionExecutor(
           });
         } catch (error) {
           reject(
-            new RelayError("E_EXPR", "Could not start the expression worker", { cause: error }),
+            new DevChestraError("E_EXPR", "Could not start the expression worker", {
+              cause: error,
+            }),
           );
           return;
         }
@@ -77,7 +79,7 @@ export function createNodeExpressionExecutor(
         startTimer = setTimeout(() => {
           finish(() =>
             reject(
-              new RelayError(
+              new DevChestraError(
                 "E_EXPR",
                 `Expression worker did not start within ${WORKER_START_TIMEOUT_MS}ms`,
               ),
@@ -91,7 +93,7 @@ export function createNodeExpressionExecutor(
             clearTimeout(startTimer);
             evalTimer = setTimeout(() => {
               finish(() =>
-                reject(new RelayError("E_EXPR", `Expression timed out after ${timeoutMs}ms`)),
+                reject(new DevChestraError("E_EXPR", `Expression timed out after ${timeoutMs}ms`)),
               );
             }, timeoutMs);
             try {
@@ -99,7 +101,7 @@ export function createNodeExpressionExecutor(
             } catch (error) {
               finish(() =>
                 reject(
-                  new RelayError("E_EXPR", "Could not send the expression to its worker", {
+                  new DevChestraError("E_EXPR", "Could not send the expression to its worker", {
                     cause: error,
                   }),
                 ),
@@ -112,7 +114,7 @@ export function createNodeExpressionExecutor(
               isReply(raw) && typeof raw.error === "string"
                 ? raw.error
                 : "Expression worker returned an invalid result";
-            finish(() => reject(new RelayError("E_EXPR", message)));
+            finish(() => reject(new DevChestraError("E_EXPR", message)));
             return;
           }
           finish(() => resolve(raw.value));
@@ -120,7 +122,7 @@ export function createNodeExpressionExecutor(
         worker.once("error", (error) => {
           finish(() =>
             reject(
-              new RelayError("E_EXPR", `Expression worker failed: ${error.message}`, {
+              new DevChestraError("E_EXPR", `Expression worker failed: ${error.message}`, {
                 cause: error,
               }),
             ),
@@ -129,7 +131,7 @@ export function createNodeExpressionExecutor(
         worker.once("exit", (code) => {
           if (!settled && code !== 0) {
             finish(() =>
-              reject(new RelayError("E_EXPR", `Expression worker exited with code ${code}`)),
+              reject(new DevChestraError("E_EXPR", `Expression worker exited with code ${code}`)),
             );
           }
         });

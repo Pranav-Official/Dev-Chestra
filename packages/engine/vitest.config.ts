@@ -5,7 +5,7 @@ export default defineConfig({
     environment: "node",
     include: ["test/**/*.test.ts"],
     exclude: ["**/node_modules/**", "**/dist/**"],
-    // The fake provider is prod-gated behind RELAY_ALLOW_FAKE; tests opt in.
-    env: { RELAY_ALLOW_FAKE: "1" },
+    // The fake provider is prod-gated behind DEVCHESTRA_ALLOW_FAKE; tests opt in.
+    env: { DEVCHESTRA_ALLOW_FAKE: "1" },
   },
 });

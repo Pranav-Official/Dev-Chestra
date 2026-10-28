@@ -1,8 +1,8 @@
-# @relay/store
+# @devchestra/store
 
-Authoritative SQLite store for Relay: one synchronous writer, forward-only
+Authoritative SQLite store for DevChestra: one synchronous writer, forward-only
 migrations, event log as source of truth, transactional projection through
-`@relay/core`'s reducer, durable agent tool receipts, immutable accepted
+`@devchestra/core`'s reducer, durable agent tool receipts, immutable accepted
 outputs, and process-generation fencing.
 
 This is a deliberately small P0 slice, not the full §6 schema. See
@@ -12,7 +12,7 @@ This is a deliberately small P0 slice, not the full §6 schema. See
 
 - Default driver: `better-sqlite3` 13.0.3 (N-API prebuild; no source build).
 - Fallback: `node:sqlite` via explicit `nodeSqliteDriver` from
-  `@relay/store/driver-node-sqlite`. It never triggers native compilation.
+  `@devchestra/store/driver-node-sqlite`. It never triggers native compilation.
 - Startup refuses to open unless `sqlite_compileoption_used('ENABLE_FTS5')`
   is true, per spec §6.1.
 - Pragmas: `journal_mode=WAL`, `synchronous=NORMAL`, `foreign_keys=ON`,
@@ -22,8 +22,8 @@ This is a deliberately small P0 slice, not the full §6 schema. See
   `:memory:` is accepted but not the tested durability path.
 
 ```ts
-import { openStore } from "@relay/store";
-const store = openStore({ file: "/abs/path/relay.db" });
+import { openStore } from "@devchestra/store";
+const store = openStore({ file: "/abs/path/devchestra.db" });
 ```
 
 ## Transaction model
@@ -304,7 +304,7 @@ P1 policy:
 - Pending/initial execution identity uses `attempt=1, generation=1` (core
   forbids generation 0). The first `beginInvocation` therefore yields
   `generation=2`; later spawns in the same attempt are 3, 4, ...
-- Authorization is exact equality via `@relay/core`'s
+- Authorization is exact equality via `@devchestra/core`'s
   `isCurrentInvocation`: older, future, other run/path, other attempt and
   other generation are all rejected.
 - `beginInvocation` from `pending` or `interrupted` first emits an allowed
@@ -400,9 +400,9 @@ attempt/process/transcript history, and restart-safe idempotent starts
 (including rollback of the claim with the run).
 
 ```sh
-pnpm --filter @relay/store build
-pnpm --filter @relay/store typecheck
-pnpm --filter @relay/store test
+pnpm --filter @devchestra/store build
+pnpm --filter @devchestra/store typecheck
+pnpm --filter @devchestra/store test
 ```
 
 The kill test imports `dist`, so run `build` first (the test skips if `dist`

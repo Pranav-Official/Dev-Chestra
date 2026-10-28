@@ -1,4 +1,4 @@
-import { isDurablyComplete, type RunId, recoveryDecision } from "@relay/core";
+import { isDurablyComplete, type RunId, recoveryDecision } from "@devchestra/core";
 import { appendEvents } from "./events.js";
 import { isTerminalRunStatus, rebuildProjection, requireRun } from "./projection.js";
 import type { Runtime } from "./runtime.js";

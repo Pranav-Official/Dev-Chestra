@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
-import { discoverClaudeModels } from "@relay/adapters";
+import { discoverClaudeModels } from "@devchestra/adapters";
 import { afterEach, describe, expect, it } from "vitest";
 import { readServerMetadata, serverMetadataPath } from "../src/server-metadata.js";
 import { executeStart } from "../src/start.js";
@@ -85,7 +85,7 @@ function wrapper(path: string, qaDir: string): void {
 }
 
 function installFixture(): Fixture {
-  const root = tempDir("relay-claude-discovery-");
+  const root = tempDir("devchestra-claude-discovery-");
   const qaDir = join(root, "qa");
   const neutralCwd = join(root, "neutral-cwd");
   const projectDir = join(root, "project");
@@ -410,8 +410,8 @@ async function waitFor(
 async function startOwned(
   dataDir: string,
 ): Promise<{ base: string; auth: Record<string, string>; stop: () => Promise<void> }> {
-  const web = tempDir("relay-claude-discovery-web-");
-  writeFileSync(join(web, "index.html"), "<!doctype html><title>relay</title>");
+  const web = tempDir("devchestra-claude-discovery-web-");
+  writeFileSync(join(web, "index.html"), "<!doctype html><title>devchestra</title>");
   const controller = new AbortController();
   const running = executeStart(
     {
@@ -446,8 +446,8 @@ async function startOwned(
   return {
     base: `http://127.0.0.1:${read.value.port}`,
     auth: {
-      "x-relay-token": read.value.token,
-      "x-relay-csrf": "1",
+      "x-devchestra-token": read.value.token,
+      "x-devchestra-csrf": "1",
       "content-type": "application/json",
     },
     stop: async () => {
@@ -559,7 +559,7 @@ describe("selected Claude model reaches the real workflow process", () => {
     const fixture = installFixture();
     fixture.setControl({ nonce: "run" });
     for (const [key, value] of Object.entries(fixture.env)) process.env[key] = value;
-    const dataDir = tempDir("relay-claude-discovery-data-");
+    const dataDir = tempDir("devchestra-claude-discovery-data-");
     const server = await startOwned(dataDir);
     try {
       const projectId = await registerProject(server.base, server.auth, fixture.projectDir);

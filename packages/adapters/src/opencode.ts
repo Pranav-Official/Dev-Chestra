@@ -1,4 +1,4 @@
-import { ok, type RelayError, type Result } from "@relay/core";
+import { type DevChestraError, ok, type Result } from "@devchestra/core";
 import { hasControl } from "./discovery-util.js";
 import { clip, NdjsonParser, num, parseObject, record, str } from "./parsers.js";
 import { checkDir, classifyExit, fail, requireOptionKeys } from "./plan.js";
@@ -114,13 +114,13 @@ class OpencodeParser extends NdjsonParser {
 const ENV_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const MCP_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 
-/** Server names become inline-config keys; `relay` is the always-attached shim. */
+/** Server names become inline-config keys; `devchestra` is the always-attached shim. */
 function checkMcpName(name: string, field: string): string {
   if (!MCP_NAME_RE.test(name)) {
     throw new Error(`${field} is not a safe MCP server name: ${name}`);
   }
-  if (name === "relay") {
-    throw new Error(`${field} must not be "relay" (reserved for the Relay shim)`);
+  if (name === "devchestra") {
+    throw new Error(`${field} must not be "devchestra" (reserved for the DevChestra shim)`);
   }
   return name;
 }
@@ -145,7 +145,7 @@ export function splitOpencodeMcpTool(
 }
 
 /** Per-invocation MCP attachment: env-only merges never register a server, so
- *  the relay shim is injected through inline JSON config (highest precedence,
+ *  the devchestra shim is injected through inline JSON config (highest precedence,
  *  merged with the user's own config, never replacing it). */
 function mcpConfigContent(req: RunRequest): string {
   const seen = new Set<string>([req.mcp.serverName]);
@@ -198,14 +198,14 @@ function mcpConfigContent(req: RunRequest): string {
   return JSON.stringify(config);
 }
 
-function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
+function plan(req: RunRequest, bin: string): Result<Invocation, DevChestraError> {
   try {
     checkDir(req.cwd, "cwd");
     checkDir(req.execDir, "execDir");
     if (req.mcp.command === "" || req.mcp.args.length === 0) {
       throw new Error("mcp.command and mcp.args are required");
     }
-    if (req.mcp.serverName !== "relay") throw new Error("mcp.serverName must be relay");
+    if (req.mcp.serverName !== "devchestra") throw new Error("mcp.serverName must be devchestra");
     const options = req.cliOptions ?? {};
     requireOptionKeys(options, []);
     if (req.prompt === "" || req.prompt.includes("\u0000")) {
@@ -272,11 +272,11 @@ export function createOpencodeAdapter(options: AdapterOptions = {}): CliAdapter 
         "argv from opencode 1.19.4 run --help: run [prompt] --model provider/model --format json --dir <cwd> --session <ses_...>",
         "prompt travels as argv (promptViaStdin false), capped at 256 KiB; --session resumes, no --cd/--sandbox flags exist",
         "MCP server attaches via OPENCODE_CONFIG_CONTENT inline JSON (type local, command [shim, ...args], environment, enabled); env travels on fresh and resume",
-        "LIVE opencode 1.19.4: inline JSON merges with the user config - a user-configured fixture server starts when the inline config only carries relay, and does NOT start when the inline config adds mcp.<name>.enabled=false",
+        "LIVE opencode 1.19.4: inline JSON merges with the user config - a user-configured fixture server starts when the inline config only carries devchestra, and does NOT start when the inline config adds mcp.<name>.enabled=false",
         "LIVE: inline local extra starts and is callable as <server>_<tool> (fixture_fixture_echo, log: start+call); remote extras use {type:remote,url,headers,enabled:true} per the installed config shape (no live remote server exercised)",
         "LIVE: inline permission:{bash:deny} removes the built-in bash tool (model reports NOSHELL, no tool_use); without it the same prompt runs echo. tools.bash=false was not needed and stays untested",
         "LIVE route-around: with bash denied, the model ran the same echo via an attached MCP exec tool (linremote_shell) - shell:false is advisory, never a sandbox",
-        "MCP tools register as <server>_<tool>; splitOpencodeMcpTool attributes them to known servers (longest prefix wins); relay_submit_result is the submit ref",
+        "MCP tools register as <server>_<tool>; splitOpencodeMcpTool attributes them to known servers (longest prefix wins); devchestra_submit_result is the submit ref",
         "JSON stream shapes (step_start/text/tool_use/step_finish/error) confirmed against live --format json output",
         "usageIsCumulative false: step_finish tokens are per-step deltas emitted directly",
       ],
@@ -284,7 +284,7 @@ export function createOpencodeAdapter(options: AdapterOptions = {}): CliAdapter 
     plan: (req) => plan(req, bin),
     parser: (): StreamParser => new OpencodeParser(),
     classify: (exit: ExitInfo, _tail: Tail): FailureClass => classifyExit(exit),
-    toolRef: (tool) => `relay_${tool}`,
+    toolRef: (tool) => `devchestra_${tool}`,
     probe: (ctx: ProbeCtx, signal: AbortSignal): Promise<ProbeResult> =>
       probeVersion("opencode", bin, ctx, signal),
   };

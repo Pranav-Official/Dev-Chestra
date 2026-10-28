@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { ok, type RelayError, type Result } from "@relay/core";
+import { type DevChestraError, ok, type Result } from "@devchestra/core";
 import { clip, NdjsonParser, num, parseObject, record, str, UsageDelta } from "./parsers.js";
 import {
   checkDir,
@@ -37,7 +37,7 @@ const ALLOWED = new Set([
 
 const MCP_NAME_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
-/** Validated extra servers: safe unique names, none colliding with relay. */
+/** Validated extra servers: safe unique names, none colliding with devchestra. */
 function extraMcpServers(req: RunRequest): ResolvedMcpServer[] {
   const extra = req.extraMcp ?? [];
   const seen = new Set<string>();
@@ -45,7 +45,7 @@ function extraMcpServers(req: RunRequest): ResolvedMcpServer[] {
     if (!MCP_NAME_RE.test(server.name)) {
       throw new Error(`extraMcp server name is not safe: ${server.name}`);
     }
-    if (server.name === "relay" || server.name === req.mcp.serverName) {
+    if (server.name === "devchestra" || server.name === req.mcp.serverName) {
       throw new Error(`extraMcp server name is reserved: ${server.name}`);
     }
     if (seen.has(server.name)) {
@@ -176,7 +176,7 @@ class ClaudeParser extends NdjsonParser {
   }
 }
 
-function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
+function plan(req: RunRequest, bin: string): Result<Invocation, DevChestraError> {
   try {
     if (req.cwd === "" || req.execDir === "") throw new Error("cwd and execDir are required");
     checkDir(req.cwd, "cwd");
@@ -214,7 +214,7 @@ function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
 
     const permissions = claudeStatic.permissionMap;
     const writable = req.permissions.write.length > 0;
-    const allowed = new Set(["mcp__relay__*", "Read", "Glob", "Grep", ...extraAllowed]);
+    const allowed = new Set(["mcp__devchestra__*", "Read", "Glob", "Grep", ...extraAllowed]);
     const denied = new Set<string>(extraDenied);
     if (writable) for (const tool of permissions.writeTools) allowed.add(tool);
     else for (const tool of permissions.readOnlyDeniedTools) denied.add(tool);
@@ -313,7 +313,7 @@ export function createClaudeAdapter(options: AdapterOptions = {}): CliAdapter {
     plan: (req) => plan(req, bin),
     parser: (): StreamParser => new ClaudeParser(),
     classify: (exit: ExitInfo, _tail: Tail): FailureClass => classifyExit(exit),
-    toolRef: (tool) => `mcp__relay__${tool}`,
+    toolRef: (tool) => `mcp__devchestra__${tool}`,
     probe: (ctx: ProbeCtx, signal: AbortSignal): Promise<ProbeResult> =>
       probeVersion("claude-code", bin, ctx, signal),
   };

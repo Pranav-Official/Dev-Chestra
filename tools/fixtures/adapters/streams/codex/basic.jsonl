@@ -1,5 +1,5 @@
 {"type":"thread.started","thread_id":"thread-1"}
 {"type":"turn.started"}
 {"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"working"}}
-{"type":"item.completed","item":{"id":"item_2","type":"mcp_tool_call","server":"relay","tool":"submit_result","arguments":{"answer":"ok"},"result":{"content":[{"type":"text","text":"accepted"}],"structured_content":null},"error":null,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_2","type":"mcp_tool_call","server":"devchestra","tool":"submit_result","arguments":{"answer":"ok"},"result":{"content":[{"type":"text","text":"accepted"}],"structured_content":null},"error":null,"status":"completed"}}
 {"type":"turn.completed","usage":{"input_tokens":100,"output_tokens":20}}

@@ -1,4 +1,4 @@
-# @relay/engine
+# @devchestra/engine
 
 Durable linear workflow engine for the P1 headless runner. It executes
 `start -> agent -> shell -> end` chains against real temp SQLite, scratch
@@ -33,7 +33,7 @@ retry, multi-run fairness, quotas, UI and the full scheduler.
 ## API
 
 ```ts
-import { createEngine, type EngineDeps } from "@relay/engine";
+import { createEngine, type EngineDeps } from "@devchestra/engine";
 ```
 
 ```ts
@@ -41,8 +41,8 @@ interface EngineDeps {
   store: Store;
   adapters: AdapterRegistry;
   workspaces: {
-    acquire(request): Promise<Result<ScratchWorkspace, RelayError>>;
-    finalize(workspace, request): Promise<Result<FinalizeScratchInfo, RelayError>>;
+    acquire(request): Promise<Result<ScratchWorkspace, DevChestraError>>;
+    finalize(workspace, request): Promise<Result<FinalizeScratchInfo, DevChestraError>>;
     release(workspace): void;
   };
   gateway: {
@@ -91,7 +91,7 @@ const { runId, duplicate, completion } = launched.value;
 const started = await engine.run({
   projectId,
   workflowId,
-  snapshot,      // normalized WorkflowFile snapshot from @relay/schema
+  snapshot,      // normalized WorkflowFile snapshot from @devchestra/schema
   snapshotRaw,
   params,
 });              // blocks until terminal or paused
@@ -156,15 +156,15 @@ An interrupted shell is retried only after an explicit human override.
 ## Tests
 
 ```sh
-pnpm --filter @relay/engine build
-pnpm --filter @relay/engine typecheck
-pnpm --filter @relay/engine test
+pnpm --filter @devchestra/engine build
+pnpm --filter @devchestra/engine typecheck
+pnpm --filter @devchestra/engine test
 pnpm exec biome check packages/engine
 pnpm exec tsx tools/fixtures/engine/scenarios.ts
 ```
 
 `scenarios.ts` uses real temp SQLite, the real loopback gateway, the real MCP shim and
-test-only fake-agent child processes (RELAY_ALLOW_FAKE=1). It covers happy path, invalid-then-valid submission,
+test-only fake-agent child processes (DEVCHESTRA_ALLOW_FAKE=1). It covers happy path, invalid-then-valid submission,
 no-submit budget, validation exhaustion, crash cap, accepted-then-crash finalization,
 shell failure/allow-failure/quoting, timeout crash budget, shutdown/resume, cancellation
 and the uncertain-shell override. It is not live Claude Code/Codex evidence.

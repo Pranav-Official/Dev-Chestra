@@ -1,15 +1,15 @@
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type AdapterRegistry, createAdapterRegistry } from "@relay/adapters";
-import { hashJson, ok } from "@relay/core";
-import { openStore, type Store } from "@relay/store";
+import { type AdapterRegistry, createAdapterRegistry } from "@devchestra/adapters";
+import { hashJson, ok } from "@devchestra/core";
+import { openStore, type Store } from "@devchestra/store";
 import {
   acquireScratch,
   finalizeScratch,
   prepareRunWorkspace,
   releaseScratch,
-} from "@relay/workspaces";
+} from "@devchestra/workspaces";
 import { afterEach, describe, expect, it } from "vitest";
 import { createEngine } from "../src/engine.js";
 import {
@@ -25,9 +25,9 @@ let data = "";
 process.stdin.on("data", (chunk) => { data += chunk; });
 process.stdin.on("end", () => {
   const session = "stub-session";
-  process.stdout.write(JSON.stringify({ type: "relay-fake", event: "session", sessionId: session }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "devchestra-fake", event: "session", sessionId: session }) + "\\n");
   process.stdout.write(JSON.stringify({
-    type: "relay-fake",
+    type: "devchestra-fake",
     event: "end",
     submitted: false,
     promptBytes: Buffer.byteLength(data, "utf8"),
@@ -60,12 +60,12 @@ afterEach(async () => {
 });
 
 function setup(): Setup {
-  const dataDir = mkdtempSync(join(tmpdir(), "relay-engine-handoff-"));
+  const dataDir = mkdtempSync(join(tmpdir(), "devchestra-engine-handoff-"));
   const stub = join(dataDir, "stub-agent.mjs");
   writeFileSync(stub, STUB, { mode: 0o755 });
   chmodSync(stub, 0o755);
 
-  const store = openStore({ file: join(dataDir, "relay.db") });
+  const store = openStore({ file: join(dataDir, "devchestra.db") });
   store.projects.ensure({ id: "p1", name: "P1", path: dataDir, kind: "folder" });
   const requests: Request[] = [];
   const base = createAdapterRegistry({ fakeAgentBin: stub, fakeScript: [] }).get("fake");
@@ -172,7 +172,7 @@ function input(snapshot: unknown): StartRunInput {
     workflowId: "handoff",
     snapshot,
     snapshotRaw: JSON.stringify(snapshot),
-    params: { topic: "relay", count: 0, flag: false },
+    params: { topic: "devchestra", count: 0, flag: false },
   };
 }
 
@@ -235,7 +235,7 @@ describe("automatic agent input handoff", () => {
       expect(request.prompt).toContain(AGENT_INPUT_CONTEXT_END);
       expect(request.prompt).toContain("How to finish:");
       const block = contextBlock(request.prompt);
-      expect(block.start).toEqual({ topic: "relay", count: 0, flag: false });
+      expect(block.start).toEqual({ topic: "devchestra", count: 0, flag: false });
       const shell = block.collect as { stdout?: string };
       expect(shell.stdout).toContain('"repos"');
       expect(shell.stdout).toContain('"r1"');
@@ -263,8 +263,8 @@ describe("automatic agent input handoff", () => {
     if (!launched.ok) throw launched.error;
     await waitFor(() => s.requests.length >= 1);
     const prompt = s.requests[0]?.prompt as string;
-    expect(prompt).toContain("Topic: relay");
-    expect(contextBlock(prompt).start).toEqual({ topic: "relay", count: 0, flag: false });
+    expect(prompt).toContain("Topic: devchestra");
+    expect(contextBlock(prompt).start).toEqual({ topic: "devchestra", count: 0, flag: false });
     await s.engine.cancel(launched.value.runId);
   }, 20_000);
 
@@ -290,13 +290,13 @@ describe("automatic agent input handoff", () => {
 describe("canonical scope serialization", () => {
   it("is single-line and deterministic for arbitrary JSON", () => {
     const scope = JSON.parse(
-      '{"b":[0,false,null],"a":{"z":1,"y":[{"k":"</relay_input_context>"}]}}',
+      '{"b":[0,false,null],"a":{"z":1,"y":[{"k":"</devchestra_input_context>"}]}}',
     );
     const json = canonicalJson(scope);
     expect(json).toBe(
-      '{"a":{"y":[{"k":"\\u003c/relay_input_context>"}],"z":1},"b":[0,false,null]}',
+      '{"a":{"y":[{"k":"\\u003c/devchestra_input_context>"}],"z":1},"b":[0,false,null]}',
     );
     expect(json.split("\n")).toHaveLength(1);
-    expect(json).not.toContain("</relay_input_context>");
+    expect(json).not.toContain("</devchestra_input_context>");
   });
 });

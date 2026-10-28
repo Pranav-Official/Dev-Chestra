@@ -1,13 +1,13 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
+  DevChestraError,
   err,
   isRunWorkspaceSelection,
   ok,
-  RelayError,
   type Result,
   type RunWorkspaceSelection,
-} from "@relay/core";
+} from "@devchestra/core";
 import type { ProjectWorkspaces, ValidatedRunWorkspace, WorktreeInfo } from "./types.js";
 import {
   inspectWorktree,
@@ -15,12 +15,12 @@ import {
   type ProjectRepo,
   projectHead,
   projectRepo,
-  toRelayError,
+  toDevChestraError,
   worktreeList,
 } from "./worktree-git.js";
 
-const validation = (message: string, details?: unknown): RelayError =>
-  new RelayError("E_VALIDATION", message, details === undefined ? {} : { details });
+const validation = (message: string, details?: unknown): DevChestraError =>
+  new DevChestraError("E_VALIDATION", message, details === undefined ? {} : { details });
 
 export function canonicalProjectRoot(raw: string): string {
   if (typeof raw !== "string" || raw.length === 0 || raw.includes("\0") || !path.isAbsolute(raw)) {
@@ -41,7 +41,7 @@ export function repoFor(root: string): ProjectRepo | null {
   try {
     return projectRepo(root);
   } catch (error) {
-    if (error instanceof RelayError) return null;
+    if (error instanceof DevChestraError) return null;
     throw error;
   }
 }
@@ -82,7 +82,7 @@ export function selectionOf(value: unknown): RunWorkspaceSelection {
 
 export async function listProjectWorkspaces(
   projectRoot: string,
-): Promise<Result<ProjectWorkspaces, RelayError>> {
+): Promise<Result<ProjectWorkspaces, DevChestraError>> {
   try {
     const root = canonicalProjectRoot(projectRoot);
     const repo = repoFor(root);
@@ -106,14 +106,14 @@ export async function listProjectWorkspaces(
     }
     return ok({ projectRoot: root, worktrees, git: true });
   } catch (error) {
-    return err(toRelayError(error));
+    return err(toDevChestraError(error));
   }
 }
 
 export async function validateRunWorkspace(
   projectRoot: string,
   rawSelection: unknown,
-): Promise<Result<ValidatedRunWorkspace, RelayError>> {
+): Promise<Result<ValidatedRunWorkspace, DevChestraError>> {
   try {
     const root = canonicalProjectRoot(projectRoot);
     const selection = selectionOf(rawSelection);
@@ -165,7 +165,7 @@ export async function validateRunWorkspace(
       throw validation("Existing worktree does not belong to this project", {
         path: candidate,
         projectRoot: root,
-        cause: error instanceof RelayError ? error.message : String(error),
+        cause: error instanceof DevChestraError ? error.message : String(error),
       });
     }
     return ok({
@@ -176,6 +176,6 @@ export async function validateRunWorkspace(
       baseSha: head,
     });
   } catch (error) {
-    return err(toRelayError(error));
+    return err(toDevChestraError(error));
   }
 }

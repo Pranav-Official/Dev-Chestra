@@ -1,4 +1,4 @@
-import type { JsonObject } from "@relay/core";
+import type { JsonObject } from "@devchestra/core";
 
 export interface ChainOutput {
   readonly nodeId: string;

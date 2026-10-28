@@ -1,4 +1,4 @@
-import type { ErrorCode } from "@relay/core";
+import type { ErrorCode } from "@devchestra/core";
 import { z } from "./zod.js";
 
 /** The core taxonomy, plus API-only codes the core does not produce. */
@@ -121,7 +121,7 @@ export class ApiError extends Error {
 
 export type ApiProtocolErrorKind = "version" | "invalid-response" | "event-stream";
 
-/** The server response did not match the versioned @relay/api contract. */
+/** The server response did not match the versioned @devchestra/api contract. */
 export class ApiProtocolError extends Error {
   override readonly name = "ApiProtocolError";
   readonly kind: ApiProtocolErrorKind;

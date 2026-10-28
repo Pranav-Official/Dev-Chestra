@@ -15,7 +15,7 @@ afterEach(async () => {
 });
 
 async function tempDir(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), "relay-cli-lock-"));
+  const dir = await mkdtemp(join(tmpdir(), "devchestra-cli-lock-"));
   cleanups.push(async () => {
     await rm(dir, { recursive: true, force: true });
   });
@@ -23,7 +23,7 @@ async function tempDir(): Promise<string> {
 }
 
 async function deadOwnerLock(dir: string): Promise<void> {
-  const lockDir = join(dir, "relay.lock");
+  const lockDir = join(dir, "devchestra.lock");
   await mkdir(lockDir, { mode: 0o700 });
   await writeFile(
     join(lockDir, "owner.dead.json"),
@@ -89,9 +89,9 @@ describe("data-dir lock", () => {
     const first = await acquireDataDirLock(dir);
     await expect(acquireDataDirLock(dir)).rejects.toBeInstanceOf(DataDirLockedError);
     expect((await inspectDataDirLock(dir)).live).toBe(true);
-    expect(existsSync(join(dir, "relay.lock", `owner.${first.owner.token}.json`))).toBe(true);
+    expect(existsSync(join(dir, "devchestra.lock", `owner.${first.owner.token}.json`))).toBe(true);
     await first.release();
-    expect(existsSync(join(dir, "relay.lock"))).toBe(false);
+    expect(existsSync(join(dir, "devchestra.lock"))).toBe(false);
   });
 
   it("rejects a symlinked data directory before creating lock or db state", async () => {
@@ -101,7 +101,7 @@ describe("data-dir lock", () => {
     await mkdir(target, { mode: 0o700 });
     await symlink(target, link);
     await expect(acquireDataDirLock(link)).rejects.toThrow(/symlink/i);
-    expect(existsSync(join(target, "relay.lock"))).toBe(false);
+    expect(existsSync(join(target, "devchestra.lock"))).toBe(false);
   });
 
   it("reclaims a dead owner but never a live owner", async () => {
@@ -110,7 +110,7 @@ describe("data-dir lock", () => {
     const handle = await acquireDataDirLock(dir);
     expect(handle.recoveredStale).toBe(true);
     await expect(acquireDataDirLock(dir)).rejects.toBeInstanceOf(DataDirLockedError);
-    expect(existsSync(join(dir, "relay.lock", `owner.${handle.owner.token}.json`))).toBe(true);
+    expect(existsSync(join(dir, "devchestra.lock", `owner.${handle.owner.token}.json`))).toBe(true);
     await handle.release();
   });
 
@@ -126,14 +126,14 @@ describe("data-dir lock", () => {
     await expect(
       acquireDataDirLock(dataDir, "0.1.0", { allowStaleReclaim: false }),
     ).rejects.toBeInstanceOf(DataDirLockedError);
-    expect(existsSync(join(dataDir, "relay.lock"))).toBe(true);
+    expect(existsSync(join(dataDir, "devchestra.lock"))).toBe(true);
   });
 
   it("fails closed on an ambiguous lock with no owner file", async () => {
     const dir = await tempDir();
-    await mkdir(join(dir, "relay.lock"), { mode: 0o700 });
+    await mkdir(join(dir, "devchestra.lock"), { mode: 0o700 });
     await expect(acquireDataDirLock(dir)).rejects.toBeInstanceOf(DataDirLockedError);
-    expect(existsSync(join(dir, "relay.lock"))).toBe(true);
+    expect(existsSync(join(dir, "devchestra.lock"))).toBe(true);
   });
 
   it("allows exactly one of 20 concurrent processes to acquire a dead-owner lock", async () => {

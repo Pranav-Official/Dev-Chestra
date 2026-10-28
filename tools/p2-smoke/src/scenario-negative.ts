@@ -3,7 +3,7 @@ import { symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { defaultIdempotencyKey, registerProject, startRun } from "./api-ops.js";
 import { CLI, makeWorkspace, scriptPath } from "./fixtures.js";
-import { errorCode, type HttpResult, RelayHttp } from "./http.js";
+import { DevChestraHttp, errorCode, type HttpResult } from "./http.js";
 import {
   collectAgent,
   type OwnedServer,
@@ -55,8 +55,8 @@ async function agentsFromDb(
 }
 
 export async function runNegativeScenario(): Promise<NegativeEvidence> {
-  const ws = await makeWorkspace("relay-p2-negative-");
-  const other = await makeWorkspace("relay-p2-negative-other-");
+  const ws = await makeWorkspace("devchestra-p2-negative-");
+  const other = await makeWorkspace("devchestra-p2-negative-other-");
   const sentinel = startSentinel();
   const otherSentinel = startSentinel();
   const agents = new Map<number, { pid: number; pidStart: string; binary: string }>();
@@ -74,7 +74,7 @@ export async function runNegativeScenario(): Promise<NegativeEvidence> {
       cwd: ws.projectDir,
       fakeScript: scriptPath("hold"),
     });
-    const http = new RelayHttp(server.baseUrl);
+    const http = new DevChestraHttp(server.baseUrl);
     await http.health();
     const boot = await http.bootstrap(server.meta.token);
     const project = await registerProject(http, ws.projectDir);
@@ -130,9 +130,9 @@ export async function runNegativeScenario(): Promise<NegativeEvidence> {
 
     const randomApiToken = await http.api("GET", "/api/bootstrap", {
       cookie: null,
-      headers: { "X-Relay-Token": "not-the-server-token" },
+      headers: { "X-DevChestra-Token": "not-the-server-token" },
     });
-    expectError(randomApiToken, [401], "wrong X-Relay-Token");
+    expectError(randomApiToken, [401], "wrong X-DevChestra-Token");
     record("wrong-api-token", randomApiToken);
 
     const cookieOnInternal = await http.api("POST", "/internal/agent/tools", {
@@ -279,14 +279,14 @@ export async function runNegativeScenario(): Promise<NegativeEvidence> {
       cwd: other.projectDir,
       fakeScript: scriptPath("basic"),
     });
-    const second = new RelayHttp(otherServer.baseUrl);
+    const second = new DevChestraHttp(otherServer.baseUrl);
     await second.health();
     second.cookie = boot.cookie;
     const crossCookie = await second.api("GET", "/api/bootstrap");
     expectError(crossCookie, [401], "cookie from another instance");
     const crossToken = await second.api("GET", "/api/bootstrap", {
       cookie: null,
-      headers: { "X-Relay-Token": server.meta.token },
+      headers: { "X-DevChestra-Token": server.meta.token },
     });
     expectError(crossToken, [401], "token from another instance");
     await second.bootstrap(otherServer.meta.token);

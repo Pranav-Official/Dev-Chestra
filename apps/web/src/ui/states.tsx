@@ -17,7 +17,7 @@ export function LoadingState({ label = "Loading…" }: { label?: string }) {
 }
 
 export function NetworkError({
-  message = "The Relay server could not be reached.",
+  message = "The DevChestra server could not be reached.",
   onRetry,
 }: {
   message?: string;
@@ -45,10 +45,11 @@ export function AuthState() {
     <div className="state-page" data-testid="auth-state">
       <div className="state-card">
         <LockKeyhole size={28} aria-hidden="true" />
-        <div className="title">Open Relay from your terminal</div>
+        <div className="title">Open DevChestra from your terminal</div>
         <p>
-          This browser does not have a Relay session. Run <span className="mono">relay start</span>{" "}
-          in your terminal and open the URL it prints. The session stays in an HttpOnly cookie.
+          This browser does not have a DevChestra session. Run{" "}
+          <span className="mono">devchestra start</span> in your terminal and open the URL it
+          prints. The session stays in an HttpOnly cookie.
         </p>
       </div>
     </div>

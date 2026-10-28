@@ -1,4 +1,4 @@
-import type { Edge } from "@relay/schema";
+import type { Edge } from "@devchestra/schema";
 import {
   DECISION_MODEL_PATTERN,
   DECISION_PROVIDER_LABELS,
@@ -7,7 +7,7 @@ import {
   type DecisionNode,
   decisionHandles,
   HANDLE_ID_PATTERN,
-} from "@relay/schema";
+} from "@devchestra/schema";
 import { Plus, Trash2 } from "lucide-react";
 import {
   addDecisionBranch,

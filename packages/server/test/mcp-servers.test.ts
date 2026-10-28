@@ -1,9 +1,13 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { DiscoveredMcpServer as AdapterDiscovered } from "@relay/adapters";
-import type { DiscoveredMcpServer as ApiDiscovered, CliMcpServers, ProjectView } from "@relay/api";
-import type { RunId } from "@relay/core";
+import type { DiscoveredMcpServer as AdapterDiscovered } from "@devchestra/adapters";
+import type {
+  DiscoveredMcpServer as ApiDiscovered,
+  CliMcpServers,
+  ProjectView,
+} from "@devchestra/api";
+import type { RunId } from "@devchestra/core";
 import { afterEach, describe, expect, expectTypeOf, it } from "vitest";
 import {
   type BrowserMcpServersPort,
@@ -120,8 +124,8 @@ interface Harness {
 }
 
 async function harness(options: { port?: BrowserMcpServersPort | null } = {}): Promise<Harness> {
-  const dataDir = await mkdtemp(join(tmpdir(), "relay-mcp-data-"));
-  const projectDir = await mkdtemp(join(tmpdir(), "relay-mcp-project-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "devchestra-mcp-data-"));
+  const projectDir = await mkdtemp(join(tmpdir(), "devchestra-mcp-project-"));
   cleanups.push(async () => {
     await rm(dataDir, { recursive: true, force: true });
     await rm(projectDir, { recursive: true, force: true });
@@ -178,7 +182,7 @@ function url(path: string): string {
 }
 
 function cookieHeaders(extra: Record<string, string> = {}): Record<string, string> {
-  return { Host: HOST, Cookie: `relay_session=${TOKEN}`, ...extra };
+  return { Host: HOST, Cookie: `devchestra_session=${TOKEN}`, ...extra };
 }
 
 describe("mcp server routes", () => {
@@ -313,8 +317,8 @@ describe("mcp server routes", () => {
   });
 
   it("serves real discovery with ~ paths and no secret values", async () => {
-    const home = await mkdtemp(join(tmpdir(), "relay-mcp-real-home-"));
-    const projectDir = await mkdtemp(join(tmpdir(), "relay-mcp-real-proj-"));
+    const home = await mkdtemp(join(tmpdir(), "devchestra-mcp-real-home-"));
+    const projectDir = await mkdtemp(join(tmpdir(), "devchestra-mcp-real-proj-"));
     cleanups.push(async () => {
       await rm(home, { recursive: true, force: true });
       await rm(projectDir, { recursive: true, force: true });
@@ -332,7 +336,7 @@ describe("mcp server routes", () => {
         },
       }),
     );
-    const dataDir = await mkdtemp(join(tmpdir(), "relay-mcp-real-data-"));
+    const dataDir = await mkdtemp(join(tmpdir(), "devchestra-mcp-real-data-"));
     cleanups.push(async () => {
       await rm(dataDir, { recursive: true, force: true });
     });

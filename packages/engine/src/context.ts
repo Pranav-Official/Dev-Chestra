@@ -1,18 +1,18 @@
-import { buildChildEnv, type CliId } from "@relay/adapters";
+import { buildChildEnv, type CliId } from "@devchestra/adapters";
 import {
   type Clock,
+  DevChestraError,
   type EventDraft,
   type ExecutionIdentity,
   hashJson,
   isRecord,
   isRunWorkspaceBinding,
   type Path,
-  RelayError,
   type Result,
   type RunId,
   type RunStatus,
   systemClock,
-} from "@relay/core";
+} from "@devchestra/core";
 import {
   compileExpression,
   type ExpressionExecutor,
@@ -20,10 +20,10 @@ import {
   type NormalizedNode,
   type RenderedTemplate,
   renderTemplate,
-} from "@relay/schema";
-import { createNodeExpressionExecutor } from "@relay/schema/node";
-import type { AcceptedOutput, ExecutionRow, RunRecord, Store } from "@relay/store";
-import type { ScratchWorkspace } from "@relay/workspaces";
+} from "@devchestra/schema";
+import { createNodeExpressionExecutor } from "@devchestra/schema/node";
+import type { AcceptedOutput, ExecutionRow, RunRecord, Store } from "@devchestra/store";
+import type { ScratchWorkspace } from "@devchestra/workspaces";
 import type { PlanNode, ScopeSource, WorkflowPlan } from "./graph-plan.js";
 import { stripUi } from "./hash-config.js";
 import type { LinearChain } from "./sequence.js";
@@ -50,26 +50,26 @@ function workspaceModeFor(run: RunRecord, path: string): "scratch" | "worktree" 
     : undefined;
   const workspace = isRecord(node) ? node.workspace : undefined;
   if (!isRecord(workspace)) {
-    throw new RelayError(
+    throw new DevChestraError(
       "E_WORKFLOW_INVALID",
       `Run snapshot has no workspace for node '${path}'; refusing to default to scratch`,
       { details: { runId: run.id, path } },
     );
   }
   if (workspace.mode === "scratch" || workspace.mode === "worktree") return workspace.mode;
-  throw new RelayError(
+  throw new DevChestraError(
     "E_WORKFLOW_INVALID",
     `Run snapshot node '${path}' has unsupported workspace mode '${String(workspace.mode)}'`,
     { details: { runId: run.id, path, mode: workspace.mode } },
   );
 }
 
-export function toRelayError(
+export function toDevChestraError(
   error: unknown,
   code: "E_INTERNAL" | "E_WORKSPACE" = "E_INTERNAL",
-): RelayError {
-  if (error instanceof RelayError) return error;
-  return new RelayError(code, error instanceof Error ? error.message : String(error), {
+): DevChestraError {
+  if (error instanceof DevChestraError) return error;
+  return new DevChestraError(code, error instanceof Error ? error.message : String(error), {
     cause: error,
   });
 }
@@ -88,8 +88,8 @@ function decisionScopeValue(output: unknown): unknown {
   return { ...output, confidence: 0 };
 }
 
-export function serializeError(error: RelayError): {
-  code: RelayError["code"];
+export function serializeError(error: DevChestraError): {
+  code: DevChestraError["code"];
   message: string;
   details?: unknown;
 } {
@@ -122,13 +122,14 @@ export class EngineContext {
 
   run(runId: string): RunRecord {
     const record = this.store.runs.get(runId as RunId);
-    if (record === null) throw new RelayError("E_NOT_FOUND", `Run ${runId} does not exist`);
+    if (record === null) throw new DevChestraError("E_NOT_FOUND", `Run ${runId} does not exist`);
     return record;
   }
 
   execution(runId: string, path: string): ExecutionRow {
     const row = this.store.executions.get(runId as RunId, path as Path);
-    if (row === null) throw new RelayError("E_NOT_FOUND", `Execution ${runId}/${path} is missing`);
+    if (row === null)
+      throw new DevChestraError("E_NOT_FOUND", `Execution ${runId}/${path} is missing`);
     return row;
   }
 
@@ -188,7 +189,7 @@ export class EngineContext {
       const attempt = execution?.attempt ?? 1;
       const output = this.output(run.id, node.id, attempt);
       if (output === null) {
-        throw new RelayError(
+        throw new DevChestraError(
           "E_INTERNAL",
           `Ancestor '${node.id}' has no output for attempt ${attempt}`,
           { details: { runId: run.id } },
@@ -205,7 +206,7 @@ export class EngineContext {
   ancestorValue(run: RunRecord, nodeId: string): unknown {
     const execution = this.store.executions.get(run.id, nodeId as Path);
     if (execution === null) {
-      throw new RelayError("E_INTERNAL", `Ancestor '${nodeId}' has no execution row`, {
+      throw new DevChestraError("E_INTERNAL", `Ancestor '${nodeId}' has no execution row`, {
         details: { runId: run.id },
       });
     }
@@ -213,7 +214,7 @@ export class EngineContext {
     if (execution.status === "succeeded") {
       const output = this.output(run.id, nodeId, execution.attempt);
       if (output === null) {
-        throw new RelayError(
+        throw new DevChestraError(
           "E_INTERNAL",
           `Ancestor '${nodeId}' has no output for attempt ${execution.attempt}`,
           { details: { runId: run.id } },
@@ -228,7 +229,7 @@ export class EngineContext {
     ) {
       return null;
     }
-    throw new RelayError(
+    throw new DevChestraError(
       "E_INTERNAL",
       `Ancestor '${nodeId}' is ${execution.status}; a ready node cannot use an unresolved ancestor`,
       { details: { runId: run.id, status: execution.status } },
@@ -246,7 +247,7 @@ export class EngineContext {
     const binding = run.workspace;
     if (binding === null) return;
     if (!isRunWorkspaceBinding(binding)) {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_WORKFLOW_INVALID",
         `Run ${run.id} has a malformed workspace binding; refusing to execute`,
         { details: { runId: run.id } },
@@ -254,7 +255,7 @@ export class EngineContext {
     }
     const prepare = this.deps.workspaces.prepare;
     if (prepare === undefined) {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_WORKSPACE",
         "Workspace port cannot prepare run-level workspaces; refusing to run",
         { details: { runId: run.id, step: "prepare_unsupported" } },
@@ -282,14 +283,14 @@ export class EngineContext {
   ): Promise<ScratchWorkspace> {
     const binding = run.workspace;
     if (binding !== null && !isRunWorkspaceBinding(binding)) {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_WORKFLOW_INVALID",
         `Run ${run.id} has a malformed workspace binding; refusing to execute`,
         { details: { runId: run.id } },
       );
     }
     if (binding !== null && this.deps.workspaces.prepare === undefined) {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_WORKSPACE",
         "Workspace port cannot prepare run-level workspaces; refusing to acquire",
         { details: { runId: run.id, step: "prepare_unsupported" } },
@@ -417,7 +418,7 @@ export class EngineContext {
     run: RunRecord,
     node: PlanNode,
     identity: ExecutionIdentity,
-    error: RelayError,
+    error: DevChestraError,
   ): void {
     this.appendError(run.id, node.id, error);
     try {
@@ -427,7 +428,7 @@ export class EngineContext {
     }
   }
 
-  appendError(runId: string, path: string, error: RelayError): void {
+  appendError(runId: string, path: string, error: DevChestraError): void {
     this.append(runId, path, "error.logged", "engine", serializeError(error));
   }
 
@@ -491,7 +492,7 @@ export class EngineContext {
     status: "success" | "failed" | "rejected",
     endPath: string,
     result?: unknown,
-    error?: RelayError,
+    error?: DevChestraError,
   ): void {
     this.append(runId, endPath, "run.completed", "engine", {
       status,
@@ -501,7 +502,7 @@ export class EngineContext {
     });
   }
 
-  failRun(runId: string, error: RelayError): void {
+  failRun(runId: string, error: DevChestraError): void {
     try {
       const run = this.run(runId);
       if (isTerminal(run.status as RunStatus)) return;
@@ -552,7 +553,7 @@ export function isTerminal(status: RunStatus): boolean {
   );
 }
 
-export function unwrap<T>(result: Result<T, RelayError>): T {
+export function unwrap<T>(result: Result<T, DevChestraError>): T {
   if (!result.ok) throw result.error;
   return result.value;
 }

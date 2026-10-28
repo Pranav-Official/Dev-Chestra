@@ -65,7 +65,7 @@ async function startFakeGateway(
           name: string;
           arguments: Record<string, unknown>;
         };
-        const callIdHeader = request.headers["x-relay-call-id"];
+        const callIdHeader = request.headers["x-devchestra-call-id"];
         calls.push({
           name: body.name,
           arguments: body.arguments,
@@ -135,10 +135,10 @@ async function runFake(
           (entry): entry is [string, string] => entry[1] !== undefined,
         ),
       ),
-      RELAY_MCP_SHIM_ENTRY: SHIM_TS,
-      RELAY_EXEC_TOKEN: gateway.token,
-      RELAY_GATEWAY_URL: gateway.url,
-      RELAY_TOOLSET: "agent",
+      DEVCHESTRA_MCP_SHIM_ENTRY: SHIM_TS,
+      DEVCHESTRA_EXEC_TOKEN: gateway.token,
+      DEVCHESTRA_GATEWAY_URL: gateway.url,
+      DEVCHESTRA_TOOLSET: "agent",
       FAKE_AGENT_SCRIPT: JSON.stringify(script),
       FAKE_AGENT_PROFILE: "fake",
     },
@@ -178,7 +178,7 @@ afterEach(async () => {
 });
 
 async function tempWorkspace(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), "relay-fake-agent-"));
+  const dir = await mkdtemp(join(tmpdir(), "devchestra-fake-agent-"));
   cleanups.push(async () => {
     await rm(dir, { recursive: true, force: true });
   });
@@ -193,9 +193,9 @@ function promptWithScope(scopeJson: string): string {
     "Plain agent instructions without template references.",
     "",
     INPUT_CONTEXT_NOTE,
-    "<relay_input_context>",
+    "<devchestra_input_context>",
     scopeJson,
-    "</relay_input_context>",
+    "</devchestra_input_context>",
     "",
     "---",
     "How to finish:",
@@ -340,10 +340,10 @@ describe("fake agent through the real shim", () => {
               (entry): entry is [string, string] => entry[1] !== undefined,
             ),
           ),
-          RELAY_MCP_SHIM_ENTRY: join(cwd, "missing-shim.js"),
-          RELAY_EXEC_TOKEN: gateway.token,
-          RELAY_GATEWAY_URL: gateway.url,
-          RELAY_TOOLSET: "agent",
+          DEVCHESTRA_MCP_SHIM_ENTRY: join(cwd, "missing-shim.js"),
+          DEVCHESTRA_EXEC_TOKEN: gateway.token,
+          DEVCHESTRA_GATEWAY_URL: gateway.url,
+          DEVCHESTRA_TOOLSET: "agent",
           FAKE_AGENT_SCRIPT: "[]",
         },
         stdio: ["pipe", "pipe", "pipe"],
@@ -358,7 +358,7 @@ describe("fake agent through the real shim", () => {
     const [code] = (await once(child, "exit")) as [number | null];
     clearTimeout(timer);
     expect(code).not.toBe(0);
-    expect(stderr).toContain("RELAY_MCP_SHIM_ENTRY");
+    expect(stderr).toContain("DEVCHESTRA_MCP_SHIM_ENTRY");
     expect(stderr).not.toContain(gateway.token);
   });
 
@@ -450,9 +450,9 @@ describe("fake agent through the real shim", () => {
 
     expect(run.code).toBe(3);
     expect(gateway.calls).toHaveLength(0);
-    expect(run.stderr).toContain("relay_input_context");
+    expect(run.stderr).toContain("devchestra_input_context");
     const error = run.events.find((event) => event.event === "error");
-    expect(String(error?.message)).toContain("relay_input_context");
+    expect(String(error?.message)).toContain("devchestra_input_context");
     expect(String(error?.message)).not.toContain(gateway.token);
   });
 });

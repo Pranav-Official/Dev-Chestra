@@ -1,19 +1,19 @@
-import type { AdapterRegistry, ResolvedMcpServer, RunRequest } from "@relay/adapters";
+import type { AdapterRegistry, ResolvedMcpServer, RunRequest } from "@devchestra/adapters";
 import type {
   Clock,
+  DevChestraError,
   EventEnvelope,
   ExecutionIdentity,
   JsonObject,
-  RelayError,
   Result,
   RunStatus,
   RunView,
   RunWorkspaceSelection,
   SerializedError,
-} from "@relay/core";
-import type { DecisionService } from "@relay/decisions";
-import type { McpScope, McpSelection, NormalizedWorkflow, ProdCliId } from "@relay/schema";
-import type { Store } from "@relay/store";
+} from "@devchestra/core";
+import type { DecisionService } from "@devchestra/decisions";
+import type { McpScope, McpSelection, NormalizedWorkflow, ProdCliId } from "@devchestra/schema";
+import type { Store } from "@devchestra/store";
 import type {
   AcquireScratchRequest,
   FinalizeScratchInfo,
@@ -21,7 +21,7 @@ import type {
   PrepareRunWorkspaceRequest,
   RunWorkspaceIdentity,
   ScratchWorkspace,
-} from "@relay/workspaces";
+} from "@devchestra/workspaces";
 
 export type EngineCli = ProdCliId | "fake";
 
@@ -45,7 +45,7 @@ export interface GatewayPort {
 
 /**
  * Names-only view of an MCP server the CLI knows, for switching unselected
- * servers off. Mirrors the discovery contract (`@relay/adapters`
+ * servers off. Mirrors the discovery contract (`@devchestra/adapters`
  * `McpResolver`); method syntax keeps the real implementation assignable to
  * this structural slot.
  */
@@ -58,7 +58,7 @@ export interface KnownMcpServer {
 /**
  * Structural resolver the engine calls right before an agent launch. The real
  * implementation is built by the discovery worker and exported from
- * `@relay/adapters`; tests use an in-test fake. `list` never fails the node,
+ * `@devchestra/adapters`; tests use an in-test fake. `list` never fails the node,
  * `resolve` fails it fast (never silent skip).
  */
 export interface McpResolver {
@@ -70,18 +70,23 @@ export interface McpResolver {
     projectDir: string,
     selection: readonly McpSelection[],
   ): Promise<
-    Result<{ extra: ResolvedMcpServer[]; known: NonNullable<RunRequest["knownMcp"]> }, RelayError>
+    Result<
+      { extra: ResolvedMcpServer[]; known: NonNullable<RunRequest["knownMcp"]> },
+      DevChestraError
+    >
   >;
 }
 
 export interface WorkspacePort {
   /** Run-level preflight. Optional for legacy/test ports. */
-  prepare?(request: PrepareRunWorkspaceRequest): Promise<Result<RunWorkspaceIdentity, RelayError>>;
-  acquire(request: AcquireScratchRequest): Promise<Result<ScratchWorkspace, RelayError>>;
+  prepare?(
+    request: PrepareRunWorkspaceRequest,
+  ): Promise<Result<RunWorkspaceIdentity, DevChestraError>>;
+  acquire(request: AcquireScratchRequest): Promise<Result<ScratchWorkspace, DevChestraError>>;
   finalize(
     workspace: ScratchWorkspace,
     request: FinalizeScratchRequest,
-  ): Promise<Result<FinalizeScratchInfo, RelayError>>;
+  ): Promise<Result<FinalizeScratchInfo, DevChestraError>>;
   release(workspace: ScratchWorkspace): void;
 }
 
@@ -106,7 +111,7 @@ export interface EngineDeps {
   readonly finishGraceMs?: number;
   readonly shutdownGraceMs?: number;
   readonly env?: NodeJS.ProcessEnv;
-  /** Caller-owned opt-in for unverified real CLI profiles. Fake is test-only behind RELAY_ALLOW_FAKE. */
+  /** Caller-owned opt-in for unverified real CLI profiles. Fake is test-only behind DEVCHESTRA_ALLOW_FAKE. */
   readonly allowExperimentalClis?: readonly ProdCliId[];
   readonly prompts?: Readonly<Record<string, string>>;
   /** Explicit non-secret env names the caller wants preserved (e.g. fake fixture path). */
@@ -178,14 +183,17 @@ export interface Engine {
   start(): Promise<void>;
   stop(options?: { graceMs?: number }): Promise<void>;
   /** Durable create + async dispatch; resolves before the run completes. */
-  launch(input: StartRunInput): Promise<Result<LaunchResult, RelayError>>;
+  launch(input: StartRunInput): Promise<Result<LaunchResult, DevChestraError>>;
   /** Durable resume + async dispatch; resolves before the run completes. */
-  launchResume(runId: string, options?: ResumeOptions): Promise<Result<LaunchResult, RelayError>>;
+  launchResume(
+    runId: string,
+    options?: ResumeOptions,
+  ): Promise<Result<LaunchResult, DevChestraError>>;
   /** Compatibility: awaits launch(...).completion. */
-  run(input: StartRunInput): Promise<Result<RunOutcome, RelayError>>;
+  run(input: StartRunInput): Promise<Result<RunOutcome, DevChestraError>>;
   /** Compatibility: awaits launchResume(...).completion. */
-  resume(runId: string, options?: ResumeOptions): Promise<Result<RunOutcome, RelayError>>;
-  cancel(runId: string): Promise<Result<void, RelayError>>;
+  resume(runId: string, options?: ResumeOptions): Promise<Result<RunOutcome, DevChestraError>>;
+  cancel(runId: string): Promise<Result<void, DevChestraError>>;
   subscribe(callback: (event: EventEnvelope) => void): () => void;
   view(runId: string): RunView;
   getRun(runId: string): Promise<RunOutcome | null>;

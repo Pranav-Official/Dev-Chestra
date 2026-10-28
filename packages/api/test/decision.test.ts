@@ -17,7 +17,7 @@ interface Call {
 function response(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", "X-Relay-Api": "1" },
+    headers: { "Content-Type": "application/json", "X-DevChestra-Api": "1" },
   });
 }
 
@@ -73,7 +73,7 @@ describe("decision API", () => {
     if (probe === undefined) throw new Error("fetch was not called");
     expect(probe.init.method).toBe("POST");
     expect(new URL(probe.url).pathname).toBe("/api/projects/p1/decisions/test");
-    expect(new Headers(probe.init.headers).get("X-Relay-Csrf")).toBe("1");
+    expect(new Headers(probe.init.headers).get("X-DevChestra-Csrf")).toBe("1");
   });
 
   it("validates provider ids and the 64 KiB state cap", () => {

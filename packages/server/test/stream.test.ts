@@ -1,4 +1,4 @@
-import type { EventEnvelope, Path, RunId } from "@relay/core";
+import type { EventEnvelope, Path, RunId } from "@devchestra/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { createStoreStreamPort, type StreamStorePort } from "../src/stream/index.js";
 import {

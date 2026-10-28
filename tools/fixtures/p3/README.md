@@ -1,6 +1,6 @@
 # P3 acceptance fixtures
 
-Deterministic test-only fake workflows and scripts for `tools/p3-smoke` (require `RELAY_ALLOW_FAKE=1`). The primary
+Deterministic test-only fake workflows and scripts for `tools/p3-smoke` (require `DEVCHESTRA_ALLOW_FAKE=1`). The primary
 AT-3 flow creates a blank workflow through the browser UI; these files support
 HTTP/conflict/security cases and keep a known-good four-node graph available
 without hand-editing JSON.
@@ -16,4 +16,4 @@ without hand-editing JSON.
 The automatic handoff script is generated in each test's temp workspace (not a
 repository fixture): it uses the test-only fake-agent `submit-from-inputs` step
 with a runtime nonce and 14 repository records. No fixture invokes a paid
-provider; the fake agent is trusted only through test-only `relay start --fake-script` (requires `RELAY_ALLOW_FAKE=1`).
+provider; the fake agent is trusted only through test-only `devchestra start --fake-script` (requires `DEVCHESTRA_ALLOW_FAKE=1`).

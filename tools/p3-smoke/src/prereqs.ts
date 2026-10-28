@@ -43,7 +43,7 @@ export function ensurePrereqs(options: { browser: boolean }): PrereqState {
   if (!state.fakeAgent) missing.push("tools/fake-agent/dist/main.js");
   if (!state.sqlite) missing.push("node:sqlite DatabaseSync");
   if (options.browser && !existsSync(state.chromium)) {
-    missing.push(`chromium at RELAY_CHROMIUM_PATH || ${state.chromium}`);
+    missing.push(`chromium at DEVCHESTRA_CHROMIUM_PATH || ${state.chromium}`);
   }
   if (missing.length > 0) {
     throw new Error(

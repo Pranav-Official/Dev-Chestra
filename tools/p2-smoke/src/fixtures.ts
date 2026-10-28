@@ -19,7 +19,7 @@ export interface Workspace {
   workflowFile: string;
 }
 
-export async function makeWorkspace(prefix = "relay-p2-"): Promise<Workspace> {
+export async function makeWorkspace(prefix = "devchestra-p2-"): Promise<Workspace> {
   const root = await mkdtemp(join(tmpdir(), prefix));
   if (root.startsWith(REPO_ROOT)) {
     throw new Error("P2 smoke must not create workspaces inside the repository");

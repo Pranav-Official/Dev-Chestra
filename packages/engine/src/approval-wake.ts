@@ -1,4 +1,4 @@
-import type { RunId } from "@relay/core";
+import type { RunId } from "@devchestra/core";
 import type { EngineContext } from "./context.js";
 
 export function reconcileApprovalWakes(

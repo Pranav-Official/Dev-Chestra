@@ -1,10 +1,10 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bootstrapResponseSchema, projectViewSchema, runListResponseSchema } from "@relay/api";
-import type { Path, RunId } from "@relay/core";
-import { normalizeWorkflow } from "@relay/schema";
-import { openStore } from "@relay/store";
+import { bootstrapResponseSchema, projectViewSchema, runListResponseSchema } from "@devchestra/api";
+import type { Path, RunId } from "@devchestra/core";
+import { normalizeWorkflow } from "@devchestra/schema";
+import { openStore } from "@devchestra/store";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   type BrowserRunControllerPort,
@@ -18,8 +18,8 @@ afterEach(() => {
 });
 const TOKEN = "a".repeat(43);
 function harness() {
-  const dir = mkdtempSync(join(tmpdir(), "relay-cleanup-http-"));
-  const projectDir = mkdtempSync(join(tmpdir(), "relay-cleanup-project-"));
+  const dir = mkdtempSync(join(tmpdir(), "devchestra-cleanup-http-"));
+  const projectDir = mkdtempSync(join(tmpdir(), "devchestra-cleanup-project-"));
   const store = openStore({ file: join(dir, "db.sqlite") });
   cleanup.push(() => {
     store.close();
@@ -44,8 +44,8 @@ function harness() {
       method,
       headers: {
         host: "127.0.0.1:51234",
-        "x-relay-token": TOKEN,
-        ...(csrf ? { "x-relay-csrf": "1" } : {}),
+        "x-devchestra-token": TOKEN,
+        ...(csrf ? { "x-devchestra-csrf": "1" } : {}),
         ...(method !== "GET" ? { "content-type": "application/json" } : {}),
       },
       ...(body ? { body: JSON.stringify(body) } : {}),

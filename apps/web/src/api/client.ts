@@ -1,4 +1,10 @@
-import { ApiClient, ApiError, ApiProtocolError, ApiTransportError, isApiError } from "@relay/api";
+import {
+  ApiClient,
+  ApiError,
+  ApiProtocolError,
+  ApiTransportError,
+  isApiError,
+} from "@devchestra/api";
 
 export const api = new ApiClient({ baseUrl: "" });
 

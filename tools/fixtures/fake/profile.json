@@ -2,11 +2,11 @@
   "profile": "fake",
   "version": 1,
   "kind": "explicit-fake",
-  "description": "Relay's scriptable fake agent. It is not a recorded Claude, Codex, OpenCode or Pi transcript and must not be used as live-CLI evidence.",
+  "description": "DevChestra's scriptable fake agent. It is not a recorded Claude, Codex, OpenCode or Pi transcript and must not be used as live-CLI evidence.",
   "stdout": {
     "format": "NDJSON",
     "envelope": {
-      "type": "relay-fake",
+      "type": "devchestra-fake",
       "profile": "fake",
       "sessionId": "fake-<uuid>",
       "cwd": "<absolute working directory>"
@@ -28,12 +28,12 @@
     "bin": "tools/fake-agent/dist/main.js",
     "dev": "node --import tsx tools/fake-agent/src/main.ts",
     "required_env": [
-      "RELAY_MCP_SHIM_ENTRY",
-      "RELAY_EXEC_TOKEN",
-      "RELAY_GATEWAY_URL",
-      "RELAY_TOOLSET"
+      "DEVCHESTRA_MCP_SHIM_ENTRY",
+      "DEVCHESTRA_EXEC_TOKEN",
+      "DEVCHESTRA_GATEWAY_URL",
+      "DEVCHESTRA_TOOLSET"
     ],
-    "shim": "Spawns the real @relay/mcp stdio shim via the MCP SDK client."
+    "shim": "Spawns the real @devchestra/mcp stdio shim via the MCP SDK client."
   },
   "script": {
     "env": "FAKE_AGENT_SCRIPT",

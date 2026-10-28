@@ -1,4 +1,4 @@
-import { type EventDraft, type EventEnvelope, type RunId, reduce } from "@relay/core";
+import { type EventDraft, type EventEnvelope, type RunId, reduce } from "@devchestra/core";
 import {
   lastEventTs,
   loadView,

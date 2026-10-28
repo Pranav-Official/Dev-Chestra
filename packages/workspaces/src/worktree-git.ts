@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { isRecord, RelayError } from "@relay/core";
+import { DevChestraError, isRecord } from "@devchestra/core";
 
 export const BINDING_NAME = "project-worktree.json";
 export const INTENT_NAME = "project-worktree.intent.json";
@@ -20,7 +20,7 @@ const LOCK_POLL_MS = 25;
 
 export interface WorktreeRecord {
   version: 1;
-  kind: "relay.worktree" | "relay.worktree.intent";
+  kind: "devchestra.worktree" | "devchestra.worktree.intent";
   projectRoot: string;
   projectRootId: string;
   commonDir: string;
@@ -30,10 +30,10 @@ export interface WorktreeRecord {
 }
 
 export interface Binding extends WorktreeRecord {
-  kind: "relay.worktree";
+  kind: "devchestra.worktree";
 }
 export interface WorktreeIntent extends WorktreeRecord {
-  kind: "relay.worktree.intent";
+  kind: "devchestra.worktree.intent";
 }
 export interface ProjectRepo {
   root: string;
@@ -50,14 +50,14 @@ export const missing = (e: unknown): boolean =>
   ["ENOENT", "ENOTDIR"].includes((e as NodeJS.ErrnoException | undefined)?.code ?? "");
 export const exists = (e: unknown): boolean =>
   (e as NodeJS.ErrnoException | undefined)?.code === "EEXIST";
-export const werr = (message: string, details?: unknown): RelayError =>
-  new RelayError("E_WORKSPACE", message, details === undefined ? {} : { details });
-export const ferr = (message: string, details?: unknown): RelayError =>
-  new RelayError("E_FORBIDDEN_PATH", message, details === undefined ? {} : { details });
-export const conflict = (message: string, details?: unknown): RelayError =>
-  new RelayError("E_CONFLICT", message, details === undefined ? {} : { details });
-export function toRelayError(e: unknown): RelayError {
-  if (e instanceof RelayError) return e;
+export const werr = (message: string, details?: unknown): DevChestraError =>
+  new DevChestraError("E_WORKSPACE", message, details === undefined ? {} : { details });
+export const ferr = (message: string, details?: unknown): DevChestraError =>
+  new DevChestraError("E_FORBIDDEN_PATH", message, details === undefined ? {} : { details });
+export const conflict = (message: string, details?: unknown): DevChestraError =>
+  new DevChestraError("E_CONFLICT", message, details === undefined ? {} : { details });
+export function toDevChestraError(e: unknown): DevChestraError {
+  if (e instanceof DevChestraError) return e;
   const code = (e as NodeJS.ErrnoException | undefined)?.code ?? "unknown";
   return werr(`Worktree operation failed (${code})`, { step: "io", code });
 }
@@ -171,9 +171,9 @@ function isAbsolute(p: unknown): p is string {
 }
 
 function parseRecord(value: unknown, kind: WorktreeRecord["kind"]): WorktreeRecord {
-  const invalid = (): RelayError =>
+  const invalid = (): DevChestraError =>
     werr("Worktree record is invalid", {
-      step: kind === "relay.worktree" ? "binding_invalid" : "intent_invalid",
+      step: kind === "devchestra.worktree" ? "binding_invalid" : "intent_invalid",
     });
   if (!isRecord(value)) throw invalid();
   const record = value;
@@ -218,7 +218,7 @@ function readRecord(file: string, kind: WorktreeRecord["kind"]): WorktreeRecord 
     try {
       return parseRecord(JSON.parse(text) as unknown, kind);
     } catch (e) {
-      if (e instanceof RelayError) throw e;
+      if (e instanceof DevChestraError) throw e;
       throw werr("Worktree record is not valid JSON", { step: "record_invalid" });
     }
   } finally {
@@ -227,10 +227,10 @@ function readRecord(file: string, kind: WorktreeRecord["kind"]): WorktreeRecord 
 }
 
 export function readBinding(file: string): Binding | null {
-  return readRecord(file, "relay.worktree") as Binding | null;
+  return readRecord(file, "devchestra.worktree") as Binding | null;
 }
 export function readIntent(file: string): WorktreeIntent | null {
-  return readRecord(file, "relay.worktree.intent") as WorktreeIntent | null;
+  return readRecord(file, "devchestra.worktree.intent") as WorktreeIntent | null;
 }
 
 export function sameRecord(a: WorktreeRecord, b: WorktreeRecord): boolean {
@@ -483,7 +483,7 @@ export async function acquireLock(
   const started = Date.now();
   for (;;) {
     if (signal?.aborted === true) {
-      throw new RelayError("E_CANCELLED", "Worktree acquisition cancelled");
+      throw new DevChestraError("E_CANCELLED", "Worktree acquisition cancelled");
     }
     try {
       writeOwner(file, { pid: process.pid, token });
@@ -514,7 +514,7 @@ export async function acquireLock(
       continue;
     }
     if (Date.now() - started > LOCK_TIMEOUT_MS) {
-      throw new RelayError("E_LOCKED", "Timed out waiting for the shared worktree lock", {
+      throw new DevChestraError("E_LOCKED", "Timed out waiting for the shared worktree lock", {
         details: { step: "lock_timeout", path: file },
       });
     }

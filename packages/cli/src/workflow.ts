@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
-import { RelayError, type Result, type RunWorkspaceSelection } from "@relay/core";
+import { DevChestraError, type Result, type RunWorkspaceSelection } from "@devchestra/core";
 import {
   hashWorkflow,
   type NormalizedWorkflow,
@@ -9,8 +9,8 @@ import {
   parseWorkflowJson,
   validateWorkflow,
   type WorkflowFile,
-} from "@relay/schema";
-import { pathSafety, realRoot } from "@relay/workspaces";
+} from "@devchestra/schema";
+import { pathSafety, realRoot } from "@devchestra/workspaces";
 import { validateWorkspaceSelection } from "./workspace-service.js";
 
 export interface LoadedWorkflow {
@@ -35,7 +35,7 @@ function projectKind(root: string): Promise<"git" | "folder"> {
 function workflowRelative(root: string, arg: string): string {
   const absolute = isAbsolute(arg) ? resolve(arg) : resolve(root, arg);
   if (!pathSafety.isInside(root, absolute)) {
-    throw new RelayError(
+    throw new DevChestraError(
       "E_FORBIDDEN_PATH",
       "Workflow path must be inside the project directory.",
       {
@@ -71,7 +71,7 @@ async function loadPrompts(root: string, file: WorkflowFile): Promise<Record<str
       }
     }
     if (loaded === undefined) {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_WORKFLOW_INVALID",
         `Prompt file '${node.promptFile}' was not found inside the project.`,
         { details: { nodeId: node.id, candidates, cause: last } },
@@ -98,7 +98,7 @@ export async function loadWorkflow(
   const report = validateWorkflow(parsed.value, { projectKind: await projectKind(projectRoot) });
   if (!report.ok) {
     const first = report.errors[0];
-    throw new RelayError(
+    throw new DevChestraError(
       "E_WORKFLOW_INVALID",
       `Workflow is invalid: ${first?.message ?? "unknown error"}`,
       { details: { issues: report.errors, warnings: report.warnings } },
@@ -138,7 +138,7 @@ export async function resolveRunWorkspace(
   if (mode === undefined || mode === "project") return { mode: "project" };
   if (mode === "new-worktree") return validateWorkspaceSelection(projectRoot, { mode });
   if (worktreePath === undefined || worktreePath === "") {
-    throw new RelayError("E_VALIDATION", "An existing worktree requires --worktree-path.");
+    throw new DevChestraError("E_VALIDATION", "An existing worktree requires --worktree-path.");
   }
   return validateWorkspaceSelection(projectRoot, {
     mode: "existing-worktree",
@@ -158,6 +158,6 @@ export function requireFakeScriptForFakeNodes(workflow: NormalizedWorkflow): boo
   );
 }
 
-export function relayErrorResult(error: RelayError): Result<never, RelayError> {
+export function devchestraErrorResult(error: DevChestraError): Result<never, DevChestraError> {
   return { ok: false, error };
 }

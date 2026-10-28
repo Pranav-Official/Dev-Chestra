@@ -1,21 +1,21 @@
-# @relay/core
+# @devchestra/core
 
-Browser-safe shared contracts for Relay (working name). Pure types and functions only: no I/O,
+Browser-safe shared contracts for DevChestra (working name). Pure types and functions only: no I/O,
 no Node built-ins, no runtime dependencies.
 
 ## Commands
 
 ```sh
-pnpm --filter @relay/core build
-pnpm --filter @relay/core typecheck
-pnpm --filter @relay/core test
+pnpm --filter @devchestra/core build
+pnpm --filter @devchestra/core typecheck
+pnpm --filter @devchestra/core test
 pnpm exec biome check packages/core
 ```
 
 ## Public API (`src/index.ts`)
 
 - `Result`, `ok`, `err`, `isOk`, `isErr`, `unwrap`, `unwrapOr`, `mapResult`.
-- `RelayError`, `ErrorCode`, `RelayErrorOptions`.
+- `DevChestraError`, `ErrorCode`, `DevChestraErrorOptions`.
 - `Clock`, `systemClock`, `FakeClock`; `IdGen`, `systemIds`, `FakeIdGen`, `isUlid`.
 - `RunId`, `ProjectId`, `WorkflowId`, `NodeId`, `EntryId`, `Brand`.
 - `Path`, `Segment`, `parsePath`, `formatPath`, `parent`, `isUnder`, `fsSlug`, `RUN_PATH`,
@@ -46,7 +46,7 @@ pnpm exec biome check packages/core
 - Execution identity is `(runId, path, logical attempt, process generation)`, starting at
   `1/1`. Authorize with `isCurrentInvocation` (exact equality); `isStaleCallback` is only a
   diagnostic and does not reject future generations.
-- A tool receipt key is the execution identity plus `X-Relay-Call-Id`. A transport retry reuses
+- A tool receipt key is the execution identity plus `X-DevChestra-Call-Id`. A transport retry reuses
   the callId; a fresh model call gets a new callId even with identical arguments. Adapter
   callbacks that emit session/usage/transcript events use actor `engine`; there is no
   `adapter` actor.
@@ -66,7 +66,7 @@ pnpm exec biome check packages/core
 ## Limits
 
 - No persistence, transport, filesystem, process execution, credential handling or OS sandbox.
-  Relay is not a sandbox.
+  DevChestra is not a sandbox.
 - No exactly-once promise for shell commands or arbitrary agent side effects.
 - `workspace.created`/`workspace.committed`, `node.process.spawned`, and
   `node.output.recorded` require `attempt` and `generation`; late events from an older
@@ -92,4 +92,4 @@ pnpm exec biome check packages/core
   unenforced cap. Token/USD caps are accepted only when real accounting enforces them.
 - `fsSlug` is injective, but callers must still enforce filesystem component length limits for
   very deep paths.
-- Relay is a provisional product name.
+- DevChestra is a provisional product name.

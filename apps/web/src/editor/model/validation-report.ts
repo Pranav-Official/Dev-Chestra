@@ -1,4 +1,4 @@
-import type { Issue, RequiresSummary, ValidationReport } from "@relay/schema";
+import type { Issue, RequiresSummary, ValidationReport } from "@devchestra/schema";
 
 export function emptyRequires(): RequiresSummary {
   return {
@@ -35,7 +35,7 @@ interface ErrorDetails {
   nodeId?: unknown;
 }
 
-export function relayErrorReport(error: {
+export function devchestraErrorReport(error: {
   code: string;
   message: string;
   details?: unknown;

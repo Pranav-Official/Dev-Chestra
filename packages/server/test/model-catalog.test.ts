@@ -1,8 +1,8 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { CliModelCatalog } from "@relay/api";
-import type { RunId } from "@relay/core";
+import type { CliModelCatalog } from "@devchestra/api";
+import type { RunId } from "@devchestra/core";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   type BrowserModelCatalogPort,
@@ -96,7 +96,7 @@ function catalog(overrides: Partial<CliModelCatalog> = {}): CliModelCatalog {
     cli: "codex",
     projectId: "proj-1",
     status: "ready",
-    scope: "relay-runtime",
+    scope: "devchestra-runtime",
     source: "codex-app-server",
     cliVersion: "0.164.0",
     items: [
@@ -165,8 +165,8 @@ interface Harness {
 }
 
 async function harness(options: { port?: boolean; throwPort?: boolean } = {}): Promise<Harness> {
-  const dataDir = await mkdtemp(join(tmpdir(), "relay-models-data-"));
-  const projectDir = await mkdtemp(join(tmpdir(), "relay-models-project-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "devchestra-models-data-"));
+  const projectDir = await mkdtemp(join(tmpdir(), "devchestra-models-project-"));
   cleanups.push(async () => {
     await rm(dataDir, { recursive: true, force: true });
     await rm(projectDir, { recursive: true, force: true });
@@ -229,15 +229,15 @@ function url(path: string): string {
 }
 
 function cookieHeaders(extra: Record<string, string> = {}): Record<string, string> {
-  return { Host: HOST, Cookie: `relay_session=${TOKEN}`, ...extra };
+  return { Host: HOST, Cookie: `devchestra_session=${TOKEN}`, ...extra };
 }
 
 function mutationHeaders(extra: Record<string, string> = {}): Record<string, string> {
   return {
     Host: HOST,
-    Cookie: `relay_session=${TOKEN}`,
+    Cookie: `devchestra_session=${TOKEN}`,
     Origin: ORIGIN,
-    "X-Relay-Csrf": "1",
+    "X-DevChestra-Csrf": "1",
     "Content-Type": "application/json",
     ...extra,
   };
@@ -254,7 +254,7 @@ describe("model catalog routes", () => {
       cli: "codex",
       projectId: "proj-1",
       status: "unsupported",
-      scope: "relay-runtime",
+      scope: "devchestra-runtime",
       source: "none",
       cliVersion: null,
       items: [],
@@ -473,7 +473,7 @@ describe("model catalog routes", () => {
           method: "POST",
           headers: {
             Host: HOST,
-            Cookie: `relay_session=${TOKEN}`,
+            Cookie: `devchestra_session=${TOKEN}`,
             "Content-Type": "application/json",
           },
         })
@@ -502,8 +502,8 @@ describe("model catalog routes", () => {
   });
 
   it("rejects an outbound catalog for another project or CLI without leaking it", async () => {
-    const dataDir = await mkdtemp(join(tmpdir(), "relay-models-data-"));
-    const projectDir = await mkdtemp(join(tmpdir(), "relay-models-project-"));
+    const dataDir = await mkdtemp(join(tmpdir(), "devchestra-models-data-"));
+    const projectDir = await mkdtemp(join(tmpdir(), "devchestra-models-project-"));
     cleanups.push(async () => {
       await rm(dataDir, { recursive: true, force: true });
       await rm(projectDir, { recursive: true, force: true });
@@ -544,8 +544,8 @@ describe("model catalog routes", () => {
   });
 
   it("rejects a malformed outbound catalog before it reaches the wire", async () => {
-    const dataDir = await mkdtemp(join(tmpdir(), "relay-models-data-"));
-    const projectDir = await mkdtemp(join(tmpdir(), "relay-models-project-"));
+    const dataDir = await mkdtemp(join(tmpdir(), "devchestra-models-data-"));
+    const projectDir = await mkdtemp(join(tmpdir(), "devchestra-models-project-"));
     cleanups.push(async () => {
       await rm(dataDir, { recursive: true, force: true });
       await rm(projectDir, { recursive: true, force: true });
@@ -590,8 +590,8 @@ describe("model catalog routes", () => {
 
 describe("model catalog over real HTTP", () => {
   it("serves cold GET and explicit POST refresh with cookie auth", async () => {
-    const dataDir = await mkdtemp(join(tmpdir(), "relay-models-live-data-"));
-    const projectDir = await mkdtemp(join(tmpdir(), "relay-models-live-project-"));
+    const dataDir = await mkdtemp(join(tmpdir(), "devchestra-models-live-data-"));
+    const projectDir = await mkdtemp(join(tmpdir(), "devchestra-models-live-project-"));
     const store = new ModelStore();
     store.projects.push({
       id: "proj-1",
@@ -637,7 +637,7 @@ describe("model catalog over real HTTP", () => {
       headers: {
         Cookie: cookie,
         Origin: server.url,
-        "X-Relay-Csrf": "1",
+        "X-DevChestra-Csrf": "1",
         "Content-Type": "application/json",
       },
     });
@@ -664,7 +664,7 @@ describe("model catalog over real HTTP", () => {
         headers: {
           Cookie: cookie,
           Origin: server.url,
-          "X-Relay-Csrf": "1",
+          "X-DevChestra-Csrf": "1",
           "Content-Type": "application/json",
         },
       },

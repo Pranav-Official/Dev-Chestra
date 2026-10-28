@@ -1,7 +1,7 @@
-import type { ApiRequestOptions, CatalogCli, CliModelCatalog } from "@relay/api";
+import type { ApiRequestOptions, CatalogCli, CliModelCatalog } from "@devchestra/api";
 import { api } from "../../../api/client.js";
 
-export type { CatalogCli, CliModelCatalog, CliModelItem } from "@relay/api";
+export type { CatalogCli, CliModelCatalog, CliModelItem } from "@devchestra/api";
 
 export type CliModelRequestOptions = ApiRequestOptions;
 

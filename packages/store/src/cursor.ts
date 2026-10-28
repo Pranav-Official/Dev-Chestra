@@ -1,4 +1,4 @@
-import { isRecord } from "@relay/core";
+import { isRecord } from "@devchestra/core";
 import { hashJsonSync } from "./hash.js";
 import { fail } from "./util.js";
 

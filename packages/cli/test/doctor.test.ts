@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createDecisionService } from "@relay/decisions";
+import { createDecisionService } from "@devchestra/decisions";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { StandinHandle } from "../../../tools/fixtures/decisions/standin.mjs";
 import { startStandin } from "../../../tools/fixtures/decisions/standin.mjs";
@@ -24,9 +24,9 @@ afterEach(async () => {
   await standin.close();
 });
 
-describe("relay doctor decision providers", () => {
+describe("devchestra doctor decision providers", () => {
   it("lists each provider as ready or missing with variable NAMES only", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "relay-doctor-dec-"));
+    const dir = mkdtempSync(join(tmpdir(), "devchestra-doctor-dec-"));
     try {
       const sentinel = `sentinel-${Date.now()}-key`;
       const previous = process.env.TYPESAFE_API_KEY;
@@ -65,7 +65,7 @@ describe("relay doctor decision providers", () => {
   });
 
   it("makes no network calls without --probe-decisions", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "relay-doctor-noprobe-"));
+    const dir = mkdtempSync(join(tmpdir(), "devchestra-doctor-noprobe-"));
     try {
       let fetches = 0;
       const decisions = createDecisionService({
@@ -90,7 +90,7 @@ describe("relay doctor decision providers", () => {
   });
 
   it("probes each ready provider once with a redacted shape summary", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "relay-doctor-probe-"));
+    const dir = mkdtempSync(join(tmpdir(), "devchestra-doctor-probe-"));
     try {
       // Only Jev is ready, so only Jev is probed (one request).
       const decisions = createDecisionService({
@@ -125,7 +125,7 @@ describe("relay doctor decision providers", () => {
   });
 
   it("reports a failed probe without key material", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "relay-doctor-probefail-"));
+    const dir = mkdtempSync(join(tmpdir(), "devchestra-doctor-probefail-"));
     try {
       standin.setNext(["error-500", "error-500", "error-500"]);
       const decisions = createDecisionService({

@@ -5,8 +5,13 @@ import {
   type JsonValue,
   type NodeKind,
   parsePath,
-} from "@relay/core";
-import type { AcceptedOutput, ExecutionHistory, ExecutionRow, ProcessHistory } from "@relay/store";
+} from "@devchestra/core";
+import type {
+  AcceptedOutput,
+  ExecutionHistory,
+  ExecutionRow,
+  ProcessHistory,
+} from "@devchestra/store";
 import type {
   AttemptView,
   BrowserQueryPort,

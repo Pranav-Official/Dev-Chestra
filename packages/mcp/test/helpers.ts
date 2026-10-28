@@ -134,9 +134,9 @@ export async function connectShim(
           (entry): entry is [string, string] => entry[1] !== undefined,
         ),
       ),
-      RELAY_EXEC_TOKEN: token,
-      RELAY_GATEWAY_URL: gatewayUrl,
-      RELAY_TOOLSET: "agent",
+      DEVCHESTRA_EXEC_TOKEN: token,
+      DEVCHESTRA_GATEWAY_URL: gatewayUrl,
+      DEVCHESTRA_TOOLSET: "agent",
       ...Object.fromEntries(
         Object.entries(extraEnv).filter(
           (entry): entry is [string, string] => entry[1] !== undefined,
@@ -152,7 +152,7 @@ export async function connectShim(
     stderrText += String(chunk);
   });
 
-  const client = new Client({ name: "relay-mcp-test", version: "0.0.0" });
+  const client = new Client({ name: "devchestra-mcp-test", version: "0.0.0" });
   await client.connect(transport);
 
   return {

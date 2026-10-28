@@ -21,8 +21,8 @@ afterEach(cleanupModelCatalogTests);
 describe("Claude discovery wiring", () => {
   it("cold GET is cache-only and creates no runtime directory", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const binDir = tempDir("relay-model-catalog-bin-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const binDir = tempDir("devchestra-model-catalog-bin-");
     executable(binDir, "claude");
     let calls = 0;
     const service = createModelCatalogService({
@@ -43,8 +43,8 @@ describe("Claude discovery wiring", () => {
 
   it("refresh uses the Claude discovery port and keeps the raw model value", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const binDir = tempDir("relay-model-catalog-bin-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const binDir = tempDir("devchestra-model-catalog-bin-");
     const bin = executable(binDir, "claude");
     let codexCalls = 0;
     let claudeCalls = 0;
@@ -98,8 +98,8 @@ describe("Claude discovery wiring", () => {
 
   it("keeps the same binary identity separate per CLI including versions", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const binDir = tempDir("relay-model-catalog-bin-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const binDir = tempDir("devchestra-model-catalog-bin-");
     const shared = executable(binDir, "shared-cli");
     let codexCalls = 0;
     let claudeCalls = 0;
@@ -146,8 +146,8 @@ describe("Claude discovery wiring", () => {
 
   it("invalidates on Claude config stat changes and ignores .codex metadata", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const binDir = tempDir("relay-model-catalog-bin-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const binDir = tempDir("devchestra-model-catalog-bin-");
     executable(binDir, "claude");
     mkdirSync(join(dataDir, ".claude"), { recursive: true });
     mkdirSync(join(dataDir, ".codex"), { recursive: true });
@@ -180,8 +180,8 @@ describe("Claude discovery wiring", () => {
 
   it("invalidates an in-flight Claude refresh when settings change", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const binDir = tempDir("relay-model-catalog-bin-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const binDir = tempDir("devchestra-model-catalog-bin-");
     executable(binDir, "claude");
     mkdirSync(join(dataDir, ".claude"), { recursive: true });
     const settings = join(dataDir, ".claude", "settings.json");
@@ -210,8 +210,8 @@ describe("Claude discovery wiring", () => {
 
   it("single-flights per CLI and keeps stale last-good items on failure", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const binDir = tempDir("relay-model-catalog-bin-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const binDir = tempDir("devchestra-model-catalog-bin-");
     executable(binDir, "codex");
     executable(binDir, "claude");
     let clock = 1_000;
@@ -255,8 +255,8 @@ describe("Claude discovery wiring", () => {
 
   it("maps an adapter-reported missing SDK to an honest empty status", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const binDir = tempDir("relay-model-catalog-bin-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const binDir = tempDir("devchestra-model-catalog-bin-");
     executable(binDir, "claude");
     const service = createModelCatalogService({
       dataDir,
@@ -283,8 +283,8 @@ describe("Claude discovery wiring", () => {
 
   it("sanitizes a thrown Claude discovery failure without leaking details", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const binDir = tempDir("relay-model-catalog-bin-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const binDir = tempDir("devchestra-model-catalog-bin-");
     executable(binDir, "claude");
     const service = createModelCatalogService({
       dataDir,

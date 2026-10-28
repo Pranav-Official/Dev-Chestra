@@ -1,4 +1,4 @@
-import { err, ok, RelayError, type Result } from "@relay/core";
+import { DevChestraError, err, ok, type Result } from "@devchestra/core";
 import { MAX_WORKFLOW_FILE_BYTES } from "./ids.js";
 import { DECISION_PROVIDERS, PROD_CLIS, type WorkflowFile } from "./types.js";
 import { z } from "./zod.js";
@@ -95,10 +95,10 @@ const mcpServersSchema = z
         );
         continue;
       }
-      if (name === "relay") {
+      if (name === "devchestra") {
         ctx.addIssue(
           mcpSelectionIssue(
-            `mcpServers[${index}].name 'relay' is reserved for Relay's own server.`,
+            `mcpServers[${index}].name 'devchestra' is reserved for DevChestra's own server.`,
             [index, "name"],
           ),
         );
@@ -150,7 +150,7 @@ const agentNodeSchema = z.strictObject({
   type: z.literal("agent"),
   // Structural parse allows fake everywhere (warning in validateWorkflow).
   // Run-time layers (CLI startup/run gates, adapter registry) enforce the
-  // RELAY_ALLOW_FAKE=1 test-only requirement; API DTO schemas keep their own
+  // DEVCHESTRA_ALLOW_FAKE=1 test-only requirement; API DTO schemas keep their own
   // gate for direct API writes.
   cli: z.enum([...PROD_CLIS, "fake"]),
   model: z.string().optional(),
@@ -308,10 +308,10 @@ const SUPPORTED_NODE_TYPES = new Set([
 ]);
 const SUPPORTED_CLIS = new Set<string>([...PROD_CLIS]);
 
-/** `fake` parses only for the test adapter registry behind RELAY_ALLOW_FAKE. */
+/** `fake` parses only for the test adapter registry behind DEVCHESTRA_ALLOW_FAKE. */
 // ponytail: env-gated test hook; a shared registry module if more flags appear.
 export function isFakeCliEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  const value = env.RELAY_ALLOW_FAKE;
+  const value = env.DEVCHESTRA_ALLOW_FAKE;
   return value === "1" || value === "true";
 }
 
@@ -326,18 +326,18 @@ function record(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-function precheck(raw: unknown): RelayError | undefined {
+function precheck(raw: unknown): DevChestraError | undefined {
   const root = record(raw);
   if (root === undefined) {
-    return new RelayError("E_WORKFLOW_INVALID", "Workflow must be a JSON object");
+    return new DevChestraError("E_WORKFLOW_INVALID", "Workflow must be a JSON object");
   }
   if (root.schemaVersion !== 1) {
     const version = root.schemaVersion;
     const hint =
       typeof version === "number" && version > 1
-        ? " This file was written by a newer build; upgrade Relay instead of editing it."
+        ? " This file was written by a newer build; upgrade DevChestra instead of editing it."
         : "";
-    return new RelayError(
+    return new DevChestraError(
       "E_WORKFLOW_INVALID",
       `Unsupported schemaVersion ${String(version)}; this build supports schemaVersion 1.${hint}`,
       { details: { pointer: "/schemaVersion" } },
@@ -350,7 +350,7 @@ function precheck(raw: unknown): RelayError | undefined {
       if (node === undefined) continue;
       const type = node.type;
       if (typeof type === "string" && !SUPPORTED_NODE_TYPES.has(type)) {
-        return new RelayError(
+        return new DevChestraError(
           "E_WORKFLOW_INVALID",
           `Unsupported node type '${type}' at graph.nodes[${i}]. P1 supports: start, agent, shell, gate, join, approval, decision, end.`,
           { details: { pointer: `/graph/nodes/${i}/type` } },
@@ -362,10 +362,10 @@ function precheck(raw: unknown): RelayError | undefined {
           if (cli === "fake") {
             // Structural parse allows fake everywhere so browser authoring and
             // validation can display it with a warning. Run-time enforces the
-            // test-only gate (RELAY_ALLOW_FAKE=1) at startup/run/adapter layers.
+            // test-only gate (DEVCHESTRA_ALLOW_FAKE=1) at startup/run/adapter layers.
             continue;
           }
-          return new RelayError(
+          return new DevChestraError(
             "E_WORKFLOW_INVALID",
             `Unsupported agent CLI '${cli}' at graph.nodes[${i}]. P1 supports: ${[...PROD_CLIS].join(", ")}.`,
             { details: { pointer: `/graph/nodes/${i}/cli` } },
@@ -381,7 +381,7 @@ function precheck(raw: unknown): RelayError | undefined {
  * Structural parse (Zod, strict objects). Unknown fields are rejected. Semantic
  * rules, unsupported options and expressions are checked by validateWorkflow.
  */
-export function parseWorkflow(raw: unknown): Result<WorkflowFile, RelayError> {
+export function parseWorkflow(raw: unknown): Result<WorkflowFile, DevChestraError> {
   const precheckError = precheck(raw);
   if (precheckError !== undefined) return err(precheckError);
 
@@ -394,7 +394,7 @@ export function parseWorkflow(raw: unknown): Result<WorkflowFile, RelayError> {
     const first = issues[0];
     const suffix = issues.length > 1 ? ` (and ${issues.length - 1} more)` : "";
     return err(
-      new RelayError(
+      new DevChestraError(
         "E_WORKFLOW_INVALID",
         `Invalid workflow${first?.pointer ? ` at ${first.pointer}` : ""}: ${first?.message ?? "parse failed"}${suffix}`,
         { details: { issues } },
@@ -406,11 +406,11 @@ export function parseWorkflow(raw: unknown): Result<WorkflowFile, RelayError> {
 }
 
 /** Parse workflow JSON text. JSON syntax errors are reported as E_WORKFLOW_INVALID. */
-export function parseWorkflowJson(text: string): Result<WorkflowFile, RelayError> {
+export function parseWorkflowJson(text: string): Result<WorkflowFile, DevChestraError> {
   const bytes = new TextEncoder().encode(text).length;
   if (bytes > MAX_WORKFLOW_FILE_BYTES) {
     return err(
-      new RelayError(
+      new DevChestraError(
         "E_WORKFLOW_INVALID",
         `Workflow file exceeds the ${MAX_WORKFLOW_FILE_BYTES}-byte limit.`,
         { details: { bytes, maxBytes: MAX_WORKFLOW_FILE_BYTES } },
@@ -422,7 +422,7 @@ export function parseWorkflowJson(text: string): Result<WorkflowFile, RelayError
     raw = JSON.parse(text);
   } catch (error) {
     return err(
-      new RelayError(
+      new DevChestraError(
         "E_WORKFLOW_INVALID",
         `Workflow is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
       ),

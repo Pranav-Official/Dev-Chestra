@@ -13,7 +13,7 @@ interface Call {
 function response(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", "X-Relay-Api": "1", ...headers },
+    headers: { "Content-Type": "application/json", "X-DevChestra-Api": "1", ...headers },
   });
 }
 
@@ -78,8 +78,8 @@ describe("ApiClient", () => {
     const call = first(calls);
     expect(call.url).toBe("http://127.0.0.1:4821/api/health");
     expect(call.init.credentials).toBe("same-origin");
-    expect(header(call, "X-Relay-Api")).toBe("1");
-    expect(header(call, "X-Relay-Csrf")).toBeNull();
+    expect(header(call, "X-DevChestra-Api")).toBe("1");
+    expect(header(call, "X-DevChestra-Csrf")).toBeNull();
   });
 
   it("encodes an execution path as one URL segment", async () => {
@@ -137,17 +137,17 @@ describe("ApiClient", () => {
     );
     await client.startRun(
       "orbit-web-3f9a",
-      { workflowFile: "workflows/demo.json", params: { topic: "relay" } },
+      { workflowFile: "workflows/demo.json", params: { topic: "devchestra" } },
       { idempotencyKey: "start-1" },
     );
     const call = first(calls);
     expect(call.init.method).toBe("POST");
-    expect(header(call, "X-Relay-Csrf")).toBe("1");
+    expect(header(call, "X-DevChestra-Csrf")).toBe("1");
     expect(header(call, "Content-Type")).toBe("application/json");
     expect(header(call, "Idempotency-Key")).toBe("start-1");
     expect(JSON.parse(String(call.init.body))).toEqual({
       workflowFile: "workflows/demo.json",
-      params: { topic: "relay" },
+      params: { topic: "devchestra" },
     });
   });
 
@@ -172,7 +172,7 @@ describe("ApiClient", () => {
     );
     await client.cancelRun(RUN_ID);
     await client.resumeRun(RUN_ID);
-    expect(header(first(calls), "X-Relay-Csrf")).toBe("1");
+    expect(header(first(calls), "X-DevChestra-Csrf")).toBe("1");
     expect(first(calls).init.method).toBe("POST");
     expect(calls).toHaveLength(2);
   });
@@ -226,12 +226,12 @@ describe("ApiClient", () => {
       token: "secret",
     });
     await client.health();
-    expect(header(first(calls), "X-Relay-Token")).toBe("secret");
+    expect(header(first(calls), "X-DevChestra-Token")).toBe("secret");
   });
 
   it("rejects a different or missing response API major", async () => {
     const wrong = makeClient(
-      () => new Response("{}", { status: 200, headers: { "X-Relay-Api": "2" } }),
+      () => new Response("{}", { status: 200, headers: { "X-DevChestra-Api": "2" } }),
     );
     await expect(wrong.client.health()).rejects.toMatchObject({
       name: "ApiProtocolError",
@@ -279,7 +279,7 @@ describe("ApiClient", () => {
 
   it("rejects a non-JSON error body as a protocol error", async () => {
     const { client } = makeClient(
-      () => new Response("oops", { status: 500, headers: { "X-Relay-Api": "1" } }),
+      () => new Response("oops", { status: 500, headers: { "X-DevChestra-Api": "1" } }),
     );
     await expect(client.health()).rejects.toMatchObject({
       name: "ApiProtocolError",
@@ -349,7 +349,7 @@ describe("ApiClient", () => {
       () =>
         new Response(body, {
           status: 200,
-          headers: { "Content-Type": "text/event-stream", "X-Relay-Api": "1" },
+          headers: { "Content-Type": "text/event-stream", "X-DevChestra-Api": "1" },
         }),
     );
     const messages = [];

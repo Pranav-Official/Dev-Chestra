@@ -1,7 +1,7 @@
 {
-  "name": "@relay/core",
+  "name": "@devchestra/core",
   "version": "0.1.0",
-  "description": "Relay browser-safe contracts: results, identifiers, paths, events, transitions and pure reducers",
+  "description": "DevChestra browser-safe contracts: results, identifiers, paths, events, transitions and pure reducers",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

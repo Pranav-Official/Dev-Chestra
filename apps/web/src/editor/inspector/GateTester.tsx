@@ -1,4 +1,4 @@
-import { type GateNode, MAX_GATE_BRANCHES } from "@relay/schema";
+import { type GateNode, MAX_GATE_BRANCHES } from "@devchestra/schema";
 import { AlertCircle, CheckCircle2, PlayCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { workflowApi } from "../api/workflowApi.js";

@@ -4,19 +4,19 @@ import {
   runEventsQuerySchema,
   runListQuerySchema,
   transcriptQuerySchema,
-} from "@relay/api";
+} from "@devchestra/api";
 import {
   type ExecStatus,
   isTerminalExecStatus,
   isTerminalRunStatus,
   RUN_STATUSES,
   type RunStatus,
-} from "@relay/core";
-import type { DecisionService } from "@relay/decisions";
+} from "@devchestra/core";
+import type { DecisionService } from "@devchestra/decisions";
 import { type Context, Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { errorBody, RelayError } from "../errors.js";
+import { DevChestraError, errorBody } from "../errors.js";
 import { mountWorkflowRoutes } from "../workflows/routes.js";
 import { ManagedWorkflowService } from "../workflows/service.js";
 import { mountApprovalRoutes } from "./approval-routes.js";
@@ -159,7 +159,7 @@ function json(c: Context, value: unknown, status: ContentfulStatusCode = 200): R
 
 function ensureRunStatus(value: unknown): RunStatus {
   if (typeof value === "string" && isValidStatus(value)) return value;
-  throw new RelayError("E_INTERNAL", "Controller returned an invalid run status.");
+  throw new DevChestraError("E_INTERNAL", "Controller returned an invalid run status.");
 }
 
 export function createBrowserApp(deps: BrowserAppDeps): Hono {
@@ -188,7 +188,7 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
     if (cookie !== undefined && cookie !== "" && constantTimeEqual(cookie, deps.sessionToken)) {
       return true;
     }
-    const header = c.req.header("x-relay-token");
+    const header = c.req.header("x-devchestra-token");
     return header !== undefined && header !== "" && constantTimeEqual(header, deps.sessionToken);
   };
 
@@ -198,7 +198,7 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
       return;
     }
     if (!sessionAuthorized(c)) {
-      return c.json(errorBody("E_AUTH", "A Relay browser session is required."), 401);
+      return c.json(errorBody("E_AUTH", "A DevChestra browser session is required."), 401);
     }
     await next();
   });
@@ -313,7 +313,7 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
     app.post(`/api/runs/:rid/${action}`, async (c) => {
       await readOptionalJson(c);
       if (!deps.store.setRunArchived)
-        throw new RelayError("E_NOT_SUPPORTED", "Run archiving is unavailable.");
+        throw new DevChestraError("E_NOT_SUPPORTED", "Run archiving is unavailable.");
       await deps.store.setRunArchived(c.req.param("rid"), action === "archive");
       return c.json({ ok: true });
     });
@@ -416,7 +416,7 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
 
     if (/\/(retry|cancel|pin|diff)$/u.test(rest)) {
       return c.json(
-        errorBody("E_NOT_SUPPORTED", "That Relay API feature is not available in P2."),
+        errorBody("E_NOT_SUPPORTED", "That DevChestra API feature is not available in P2."),
         501,
       );
     }
@@ -475,13 +475,13 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
       /^\/api\/projects\/[^/]+$/u.test(c.req.path)
     ) {
       return c.json(
-        errorBody("E_NOT_SUPPORTED", "That Relay API feature is not available in P2."),
+        errorBody("E_NOT_SUPPORTED", "That DevChestra API feature is not available in P2."),
         501,
       );
     }
     if (isUnsupportedFeature(c.req.path)) {
       return c.json(
-        errorBody("E_NOT_SUPPORTED", "That Relay API feature is not available in P2."),
+        errorBody("E_NOT_SUPPORTED", "That DevChestra API feature is not available in P2."),
         501,
       );
     }

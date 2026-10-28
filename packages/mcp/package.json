@@ -1,7 +1,7 @@
 {
-  "name": "@relay/mcp",
+  "name": "@devchestra/mcp",
   "version": "0.1.0",
-  "description": "Relay MCP stdio shim and loopback gateway transport",
+  "description": "DevChestra MCP stdio shim and loopback gateway transport",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -17,7 +17,7 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "relay-mcp-shim": "./dist/bin/shim.js"
+    "devchestra-mcp-shim": "./dist/bin/shim.js"
   },
   "files": [
     "dist"
@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",
-    "@relay/core": "workspace:*"
+    "@devchestra/core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

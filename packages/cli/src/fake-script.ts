@@ -4,7 +4,7 @@ import { isFakeScriptEnabled, UsageError } from "./args.js";
 
 /**
  * Explicit caller-provided fake fixture. Test-only: requires
- * RELAY_ALLOW_FAKE=1 and is never read from workflow cliOptions.
+ * DEVCHESTRA_ALLOW_FAKE=1 and is never read from workflow cliOptions.
  */
 export async function loadFakeScript(path: string | undefined): Promise<string | undefined> {
   if (!isFakeScriptEnabled()) return undefined;
@@ -36,7 +36,7 @@ export async function loadFakeScript(path: string | undefined): Promise<string |
 export function requireFakeScript(script: string | undefined): string {
   if (script === undefined) {
     throw new UsageError(
-      "A workflow with fake agent nodes requires RELAY_ALLOW_FAKE=1 with --fake-script <file> (or FAKE_AGENT_SCRIPT).",
+      "A workflow with fake agent nodes requires DEVCHESTRA_ALLOW_FAKE=1 with --fake-script <file> (or FAKE_AGENT_SCRIPT).",
     );
   }
   return script;

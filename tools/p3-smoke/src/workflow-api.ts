@@ -3,13 +3,13 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import {
+  type DevChestraHttp,
   errorCode,
   etagOf,
   fieldString,
   type HttpResult,
   header,
   objectBody,
-  type RelayHttp,
 } from "./http.js";
 
 export interface WorkflowFileLike {
@@ -87,7 +87,7 @@ export function defaultIdempotencyKey(): string {
   return `p3-${randomUUID()}`;
 }
 
-export async function registerProject(http: RelayHttp, path: string): Promise<{ id: string }> {
+export async function registerProject(http: DevChestraHttp, path: string): Promise<{ id: string }> {
   const result = await http.api("POST", "/api/projects", { body: { path } });
   assert.equal(result.status, 200, `POST project: ${result.text.slice(0, 500)}`);
   return { id: fieldString(result.body, ["id"]) ?? fail("project id missing") };
@@ -131,7 +131,7 @@ function parseDocument(result: HttpResult, expected: number[]): WorkflowDocument
 }
 
 export async function listWorkflows(
-  http: RelayHttp,
+  http: DevChestraHttp,
   projectId: string,
   query = "",
 ): Promise<{ items: WorkflowListItem[]; nextCursor: string | null; status: number }> {
@@ -150,7 +150,7 @@ export async function listWorkflows(
 }
 
 export async function createWorkflow(
-  http: RelayHttp,
+  http: DevChestraHttp,
   projectId: string,
   input: { name: string; id?: string; template?: "blank" | "linear" },
 ): Promise<CreatedWorkflow> {
@@ -166,7 +166,7 @@ export async function createWorkflow(
 }
 
 export async function getWorkflow(
-  http: RelayHttp,
+  http: DevChestraHttp,
   projectId: string,
   workflowId: string,
 ): Promise<WorkflowDocument> {
@@ -178,7 +178,7 @@ export async function getWorkflow(
 }
 
 export async function saveWorkflow(
-  http: RelayHttp,
+  http: DevChestraHttp,
   projectId: string,
   workflowId: string,
   workflow: WorkflowFileLike,
@@ -193,7 +193,7 @@ export async function saveWorkflow(
 }
 
 export async function saveWorkflowRaw(
-  http: RelayHttp,
+  http: DevChestraHttp,
   projectId: string,
   workflowId: string,
   body: unknown,
@@ -210,7 +210,7 @@ export async function saveWorkflowRaw(
 }
 
 export async function validateWorkflow(
-  http: RelayHttp,
+  http: DevChestraHttp,
   projectId: string,
   workflowId: string,
   workflow: WorkflowFileLike,
@@ -229,7 +229,7 @@ export async function validateWorkflow(
 }
 
 export async function deleteWorkflow(
-  http: RelayHttp,
+  http: DevChestraHttp,
   projectId: string,
   workflowId: string,
   ifMatch: string,
@@ -242,7 +242,7 @@ export async function deleteWorkflow(
 }
 
 export async function startManagedRun(
-  http: RelayHttp,
+  http: DevChestraHttp,
   projectId: string,
   workflowId: string,
   input: { params?: Record<string, unknown>; etag: string; idempotencyKey?: string },
@@ -270,7 +270,7 @@ export async function startManagedRun(
   };
 }
 
-export async function getRun(http: RelayHttp, runId: string): Promise<RunBody> {
+export async function getRun(http: DevChestraHttp, runId: string): Promise<RunBody> {
   const result = await http.api("GET", `/api/runs/${encodeURIComponent(runId)}`);
   assert.equal(result.status, 200, `GET run: ${result.text.slice(0, 500)}`);
   const body = objectBody(result, "run");
@@ -287,7 +287,7 @@ export function isTerminal(status: string): boolean {
 }
 
 export async function waitTerminal(
-  http: RelayHttp,
+  http: DevChestraHttp,
   runId: string,
   timeoutMs = 90_000,
 ): Promise<RunBody> {
@@ -306,10 +306,10 @@ export async function readManagedFile(
   projectDir: string,
   relativeFile: string,
 ): Promise<{ path: string; text: string }> {
-  assert.equal(relativeFile, `.relay/workflows/${relativeFile.split("/").at(-1) ?? ""}`);
+  assert.equal(relativeFile, `.devchestra/workflows/${relativeFile.split("/").at(-1) ?? ""}`);
   const path = resolve(join(projectDir, relativeFile));
-  const root = resolve(join(projectDir, ".relay/workflows"));
-  assert.ok(path.startsWith(`${root}/`), "managed file must stay inside .relay/workflows");
+  const root = resolve(join(projectDir, ".devchestra/workflows"));
+  assert.ok(path.startsWith(`${root}/`), "managed file must stay inside .devchestra/workflows");
   return { path, text: await readFile(path, "utf8") };
 }
 
@@ -328,7 +328,7 @@ export function expectError(
 }
 
 export function apiHeader(result: HttpResult): string {
-  const value = header(result, "x-relay-api");
-  assert.ok(value !== null && value !== "", "response is missing X-Relay-Api");
+  const value = header(result, "x-devchestra-api");
+  assert.ok(value !== null && value !== "", "response is missing X-DevChestra-Api");
   return value;
 }

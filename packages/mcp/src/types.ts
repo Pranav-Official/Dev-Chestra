@@ -10,7 +10,7 @@ export interface AgentToolsResponse {
 
 /**
  * Wire shape of POST /internal/agent/call. The idempotency receipt travels in
- * the X-Relay-Call-Id header so this body stays exactly the spec's
+ * the X-DevChestra-Call-Id header so this body stays exactly the spec's
  * { name, arguments } shape.
  */
 export interface AgentCallRequest {

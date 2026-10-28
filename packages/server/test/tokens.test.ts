@@ -1,4 +1,4 @@
-import { createExecutionIdentity, type Path, type RunId } from "@relay/core";
+import { createExecutionIdentity, type Path, type RunId } from "@devchestra/core";
 import { describe, expect, it } from "vitest";
 import { type ExecScope, ExecTokenRegistry } from "../src/tokens.js";
 

@@ -8,7 +8,7 @@ const base: NodeJS.ProcessEnv = {
   ANTHROPIC_API_KEY: "anthropic-key",
   GITHUB_TOKEN: "github-secret",
   AWS_SECRET_ACCESS_KEY: "aws-secret",
-  RELAY_EXEC_TOKEN: "relay-secret",
+  DEVCHESTRA_EXEC_TOKEN: "devchestra-secret",
   NODE_OPTIONS: "--require=evil",
   RANDOM_UNLISTED: "drop-me",
 };
@@ -21,7 +21,7 @@ describe("buildChildEnv", () => {
     expect(env.LC_ALL).toBe("C.UTF-8");
     expect(env.GITHUB_TOKEN).toBeUndefined();
     expect(env.AWS_SECRET_ACCESS_KEY).toBeUndefined();
-    expect(env.RELAY_EXEC_TOKEN).toBeUndefined();
+    expect(env.DEVCHESTRA_EXEC_TOKEN).toBeUndefined();
     expect(env.NODE_OPTIONS).toBeUndefined();
     expect(env.RANDOM_UNLISTED).toBeUndefined();
     expect(env.TERM).toBe("dumb");
@@ -39,12 +39,12 @@ describe("buildChildEnv", () => {
     expect(env.MY_NODE_VALUE).toBe("1");
   });
 
-  it("refuses RELAY_* declarations and loader/injection variables", () => {
+  it("refuses DEVCHESTRA_* declarations and loader/injection variables", () => {
     expect(() =>
-      buildChildEnv("claude-code", { base, nodeEnvNames: ["RELAY_EXEC_TOKEN"] }),
+      buildChildEnv("claude-code", { base, nodeEnvNames: ["DEVCHESTRA_EXEC_TOKEN"] }),
     ).toThrow();
     expect(() =>
-      buildChildEnv("claude-code", { base, nodeEnv: { RELAY_EXEC_TOKEN: "x" } }),
+      buildChildEnv("claude-code", { base, nodeEnv: { DEVCHESTRA_EXEC_TOKEN: "x" } }),
     ).toThrow();
     expect(() =>
       buildChildEnv("claude-code", { base, nodeEnv: { NODE_OPTIONS: "--x" } }),
@@ -52,16 +52,16 @@ describe("buildChildEnv", () => {
     expect(() => buildChildEnv("claude-code", { base, cliEnv: { LD_PRELOAD: "/x" } })).toThrow();
   });
 
-  it("accepts RELAY_* only from trusted injected values", () => {
+  it("accepts DEVCHESTRA_* only from trusted injected values", () => {
     const env = buildChildEnv("fake", {
       base,
       injected: {
-        RELAY_EXEC_TOKEN: "token",
-        RELAY_GATEWAY_URL: "http://127.0.0.1:1",
+        DEVCHESTRA_EXEC_TOKEN: "token",
+        DEVCHESTRA_GATEWAY_URL: "http://127.0.0.1:1",
         FAKE_AGENT_SCRIPT: "[]",
       },
     });
-    expect(env.RELAY_EXEC_TOKEN).toBe("token");
+    expect(env.DEVCHESTRA_EXEC_TOKEN).toBe("token");
     expect(env.FAKE_AGENT_SCRIPT).toBe("[]");
   });
 });

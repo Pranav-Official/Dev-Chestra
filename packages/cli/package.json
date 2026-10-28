@@ -1,7 +1,7 @@
 {
-  "name": "@relay/cli",
+  "name": "@devchestra/cli",
   "version": "0.1.0",
-  "description": "Relay headless CLI: run, resume and doctor",
+  "description": "DevChestra headless CLI: run, resume and doctor",
   "type": "module",
   "main": "./dist/main.js",
   "types": "./dist/main.d.ts",
@@ -13,7 +13,7 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "relay": "./dist/main.js"
+    "devchestra": "./dist/main.js"
   },
   "files": [
     "dist"
@@ -24,15 +24,15 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@relay/adapters": "workspace:*",
-    "@relay/core": "workspace:*",
-    "@relay/decisions": "workspace:*",
-    "@relay/engine": "workspace:*",
-    "@relay/mcp": "workspace:*",
-    "@relay/schema": "workspace:*",
-    "@relay/server": "workspace:*",
-    "@relay/store": "workspace:*",
-    "@relay/workspaces": "workspace:*"
+    "@devchestra/adapters": "workspace:*",
+    "@devchestra/core": "workspace:*",
+    "@devchestra/decisions": "workspace:*",
+    "@devchestra/engine": "workspace:*",
+    "@devchestra/mcp": "workspace:*",
+    "@devchestra/schema": "workspace:*",
+    "@devchestra/server": "workspace:*",
+    "@devchestra/store": "workspace:*",
+    "@devchestra/workspaces": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

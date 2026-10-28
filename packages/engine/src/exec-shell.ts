@@ -1,8 +1,8 @@
-import { runCommand } from "@relay/adapters";
-import { type Path, RelayError } from "@relay/core";
-import type { RunRecord } from "@relay/store";
-import type { ScratchWorkspace } from "@relay/workspaces";
-import { type ActiveRunState, type EngineContext, toRelayError } from "./context.js";
+import { runCommand } from "@devchestra/adapters";
+import { DevChestraError, type Path } from "@devchestra/core";
+import type { RunRecord } from "@devchestra/store";
+import type { ScratchWorkspace } from "@devchestra/workspaces";
+import { type ActiveRunState, type EngineContext, toDevChestraError } from "./context.js";
 import type { PlanNode, ScopeSource } from "./graph-plan.js";
 import { stripUi } from "./hash-config.js";
 import type { LinearChain } from "./sequence.js";
@@ -97,9 +97,13 @@ export async function executeShell(
       ctx.appendError(
         run.id,
         node.id,
-        new RelayError("E_WORKSPACE", "Shell process group did not stop after the kill grace", {
-          details: { step: "group_still_alive", pid: result.pid },
-        }),
+        new DevChestraError(
+          "E_WORKSPACE",
+          "Shell process group did not stop after the kill grace",
+          {
+            details: { step: "group_still_alive", pid: result.pid },
+          },
+        ),
       );
       ctx.append(run.id, "", "run.paused", "engine", {
         reason: "shutdown",
@@ -144,7 +148,7 @@ export async function executeShell(
     ctx.store.outputs.recordDeterministic({ identity, output });
 
     if (result.exitCode !== 0 && node.raw.allowFailure !== true) {
-      const error = new RelayError(
+      const error = new DevChestraError(
         stopReason === "grace_timeout" ? "E_CLI_CRASH" : "E_CLI_CRASH",
         `Shell command failed with exit code ${String(result.exitCode)}`,
         { details: { exitCode: result.exitCode, signal: result.signal } },
@@ -190,7 +194,7 @@ export async function executeShell(
       }
       throw new StopSignal(active.reason ?? "user");
     }
-    const relay = toRelayError(error);
+    const devchestra = toDevChestraError(error);
     if (workspace !== undefined) {
       const stopped = ctx.persistedStop(identity);
       if (stopped === null) {
@@ -208,9 +212,9 @@ export async function executeShell(
       }
     }
     if (ctx.currentStatus(identity) === "running" || ctx.currentStatus(identity) === "validating") {
-      ctx.failExecution(run, node, identity, relay);
+      ctx.failExecution(run, node, identity, devchestra);
     }
-    throw relay;
+    throw devchestra;
   } finally {
     if (workspace !== undefined) ctx.release(workspace);
   }

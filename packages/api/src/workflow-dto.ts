@@ -4,8 +4,8 @@ import type {
   RequiresSummary,
   ValidationReport,
   WorkflowFile,
-} from "@relay/schema";
-import { PROD_CLIS, parseWorkflowDraft } from "@relay/schema";
+} from "@devchestra/schema";
+import { PROD_CLIS, parseWorkflowDraft } from "@devchestra/schema";
 import { relativeWorkflowFileSchema } from "./dto.js";
 import {
   cursorQuerySchema,
@@ -26,7 +26,7 @@ const strict = z.strictObject;
 
 // Structural allow-list: fake parses everywhere so browser DTO validation can
 // display it with a warning. Run-time layers (CLI startup/run gates, adapter
-// registry) enforce the RELAY_ALLOW_FAKE=1 test-only requirement.
+// registry) enforce the DEVCHESTRA_ALLOW_FAKE=1 test-only requirement.
 export const agentCliSchema = z.enum([...PROD_CLIS, "fake"]);
 
 export const workflowBudgetSchema = strict({
@@ -186,7 +186,7 @@ export type WorkflowListQuery = z.infer<typeof workflowListQuerySchema>;
  * No workflow-controlled script or provider opt-in is accepted.
  */
 export interface StartWorkflowRunRequest {
-  params?: Record<string, import("@relay/core").JsonValue>;
+  params?: Record<string, import("@devchestra/core").JsonValue>;
   etag: string;
   /** Run-level workspace; omitted means the registered project root. */
   workspace?: RunWorkspaceSelection;

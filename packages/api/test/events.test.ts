@@ -4,7 +4,7 @@ import {
   emptyRunView,
   type KnownEventType,
   RUN_STATUSES,
-} from "@relay/core";
+} from "@devchestra/core";
 import { describe, expect, it } from "vitest";
 import type { MissingCoreErrorCode } from "../src/errors.js";
 import {
@@ -95,7 +95,7 @@ const samples = {
     workflowId: "wf",
     workflowHash: "hash",
     runNumber: 1,
-    params: { topic: "relay" },
+    params: { topic: "devchestra" },
     budgets: {},
     baseSha: "sha",
     kind: "run",
@@ -141,7 +141,7 @@ const samples = {
     attempt: 1,
     generation: 1,
     inputsHash: "hash",
-    inputs: { topic: "relay" },
+    inputs: { topic: "devchestra" },
   },
   "node.output.rejected": {
     attempt: 1,
@@ -493,7 +493,7 @@ describe("request schemas", () => {
   it("rejects unknown start-run fields", () => {
     const parsed = startRunRequestSchema.safeParse({
       workflowFile: "workflows/demo.json",
-      params: { topic: "relay" },
+      params: { topic: "devchestra" },
       script: "trusted-cli-only",
       provider: "claude-code",
     });

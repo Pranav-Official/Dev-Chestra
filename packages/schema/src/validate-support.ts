@@ -1,4 +1,4 @@
-import type { RelayError } from "@relay/core";
+import type { DevChestraError } from "@devchestra/core";
 import type { Issue, ValidationContext, WorkflowFile } from "./types.js";
 
 const PROMPT_FILE = /^[A-Za-z0-9][A-Za-z0-9._-]*\.md$/;
@@ -71,7 +71,7 @@ export function issue(
   };
 }
 
-export function relayIssue(error: RelayError, pointer: string, nodeId?: string): Issue {
+export function devchestraIssue(error: DevChestraError, pointer: string, nodeId?: string): Issue {
   const detail =
     isRecord(error.details) && typeof error.details.pointer === "string"
       ? error.details.pointer

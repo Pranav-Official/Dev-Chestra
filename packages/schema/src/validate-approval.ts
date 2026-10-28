@@ -1,4 +1,4 @@
-import type { RelayError } from "@relay/core";
+import type { DevChestraError } from "@devchestra/core";
 import { compileTemplate } from "./template.js";
 import type { ApprovalNode, Issue } from "./types.js";
 import { issue } from "./validate-support.js";
@@ -8,7 +8,7 @@ export function validateApproval(
   pointer: string,
   allowed: Set<string>,
   addError: (i: Issue) => void,
-  addRelay: (e: RelayError, p: string, n?: string) => void,
+  addDevChestra: (e: DevChestraError, p: string, n?: string) => void,
 ): void {
   if (typeof node.message !== "string" || node.message.trim() === "") {
     addError(
@@ -32,7 +32,7 @@ export function validateApproval(
     );
   } else {
     const c = compileTemplate(node.message, { shell: false });
-    if (!c.ok) addRelay(c.error, `${pointer}/message`, node.id);
+    if (!c.ok) addDevChestra(c.error, `${pointer}/message`, node.id);
     else
       for (const p of c.value.parts)
         if (p.kind === "expression")

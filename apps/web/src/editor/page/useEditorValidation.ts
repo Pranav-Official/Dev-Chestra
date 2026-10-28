@@ -1,4 +1,4 @@
-import { type ValidationReport, validateWorkflow, type WorkflowFile } from "@relay/schema";
+import { type ValidationReport, validateWorkflow, type WorkflowFile } from "@devchestra/schema";
 import { useEffect, useRef, useState } from "react";
 import { createValidationClient, type ValidationClient } from "../model/validation.js";
 

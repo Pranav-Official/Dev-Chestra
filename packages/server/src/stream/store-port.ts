@@ -1,6 +1,6 @@
-import type { EventEnvelope, RunId, RunView } from "@relay/core";
-import type { RunRecord, Store } from "@relay/store";
-import { relayErrorCode } from "../errors.js";
+import type { EventEnvelope, RunId, RunView } from "@devchestra/core";
+import type { RunRecord, Store } from "@devchestra/store";
+import { devchestraErrorCode } from "../errors.js";
 import type {
   StreamEventPage,
   StreamPageOptions,
@@ -58,7 +58,7 @@ export function createStoreStreamPort(store: Store): StreamStorePort {
       const view = store.view.get(runId as RunId);
       return { runId, view, watermark: view.lastEventId, run };
     } catch (error) {
-      if (relayErrorCode(error) === "E_NOT_FOUND") return null;
+      if (devchestraErrorCode(error) === "E_NOT_FOUND") return null;
       throw error;
     }
   }

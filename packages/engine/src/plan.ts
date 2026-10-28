@@ -1,4 +1,4 @@
-import type { ErrorCode } from "@relay/core";
+import type { ErrorCode } from "@devchestra/core";
 
 export type AttemptFailure =
   | { kind: "ok" }

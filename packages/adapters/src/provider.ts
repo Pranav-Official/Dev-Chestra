@@ -1,5 +1,5 @@
-import { RelayError } from "@relay/core";
-import { isFakeCliEnabled, PROD_CLIS } from "@relay/schema";
+import { DevChestraError } from "@devchestra/core";
+import { isFakeCliEnabled, PROD_CLIS } from "@devchestra/schema";
 import { createClaudeAdapter } from "./claude.js";
 import { discoverClaudeModels } from "./claude-model-discovery.js";
 import { createCodexAdapter } from "./codex.js";
@@ -110,7 +110,10 @@ export function registerProvider(provider: CliProvider): void {
 
 function requireVisible(id: CliId): void {
   if (id === "fake" && !isFakeProviderEnabled()) {
-    throw new RelayError("E_VALIDATION", "Adapter fake is test-only (RELAY_ALLOW_FAKE=1).");
+    throw new DevChestraError(
+      "E_VALIDATION",
+      "Adapter fake is test-only (DEVCHESTRA_ALLOW_FAKE=1).",
+    );
   }
 }
 
@@ -123,7 +126,7 @@ export function getProvider(id: CliId): CliProvider {
   requireVisible(id);
   const provider = providers.get(id);
   if (provider === undefined) {
-    throw new RelayError("E_VALIDATION", `Unknown CLI provider '${String(id)}'`);
+    throw new DevChestraError("E_VALIDATION", `Unknown CLI provider '${String(id)}'`);
   }
   return provider;
 }

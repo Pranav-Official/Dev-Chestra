@@ -1,4 +1,4 @@
-import type { AgentNode, Issue } from "@relay/schema";
+import type { AgentNode, Issue } from "@devchestra/schema";
 import { FileText } from "lucide-react";
 import { describedBy, Field } from "./fields/fields.js";
 import { fieldIssue } from "./issues.js";

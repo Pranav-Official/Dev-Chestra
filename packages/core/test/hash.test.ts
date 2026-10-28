@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalJson, hashJson, RelayError, sha256Hex } from "../src/index.js";
+import { canonicalJson, DevChestraError, hashJson, sha256Hex } from "../src/index.js";
 
 describe("canonical JSON and hashing", () => {
   it("sorts keys and drops undefined object properties", () => {
@@ -13,14 +13,14 @@ describe("canonical JSON and hashing", () => {
   });
 
   it("rejects values JSON cannot represent", () => {
-    expect(() => canonicalJson(Number.NaN)).toThrow(RelayError);
-    expect(() => canonicalJson({ value: Number.POSITIVE_INFINITY })).toThrow(RelayError);
-    expect(() => canonicalJson({ fn: () => 1 })).toThrow(RelayError);
-    expect(() => canonicalJson(undefined)).toThrow(RelayError);
-    expect(() => canonicalJson([undefined])).toThrow(RelayError);
+    expect(() => canonicalJson(Number.NaN)).toThrow(DevChestraError);
+    expect(() => canonicalJson({ value: Number.POSITIVE_INFINITY })).toThrow(DevChestraError);
+    expect(() => canonicalJson({ fn: () => 1 })).toThrow(DevChestraError);
+    expect(() => canonicalJson(undefined)).toThrow(DevChestraError);
+    expect(() => canonicalJson([undefined])).toThrow(DevChestraError);
     const circular: Record<string, unknown> = {};
     circular.self = circular;
-    expect(() => canonicalJson(circular)).toThrow(RelayError);
+    expect(() => canonicalJson(circular)).toThrow(DevChestraError);
   });
 
   it("is stable under key reordering", async () => {

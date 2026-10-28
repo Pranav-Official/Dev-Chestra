@@ -1,4 +1,4 @@
-import type { StartNode, WorkflowParam } from "@relay/schema";
+import type { StartNode, WorkflowParam } from "@devchestra/schema";
 import { Plus } from "lucide-react";
 import { ParamRow } from "./ParamRow.js";
 import { InspectorSection } from "./Section.js";

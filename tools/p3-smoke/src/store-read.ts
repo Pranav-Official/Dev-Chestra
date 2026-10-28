@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import { join } from "node:path";
-import type { EventEnvelope, RunId, RunView } from "@relay/core";
+import type { EventEnvelope, RunId, RunView } from "@devchestra/core";
 import { collectAgent, type SpawnedAgent } from "./owned.js";
 
 interface NodeStatement {
@@ -43,7 +43,7 @@ interface EventRow {
 
 /** Read the real SQLite log without running the store's migrations or writers. */
 export function collectSpawnedAgents(dataDir: string): SpawnedAgent[] {
-  const db = openReadOnly(join(dataDir, "relay.db"));
+  const db = openReadOnly(join(dataDir, "devchestra.db"));
   try {
     const rows = db
       .prepare("SELECT payload FROM events WHERE type = 'node.process.spawned'")
@@ -63,7 +63,7 @@ export function collectSpawnedAgents(dataDir: string): SpawnedAgent[] {
 }
 
 export function readStoreSnapshot(dataDir: string, runId: string): StoreSnapshot {
-  const db = openReadOnly(join(dataDir, "relay.db"));
+  const db = openReadOnly(join(dataDir, "devchestra.db"));
   try {
     const rows = db
       .prepare(

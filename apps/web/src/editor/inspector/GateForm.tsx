@@ -1,4 +1,4 @@
-import type { Edge, GateNode, Issue } from "@relay/schema";
+import type { Edge, GateNode, Issue } from "@devchestra/schema";
 import { ArrowDown, ArrowUp, GitBranch, Plus, Trash2 } from "lucide-react";
 import {
   addGateBranch,

@@ -1,6 +1,6 @@
-import { type GateTestResult, gateTestRequestSchema, gateTestResultSchema } from "@relay/api";
-import { evaluateGate } from "@relay/schema";
-import { createNodeExpressionExecutor } from "@relay/schema/node";
+import { type GateTestResult, gateTestRequestSchema, gateTestResultSchema } from "@devchestra/api";
+import { evaluateGate } from "@devchestra/schema";
+import { createNodeExpressionExecutor } from "@devchestra/schema/node";
 import type { Context, Hono } from "hono";
 import { errorBody } from "../errors.js";
 import type { BrowserQueryPort } from "./ports.js";

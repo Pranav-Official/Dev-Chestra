@@ -5,7 +5,7 @@
 // pathToClaudeCodeExecutable. In SDK metadata mode it captures every stdin
 // frame and fails closed (non-zero) on anything except one initialize
 // control_request; it never calls a provider. In workflow mode it captures the
-// real Claude invocation, submits through the real Relay MCP shim and emits
+// real Claude invocation, submits through the real DevChestra MCP shim and emits
 // ordinary stream-json output. No user auth, config or provider is touched.
 import { createRequire } from "node:module";
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
@@ -198,7 +198,7 @@ async function sdkMetadata() {
 }
 
 function resolveShim() {
-  const entry = process.env.RELAY_MCP_SHIM_ENTRY;
+  const entry = process.env.DEVCHESTRA_MCP_SHIM_ENTRY;
   if (entry !== undefined && entry !== "") {
     return { command: process.execPath, args: [entry], env: { ...process.env } };
   }
@@ -211,13 +211,13 @@ function resolveShim() {
   } catch {
     fail("MCP config is not readable JSON");
   }
-  const server = config?.mcpServers?.relay;
+  const server = config?.mcpServers?.devchestra;
   if (
     typeof server?.command !== "string" ||
     !Array.isArray(server.args) ||
     server.args.some((arg) => typeof arg !== "string")
   ) {
-    fail("MCP config relay server is invalid");
+    fail("MCP config devchestra server is invalid");
   }
   return {
     command: server.command,

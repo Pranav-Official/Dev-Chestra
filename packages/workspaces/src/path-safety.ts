@@ -1,9 +1,9 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { err, ok, RelayError, type Result } from "@relay/core";
+import { DevChestraError, err, ok, type Result } from "@devchestra/core";
 
-const forbidden = (message: string, details?: unknown): RelayError =>
-  new RelayError("E_FORBIDDEN_PATH", message, details === undefined ? {} : { details });
+const forbidden = (message: string, details?: unknown): DevChestraError =>
+  new DevChestraError("E_FORBIDDEN_PATH", message, details === undefined ? {} : { details });
 const missing = (error: unknown): boolean =>
   ["ENOENT", "ENOTDIR"].includes((error as NodeJS.ErrnoException | undefined)?.code ?? "");
 const traversal = (rel: string): boolean =>
@@ -24,7 +24,7 @@ function longestExisting(candidate: string): string {
       return suffix.length === 0 ? real : path.join(real, ...suffix.slice().reverse());
     } catch (error) {
       if (!missing(error)) {
-        throw error instanceof RelayError
+        throw error instanceof DevChestraError
           ? error
           : forbidden("Path cannot be canonicalized", { path: probe, cause: error });
       }
@@ -35,7 +35,7 @@ function longestExisting(candidate: string): string {
     }
   }
 }
-function checkRel(rel: string): RelayError | null {
+function checkRel(rel: string): DevChestraError | null {
   if (typeof rel !== "string") return forbidden("Relative path must be a string");
   if (rel.includes("\0")) return forbidden("Relative path must not contain NUL");
   if (path.isAbsolute(rel)) return forbidden("Relative path must not be absolute");
@@ -65,7 +65,7 @@ export function isInside(root: string, candidate: string): boolean {
     return false;
   }
 }
-export function resolveInside(root: string, rel: string): Result<string, RelayError> {
+export function resolveInside(root: string, rel: string): Result<string, DevChestraError> {
   const invalid = checkRel(rel);
   if (invalid !== null) return err(invalid);
   try {
@@ -76,13 +76,13 @@ export function resolveInside(root: string, rel: string): Result<string, RelayEr
       : err(forbidden("Path escapes the allowed root", { root: rootReal, path: resolved }));
   } catch (error) {
     return err(
-      error instanceof RelayError
+      error instanceof DevChestraError
         ? error
         : forbidden("Path resolution failed", { root, rel, cause: error }),
     );
   }
 }
-export function resolveFileInside(root: string, rel: string): Result<string, RelayError> {
+export function resolveFileInside(root: string, rel: string): Result<string, DevChestraError> {
   const invalid = checkRel(rel);
   if (invalid !== null) return err(invalid);
   try {
@@ -97,10 +97,12 @@ export function resolveFileInside(root: string, rel: string): Result<string, Rel
       : err(forbidden("Path escapes the allowed root", { root: rootReal, path: resolved }));
   } catch (error) {
     if (missing(error)) {
-      return err(new RelayError("E_NOT_FOUND", `File not found: ${rel}`, { details: { rel } }));
+      return err(
+        new DevChestraError("E_NOT_FOUND", `File not found: ${rel}`, { details: { rel } }),
+      );
     }
     return err(
-      error instanceof RelayError
+      error instanceof DevChestraError
         ? error
         : forbidden("File resolution failed", { root, rel, cause: error }),
     );

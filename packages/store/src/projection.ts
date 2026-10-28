@@ -9,7 +9,7 @@ import {
   type RunId,
   type RunStatus,
   type RunView,
-} from "@relay/core";
+} from "@devchestra/core";
 import type { Runtime } from "./runtime.js";
 import { fail, nodeIdFromPath, parseJson } from "./util.js";
 

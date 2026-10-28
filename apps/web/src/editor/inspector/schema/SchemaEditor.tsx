@@ -1,6 +1,6 @@
-import { isRecord } from "@relay/core";
-import type { Issue, JsonSchemaObject } from "@relay/schema";
-import { normalizeOutputSchema } from "@relay/schema";
+import { isRecord } from "@devchestra/core";
+import type { Issue, JsonSchemaObject } from "@devchestra/schema";
+import { normalizeOutputSchema } from "@devchestra/schema";
 import { AlertCircle, Braces, Code, Plus, Trash2 } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useBufferFlag } from "../BufferContext.js";

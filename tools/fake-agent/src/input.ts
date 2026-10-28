@@ -1,5 +1,5 @@
-export const AGENT_INPUT_CONTEXT_START = "<relay_input_context>";
-export const AGENT_INPUT_CONTEXT_END = "</relay_input_context>";
+export const AGENT_INPUT_CONTEXT_START = "<devchestra_input_context>";
+export const AGENT_INPUT_CONTEXT_END = "</devchestra_input_context>";
 export const MAX_INPUT_PATH_SEGMENTS = 32;
 
 export interface AgentInputPathResult {

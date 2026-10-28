@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   createExecutionIdentity,
   createToolCallReceiptKey,
+  DevChestraError,
   formatPath,
   isCurrentInvocation,
   isStaleCallback,
   type NodeId,
   nextAttempt,
   nextGeneration,
-  RelayError,
   type RunId,
   sameExecution,
   sameToolCallReceiptKey,
@@ -59,12 +59,12 @@ describe("execution identity", () => {
     const fresh = createToolCallReceiptKey(identity, "call-2");
     expect(sameToolCallReceiptKey(first, retry)).toBe(true);
     expect(sameToolCallReceiptKey(first, fresh)).toBe(false);
-    expect(() => createToolCallReceiptKey(identity, "")).toThrow(RelayError);
+    expect(() => createToolCallReceiptKey(identity, "")).toThrow(DevChestraError);
   });
 
   it("rejects non-positive or unsafe attempts and generations", () => {
-    expect(() => createExecutionIdentity(run, path, 0, 1)).toThrow(RelayError);
-    expect(() => createExecutionIdentity(run, path, 1, 0)).toThrow(RelayError);
-    expect(() => createExecutionIdentity(run, path, 1.5, 1)).toThrow(RelayError);
+    expect(() => createExecutionIdentity(run, path, 0, 1)).toThrow(DevChestraError);
+    expect(() => createExecutionIdentity(run, path, 1, 0)).toThrow(DevChestraError);
+    expect(() => createExecutionIdentity(run, path, 1.5, 1)).toThrow(DevChestraError);
   });
 });

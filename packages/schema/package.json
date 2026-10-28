@@ -1,7 +1,7 @@
 {
-  "name": "@relay/schema",
+  "name": "@devchestra/schema",
   "version": "0.1.0",
-  "description": "Browser-safe Relay workflow schema, normalization, expression and template contracts",
+  "description": "Browser-safe DevChestra workflow schema, normalization, expression and template contracts",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -25,7 +25,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@relay/core": "workspace:*",
+    "@devchestra/core": "workspace:*",
     "jsonata": "2.2.2",
     "zod": "4.6.7"
   },

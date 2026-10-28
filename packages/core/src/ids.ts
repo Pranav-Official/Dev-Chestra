@@ -1,5 +1,5 @@
 import { type Clock, systemClock } from "./clock.js";
-import { RelayError } from "./error.js";
+import { DevChestraError } from "./error.js";
 import type { Result } from "./result.js";
 import { err, ok } from "./result.js";
 
@@ -25,7 +25,7 @@ const ULID_RE = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 function cryptoApi(): Crypto {
   const api = globalThis.crypto;
   if (api === undefined || typeof api.getRandomValues !== "function") {
-    throw new RelayError("E_INTERNAL", "Secure randomness is unavailable in this runtime");
+    throw new DevChestraError("E_INTERNAL", "Secure randomness is unavailable in this runtime");
   }
   return api;
 }
@@ -38,7 +38,7 @@ function randomBytes(length: number): Uint8Array {
 
 function encodeTime(now: number): string {
   if (!Number.isSafeInteger(now) || now < 0) {
-    throw new RelayError("E_VALIDATION", `Cannot encode ULID time ${String(now)}`);
+    throw new DevChestraError("E_VALIDATION", `Cannot encode ULID time ${String(now)}`);
   }
   let time = now;
   let out = "";
@@ -112,16 +112,16 @@ export function isUlid(value: string): boolean {
   return ULID_RE.test(value);
 }
 
-export function parseRunId(value: string): Result<RunId, RelayError> {
+export function parseRunId(value: string): Result<RunId, DevChestraError> {
   if (!isUlid(value)) {
-    return err(new RelayError("E_VALIDATION", `Invalid run id: ${value}`));
+    return err(new DevChestraError("E_VALIDATION", `Invalid run id: ${value}`));
   }
   return ok(value as RunId);
 }
 
-export function parseEntryId(value: string): Result<EntryId, RelayError> {
+export function parseEntryId(value: string): Result<EntryId, DevChestraError> {
   if (!isUlid(value)) {
-    return err(new RelayError("E_VALIDATION", `Invalid entry id: ${value}`));
+    return err(new DevChestraError("E_VALIDATION", `Invalid entry id: ${value}`));
   }
   return ok(value as EntryId);
 }

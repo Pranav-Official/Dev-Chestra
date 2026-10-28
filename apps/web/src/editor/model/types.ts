@@ -1,4 +1,4 @@
-import type { Edge, WorkflowFile, WorkflowNode } from "@relay/schema";
+import type { Edge, WorkflowFile, WorkflowNode } from "@devchestra/schema";
 
 export type EditorSelection =
   | { kind: "node"; nodeId: string }

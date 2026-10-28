@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, afterEach, describe, it } from "vitest";
 import { CLI } from "../src/fixtures.js";
-import { RelayHttp } from "../src/http.js";
+import { DevChestraHttp } from "../src/http.js";
 import { startSentinel, startServer } from "../src/owned.js";
 import {
   createWorkflow,
@@ -41,7 +41,7 @@ afterAll(() => {
 function load(name: string): WorkflowFileLike {
   return JSON.parse(readFileSync(join(FIX, `${name}.json`), "utf8")) as WorkflowFileLike;
 }
-async function manage(http: RelayHttp, root: string, name: string) {
+async function manage(http: DevChestraHttp, root: string, name: string) {
   const file = load(name);
   const p = await registerProject(http, root);
   await createWorkflow(http, p.id, { name: file.name, id: file.id, template: "blank" });
@@ -54,7 +54,7 @@ async function manage(http: RelayHttp, root: string, name: string) {
   return { projectId: p.id, workflowId: saved.id, etag: saved.etag, file };
 }
 async function startManaged(
-  http: RelayHttp,
+  http: DevChestraHttp,
   m: { projectId: string; workflowId: string; etag: string },
 ) {
   const r = await http.api(
@@ -83,7 +83,7 @@ const CANONICAL_RESOLVE = (runId: string, path: string) =>
 const CANONICAL_INBOX = "/api/approvals";
 
 async function resolveApproval(
-  http: RelayHttp,
+  http: DevChestraHttp,
   runId: string,
   path: string,
   body: Record<string, unknown>,
@@ -105,7 +105,11 @@ function _approvalResolved(page: {
   }>;
 }
 
-async function getInboxRequestId(http: RelayHttp, runId: string, path: string): Promise<string> {
+async function getInboxRequestId(
+  http: DevChestraHttp,
+  runId: string,
+  path: string,
+): Promise<string> {
   const inbox = await http.api("GET", CANONICAL_INBOX);
   assert.equal(
     inbox.status,
@@ -137,10 +141,10 @@ async function getInboxRequestId(http: RelayHttp, runId: string, path: string): 
 
 describe("P3.5 approval HTTP — true server (canonical route, fail if missing)", () => {
   it("waiting durable + approve routes via plain edge", async () => {
-    const ws = await makeRunWorkspaceRepo("relay-p35-wait-");
+    const ws = await makeRunWorkspaceRepo("devchestra-p35-wait-");
     await withServer(
       {
-        dataDir: tempRoot("relay-p35-wait-data-").dir,
+        dataDir: tempRoot("devchestra-p35-wait-data-").dir,
         projectRoot: ws.root,
         fakeScript: FAKE,
         env: {
@@ -150,7 +154,7 @@ describe("P3.5 approval HTTP — true server (canonical route, fail if missing)"
         },
       },
       async (s) => {
-        const http = new RelayHttp(s.baseUrl);
+        const http = new DevChestraHttp(s.baseUrl);
         await http.health();
         await http.bootstrap(s.meta.token);
         const m = await manage(http, ws.root, "p3-5-approval-simple");
@@ -208,10 +212,10 @@ describe("P3.5 approval HTTP — true server (canonical route, fail if missing)"
 
   it("reject without edge completes run rejected; reject with edge takes alt", async () => {
     for (const name of ["p3-5-approval-no-rejected", "p3-5-approval-with-rejected"] as const) {
-      const ws = await makeRunWorkspaceRepo(`relay-p35-rej-${name}-`);
+      const ws = await makeRunWorkspaceRepo(`devchestra-p35-rej-${name}-`);
       await withServer(
         {
-          dataDir: tempRoot(`relay-p35-rej-${name}-data-`).dir,
+          dataDir: tempRoot(`devchestra-p35-rej-${name}-data-`).dir,
           projectRoot: ws.root,
           fakeScript: FAKE,
           env: {
@@ -221,7 +225,7 @@ describe("P3.5 approval HTTP — true server (canonical route, fail if missing)"
           },
         },
         async (s) => {
-          const http = new RelayHttp(s.baseUrl);
+          const http = new DevChestraHttp(s.baseUrl);
           await http.health();
           await http.bootstrap(s.meta.token);
           const m = await manage(http, ws.root, name);
@@ -262,10 +266,10 @@ describe("P3.5 approval HTTP — true server (canonical route, fail if missing)"
   }, 240_000);
 
   it("duplicate resolve idempotent, conflict on different decision, stale attempt fence, terminal duplicate", async () => {
-    const ws = await makeRunWorkspaceRepo("relay-p35-dup-");
+    const ws = await makeRunWorkspaceRepo("devchestra-p35-dup-");
     await withServer(
       {
-        dataDir: tempRoot("relay-p35-dup-data-").dir,
+        dataDir: tempRoot("devchestra-p35-dup-data-").dir,
         projectRoot: ws.root,
         fakeScript: FAKE,
         env: {
@@ -275,7 +279,7 @@ describe("P3.5 approval HTTP — true server (canonical route, fail if missing)"
         },
       },
       async (s) => {
-        const http = new RelayHttp(s.baseUrl);
+        const http = new DevChestraHttp(s.baseUrl);
         await http.health();
         await http.bootstrap(s.meta.token);
         const m = await manage(http, ws.root, "p3-5-approval-simple");
@@ -335,10 +339,10 @@ describe("P3.5 approval HTTP — true server (canonical route, fail if missing)"
   }, 180_000);
 
   it("simultaneous cancel vs resolve race is fenced", async () => {
-    const ws = await makeRunWorkspaceRepo("relay-p35-race-");
+    const ws = await makeRunWorkspaceRepo("devchestra-p35-race-");
     await withServer(
       {
-        dataDir: tempRoot("relay-p35-race-data-").dir,
+        dataDir: tempRoot("devchestra-p35-race-data-").dir,
         projectRoot: ws.root,
         fakeScript: FAKE,
         env: {
@@ -348,7 +352,7 @@ describe("P3.5 approval HTTP — true server (canonical route, fail if missing)"
         },
       },
       async (s) => {
-        const http = new RelayHttp(s.baseUrl);
+        const http = new DevChestraHttp(s.baseUrl);
         await http.health();
         await http.bootstrap(s.meta.token);
         const m = await manage(http, ws.root, "p3-5-approval-simple");
@@ -393,8 +397,8 @@ describe("P3.5 approval HTTP — true server (canonical route, fail if missing)"
   }, 180_000);
 
   it("two approvals serial: approve first, second pending stable, restart still pending, approve second exactly once", async () => {
-    const ws = await makeRunWorkspaceRepo("relay-p35-two-");
-    const dataDir = tempRoot("relay-p35-two-data-").dir;
+    const ws = await makeRunWorkspaceRepo("devchestra-p35-two-");
+    const dataDir = tempRoot("devchestra-p35-two-data-").dir;
     const env = {
       HOME: ws.home,
       GIT_CONFIG_GLOBAL: join(ws.home, "gitconfig"),
@@ -407,7 +411,7 @@ describe("P3.5 approval HTTP — true server (canonical route, fail if missing)"
     let _req1: { requestId: string; attempt: number; generation: number } | null = null;
     try {
       first = await startServer({ cli: CLI, dataDir, cwd: ws.root, fakeScript: FAKE, env });
-      const http = new RelayHttp(first.baseUrl);
+      const http = new DevChestraHttp(first.baseUrl);
       await http.health();
       await http.bootstrap(first.meta.token);
       const m = await manage(http, ws.root, "p3-5-approval-two");
@@ -491,7 +495,7 @@ describe("P3.5 approval HTTP — true server (canonical route, fail if missing)"
     let fail2: unknown;
     try {
       second = await startServer({ cli: CLI, dataDir, cwd: ws.root, fakeScript: FAKE, env });
-      const http = new RelayHttp(second.baseUrl);
+      const http = new DevChestraHttp(second.baseUrl);
       await http.health();
       await http.bootstrap(second.meta.token);
       const pending = await readEventPage(http, runId);

@@ -17,7 +17,7 @@ type NodeDatabaseCtor = new (file: string, options?: { readOnly?: boolean }) => 
 
 /**
  * Explicit fallback for environments without a better-sqlite3 prebuild.
- * Selected only by passing this driver (or RELAY_SQLITE=node at a caller layer);
+ * Selected only by passing this driver (or DEVCHESTRA_SQLITE=node at a caller layer);
  * it never triggers a native source compilation.
  */
 export const nodeSqliteDriver: SqliteDriver = {

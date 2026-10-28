@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { RelayError } from "@relay/core";
+import { DevChestraError } from "@devchestra/core";
 import { isGroupAlive, killTree, spawnIdentity } from "./identity.js";
 import { boundTail, redacted, spawnFailure, waitSpawn } from "./spawn-util.js";
 import type { CommandHooks, CommandRequest, CommandResult } from "./types.js";
@@ -13,7 +13,7 @@ const { spawn } = require("node:child_process");
 const mode = process.argv[1];
 const cmd = process.argv[2];
 const args = process.argv.slice(3);
-if (!cmd) { process.stderr.write("relay-wrapper: missing command\n"); process.exit(64); }
+if (!cmd) { process.stderr.write("devchestra-wrapper: missing command\n"); process.exit(64); }
 let buf = Buffer.alloc(0);
 let started = false;
 let child = null;
@@ -30,7 +30,7 @@ function start() {
   process.stdin.removeListener("data", onData);
   process.stdin.on("data", (chunk) => { if (!child.stdin.destroyed) child.stdin.write(chunk); });
   process.stdin.on("end", () => { if (!child.stdin.destroyed) child.stdin.end(); });
-  child.on("error", (error) => { process.stderr.write("relay-wrapper: " + error.message + "\n"); process.exit(127); });
+  child.on("error", (error) => { process.stderr.write("devchestra-wrapper: " + error.message + "\n"); process.exit(127); });
   child.on("exit", (code) => { process.exit(code === null ? 1 : code); });
 }
 function onData(chunk) {
@@ -40,7 +40,7 @@ function onData(chunk) {
   if (index < 0) return;
   const line = buf.subarray(0, index).toString("utf8").trim();
   buf = buf.subarray(index + 1);
-  if (line !== "GO") { process.stderr.write("relay-wrapper: bad handshake\n"); process.exit(70); }
+  if (line !== "GO") { process.stderr.write("devchestra-wrapper: bad handshake\n"); process.exit(70); }
   start();
 }
 process.stdin.on("data", onData);
@@ -54,9 +54,9 @@ export async function runCommand(
   signal?: AbortSignal,
 ): Promise<CommandResult> {
   if (signal?.aborted === true)
-    throw new RelayError("E_CANCELLED", "Command cancelled before spawn");
+    throw new DevChestraError("E_CANCELLED", "Command cancelled before spawn");
   if (req.shell === true && (req.args?.length ?? 0) > 0) {
-    throw new RelayError("E_VALIDATION", "Shell commands must put arguments in cmd");
+    throw new DevChestraError("E_VALIDATION", "Shell commands must put arguments in cmd");
   }
   const startedAt = Date.now();
   const maxOut = req.maxStdoutBytes ?? DEFAULT_MAX_LINE;
@@ -84,7 +84,7 @@ export async function runCommand(
   const pid = child.pid;
   if (pid === undefined) {
     child.kill("SIGKILL");
-    throw new RelayError("E_INTERNAL", "Spawned command wrapper has no pid");
+    throw new DevChestraError("E_INTERNAL", "Spawned command wrapper has no pid");
   }
   child.on("error", () => undefined);
 

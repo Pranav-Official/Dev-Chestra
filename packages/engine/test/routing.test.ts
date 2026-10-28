@@ -1,15 +1,15 @@
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAdapterRegistry } from "@relay/adapters";
-import type { Path } from "@relay/core";
-import { openStore, type RunRecord, type Store } from "@relay/store";
+import { createAdapterRegistry } from "@devchestra/adapters";
+import type { Path } from "@devchestra/core";
+import { openStore, type RunRecord, type Store } from "@devchestra/store";
 import {
   acquireScratch,
   finalizeScratch,
   prepareRunWorkspace,
   releaseScratch,
-} from "@relay/workspaces";
+} from "@devchestra/workspaces";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type ActiveRunState, EngineContext } from "../src/context.js";
 import { createEngine } from "../src/engine.js";
@@ -51,13 +51,13 @@ function snapshot(nodes: unknown[], edges: [string, string][]): unknown {
 }
 
 function setup(): { store: Store; file: string; dataDir: string; deps: EngineDeps } {
-  const base = mkdtempSync(join(tmpdir(), "relay-engine-routing-"));
+  const base = mkdtempSync(join(tmpdir(), "devchestra-engine-routing-"));
   const dataDir = join(base, "data");
   const project = join(base, "project");
   mkdirSync(dataDir);
   mkdirSync(project);
   cleanups.push(() => rmSync(base, { recursive: true, force: true }));
-  const file = join(dataDir, "relay.db");
+  const file = join(dataDir, "devchestra.db");
   const store = openStore({ file });
   cleanups.push(() => store.close());
   store.projects.ensure({ id: "p1", name: "P1", path: project, kind: "folder" });

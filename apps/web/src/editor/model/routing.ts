@@ -8,8 +8,8 @@ import type {
   JoinNode,
   WorkflowFile,
   WorkflowNode,
-} from "@relay/schema";
-import { DECISION_UNCERTAIN_HANDLE, decisionHandles, HANDLE_ID_PATTERN } from "@relay/schema";
+} from "@devchestra/schema";
+import { DECISION_UNCERTAIN_HANDLE, decisionHandles, HANDLE_ID_PATTERN } from "@devchestra/schema";
 import type { ConnectRequest } from "./types.js";
 
 export interface ParsedEndpoint {

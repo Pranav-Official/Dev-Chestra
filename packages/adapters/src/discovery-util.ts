@@ -1,4 +1,4 @@
-import { isRecord } from "@relay/core";
+import { isRecord } from "@devchestra/core";
 
 const BIN_MAX = 4096;
 const SEARCH_MAX = 256;

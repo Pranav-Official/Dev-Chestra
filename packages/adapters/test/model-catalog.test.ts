@@ -35,7 +35,7 @@ interface Call {
 }
 
 async function harness(): Promise<Harness> {
-  const dir = await mkdtemp(join(tmpdir(), "relay-codex-discovery-"));
+  const dir = await mkdtemp(join(tmpdir(), "devchestra-codex-discovery-"));
   temps.push(dir);
   const home = join(dir, "home");
   const codexHome = join(dir, "codex-home");
@@ -454,8 +454,8 @@ describe("discoverCodexModels", () => {
     const authPath = join(h.codexHome, "auth.json");
     await writeFile(configPath, 'model = "sentinel"\n');
     await writeFile(authPath, '{"sentinel":true}\n');
-    const previous = process.env.RELAY_LEAK_SENTINEL;
-    process.env.RELAY_LEAK_SENTINEL = "host-only";
+    const previous = process.env.DEVCHESTRA_LEAK_SENTINEL;
+    process.env.DEVCHESTRA_LEAK_SENTINEL = "host-only";
     try {
       const { result, calls } = await run(
         h,
@@ -469,10 +469,10 @@ describe("discoverCodexModels", () => {
       expect(env.CODEX_HOME).toBe(h.codexHome);
       expect(env.UNRELATED_SECRET).toBe("dummy-not-a-real-secret");
       expect(env.STUB_SCENARIO).toBe(h.scenarioPath);
-      expect(env.RELAY_LEAK_SENTINEL).toBeNull();
+      expect(env.DEVCHESTRA_LEAK_SENTINEL).toBeNull();
     } finally {
-      if (previous === undefined) delete process.env.RELAY_LEAK_SENTINEL;
-      else process.env.RELAY_LEAK_SENTINEL = previous;
+      if (previous === undefined) delete process.env.DEVCHESTRA_LEAK_SENTINEL;
+      else process.env.DEVCHESTRA_LEAK_SENTINEL = previous;
     }
     expect(await readFile(configPath, "utf8")).toBe('model = "sentinel"\n');
     expect(await readFile(authPath, "utf8")).toBe('{"sentinel":true}\n');

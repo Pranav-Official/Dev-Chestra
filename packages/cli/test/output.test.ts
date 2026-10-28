@@ -1,4 +1,4 @@
-import { RelayError } from "@relay/core";
+import { DevChestraError } from "@devchestra/core";
 import { describe, expect, it } from "vitest";
 import { exitCodeForError, exitCodeForOutcome } from "../src/output.js";
 
@@ -35,6 +35,6 @@ describe("CLI exit codes", () => {
   });
 
   it("maps a thrown E_JOIN_CONFLICT to exit 4", () => {
-    expect(exitCodeForError(new RelayError("E_JOIN_CONFLICT", "conflict"))).toBe(4);
+    expect(exitCodeForError(new DevChestraError("E_JOIN_CONFLICT", "conflict"))).toBe(4);
   });
 });

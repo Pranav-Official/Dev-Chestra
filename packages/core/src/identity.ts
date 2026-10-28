@@ -1,4 +1,4 @@
-import { RelayError } from "./error.js";
+import { DevChestraError } from "./error.js";
 import type { RunId } from "./ids.js";
 import type { Path } from "./path.js";
 
@@ -11,7 +11,7 @@ export interface ExecutionIdentity {
 
 function positiveInteger(value: number, name: string): void {
   if (!Number.isSafeInteger(value) || value < 1) {
-    throw new RelayError(
+    throw new DevChestraError(
       "E_VALIDATION",
       `${name} must be a positive integer, got ${String(value)}`,
     );
@@ -87,7 +87,7 @@ export function createToolCallReceiptKey(
   callId: string,
 ): ToolCallReceiptKey {
   if (callId.length === 0) {
-    throw new RelayError("E_VALIDATION", "Tool call receipt requires a non-empty callId");
+    throw new DevChestraError("E_VALIDATION", "Tool call receipt requires a non-empty callId");
   }
   return { identity, callId };
 }

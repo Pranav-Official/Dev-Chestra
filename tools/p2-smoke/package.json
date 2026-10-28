@@ -1,5 +1,5 @@
 {
-  "name": "@relay/p2-smoke",
+  "name": "@devchestra/p2-smoke",
   "version": "0.1.0",
   "private": true,
   "description": "P2 acceptance: real server, SQLite, SSE replay and browser run viewer",
@@ -13,9 +13,9 @@
     "test:e2e": "vitest run --config vitest.e2e.config.ts"
   },
   "dependencies": {
-    "@relay/core": "workspace:*",
-    "@relay/cli": "workspace:*",
-    "@relay/adapters": "workspace:*"
+    "@devchestra/core": "workspace:*",
+    "@devchestra/cli": "workspace:*",
+    "@devchestra/adapters": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",

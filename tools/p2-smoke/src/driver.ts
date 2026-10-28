@@ -61,7 +61,7 @@ export async function runP2(options: P2Options): Promise<P2Summary> {
   }
 
   summary.notes.push(
-    "All runs use a temporary SQLite data dir and a real `relay start` child; no route handlers are mocked.",
+    "All runs use a temporary SQLite data dir and a real `devchestra start` child; no route handlers are mocked.",
   );
   summary.notes.push(
     "SSE overflow at production queueLimit=5000 is not driven through the public server; the stream hub owns that bounded test.",

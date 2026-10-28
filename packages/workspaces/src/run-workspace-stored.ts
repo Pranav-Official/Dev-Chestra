@@ -1,11 +1,11 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
+  DevChestraError,
   isRecord,
   isRunWorkspaceSelection,
-  RelayError,
   type RunWorkspaceSelection,
-} from "@relay/core";
+} from "@devchestra/core";
 import { repoFor } from "./run-workspace-catalog.js";
 import type { ValidatedRunWorkspace } from "./types.js";
 import {
@@ -18,7 +18,7 @@ import {
   ownedDir,
   type ProjectRepo,
   readBinding,
-  toRelayError,
+  toDevChestraError,
   werr,
 } from "./worktree-git.js";
 
@@ -27,7 +27,7 @@ const VERSION = 1;
 
 export interface StoredRunWorkspace {
   version: 1;
-  kind: "relay.run-workspace";
+  kind: "devchestra.run-workspace";
   projectRoot: string;
   projectRootId: string;
   selection: RunWorkspaceSelection;
@@ -66,7 +66,7 @@ export function readRunFile(file: string): StoredRunWorkspace | null {
   if (
     !isRecord(value) ||
     value.version !== VERSION ||
-    value.kind !== "relay.run-workspace" ||
+    value.kind !== "devchestra.run-workspace" ||
     typeof value.projectRoot !== "string" ||
     typeof value.projectRootId !== "string" ||
     typeof value.dir !== "string" ||
@@ -163,7 +163,7 @@ export function validateStoredIdentity(stored: StoredRunWorkspace): ProjectRepo 
     try {
       inspectWorktree(stored.dir, repo.commonDir, false);
     } catch (error) {
-      if (error instanceof RelayError && error.code === "E_CONFLICT") throw error;
+      if (error instanceof DevChestraError && error.code === "E_CONFLICT") throw error;
       throw conflict("Existing worktree identity changed", { step: "worktree_identity" });
     }
   }
@@ -192,7 +192,7 @@ export function storedFor(
   const repo = validated.git ? repoFor(validated.projectRoot) : null;
   return {
     version: VERSION,
-    kind: "relay.run-workspace",
+    kind: "devchestra.run-workspace",
     projectRoot: validated.projectRoot,
     projectRootId: dirIdentity(validated.projectRoot),
     selection: validated.selection,
@@ -213,4 +213,4 @@ export function readRequired(file: string): StoredRunWorkspace {
   return stored;
 }
 
-export { toRelayError };
+export { toDevChestraError };

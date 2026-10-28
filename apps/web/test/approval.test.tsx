@@ -1,5 +1,5 @@
-import { type ExecView, emptyRunView, type RunView } from "@relay/core";
-import type { WorkflowFile } from "@relay/schema";
+import { type ExecView, emptyRunView, type RunView } from "@devchestra/core";
+import type { WorkflowFile } from "@devchestra/schema";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -86,7 +86,7 @@ function upstreamFetch(approvalsFn?: (url: string) => unknown) {
     if (String(url).includes("/approvals/"))
       return {
         ok: true,
-        headers: new Headers({ "X-Relay-Api": "1" }),
+        headers: new Headers({ "X-DevChestra-Api": "1" }),
         status: 200,
         json: async () => ({}),
         text: async () => "{}",
@@ -124,7 +124,7 @@ function upstreamFetch(approvalsFn?: (url: string) => unknown) {
     };
     return {
       ok: true,
-      headers: new Headers({ "X-Relay-Api": "1" }),
+      headers: new Headers({ "X-DevChestra-Api": "1" }),
       status: 200,
       text: async () => JSON.stringify(p),
       json: async () => p,
@@ -324,7 +324,7 @@ describe("ApprovalPanel fences", () => {
       () =>
         ({
           ok: true,
-          headers: new Headers({ "X-Relay-Api": "1" }),
+          headers: new Headers({ "X-DevChestra-Api": "1" }),
           status: 200,
           json: async () => ({
             runId: ulid,

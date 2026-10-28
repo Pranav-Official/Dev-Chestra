@@ -19,14 +19,14 @@ function mockFetch(map: Record<string, unknown>) {
       if (u.includes(k))
         return {
           ok: true,
-          headers: new Headers({ "X-Relay-Api": "1" }),
+          headers: new Headers({ "X-DevChestra-Api": "1" }),
           status: 200,
           text: async () => JSON.stringify(v),
           json: async () => v,
         } as unknown as Response;
     return {
       ok: true,
-      headers: new Headers({ "X-Relay-Api": "1" }),
+      headers: new Headers({ "X-DevChestra-Api": "1" }),
       status: 200,
       text: async () => JSON.stringify({}),
       json: async () => ({}),
@@ -108,14 +108,14 @@ describe("HomePage inbox canonical", () => {
         return {
           ok: false,
           status: 500,
-          headers: new Headers({ "X-Relay-Api": "1" }),
+          headers: new Headers({ "X-DevChestra-Api": "1" }),
           text: async () => JSON.stringify({ error: { code: "E_INTERNAL", message: "boom" } }),
           json: async () => ({ error: { code: "E_INTERNAL", message: "boom" } }),
         } as unknown as Response;
       if (String(url).includes("/api/bootstrap"))
         return {
           ok: true,
-          headers: new Headers({ "X-Relay-Api": "1" }),
+          headers: new Headers({ "X-DevChestra-Api": "1" }),
           status: 200,
           text: async () =>
             JSON.stringify({
@@ -146,14 +146,14 @@ describe("HomePage inbox canonical", () => {
       if (String(url).includes("/api/runs"))
         return {
           ok: true,
-          headers: new Headers({ "X-Relay-Api": "1" }),
+          headers: new Headers({ "X-DevChestra-Api": "1" }),
           status: 200,
           text: async () => JSON.stringify({ items: [], nextCursor: null }),
           json: async () => ({ items: [], nextCursor: null }),
         } as unknown as Response;
       return {
         ok: true,
-        headers: new Headers({ "X-Relay-Api": "1" }),
+        headers: new Headers({ "X-DevChestra-Api": "1" }),
         status: 200,
         text: async () => "{}",
         json: async () => ({}),
@@ -242,7 +242,7 @@ describe("HomePage inbox canonical", () => {
         const data = call === 1 ? page1 : page2;
         return {
           ok: true,
-          headers: new Headers({ "X-Relay-Api": "1" }),
+          headers: new Headers({ "X-DevChestra-Api": "1" }),
           status: 200,
           text: async () => JSON.stringify(data),
           json: async () => data,
@@ -251,7 +251,7 @@ describe("HomePage inbox canonical", () => {
       if (String(url).includes("/api/bootstrap"))
         return {
           ok: true,
-          headers: new Headers({ "X-Relay-Api": "1" }),
+          headers: new Headers({ "X-DevChestra-Api": "1" }),
           status: 200,
           text: async () =>
             JSON.stringify({
@@ -282,14 +282,14 @@ describe("HomePage inbox canonical", () => {
       if (String(url).includes("/api/runs"))
         return {
           ok: true,
-          headers: new Headers({ "X-Relay-Api": "1" }),
+          headers: new Headers({ "X-DevChestra-Api": "1" }),
           status: 200,
           text: async () => JSON.stringify({ items: [], nextCursor: null }),
           json: async () => ({ items: [], nextCursor: null }),
         } as unknown as Response;
       return {
         ok: true,
-        headers: new Headers({ "X-Relay-Api": "1" }),
+        headers: new Headers({ "X-DevChestra-Api": "1" }),
         status: 200,
         text: async () => "{}",
         json: async () => ({}),

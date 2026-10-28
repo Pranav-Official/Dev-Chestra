@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import { join } from "node:path";
-import type { EventEnvelope, RunId, RunView } from "@relay/core";
+import type { EventEnvelope, RunId, RunView } from "@devchestra/core";
 
 interface NodeStatement {
   all(...params: unknown[]): unknown[];
@@ -42,7 +42,7 @@ interface EventRow {
 
 /** Read the real SQLite log without running the store's migrations or writers. */
 export function readStoreSnapshot(dataDir: string, runId: string): StoreSnapshot {
-  const db = openReadOnly(join(dataDir, "relay.db"));
+  const db = openReadOnly(join(dataDir, "devchestra.db"));
   try {
     const rows = db
       .prepare(

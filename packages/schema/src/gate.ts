@@ -1,4 +1,4 @@
-import { type ErrorCode, err, ok, RelayError, type Result } from "@relay/core";
+import { DevChestraError, type ErrorCode, err, ok, type Result } from "@devchestra/core";
 import { compileExpression, type EvaluateOptions, evaluate } from "./expression.js";
 import { HANDLE_ID_PATTERN } from "./ids.js";
 import type { GateBranch } from "./types.js";
@@ -40,11 +40,15 @@ export interface EvaluateGateOptions extends EvaluateOptions {
   readonly overallTimeoutMs?: number;
 }
 
-function invalid(message: string, details?: unknown): RelayError {
-  return new RelayError("E_WORKFLOW_INVALID", message, details === undefined ? {} : { details });
+function invalid(message: string, details?: unknown): DevChestraError {
+  return new DevChestraError(
+    "E_WORKFLOW_INVALID",
+    message,
+    details === undefined ? {} : { details },
+  );
 }
 
-function validateBranches(gate: GateDefinition, max: number): RelayError | undefined {
+function validateBranches(gate: GateDefinition, max: number): DevChestraError | undefined {
   const branches = gate.branches;
   if (!Array.isArray(branches) || branches.length === 0) {
     return invalid("Gate must declare at least one branch");
@@ -114,7 +118,7 @@ export async function evaluateGate(
   gate: GateDefinition,
   scope: Readonly<Record<string, unknown>>,
   options: EvaluateGateOptions = {},
-): Promise<Result<GateDecision, RelayError>> {
+): Promise<Result<GateDecision, DevChestraError>> {
   const max = options.maxBranches ?? MAX_GATE_BRANCHES;
   if (!Number.isSafeInteger(max) || max < 1 || max > MAX_GATE_BRANCHES) {
     return err(invalid(`maxBranches must be between 1 and ${MAX_GATE_BRANCHES}`));

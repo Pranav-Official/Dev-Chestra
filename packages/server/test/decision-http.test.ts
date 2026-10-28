@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createDecisionService } from "@relay/decisions";
+import { createDecisionService } from "@devchestra/decisions";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { StandinHandle } from "../../../tools/fixtures/decisions/standin.mjs";
 import { startStandin } from "../../../tools/fixtures/decisions/standin.mjs";
@@ -101,7 +101,7 @@ function url(path: string): string {
 function headers(mutation = false): Record<string, string> {
   return {
     Cookie: cookie,
-    ...(mutation ? { "Content-Type": "application/json", "X-Relay-Csrf": "1" } : {}),
+    ...(mutation ? { "Content-Type": "application/json", "X-DevChestra-Csrf": "1" } : {}),
   };
 }
 
@@ -130,7 +130,7 @@ const TEST_BODY = {
 };
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "relay-decision-http-"));
+  root = await mkdtemp(join(tmpdir(), "devchestra-decision-http-"));
   dataDir = join(root, "data");
   projectPath = join(root, "project");
   await mkdir(dataDir, { recursive: true });
@@ -366,7 +366,7 @@ describe("decision provider HTTP routes", () => {
   it("applies auth, CSRF, content-type and payload caps like the gate tester", async () => {
     const anonymous = await fetch(url("/api/projects/proj-1/decisions/test"), {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Relay-Csrf": "1" },
+      headers: { "Content-Type": "application/json", "X-DevChestra-Csrf": "1" },
       body: JSON.stringify(TEST_BODY),
     });
     expect(anonymous.status).toBe(401);
@@ -380,7 +380,7 @@ describe("decision provider HTTP routes", () => {
 
     const badType = await fetch(url("/api/projects/proj-1/decisions/test"), {
       method: "POST",
-      headers: { Cookie: cookie, "Content-Type": "text/plain", "X-Relay-Csrf": "1" },
+      headers: { Cookie: cookie, "Content-Type": "text/plain", "X-DevChestra-Csrf": "1" },
       body: "{}",
     });
     expect(badType.status).toBe(403);

@@ -1,4 +1,4 @@
-import { PROD_CLIS } from "@relay/schema";
+import { PROD_CLIS } from "@devchestra/schema";
 import { projectIdSchema } from "./primitives.js";
 import { z } from "./zod.js";
 
@@ -93,7 +93,7 @@ export interface CliModelCatalog {
   cli: CatalogCli;
   projectId: string;
   status: ModelCatalogStatus;
-  scope: "relay-runtime";
+  scope: "devchestra-runtime";
   source: ModelCatalogSource;
   cliVersion: string | null;
   items: CliModelItem[];
@@ -108,7 +108,7 @@ export const cliModelCatalogSchema = strict({
   cli: catalogCliSchema,
   projectId: projectIdSchema,
   status: modelCatalogStatusSchema,
-  scope: z.literal("relay-runtime"),
+  scope: z.literal("devchestra-runtime"),
   source: modelCatalogSourceSchema,
   cliVersion: z.string().max(128).nullable(),
   items: z.array(cliModelItemSchema).max(1000),

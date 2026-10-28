@@ -1,8 +1,8 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { FakeClock, FakeIdGen, type Path, type RunId } from "@relay/core";
-import { openStore, type Store } from "@relay/store";
+import { FakeClock, FakeIdGen, type Path, type RunId } from "@devchestra/core";
+import { openStore, type Store } from "@devchestra/store";
 import { Hono } from "hono";
 import { type RunningLoopbackServer, startLoopbackServer } from "../src/node.js";
 import {
@@ -39,9 +39,9 @@ export interface HarnessOptions {
 const cleanups: (() => Promise<void>)[] = [];
 
 export async function openHarness(options: HarnessOptions = {}): Promise<Harness> {
-  const dir = await mkdtemp(join(tmpdir(), "relay-stream-test-"));
+  const dir = await mkdtemp(join(tmpdir(), "devchestra-stream-test-"));
   const store = openStore({
-    file: join(dir, "relay.db"),
+    file: join(dir, "devchestra.db"),
     clock: new FakeClock(Date.UTC(2026, 0, 1)),
     idGen: new FakeIdGen("stream"),
   });

@@ -1,4 +1,4 @@
-import type { WorkflowFile } from "@relay/schema";
+import type { WorkflowFile } from "@devchestra/schema";
 import { render, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { EditorCanvas } from "../src/editor/canvas/EditorCanvas.js";

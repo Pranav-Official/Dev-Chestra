@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
-import { fsSlug, type Path } from "@relay/core";
+import { fsSlug, type Path } from "@devchestra/core";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   type AcquireScratchRequest,
@@ -54,7 +54,7 @@ describe("scratch workspaces", () => {
     expect(statSync(ws.dir).mode & 0o777).toBe(0o700);
     expect(statSync(ws.dataDir).mode & 0o777).toBe(0o700);
     expect(ws.reused).toBe(false);
-    expect(ws.markerFile).toBe(join(ws.dir, ".relay-finalized.1.1.json"));
+    expect(ws.markerFile).toBe(join(ws.dir, ".devchestra-finalized.1.1.json"));
     expect(existsSync(ws.markerFile)).toBe(false);
     expect(Object.isFrozen(ws)).toBe(true);
 
@@ -102,7 +102,7 @@ describe("scratch workspaces", () => {
   });
 
   it("keeps the registered project root read-only and never uses it as cwd", async () => {
-    const projectRoot = tempDir("relay-project-");
+    const projectRoot = tempDir("devchestra-project-");
     writeFileSync(join(projectRoot, "README.md"), "project");
     const ws = unwrap(await acquire(dataDir(), { projectRoot }));
     expect(ws.projectRoot).toBe(realpathSync(projectRoot));
@@ -198,7 +198,7 @@ describe("scratch finalization", () => {
     ).toBe("E_FORBIDDEN_PATH");
     expect(expectError(await removeScratch(clone)).code).toBe("E_FORBIDDEN_PATH");
 
-    const victim = tempDir("relay-victim-");
+    const victim = tempDir("devchestra-victim-");
     writeFileSync(join(victim, "keep.txt"), "keep");
     const forged = { ...ws, dir: victim } as ScratchWorkspace;
     expect(expectError(await removeScratch(forged)).code).toBe("E_FORBIDDEN_PATH");
@@ -239,7 +239,7 @@ describe("requireExisting recovery", () => {
   it("rejects a symlinked existing workspace without touching outside", async () => {
     const dir = dataDir();
     const ws = unwrap(await acquire(dir));
-    const outside = tempDir("relay-outside-");
+    const outside = tempDir("devchestra-outside-");
     renameSync(ws.dir, `${ws.dir}.real`);
     symlinkSync(outside, ws.dir);
     expect(expectError(await acquire(dir, { requireExisting: true })).code).toBe(
@@ -273,7 +273,7 @@ describe("scratch cleanup", () => {
   it("rejects a symlink swapped workspace on acquire, finalize and remove", async () => {
     const dir = dataDir();
     const ws = unwrap(await acquire(dir));
-    const outside = tempDir("relay-outside-");
+    const outside = tempDir("devchestra-outside-");
     writeFileSync(join(outside, "secret.txt"), "keep");
     renameSync(ws.dir, `${ws.dir}.real`);
     symlinkSync(outside, ws.dir);
@@ -287,7 +287,7 @@ describe("scratch cleanup", () => {
   });
 
   it("rejects a symlinked owned ancestor before creating anything under it", async () => {
-    const outside = tempDir("relay-outside-");
+    const outside = tempDir("devchestra-outside-");
     const dir = dataDir();
     mkdirSync(dir, { recursive: true });
     symlinkSync(outside, join(dir, "projects"));
@@ -298,7 +298,7 @@ describe("scratch cleanup", () => {
   it("revalidates the data directory before finalize and remove", async () => {
     const dir = dataDir();
     const ws = unwrap(await acquire(dir));
-    const outside = tempDir("relay-outside-");
+    const outside = tempDir("devchestra-outside-");
     renameSync(dir, `${dir}.real`);
     symlinkSync(outside, dir);
 

@@ -7,7 +7,7 @@ import type {
   JoinNode,
   ShellNode,
   StartNode,
-} from "@relay/schema";
+} from "@devchestra/schema";
 import { describe, expect, it } from "vitest";
 import { handleSignature, subtitle } from "../src/editor/canvas/nodes.js";
 

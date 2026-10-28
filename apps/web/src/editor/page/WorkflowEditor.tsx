@@ -1,6 +1,6 @@
-import type { ProjectView } from "@relay/api";
-import { isApiError } from "@relay/api";
-import type { Issue, WorkflowNode } from "@relay/schema";
+import type { ProjectView } from "@devchestra/api";
+import { isApiError } from "@devchestra/api";
+import type { Issue, WorkflowNode } from "@devchestra/schema";
 import { AlertTriangle, Info, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useBlocker, useNavigate } from "react-router-dom";

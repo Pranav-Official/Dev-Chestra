@@ -1,4 +1,4 @@
-import type { EventEnvelope, RunId, RunStatus } from "@relay/core";
+import type { EventEnvelope, RunId, RunStatus } from "@devchestra/core";
 import { ApiProtocolError } from "./errors.js";
 import { eventEnvelopeSchema } from "./events.js";
 import {
@@ -23,7 +23,7 @@ export type RunStreamQuery = z.infer<typeof runStreamQuerySchema>;
 
 export interface RunStreamSnapshot {
   runId: RunId;
-  view: import("@relay/core").RunView;
+  view: import("@devchestra/core").RunView;
   watermark: number;
 }
 

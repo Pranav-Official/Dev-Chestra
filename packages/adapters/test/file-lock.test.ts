@@ -13,7 +13,7 @@ afterEach(async () => {
 });
 
 async function scratch(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), "relay-lock-"));
+  const dir = await mkdtemp(join(tmpdir(), "devchestra-lock-"));
   temps.push(dir);
   return dir;
 }
@@ -21,7 +21,7 @@ async function scratch(): Promise<string> {
 describe("withFileLock", () => {
   it("serializes concurrent read-modify-write holders without lost updates", async () => {
     const dir = await scratch();
-    const lockPath = join(dir, "auth.json.relay-lock");
+    const lockPath = join(dir, "auth.json.devchestra-lock");
     const counterPath = join(dir, "counter.txt");
     await writeFile(counterPath, "0", "utf8");
     const increment = async (): Promise<void> => {
@@ -43,7 +43,7 @@ describe("withFileLock", () => {
 
   it("takes over a stale crashed holder", async () => {
     const dir = await scratch();
-    const lockPath = join(dir, "auth.json.relay-lock");
+    const lockPath = join(dir, "auth.json.devchestra-lock");
     await mkdir(lockPath);
     // Dead pid plus an owner record nobody refreshes: takeover must succeed.
     await writeFile(
@@ -61,7 +61,7 @@ describe("withFileLock", () => {
 
   it("refuses a live holder and aborts on signal", async () => {
     const dir = await scratch();
-    const lockPath = join(dir, "auth.json.relay-lock");
+    const lockPath = join(dir, "auth.json.devchestra-lock");
     const release = await acquireFileLock(lockPath, { staleMs: 60_000, pollMs: 5 });
     const controller = new AbortController();
     controller.abort(new Error("stop"));
@@ -73,7 +73,7 @@ describe("withFileLock", () => {
 
   it("double release removes the lock once and never a successor", async () => {
     const dir = await scratch();
-    const lockPath = join(dir, "auth.json.relay-lock");
+    const lockPath = join(dir, "auth.json.devchestra-lock");
     const first = await acquireFileLock(lockPath, { staleMs: 60_000, pollMs: 5 });
     await first();
     await first();

@@ -1,7 +1,8 @@
-import { fsSlug, type Path, parsePath, RelayError } from "@relay/core";
+import { DevChestraError, fsSlug, type Path, parsePath } from "@devchestra/core";
 
 const SEGMENT_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
-const validation = (message: string): RelayError => new RelayError("E_VALIDATION", message);
+const validation = (message: string): DevChestraError =>
+  new DevChestraError("E_VALIDATION", message);
 export function requireSegment(value: unknown, label: string): string {
   if (typeof value !== "string" || !SEGMENT_RE.test(value)) {
     throw validation(`${label} must be a filesystem-safe segment (max 128 chars)`);

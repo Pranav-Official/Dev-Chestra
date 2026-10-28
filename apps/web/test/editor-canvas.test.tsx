@@ -1,4 +1,4 @@
-import type { Issue, WorkflowFile } from "@relay/schema";
+import type { Issue, WorkflowFile } from "@devchestra/schema";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";

@@ -1,6 +1,6 @@
-# @relay/p2-smoke
+# @devchestra/p2-smoke
 
-Bounded P2 acceptance driver. It starts the real CLI (`relay start`) as an
+Bounded P2 acceptance driver. It starts the real CLI (`devchestra start`) as an
 owned child with a temporary data directory, real SQLite, the real MCP shim and
 the real fake agent, then drives the browser API, SSE and the built web app.
 No route handler is mocked, no paid model CLI is called and no user/global
@@ -9,16 +9,16 @@ configuration is touched.
 ## Commands
 
 ```sh
-pnpm --filter @relay/p2-smoke typecheck
-pnpm --filter @relay/p2-smoke test        # live API/SSE + paging + security
-pnpm --filter @relay/p2-smoke test:e2e    # Playwright viewer/replay/theme/axe
-pnpm --filter @relay/p2-smoke demo        # all scenarios, JSON summary
+pnpm --filter @devchestra/p2-smoke typecheck
+pnpm --filter @devchestra/p2-smoke test        # live API/SSE + paging + security
+pnpm --filter @devchestra/p2-smoke test:e2e    # Playwright viewer/replay/theme/axe
+pnpm --filter @devchestra/p2-smoke demo        # all scenarios, JSON summary
 ```
 
 Missing build outputs (`packages/cli/dist`, `apps/web/dist`,
 `packages/mcp/dist/bin/shim.js`, `tools/fake-agent/dist/main.js`) or Chromium
 fail the run; they never pass or skip. Chromium is taken from
-`RELAY_CHROMIUM_PATH` or `/usr/bin/chromium`, launched headless with a temporary
+`DEVCHESTRA_CHROMIUM_PATH` or `/usr/bin/chromium`, launched headless with a temporary
 profile.
 
 The demo prints screenshot paths under `tools/p2-smoke/artifacts/<timestamp>/`.
@@ -27,7 +27,7 @@ It never prints the session token.
 ## Cleanup
 
 Every scenario records the launched process identity (pid + canonical pidStart,
-reused from `@relay/adapters`) and every `node.process.spawned` agent identity.
+reused from `@devchestra/adapters`) and every `node.process.spawned` agent identity.
 Cleanup stops only those owned processes/groups. A sentinel process is started
 before each scenario and asserted alive after cleanup. Timeout uses the same
 path and fails rather than leaving an agent or server behind.

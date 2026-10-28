@@ -5,7 +5,7 @@ import {
   isKnownEventType,
   type KnownEventType,
   parsePath,
-} from "@relay/core";
+} from "@devchestra/core";
 import { coreErrorCodeSchema } from "./errors.js";
 import {
   actorSchema,

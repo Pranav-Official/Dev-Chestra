@@ -1,4 +1,4 @@
-export type { CatalogCli, CliModelCatalog, CliModelItem } from "@relay/api";
+export type { CatalogCli, CliModelCatalog, CliModelItem } from "@devchestra/api";
 export {
   BROWSER_CONSTANTS,
   type BrowserAppDeps,
@@ -44,11 +44,11 @@ export {
 export { createStoreQueryPort, projectIdForPath } from "./browser/store-query.js";
 export { createBrowserStream } from "./browser/stream-port.js";
 export {
+  DevChestraError,
+  type DevChestraErrorCode,
   type ErrorBody,
   errorBody,
-  RelayError,
-  type RelayErrorCode,
-  toRelayError,
+  toDevChestraError,
 } from "./errors.js";
 export { type AgentGatewayOptions, createAgentGateway, type RateLimitOptions } from "./gateway.js";
 export { hashJson, sha256Hex, stableStringify } from "./hash.js";

@@ -3,7 +3,7 @@ import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { CLI, makeWorkspace, REPO_ROOT } from "./fixtures.js";
-import { type HttpResult, objectBody, RelayHttp } from "./http.js";
+import { DevChestraHttp, type HttpResult, objectBody } from "./http.js";
 import { installModelStandins, type ModelStandin } from "./model-standin.js";
 import { type OwnedServer, shutdownOwned, startSentinel, startServer } from "./owned.js";
 import { collectSpawnedAgents } from "./store-read.js";
@@ -62,7 +62,7 @@ function idsOf(body: Record<string, unknown>): string[] {
 function assertBase(body: Record<string, unknown>, projectId: string): void {
   assert.equal(body.cli, "claude-code");
   assert.equal(body.projectId, projectId);
-  assert.equal(body.scope, "relay-runtime");
+  assert.equal(body.scope, "devchestra-runtime");
   assert.equal(body.customSupported, true);
   assert.equal(typeof body.truncated, "boolean");
   assert.ok(body.cliVersion === null || typeof body.cliVersion === "string");
@@ -90,7 +90,7 @@ async function liveDiscoveryPids(standin: ModelStandin): Promise<number[]> {
 }
 
 export async function runClaudeHttpScenario(): Promise<ClaudeHttpEvidence> {
-  const ws = await makeWorkspace("relay-p3-claude-http-");
+  const ws = await makeWorkspace("devchestra-p3-claude-http-");
   const sentinel = startSentinel();
   let server: OwnedServer | null = null;
   let standin: ModelStandin | null = null;
@@ -101,9 +101,8 @@ export async function runClaudeHttpScenario(): Promise<ClaudeHttpEvidence> {
       dataDir: ws.dataDir,
       cwd: ws.projectDir,
       env: standin.env,
-      extraArgs: ["--allow-experimental-adapters"],
     });
-    const http = new RelayHttp(server.baseUrl);
+    const http = new DevChestraHttp(server.baseUrl);
     await http.health();
     await http.bootstrap(server.meta.token);
     const project = await registerProject(http, ws.projectDir);

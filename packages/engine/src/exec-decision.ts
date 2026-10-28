@@ -1,16 +1,16 @@
-import type { DecisionOutput, ExecutionIdentity, Path } from "@relay/core";
-import { hashJson, RelayError } from "@relay/core";
-import type { DecisionQuestion, DecisionRequest } from "@relay/decisions";
-import { DECISION_PRESETS } from "@relay/decisions";
+import type { DecisionOutput, ExecutionIdentity, Path } from "@devchestra/core";
+import { DevChestraError, hashJson } from "@devchestra/core";
+import type { DecisionQuestion, DecisionRequest } from "@devchestra/decisions";
+import { DECISION_PRESETS } from "@devchestra/decisions";
 import {
   DECISION_UNCERTAIN_HANDLE,
   type DecisionMode,
   type DecisionProviderId,
   isDecisionProviderId,
   routeDecision,
-} from "@relay/schema";
-import type { RunRecord } from "@relay/store";
-import { type ActiveRunState, type EngineContext, toRelayError } from "./context.js";
+} from "@devchestra/schema";
+import type { RunRecord } from "@devchestra/store";
+import { type ActiveRunState, type EngineContext, toDevChestraError } from "./context.js";
 import type { PlanNode, WorkflowPlan } from "./graph-plan.js";
 import { buildScopeData } from "./scope.js";
 import { StopSignal } from "./stop.js";
@@ -31,19 +31,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function readConfig(node: PlanNode): DecisionConfig {
   const raw = node.raw;
   if (!isDecisionProviderId(raw.provider)) {
-    throw new RelayError(
+    throw new DevChestraError(
       "E_WORKFLOW_INVALID",
       `Decision '${node.id}' has an unknown provider ${JSON.stringify(raw.provider)}`,
       { details: { nodeId: node.id } },
     );
   }
   if (typeof raw.state !== "string" || raw.state === "") {
-    throw new RelayError("E_WORKFLOW_INVALID", `Decision '${node.id}' has no state template`, {
+    throw new DevChestraError("E_WORKFLOW_INVALID", `Decision '${node.id}' has no state template`, {
       details: { nodeId: node.id },
     });
   }
   if (typeof raw.instructions !== "string" || raw.instructions === "") {
-    throw new RelayError("E_WORKFLOW_INVALID", `Decision '${node.id}' has no instructions`, {
+    throw new DevChestraError("E_WORKFLOW_INVALID", `Decision '${node.id}' has no instructions`, {
       details: { nodeId: node.id },
     });
   }
@@ -52,13 +52,13 @@ function readConfig(node: PlanNode): DecisionConfig {
     !isRecord(mode) ||
     (mode.kind !== "boolean" && mode.kind !== "choice" && mode.kind !== "score")
   ) {
-    throw new RelayError("E_WORKFLOW_INVALID", `Decision '${node.id}' has an unknown mode`, {
+    throw new DevChestraError("E_WORKFLOW_INVALID", `Decision '${node.id}' has an unknown mode`, {
       details: { nodeId: node.id },
     });
   }
   const onError = raw.onError ?? "fail";
   if (onError !== "fail" && onError !== "uncertain") {
-    throw new RelayError(
+    throw new DevChestraError(
       "E_WORKFLOW_INVALID",
       `Decision '${node.id}' onError must be 'fail' or 'uncertain'`,
       { details: { nodeId: node.id } },
@@ -125,8 +125,8 @@ function uncertainWired(plan: WorkflowPlan, node: PlanNode): boolean {
   );
 }
 
-function unwiredUncertainError(node: PlanNode): RelayError {
-  return new RelayError(
+function unwiredUncertainError(node: PlanNode): DevChestraError {
+  return new DevChestraError(
     "E_WORKFLOW_INVALID",
     `Decision '${node.id}' routed to 'uncertain' but no edge leaves '${node.id}.uncertain'; wire an uncertain edge or narrow the mode thresholds`,
     { details: { nodeId: node.id, branch: DECISION_UNCERTAIN_HANDLE } },
@@ -141,7 +141,7 @@ function unwiredUncertainError(node: PlanNode): RelayError {
  * The client reports missing secrets as E_PROVIDER with this prefix; local
  * limit violations surface as E_VALIDATION.
  */
-function isDecisionConfigError(error: RelayError): boolean {
+function isDecisionConfigError(error: DevChestraError): boolean {
   if (error.code === "E_VALIDATION") return true;
   return (
     error.code === "E_PROVIDER" &&
@@ -207,7 +207,7 @@ export async function executeDecision(
     if (prior !== null && prior !== undefined) {
       const routing = routeDecision(config.mode, prior.output);
       if (routing.branch === null) {
-        throw new RelayError(
+        throw new DevChestraError(
           "E_WORKFLOW_INVALID",
           `Decision '${node.id}' has no routable branch for its stored answer`,
           { details: { nodeId: node.id } },
@@ -229,7 +229,7 @@ export async function executeDecision(
 
     const service = ctx.deps.decisions;
     if (service === undefined) {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_PROVIDER",
         `Decision '${node.id}' needs provider '${config.provider}' but no decision service is configured; pass a DecisionService to the engine`,
         { details: { nodeId: node.id, provider: config.provider } },
@@ -276,7 +276,7 @@ export async function executeDecision(
     }
     const routing = routeDecision(config.mode, response.output);
     if (routing.branch === null) {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_WORKFLOW_INVALID",
         `Decision '${node.id}' has no routable branch for the provider answer`,
         { details: { nodeId: node.id } },
@@ -309,22 +309,22 @@ export async function executeDecision(
     // failing, exactly like the other executors. The provider call is
     // read-only, so a resume simply asks again.
     if (active.abort.signal.aborted) throw interrupt(ctx, identity, active);
-    const relay = toRelayError(error);
+    const devchestra = toDevChestraError(error);
     // A provider failure after the client's retries routes to `uncertain`
     // with a refusal-style output when the node opts into it. Configuration
     // errors always fail the node instead (F7c). The client already redacted
     // key material from the message, so it is safe to store.
     if (
       config.onError === "uncertain" &&
-      (relay.code === "E_PROVIDER" || relay.code === "E_PROVIDER_REFUSED") &&
-      !isDecisionConfigError(relay)
+      (devchestra.code === "E_PROVIDER" || devchestra.code === "E_PROVIDER_REFUSED") &&
+      !isDecisionConfigError(devchestra)
     ) {
       const output: DecisionOutput = {
         kind: config.mode.kind,
         value: null,
         confidence: null,
         confidenceSource: null,
-        refusal: { reason: relay.message },
+        refusal: { reason: devchestra.message },
         model: fallbackModel(config),
       };
       try {
@@ -350,14 +350,14 @@ export async function executeDecision(
         return;
       } catch (nested) {
         if (nested instanceof StopSignal) throw nested;
-        const nestedRelay = toRelayError(nested);
-        ctx.failExecution(run, node, identity, nestedRelay);
-        throw nestedRelay;
+        const nestedDevChestra = toDevChestraError(nested);
+        ctx.failExecution(run, node, identity, nestedDevChestra);
+        throw nestedDevChestra;
       }
     }
     if (ctx.currentStatus(identity) === "running" || ctx.currentStatus(identity) === "validating") {
-      ctx.failExecution(run, node, identity, relay);
+      ctx.failExecution(run, node, identity, devchestra);
     }
-    throw relay;
+    throw devchestra;
   }
 }

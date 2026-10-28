@@ -21,7 +21,7 @@ import {
   waitValidation,
 } from "./browser-ui.js";
 import { CLI, makeWorkspace } from "./fixtures.js";
-import { RelayHttp } from "./http.js";
+import { DevChestraHttp } from "./http.js";
 import { type OwnedServer, shutdownOwned, startSentinel, startServer } from "./owned.js";
 import { collectSpawnedAgents } from "./store-read.js";
 
@@ -99,7 +99,7 @@ function executionOutput(body: unknown): Record<string, unknown> {
 }
 
 export async function runHandoffBrowserScenario(): Promise<HandoffEvidence> {
-  const ws = await makeWorkspace("relay-p3-handoff-");
+  const ws = await makeWorkspace("devchestra-p3-handoff-");
   const sentinel = startSentinel();
   const script = await writeScript(ws.root);
   let server: OwnedServer | null = null;
@@ -111,7 +111,7 @@ export async function runHandoffBrowserScenario(): Promise<HandoffEvidence> {
       cwd: ws.projectDir,
       fakeScript: script,
     });
-    const http = new RelayHttp(server.baseUrl);
+    const http = new DevChestraHttp(server.baseUrl);
     await http.health();
     await http.bootstrap(server.meta.token);
     const session = await launchBrowser(ws);
@@ -187,21 +187,21 @@ export async function runHandoffBrowserScenario(): Promise<HandoffEvidence> {
     const firstPrompt = inputPrompt(events, "agent");
     const secondPrompt = inputPrompt(events, "agent2");
     assert.ok(
-      firstPrompt.includes("<relay_input_context>"),
+      firstPrompt.includes("<devchestra_input_context>"),
       "Agent1 prompt must include the data block",
     );
     assert.ok(
-      firstPrompt.includes("</relay_input_context>"),
+      firstPrompt.includes("</devchestra_input_context>"),
       "Agent1 prompt data block must be closed",
     );
     assert.ok(firstPrompt.includes(START_NONCE), "Agent1 prompt must contain Start data");
     assert.ok(!firstPrompt.includes("{{"), "Agent1 prompt must be plain, not a template");
     assert.ok(
-      secondPrompt.includes("<relay_input_context>"),
+      secondPrompt.includes("<devchestra_input_context>"),
       "Agent2 prompt must include the data block",
     );
     assert.ok(
-      secondPrompt.includes("</relay_input_context>"),
+      secondPrompt.includes("</devchestra_input_context>"),
       "Agent2 prompt data block must be closed",
     );
     assert.ok(secondPrompt.includes(START_NONCE), "Agent2 prompt must retain Start data");

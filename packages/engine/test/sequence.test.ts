@@ -133,7 +133,7 @@ describe("analyzeLinearWorkflow", () => {
       mutate((snapshot) => {
         nodeAt(snapshot, 1).output = {
           type: "object",
-          properties: { file: { type: "string", format: "relay-artifact" } },
+          properties: { file: { type: "string", format: "devchestra-artifact" } },
         };
       }),
     );

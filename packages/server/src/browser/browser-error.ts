@@ -1,5 +1,5 @@
-import { type ApiErrorCode, apiErrorCodeSchema, httpStatusForErrorCode } from "@relay/api";
-import { RelayError, relayErrorCode } from "../errors.js";
+import { type ApiErrorCode, apiErrorCodeSchema, httpStatusForErrorCode } from "@devchestra/api";
+import { DevChestraError, devchestraErrorCode } from "../errors.js";
 
 export function browserError(error: unknown): {
   code: ApiErrorCode;
@@ -7,7 +7,7 @@ export function browserError(error: unknown): {
   status: number;
   details?: unknown;
 } {
-  if (error instanceof RelayError) {
+  if (error instanceof DevChestraError) {
     const parsed = apiErrorCodeSchema.safeParse(error.code);
     const code: ApiErrorCode = parsed.success ? parsed.data : "E_INTERNAL";
     return {
@@ -17,7 +17,7 @@ export function browserError(error: unknown): {
       ...(error.details === undefined ? {} : { details: error.details }),
     };
   }
-  const raw = relayErrorCode(error);
+  const raw = devchestraErrorCode(error);
   const parsed = raw === null ? null : apiErrorCodeSchema.safeParse(raw);
   const code: ApiErrorCode = parsed?.success === true ? parsed.data : "E_INTERNAL";
   const messages: Partial<Record<ApiErrorCode, string>> = {

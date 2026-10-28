@@ -1,4 +1,4 @@
-import type { Issue, WorkflowFile } from "@relay/schema";
+import type { Issue, WorkflowFile } from "@devchestra/schema";
 import {
   AlertTriangle,
   CheckCircle2,

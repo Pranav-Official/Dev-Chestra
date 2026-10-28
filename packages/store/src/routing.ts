@@ -6,7 +6,7 @@ import type {
   ExecView,
   GateDecidedPayload,
   JoinResolvedPayload,
-} from "@relay/core";
+} from "@devchestra/core";
 import { appendEvents } from "./events.js";
 import { completeExecution, requireCurrent } from "./executions.js";
 import { hashJsonSync } from "./hash.js";

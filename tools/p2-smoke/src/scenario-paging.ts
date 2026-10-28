@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { EventEnvelope } from "@relay/core";
+import type { EventEnvelope } from "@devchestra/core";
 import {
   defaultIdempotencyKey,
   getRun,
@@ -13,7 +13,7 @@ import {
 import { assertSameIds, assertStrictlyIncreasingIds } from "./compare.js";
 import { fetchAllEvents, fetchEventPage } from "./events.js";
 import { CLI, makeWorkspace, scriptPath, sleep, writeManyWorkflow } from "./fixtures.js";
-import { RelayHttp } from "./http.js";
+import { DevChestraHttp } from "./http.js";
 import {
   collectAgent,
   type OwnedServer,
@@ -44,7 +44,7 @@ function idsOf(events: readonly EventEnvelope[]): number[] {
 
 export async function runPagingScenario(): Promise<PagingEvidence> {
   const shellNodes = 75;
-  const ws = await makeWorkspace("relay-p2-paging-");
+  const ws = await makeWorkspace("devchestra-p2-paging-");
   const many = await writeManyWorkflow(ws.projectDir, shellNodes);
   const sentinel = startSentinel();
   const agents = new Map<number, { pid: number; pidStart: string; binary: string }>();
@@ -57,7 +57,7 @@ export async function runPagingScenario(): Promise<PagingEvidence> {
       cwd: ws.projectDir,
       fakeScript: scriptPath("slow"),
     });
-    const http = new RelayHttp(server.baseUrl);
+    const http = new DevChestraHttp(server.baseUrl);
     await http.health();
     await http.bootstrap(server.meta.token);
     const project = await registerProject(http, ws.projectDir);
@@ -231,7 +231,7 @@ export async function runPagingScenario(): Promise<PagingEvidence> {
 }
 
 export async function waitForTerminalOrFail(
-  http: RelayHttp,
+  http: DevChestraHttp,
   runId: string,
   timeoutMs: number,
 ): Promise<void> {

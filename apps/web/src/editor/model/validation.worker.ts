@@ -1,5 +1,5 @@
-import { parseWorkflow, validateWorkflow, type WorkflowFile } from "@relay/schema";
-import { relayErrorReport } from "./validation-report.js";
+import { parseWorkflow, validateWorkflow, type WorkflowFile } from "@devchestra/schema";
+import { devchestraErrorReport } from "./validation-report.js";
 
 interface ValidateRequest {
   type: "validate";
@@ -37,7 +37,7 @@ scope.onmessage = (event) => {
         type: "result",
         requestId: request.requestId,
         revision: request.revision,
-        report: relayErrorReport(parsed.error),
+        report: devchestraErrorReport(parsed.error),
       });
       return;
     }

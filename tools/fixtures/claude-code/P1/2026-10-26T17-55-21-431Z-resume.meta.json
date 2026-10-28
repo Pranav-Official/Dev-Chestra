@@ -33,5 +33,5 @@
   "crashResumeProven": false,
   "claimsScope": "runtime invocation files/argv/db only; user auth/config not read",
   "notes": "Claude clean fresh/resume through real gateway/MCP shim; not a crash/SIGKILL resume and not sandbox enforcement.",
-  "resumeScope": "new Relay run/execution, same cwd and CLI session; not an engine crash-resume"
+  "resumeScope": "new DevChestra run/execution, same cwd and CLI session; not an engine crash-resume"
 }

@@ -1,4 +1,4 @@
-import type { RelayError } from "@relay/core";
+import type { DevChestraError } from "@devchestra/core";
 import { compileExpression } from "./expression.js";
 import { analyzeGraph } from "./graph.js";
 import { WORKFLOW_ID_PATTERN } from "./ids.js";
@@ -26,10 +26,10 @@ import { MCP_SCOPES, PROD_CLIS } from "./types.js";
 import { validateApproval } from "./validate-approval.js";
 import { validateDecision } from "./validate-decision.js";
 import {
+  devchestraIssue,
   isRecord,
   issue,
   promptFilePath,
-  relayIssue,
   retryBounds,
   timeoutBounds,
   workspaceProblem,
@@ -97,12 +97,12 @@ function validateMcpServers(
       );
       continue;
     }
-    if (name === "relay") {
+    if (name === "devchestra") {
       addError(
         issue(
           "error",
           "E_MCP_SERVERS",
-          "Agent mcpServers name 'relay' is reserved for Relay's own server.",
+          "Agent mcpServers name 'devchestra' is reserved for DevChestra's own server.",
           `${entry}/name`,
           nodeId,
         ),
@@ -147,8 +147,8 @@ export function validateWorkflow(
   const referencedRoots = new Set<string>();
   const addError = (item: Issue): void => void errors.push(item);
   const addWarning = (item: Issue): void => void warnings.push(item);
-  const addRelay = (error: RelayError, pointer: string, nodeId?: string): void =>
-    addError(relayIssue(error, pointer, nodeId));
+  const addDevChestra = (error: DevChestraError, pointer: string, nodeId?: string): void =>
+    addError(devchestraIssue(error, pointer, nodeId));
   if (!isRecord(file) || !isRecord(file.graph)) {
     return {
       ok: false,
@@ -264,7 +264,7 @@ export function validateWorkflow(
   ): void => {
     const compiled = compileTemplate(template, { shell });
     if (!compiled.ok) {
-      addRelay(compiled.error, pointer, node.id);
+      addDevChestra(compiled.error, pointer, node.id);
       return;
     }
     for (const part of compiled.value.parts) {
@@ -327,7 +327,7 @@ export function validateWorkflow(
             issue(
               "warning",
               "W_FAKE_CLI",
-              "Agent CLI 'fake' is test-only (requires RELAY_ALLOW_FAKE=1 at run time); do not use it for a real run.",
+              "Agent CLI 'fake' is test-only (requires DEVCHESTRA_ALLOW_FAKE=1 at run time); do not use it for a real run.",
               `${pointer}/cli`,
               node.id,
             ),
@@ -337,7 +337,7 @@ export function validateWorkflow(
             issue(
               "error",
               "E_WORKFLOW_INVALID",
-              `Agent CLI '${String(agent.cli)}' is not supported in P1; use ${PROD_CLIS.join(", ")}. Fake is test-only behind RELAY_ALLOW_FAKE=1.`,
+              `Agent CLI '${String(agent.cli)}' is not supported in P1; use ${PROD_CLIS.join(", ")}. Fake is test-only behind DEVCHESTRA_ALLOW_FAKE=1.`,
               `${pointer}/cli`,
               node.id,
             ),
@@ -411,7 +411,7 @@ export function validateWorkflow(
       } else {
         const normalized = normalizeOutputSchema(agent.output);
         if (!normalized.ok) {
-          addRelay(normalized.error, `${pointer}/output`, node.id);
+          addDevChestra(normalized.error, `${pointer}/output`, node.id);
         } else {
           const properties = normalized.value.properties;
           const closed = normalized.value.additionalProperties !== true;
@@ -626,7 +626,7 @@ export function validateWorkflow(
         if (typeof branch.when !== "string" || branch.when.trim() === "") continue;
         const compiled = compileExpression(branch.when);
         if (!compiled.ok) {
-          addRelay(compiled.error, `${pointer}/branches`, node.id);
+          addDevChestra(compiled.error, `${pointer}/branches`, node.id);
         } else {
           checkRoots(
             compiled.value.roots,
@@ -655,19 +655,19 @@ export function validateWorkflow(
           );
         } else {
           const normalized = normalizeOutputSchema(join.output);
-          if (!normalized.ok) addRelay(normalized.error, `${pointer}/output`, node.id);
+          if (!normalized.ok) addDevChestra(normalized.error, `${pointer}/output`, node.id);
         }
       }
       continue;
     }
 
     if (node.type === "approval") {
-      validateApproval(node as ApprovalNode, pointer, allowed, addError, addRelay);
+      validateApproval(node as ApprovalNode, pointer, allowed, addError, addDevChestra);
       continue;
     }
 
     if (node.type === "decision") {
-      validateDecision(node as DecisionNode, pointer, allowed, addError, addRelay);
+      validateDecision(node as DecisionNode, pointer, allowed, addError, addDevChestra);
       continue;
     }
 
@@ -697,7 +697,7 @@ export function validateWorkflow(
       } else {
         const compiled = compileExpression(end.result);
         if (!compiled.ok) {
-          addRelay(compiled.error, `${pointer}/result`, node.id);
+          addDevChestra(compiled.error, `${pointer}/result`, node.id);
         } else {
           checkRoots(
             compiled.value.roots,

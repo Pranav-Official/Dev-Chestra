@@ -20,7 +20,7 @@ import {
   waitValidation,
 } from "../../src/browser-ui.js";
 import { CLI, scriptPath } from "../../src/fixtures.js";
-import { RelayHttp } from "../../src/http.js";
+import { DevChestraHttp } from "../../src/http.js";
 import { type OwnedServer, shutdownOwned, startSentinel, startServer } from "../../src/owned.js";
 import { collectSpawnedAgents } from "../../src/store-read.js";
 import { getWorkflow } from "../../src/workflow-api.js";
@@ -51,7 +51,11 @@ function directoryIdentity(path: string, env: NodeJS.ProcessEnv): DirIdentity {
   return { dev: info.dev, ino: info.ino, commonDir: realpathSync(resolve(path, common)) };
 }
 
-async function execution(http: RelayHttp, runId: string, path: string): Promise<ExecutionDetail> {
+async function execution(
+  http: DevChestraHttp,
+  runId: string,
+  path: string,
+): Promise<ExecutionDetail> {
   const result = await http.api(
     "GET",
     `/api/runs/${encodeURIComponent(runId)}/executions/${encodeURIComponent(path)}`,
@@ -153,8 +157,8 @@ async function assertInspectorHasNoSelector(page: Page): Promise<void> {
 
 describe("run workspace Chromium acceptance", () => {
   it("chooses one workspace in Run Start, leaves inspectors clean, and sees dirty/untracked files only in root mode", async () => {
-    const repo = makeRunWorkspaceRepo("relay-run-ws-browser-");
-    const work = tempRoot("relay-run-ws-browser-work-");
+    const repo = makeRunWorkspaceRepo("devchestra-run-ws-browser-");
+    const work = tempRoot("devchestra-run-ws-browser-work-");
     const dataDir = join(work.dir, "data");
     const profileDir = join(work.dir, "profile");
     mkdirSync(dataDir, { recursive: true });
@@ -183,7 +187,7 @@ describe("run workspace Chromium acceptance", () => {
           GIT_CONFIG_NOSYSTEM: "1",
         },
       });
-      const http = new RelayHttp(server.baseUrl);
+      const http = new DevChestraHttp(server.baseUrl);
       await http.health();
       await http.bootstrap(server.meta.token);
       const session = await launchBrowser({

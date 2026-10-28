@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { afterAll, afterEach, describe, it } from "vitest";
 
-import { RelayHttp } from "../src/http.js";
+import { DevChestraHttp } from "../src/http.js";
 import { collectSpawnedAgents } from "../src/store-read.js";
 import { registerProject } from "../src/workflow-api.js";
 import {
@@ -39,7 +39,7 @@ const GATE = {
   ],
 };
 
-async function runCount(http: RelayHttp, projectId: string): Promise<number> {
+async function runCount(http: DevChestraHttp, projectId: string): Promise<number> {
   const result = await http.api("GET", `/api/runs?project=${encodeURIComponent(projectId)}`);
   assert.equal(result.status, 200, result.text.slice(0, 500));
   return ((result.body as { items?: unknown[] }).items ?? []).length;
@@ -47,8 +47,8 @@ async function runCount(http: RelayHttp, projectId: string): Promise<number> {
 
 describe("P4 gate tester", () => {
   it("previews a gate without runs, processes, model calls or store writes", async () => {
-    const ws = await makeRunWorkspaceRepo("relay-p4-preview-");
-    const dataDir = tempRoot("relay-p4-preview-data-").dir;
+    const ws = await makeRunWorkspaceRepo("devchestra-p4-preview-");
+    const dataDir = tempRoot("devchestra-p4-preview-data-").dir;
     await withServer(
       {
         dataDir,
@@ -61,7 +61,7 @@ describe("P4 gate tester", () => {
         },
       },
       async (server) => {
-        const http = new RelayHttp(server.baseUrl);
+        const http = new DevChestraHttp(server.baseUrl);
         await http.health();
         await http.bootstrap(server.meta.token);
         const project = await registerProject(http, ws.root);

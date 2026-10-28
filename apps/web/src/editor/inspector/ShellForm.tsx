@@ -1,4 +1,4 @@
-import type { Issue, ShellNode } from "@relay/schema";
+import type { Issue, ShellNode } from "@devchestra/schema";
 import { TriangleAlert } from "lucide-react";
 import { CheckboxField, describedBy, Field } from "./fields/fields.js";
 import { useBufferedNumber } from "./fields/useBufferedNumber.js";

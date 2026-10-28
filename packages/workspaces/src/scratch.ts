@@ -1,6 +1,14 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { err, fsSlug, isRecord, ok, type Path, RelayError, type Result } from "@relay/core";
+import {
+  DevChestraError,
+  err,
+  fsSlug,
+  isRecord,
+  ok,
+  type Path,
+  type Result,
+} from "@devchestra/core";
 import {
   parseWorkspacePath,
   requireAbsolutePath,
@@ -19,10 +27,10 @@ import type {
   ScratchWorkspace,
 } from "./types.js";
 
-const PREFIX = ".relay-finalized.";
+const PREFIX = ".devchestra-finalized.";
 type FinalizeMarker = {
   version: 1;
-  kind: "relay.scratch.finalized";
+  kind: "devchestra.scratch.finalized";
   projectId: string;
   runId: string;
   path: string;
@@ -46,22 +54,22 @@ const issued = new WeakMap<ScratchWorkspace, Issued>();
 const missing = (e: unknown): boolean =>
   ["ENOENT", "ENOTDIR"].includes((e as NodeJS.ErrnoException | undefined)?.code ?? "");
 const exists = (e: unknown): boolean => (e as NodeJS.ErrnoException | undefined)?.code === "EEXIST";
-const werr = (message: string, details?: unknown): RelayError =>
-  new RelayError("E_WORKSPACE", message, details === undefined ? {} : { details });
-const ferr = (message: string, details?: unknown): RelayError =>
-  new RelayError("E_FORBIDDEN_PATH", message, details === undefined ? {} : { details });
-const conflict = (message: string, details?: unknown): RelayError =>
-  new RelayError("E_CONFLICT", message, details === undefined ? {} : { details });
+const werr = (message: string, details?: unknown): DevChestraError =>
+  new DevChestraError("E_WORKSPACE", message, details === undefined ? {} : { details });
+const ferr = (message: string, details?: unknown): DevChestraError =>
+  new DevChestraError("E_FORBIDDEN_PATH", message, details === undefined ? {} : { details });
+const conflict = (message: string, details?: unknown): DevChestraError =>
+  new DevChestraError("E_CONFLICT", message, details === undefined ? {} : { details });
 const aborted = (signal: AbortSignal | undefined): boolean => signal?.aborted === true;
-function toRelayError(e: unknown): RelayError {
-  if (e instanceof RelayError) return e;
+function toDevChestraError(e: unknown): DevChestraError {
+  if (e instanceof DevChestraError) return e;
   const code = (e as NodeJS.ErrnoException | undefined)?.code ?? "unknown";
   return werr(`Workspace operation failed (${code})`, { step: "io", code });
 }
 function prepareDataDir(raw: string, create: boolean): string {
   const resolved = path.resolve(requireAbsolutePath(raw, "dataDir"));
   if (resolved === path.resolve("/"))
-    throw new RelayError("E_VALIDATION", "dataDir must not be the filesystem root");
+    throw new DevChestraError("E_VALIDATION", "dataDir must not be the filesystem root");
   try {
     fs.lstatSync(resolved);
   } catch (e) {
@@ -156,7 +164,7 @@ function parseFinalize(value: unknown, layout: WorkspaceLayout, r: Issued): Fina
   const m = value as unknown as FinalizeMarker;
   if (
     m.version !== 1 ||
-    m.kind !== "relay.scratch.finalized" ||
+    m.kind !== "devchestra.scratch.finalized" ||
     m.projectId !== r.projectId ||
     m.runId !== r.runId ||
     m.path !== r.path ||
@@ -185,10 +193,10 @@ function recordFor(ws: ScratchWorkspace): Issued {
 }
 export async function acquireScratch(
   request: AcquireScratchRequest,
-): Promise<Result<ScratchWorkspace, RelayError>> {
+): Promise<Result<ScratchWorkspace, DevChestraError>> {
   try {
     if (aborted(request.signal)) {
-      return err(new RelayError("E_CANCELLED", "Workspace acquisition cancelled"));
+      return err(new DevChestraError("E_CANCELLED", "Workspace acquisition cancelled"));
     }
     if (request.mode !== undefined && request.mode !== "scratch") {
       throw werr(`Workspace mode '${String(request.mode)}' is not supported`, {
@@ -244,17 +252,17 @@ export async function acquireScratch(
     issued.set(workspace, record);
     return ok(workspace);
   } catch (e) {
-    return err(toRelayError(e));
+    return err(toDevChestraError(e));
   }
 }
 export async function finalizeScratch(
   ws: ScratchWorkspace,
   request: FinalizeScratchRequest,
-): Promise<Result<FinalizeScratchInfo, RelayError>> {
+): Promise<Result<FinalizeScratchInfo, DevChestraError>> {
   try {
     const r = recordFor(ws);
     if (!["success", "failed", "cancelled"].includes(request.outcome)) {
-      throw new RelayError("E_VALIDATION", `Invalid outcome: ${String(request.outcome)}`);
+      throw new DevChestraError("E_VALIDATION", `Invalid outcome: ${String(request.outcome)}`);
     }
     const process = request.process;
     if (!isRecord(process) || process.stopped !== true) {
@@ -283,7 +291,7 @@ export async function finalizeScratch(
     }
     const marker: FinalizeMarker = {
       version: 1,
-      kind: "relay.scratch.finalized",
+      kind: "devchestra.scratch.finalized",
       projectId: r.projectId,
       runId: r.runId,
       path: r.path,
@@ -307,7 +315,7 @@ export async function finalizeScratch(
     }
     return ok(info(false));
   } catch (e) {
-    return err(toRelayError(e));
+    return err(toDevChestraError(e));
   }
 }
 export function releaseScratch(ws: ScratchWorkspace): void {
@@ -315,7 +323,7 @@ export function releaseScratch(ws: ScratchWorkspace): void {
 }
 export async function removeScratch(
   ws: ScratchWorkspace,
-): Promise<Result<RemoveScratchInfo, RelayError>> {
+): Promise<Result<RemoveScratchInfo, DevChestraError>> {
   try {
     const r = recordFor(ws);
     existingDataDir(r.dataDir, r.dataDir);
@@ -341,6 +349,6 @@ export async function removeScratch(
     }
     return ok({ dir: layout.wsDir, removed: true, alreadyAbsent: false });
   } catch (e) {
-    return err(toRelayError(e));
+    return err(toDevChestraError(e));
   }
 }

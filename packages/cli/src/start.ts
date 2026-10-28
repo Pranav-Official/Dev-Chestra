@@ -4,30 +4,30 @@ import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  DevChestraError,
   hashJson,
   isTerminalRunStatus,
   type JsonObject,
   type Path,
-  RelayError,
   type RunId,
   type RunStatus,
-} from "@relay/core";
-import { createDecisionService } from "@relay/decisions";
-import type { Engine } from "@relay/engine";
+} from "@devchestra/core";
+import { createDecisionService } from "@devchestra/decisions";
+import type { Engine } from "@devchestra/engine";
 import type {
   BrowserModelCatalogPort,
   CommandResponse,
   StartRunCommand,
   StartRunResponse,
-} from "@relay/server";
+} from "@devchestra/server";
 import {
   createBrowserStream,
   createMcpServersPort,
   createStoreQueryPort,
-  RelayError as ServerRelayError,
+  DevChestraError as ServerDevChestraError,
   startBrowserServer,
-} from "@relay/server";
-import { openStore, type Store } from "@relay/store";
+} from "@devchestra/server";
+import { openStore, type Store } from "@devchestra/store";
 import type { CliOptions } from "./args.js";
 import { createCliEngine } from "./commands.js";
 import { loadFakeScript } from "./fake-script.js";
@@ -48,7 +48,7 @@ import {
   type ServerMetadata,
   writeServerMetadata,
 } from "./server-metadata.js";
-import { requireFakeScriptForFakeNodes, workflowRequiresRealAdapter } from "./workflow.js";
+import { requireFakeScriptForFakeNodes } from "./workflow.js";
 import { createBrowserWorkspaceService } from "./workspace-service.js";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -120,15 +120,15 @@ export interface StartDeps {
 }
 
 async function resolveWebRoot(override?: string): Promise<string> {
-  const root = override ?? process.env.RELAY_WEB_ROOT ?? DEFAULT_WEB_ROOT;
+  const root = override ?? process.env.DEVCHESTRA_WEB_ROOT ?? DEFAULT_WEB_ROOT;
   try {
     const info = await stat(root);
     if (!info.isDirectory()) throw new Error("not a directory");
     await access(join(root, "index.html"));
   } catch {
-    throw new RelayError(
+    throw new DevChestraError(
       "E_VALIDATION",
-      `Built web app not found at ${root}. Run \`pnpm build\` (or \`pnpm --filter @relay/web build\`) before relay start.`,
+      `Built web app not found at ${root}. Run \`pnpm build\` (or \`pnpm --filter @devchestra/web build\`) before devchestra start.`,
     );
   }
   return root;
@@ -192,14 +192,14 @@ async function listen(
   try {
     const listener = await factory({ ...wiring, port: hint });
     if (!Number.isSafeInteger(listener.port) || listener.port <= 0 || listener.port > 65535) {
-      throw new RelayError("E_INTERNAL", "The browser listener did not report a TCP port");
+      throw new DevChestraError("E_INTERNAL", "The browser listener did not report a TCP port");
     }
     return listener;
   } catch (error) {
     if (hint !== 0 && isAddrInUse(error)) {
       const listener = await factory({ ...wiring, port: 0 });
       if (!Number.isSafeInteger(listener.port) || listener.port <= 0) {
-        throw new RelayError("E_INTERNAL", "The browser listener did not report a TCP port");
+        throw new DevChestraError("E_INTERNAL", "The browser listener did not report a TCP port");
       }
       return listener;
     }
@@ -243,16 +243,10 @@ function controllerFor(
 
   return {
     async startRun(input) {
-      if (workflowRequiresRealAdapter(input.snapshot) && !options.allowExperimentalAdapters) {
-        throw new ServerRelayError(
-          "E_VALIDATION",
-          "This workflow uses an experimental real CLI adapter. Start relay with --allow-experimental-adapters only after a live contract check.",
-        );
-      }
       if (requireFakeScriptForFakeNodes(input.snapshot) && fakeScript === undefined) {
-        throw new ServerRelayError(
+        throw new ServerDevChestraError(
           "E_VALIDATION",
-          "This workflow uses test-only fake agent nodes; start relay with RELAY_ALLOW_FAKE=1 and a test-only --fake-script. The browser cannot inject a fake script.",
+          "This workflow uses test-only fake agent nodes; start devchestra with DEVCHESTRA_ALLOW_FAKE=1 and a test-only --fake-script. The browser cannot inject a fake script.",
         );
       }
       const workspace = input.workspace ?? { mode: "project" as const };
@@ -290,10 +284,10 @@ function controllerFor(
     },
     async cancelRun(runId) {
       const record = store.runs.get(runId as never);
-      if (record === null) throw new RelayError("E_NOT_FOUND", `Run ${runId} does not exist`);
+      if (record === null) throw new DevChestraError("E_NOT_FOUND", `Run ${runId} does not exist`);
       if (isTerminalRunStatus(record.status as RunStatus)) {
         if (record.status === "cancelled") return { runId: runId as RunId, status: "cancelled" };
-        throw new RelayError("E_CONFLICT", `Run ${runId} is already ${record.status}`);
+        throw new DevChestraError("E_CONFLICT", `Run ${runId} is already ${record.status}`);
       }
       if (record.status === "paused") {
         const cancelled = await engine.cancel(runId);
@@ -323,7 +317,7 @@ function controllerFor(
       const n = input.note?.trim();
       const note = n === "" ? undefined : n;
       const run = store.runs.get(input.runId as RunId);
-      if (!run) throw new RelayError("E_NOT_FOUND", `Run ${input.runId} does not exist`);
+      if (!run) throw new DevChestraError("E_NOT_FOUND", `Run ${input.runId} does not exist`);
       const r = store.approvals.resolve({
         identity: {
           runId: input.runId as RunId,
@@ -344,7 +338,7 @@ function controllerFor(
           generation: input.expectedGeneration,
         });
         if (!rec?.resolvedEventId)
-          throw new RelayError("E_INTERNAL", "Missing resolvedEventId for duplicate approval");
+          throw new DevChestraError("E_INTERNAL", "Missing resolvedEventId for duplicate approval");
         return {
           runId: input.runId as RunId,
           path: input.path as Path,
@@ -356,7 +350,8 @@ function controllerFor(
           eventId: rec.resolvedEventId,
         };
       }
-      if (r.resolvedEventId == null) throw new RelayError("E_INTERNAL", "Missing resolvedEventId");
+      if (r.resolvedEventId == null)
+        throw new DevChestraError("E_INTERNAL", "Missing resolvedEventId");
       const eid = r.resolvedEventId;
       // Best-effort dispatch; leave durable approval_wakes marker for engine canonical wake on failure
       try {
@@ -366,7 +361,7 @@ function controllerFor(
           if (la.ok) observe(input.runId, la.value.completion);
         }
       } catch (e) {
-        if (e instanceof RelayError && e.code === "E_INTERNAL") throw e;
+        if (e instanceof DevChestraError && e.code === "E_INTERNAL") throw e;
       }
       return {
         runId: input.runId as RunId,
@@ -397,9 +392,9 @@ async function attach(dataDir: string, options: CliOptions, deps: StartDeps): Pr
   const url = bootstrapUrl(read.value);
   const stdout = deps.stdout ?? process.stdout;
   if (options.printUrl) {
-    stdout.write(`relay: ${url}\n`);
+    stdout.write(`devchestra: ${url}\n`);
   } else {
-    stdout.write(`relay: already running at ${plainUrl(read.value.port)}\n`);
+    stdout.write(`devchestra: already running at ${plainUrl(read.value.port)}\n`);
   }
   if (!options.noOpen) (deps.openBrowser ?? openInBrowser)(url);
   return true;
@@ -440,15 +435,15 @@ export async function executeStart(
   } catch (error) {
     if (!(error instanceof DataDirLockedError)) throw error;
     if (await attach(dataDir, options, deps)) return 0;
-    throw new RelayError(
+    throw new DevChestraError(
       "E_LOCKED",
-      "Another Relay process owns this data directory, but no live server could be verified; refusing to start a second writer or overwrite its metadata.",
+      "Another DevChestra process owns this data directory, but no live server could be verified; refusing to start a second writer or overwrite its metadata.",
     );
   }
 
   let store: Store;
   try {
-    store = openStore({ file: join(dataDir, "relay.db") });
+    store = openStore({ file: join(dataDir, "devchestra.db") });
   } catch (error) {
     await lock.release().catch(() => undefined);
     throw error;
@@ -515,11 +510,14 @@ export async function executeStart(
   try {
     const prior = await readServerMetadata(dataDir);
     if (prior.status === "unsafe") {
-      throw new RelayError("E_CONFLICT", `Refusing to replace server metadata: ${prior.reason}`);
+      throw new DevChestraError(
+        "E_CONFLICT",
+        `Refusing to replace server metadata: ${prior.reason}`,
+      );
     }
     if (prior.status === "valid") {
       if (ownerLooksAlive(prior.value, deps.identity ?? undefined, deps.alive ?? undefined)) {
-        throw new RelayError(
+        throw new DevChestraError(
           "E_CONFLICT",
           "server.json names a live owner while this process holds the data-directory lock; refusing to overwrite it",
         );
@@ -567,7 +565,7 @@ export async function executeStart(
     await writeServerMetadata(dataDir, metadata);
 
     const ready = {
-      type: "relay.ready",
+      type: "devchestra.ready",
       version,
       pid: metadata.pid,
       pidStart: metadata.pidStart,
@@ -577,14 +575,14 @@ export async function executeStart(
       dataDir,
     };
     stdout.write(`${JSON.stringify(ready)}\n`);
-    if (!options.json) stdout.write(`relay: listening on ${plainUrl(metadata.port)}\n`);
-    if (options.printUrl) stdout.write(`relay: ${bootstrapUrl(metadata)}\n`);
+    if (!options.json) stdout.write(`devchestra: listening on ${plainUrl(metadata.port)}\n`);
+    if (options.printUrl) stdout.write(`devchestra: ${bootstrapUrl(metadata)}\n`);
     if (!options.noOpen) (deps.openBrowser ?? openInBrowser)(bootstrapUrl(metadata));
 
     await waitForStop(deps.signal, listener);
     const ok = await cleanup(true);
     if (!ok) {
-      notice("relay: shutdown was incomplete; run evidence was retained");
+      notice("devchestra: shutdown was incomplete; run evidence was retained");
       return 1;
     }
     return 0;

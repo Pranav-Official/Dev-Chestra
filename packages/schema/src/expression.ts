@@ -1,4 +1,4 @@
-import { canonicalJson, err, ok, RelayError, type Result } from "@relay/core";
+import { canonicalJson, DevChestraError, err, ok, type Result } from "@devchestra/core";
 import jsonata from "jsonata";
 
 const MAX_SOURCE_BYTES = 4 * 1024;
@@ -115,7 +115,7 @@ export interface ExpressionExecutor {
 export interface EvaluateOptions {
   /** Default 250 ms, maximum 2000 ms. */
   timeoutMs?: number;
-  /** Required in the browser-safe main entry. Use @relay/schema/node in Node. */
+  /** Required in the browser-safe main entry. Use @devchestra/schema/node in Node. */
   executor?: ExpressionExecutor;
 }
 
@@ -139,17 +139,17 @@ interface Analysis {
   functions: Set<string>;
 }
 
-const cache = new Map<string, Result<CompiledExpression, RelayError>>();
+const cache = new Map<string, Result<CompiledExpression, DevChestraError>>();
 
-function exprError(message: string, cause?: unknown): RelayError {
-  return new RelayError("E_EXPR", message, cause === undefined ? undefined : { cause });
+function exprError(message: string, cause?: unknown): DevChestraError {
+  return new DevChestraError("E_EXPR", message, cause === undefined ? undefined : { cause });
 }
 
 function isAstNode(value: unknown): value is AstNode {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function banned(name: string): RelayError {
+function banned(name: string): DevChestraError {
   return exprError(
     `Function $${name} is not allowed: expressions must be deterministic and cannot access host capabilities.`,
   );
@@ -260,11 +260,11 @@ function utf8Bytes(value: string): number {
  * Parse a JSONata expression, enforce size/root/function policy, and return an
  * immutable compiled reference. Cached by source string.
  */
-export function compileExpression(source: string): Result<CompiledExpression, RelayError> {
+export function compileExpression(source: string): Result<CompiledExpression, DevChestraError> {
   const cached = cache.get(source);
   if (cached !== undefined) return cached;
 
-  let result: Result<CompiledExpression, RelayError>;
+  let result: Result<CompiledExpression, DevChestraError>;
   if (source.trim() === "") {
     result = err(exprError("Expression source is empty"));
   } else if (utf8Bytes(source) > MAX_SOURCE_BYTES) {
@@ -282,7 +282,7 @@ export function compileExpression(source: string): Result<CompiledExpression, Re
       result = ok(compiled);
     } catch (error) {
       result = err(
-        error instanceof RelayError
+        error instanceof DevChestraError
           ? error
           : exprError(
               `Invalid JSONata expression: ${error instanceof Error ? error.message : String(error)}`,
@@ -368,20 +368,20 @@ function sanitize(value: unknown): unknown {
 /**
  * Evaluate a compiled expression in the injected executor. The browser-safe
  * main entry has no default executor: import createNodeExpressionExecutor from
- * "@relay/schema/node". Timeout termination is the executor's responsibility.
+ * "@devchestra/schema/node". Timeout termination is the executor's responsibility.
  */
 export async function evaluate(
   compiled: CompiledExpression,
   scope: Readonly<Record<string, unknown>>,
   options: EvaluateOptions = {},
-): Promise<Result<unknown, RelayError>> {
+): Promise<Result<unknown, DevChestraError>> {
   try {
     const timeoutMs = timeoutOf(options.timeoutMs);
     const executor = options.executor;
     if (executor === undefined) {
       return err(
         exprError(
-          'No expression executor configured. In Node, import { createNodeExpressionExecutor } from "@relay/schema/node" and pass it as options.executor. Browser worker execution is not implemented in P1.',
+          'No expression executor configured. In Node, import { createNodeExpressionExecutor } from "@devchestra/schema/node" and pass it as options.executor. Browser worker execution is not implemented in P1.',
         ),
       );
     }
@@ -413,6 +413,6 @@ export async function evaluate(
     }
     return ok(clean);
   } catch (error) {
-    return err(error instanceof RelayError ? error : exprError(String(error), error));
+    return err(error instanceof DevChestraError ? error : exprError(String(error), error));
   }
 }

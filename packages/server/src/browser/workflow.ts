@@ -9,7 +9,7 @@ import {
   statSync,
 } from "node:fs";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
-import type { JsonObject } from "@relay/core";
+import type { JsonObject } from "@devchestra/core";
 import {
   hashWorkflow,
   type NormalizedWorkflow,
@@ -18,8 +18,8 @@ import {
   validateParams,
   validateWorkflow,
   type WorkflowFile,
-} from "@relay/schema";
-import { RelayError } from "../errors.js";
+} from "@devchestra/schema";
+import { DevChestraError } from "../errors.js";
 
 const MAX_WORKFLOW_BYTES = 1024 * 1024;
 
@@ -28,8 +28,8 @@ function within(root: string, candidate: string): boolean {
   return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
 }
 
-function invalid(message: string, details?: unknown): RelayError {
-  return new RelayError("E_VALIDATION", message, details);
+function invalid(message: string, details?: unknown): DevChestraError {
+  return new DevChestraError("E_VALIDATION", message, details);
 }
 
 export function canonicalExistingDirectory(input: string, label: string): string {
@@ -43,13 +43,13 @@ export function canonicalExistingDirectory(input: string, label: string): string
   try {
     real = realpathSync.native(resolve(input));
   } catch {
-    throw new RelayError("E_NOT_FOUND", `${label} does not exist.`);
+    throw new DevChestraError("E_NOT_FOUND", `${label} does not exist.`);
   }
   let stat: ReturnType<typeof statSync>;
   try {
     stat = statSync(real);
   } catch {
-    throw new RelayError("E_NOT_FOUND", `${label} does not exist.`);
+    throw new DevChestraError("E_NOT_FOUND", `${label} does not exist.`);
   }
   if (!stat.isDirectory()) {
     throw invalid(`${label} must be a directory.`);
@@ -72,9 +72,9 @@ export function assertProjectPathAllowed(projectPath: string, dataDir: string): 
   const canonicalData = canonicalExistingDirectory(dataDir, "Data directory");
   const overlap = isPathOverlap(canonicalProject, canonicalData);
   if (overlap !== null) {
-    throw new RelayError(
+    throw new DevChestraError(
       "E_FORBIDDEN",
-      "The project path must not equal, contain or live inside the Relay data directory.",
+      "The project path must not equal, contain or live inside the DevChestra data directory.",
       { details: { overlap } },
     );
   }
@@ -86,28 +86,28 @@ function resolveFileInside(root: string, rel: string): string {
     throw invalid("File name must be a non-empty relative path.");
   }
   if (rel.split(/[\\/]+/u).some((part) => part === "..")) {
-    throw new RelayError("E_FORBIDDEN_PATH", "File name must not contain '..'.");
+    throw new DevChestraError("E_FORBIDDEN_PATH", "File name must not contain '..'.");
   }
   const rootReal = realpathSync.native(root);
   const candidate = resolve(rootReal, rel);
   if (!within(rootReal, candidate)) {
-    throw new RelayError("E_FORBIDDEN_PATH", "Path escapes the project directory.");
+    throw new DevChestraError("E_FORBIDDEN_PATH", "Path escapes the project directory.");
   }
   let stat: ReturnType<typeof lstatSync>;
   try {
     stat = lstatSync(candidate);
   } catch {
-    throw new RelayError("E_NOT_FOUND", `File not found: ${rel}`);
+    throw new DevChestraError("E_NOT_FOUND", `File not found: ${rel}`);
   }
   if (stat.isSymbolicLink() || !stat.isFile()) {
-    throw new RelayError("E_FORBIDDEN_PATH", "File must be a regular file, not a symlink.");
+    throw new DevChestraError("E_FORBIDDEN_PATH", "File must be a regular file, not a symlink.");
   }
   if (stat.size > MAX_WORKFLOW_BYTES) {
-    throw new RelayError("E_PAYLOAD_TOO_LARGE", "Workflow file exceeds the 1 MiB limit.");
+    throw new DevChestraError("E_PAYLOAD_TOO_LARGE", "Workflow file exceeds the 1 MiB limit.");
   }
   const real = realpathSync.native(candidate);
   if (!within(rootReal, real)) {
-    throw new RelayError("E_FORBIDDEN_PATH", "Path escapes the project directory.");
+    throw new DevChestraError("E_FORBIDDEN_PATH", "Path escapes the project directory.");
   }
   return real;
 }
@@ -118,7 +118,7 @@ function readFileInside(root: string, rel: string): string {
   try {
     const stat = fstatSync(fd);
     if (!stat.isFile() || stat.size > MAX_WORKFLOW_BYTES) {
-      throw new RelayError("E_PAYLOAD_TOO_LARGE", "Workflow file exceeds the 1 MiB limit.");
+      throw new DevChestraError("E_PAYLOAD_TOO_LARGE", "Workflow file exceeds the 1 MiB limit.");
     }
     return readFileSync(fd, "utf8");
   } finally {
@@ -131,14 +131,14 @@ function workflowRelative(root: string, arg: string): string {
     throw invalid("workflowFile is required.");
   }
   if (arg.includes("\0") || isAbsolute(arg)) {
-    throw new RelayError("E_FORBIDDEN_PATH", "workflowFile must be a relative path.");
+    throw new DevChestraError("E_FORBIDDEN_PATH", "workflowFile must be a relative path.");
   }
   if (arg.split(/[\\/]+/u).some((part) => part === "..")) {
-    throw new RelayError("E_FORBIDDEN_PATH", "workflowFile must not contain '..'.");
+    throw new DevChestraError("E_FORBIDDEN_PATH", "workflowFile must not contain '..'.");
   }
   const absolute = resolve(root, arg);
   if (!within(root, absolute)) {
-    throw new RelayError("E_FORBIDDEN_PATH", "workflowFile escapes the project directory.");
+    throw new DevChestraError("E_FORBIDDEN_PATH", "workflowFile escapes the project directory.");
   }
   return relative(root, absolute);
 }
@@ -190,7 +190,7 @@ export async function loadBrowserWorkflow(input: {
   const rel = workflowRelative(root, input.workflowFile);
   const raw = readFileInside(root, rel);
   if (Buffer.byteLength(raw, "utf8") > MAX_WORKFLOW_BYTES) {
-    throw new RelayError("E_PAYLOAD_TOO_LARGE", "Workflow file exceeds the 1 MiB limit.");
+    throw new DevChestraError("E_PAYLOAD_TOO_LARGE", "Workflow file exceeds the 1 MiB limit.");
   }
   const parsed = parseWorkflowJson(raw);
   if (!parsed.ok) throw invalid(parsed.error.message, parsed.error.details);

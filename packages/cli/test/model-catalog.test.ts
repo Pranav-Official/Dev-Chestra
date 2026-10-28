@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
-import type { CliModelCatalog } from "@relay/server";
+import type { CliModelCatalog } from "@devchestra/server";
 import { afterEach, describe, expect, it } from "vitest";
 import { createModelCatalogService } from "../src/model-catalog.js";
 import { executeStart } from "../src/start.js";
@@ -37,8 +37,8 @@ afterEach(cleanupModelCatalogTests);
 describe("model catalog cache", () => {
   it("serves GET from cache only and populates it on explicit refresh", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const binDir = tempDir("relay-model-catalog-bin-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const binDir = tempDir("devchestra-model-catalog-bin-");
     executable(binDir);
     const calls: Parameters<Discover>[0][] = [];
     const service = createModelCatalogService({
@@ -58,7 +58,7 @@ describe("model catalog cache", () => {
     const loaded = await service.refresh("project-1", "codex");
     expect(loaded.status).toBe("ready");
     expect(loaded.items.map((entry) => entry.id)).toEqual(["gpt-5-codex"]);
-    expect(loaded.scope).toBe("relay-runtime");
+    expect(loaded.scope).toBe("devchestra-runtime");
     expect(loaded.source).toBe("codex-app-server");
     expect(loaded.fetchedAt).not.toBeNull();
     expect(loaded.expiresAt).toBeGreaterThan(loaded.fetchedAt ?? 0);
@@ -72,8 +72,8 @@ describe("model catalog cache", () => {
 
   it("expires a ready catalog to stale without spawning and keeps empty ready entries", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const binDir = tempDir("relay-model-catalog-bin-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const binDir = tempDir("devchestra-model-catalog-bin-");
     executable(binDir);
     let clock = 1_000;
     let calls = 0;
@@ -98,8 +98,8 @@ describe("model catalog cache", () => {
 
   it("returns stale last-good items when refresh fails", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const binDir = tempDir("relay-model-catalog-bin-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const binDir = tempDir("devchestra-model-catalog-bin-");
     executable(binDir);
     let clock = 1_000;
     let mode: "ready" | "fail" = "ready";
@@ -131,8 +131,8 @@ describe("model catalog cache", () => {
 
   it("does not reuse last-good items after the CLI version changes", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const binDir = tempDir("relay-model-catalog-bin-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const binDir = tempDir("devchestra-model-catalog-bin-");
     executable(binDir);
     let version = "1.0.0";
     const service = createModelCatalogService({
@@ -160,8 +160,8 @@ describe("model catalog cache", () => {
 
   it("coalesces concurrent refresh for one key and enforces a failure cooldown", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const binDir = tempDir("relay-model-catalog-bin-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const binDir = tempDir("devchestra-model-catalog-bin-");
     executable(binDir);
     const gate = deferred<void>();
     let calls = 0;
@@ -200,8 +200,8 @@ describe("model catalog cache", () => {
 
   it("caps concurrent discovery and rejects saturation without queueing", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const binDir = tempDir("relay-model-catalog-bin-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const binDir = tempDir("devchestra-model-catalog-bin-");
     executable(binDir);
     const gates = new Map<string, ReturnType<typeof deferred<void>>>();
     let calls = 0;
@@ -229,8 +229,8 @@ describe("model catalog cache", () => {
 
   it("aborts owned discovery on close and settles pending refresh", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const binDir = tempDir("relay-model-catalog-bin-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const binDir = tempDir("devchestra-model-catalog-bin-");
     executable(binDir);
     let calls = 0;
     let aborted = false;
@@ -261,11 +261,11 @@ describe("model catalog cache", () => {
 describe("model catalog context", () => {
   it("uses a neutral empty cwd under the data dir and preserves auth env", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const codexHome = tempDir("relay-model-catalog-codex-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const codexHome = tempDir("devchestra-model-catalog-codex-");
     writeFileSync(join(codexHome, "auth.json"), "{}");
-    const first = tempDir("relay-model-catalog-path-");
-    const second = tempDir("relay-model-catalog-path-");
+    const first = tempDir("devchestra-model-catalog-path-");
+    const second = tempDir("devchestra-model-catalog-path-");
     const bin = executable(second);
     let seen: Parameters<Discover>[0] | undefined;
     const service = createModelCatalogService({
@@ -290,8 +290,8 @@ describe("model catalog context", () => {
 
   it("resolves relative PATH entries against the neutral runtime cwd", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const host = mkdtempSync(join(process.cwd(), ".relay-model-catalog-host-"));
+    const home = tempDir("devchestra-model-catalog-home-");
+    const host = mkdtempSync(join(process.cwd(), ".devchestra-model-catalog-host-"));
     cleanups.push(() => rmSync(host, { recursive: true, force: true }));
     const hostBin = executable(join(host, "bin"));
     const relativeHost = relative(process.cwd(), dirname(hostBin));
@@ -312,8 +312,8 @@ describe("model catalog context", () => {
 
   it("invalidates cache when an ancestor config changes during discovery", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const binDir = tempDir("relay-model-catalog-bin-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const binDir = tempDir("devchestra-model-catalog-bin-");
     executable(binDir);
     mkdirSync(join(dataDir, ".codex"));
     const config = join(dataDir, ".codex", "config.toml");
@@ -345,9 +345,9 @@ describe("model catalog context", () => {
 
   it("ignores unrelated Codex cache writes during and after discovery", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const binDir = tempDir("relay-model-catalog-bin-");
-    const codexHome = tempDir("relay-model-catalog-codex-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const binDir = tempDir("devchestra-model-catalog-bin-");
+    const codexHome = tempDir("devchestra-model-catalog-codex-");
     executable(binDir);
     mkdirSync(join(dataDir, ".codex"), { recursive: true });
     const gate = deferred<void>();
@@ -377,9 +377,9 @@ describe("model catalog context", () => {
 
   it("discards when a named Codex auth file changes during discovery", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const binDir = tempDir("relay-model-catalog-bin-");
-    const codexHome = tempDir("relay-model-catalog-codex-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const binDir = tempDir("devchestra-model-catalog-bin-");
+    const codexHome = tempDir("devchestra-model-catalog-codex-");
     executable(binDir);
     const auth = join(codexHome, "auth.json");
     writeFileSync(auth, "{}\n");
@@ -407,8 +407,8 @@ describe("model catalog context", () => {
 
   it("invalidates cache when the PATH-resolved binary is replaced", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const binDir = tempDir("relay-model-catalog-bin-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const binDir = tempDir("devchestra-model-catalog-bin-");
     const bin = executable(binDir);
     let calls = 0;
     const service = createModelCatalogService({
@@ -433,8 +433,8 @@ describe("model catalog context", () => {
 
   it("returns an honest unsupported catalog for opencode without discovery", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const binDir = tempDir("relay-model-catalog-bin-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const binDir = tempDir("devchestra-model-catalog-bin-");
     executable(binDir);
     let calls = 0;
     const service = createModelCatalogService({
@@ -461,8 +461,8 @@ describe("model catalog context", () => {
 describe("startup wiring", () => {
   it("closes owned discovery before the listener and settles a pending refresh", async () => {
     const dataDir = tempDir();
-    const home = tempDir("relay-model-catalog-home-");
-    const binDir = tempDir("relay-model-catalog-bin-");
+    const home = tempDir("devchestra-model-catalog-home-");
+    const binDir = tempDir("devchestra-model-catalog-bin-");
     executable(binDir);
     const out = capture();
     const controller = new AbortController();

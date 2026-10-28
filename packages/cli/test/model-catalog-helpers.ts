@@ -17,7 +17,7 @@ export function cleanupModelCatalogTests(): void {
   else process.env.PATH = originalPath;
 }
 
-export function tempDir(prefix = "relay-model-catalog-"): string {
+export function tempDir(prefix = "devchestra-model-catalog-"): string {
   const dir = mkdtempSync(join(tmpdir(), prefix));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   return dir;
@@ -120,8 +120,8 @@ export function options(overrides: Partial<CliOptions> = {}): CliOptions {
 }
 
 export function webRoot(): string {
-  const dir = tempDir("relay-model-catalog-web-");
-  writeFileSync(join(dir, "index.html"), "<!doctype html><title>relay</title>");
+  const dir = tempDir("devchestra-model-catalog-web-");
+  writeFileSync(join(dir, "index.html"), "<!doctype html><title>devchestra</title>");
   return dir;
 }
 

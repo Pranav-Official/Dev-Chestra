@@ -22,7 +22,7 @@
   "redaction": "exec token, bearer, emails, provider keys, JWT, home/tmp paths",
   "behaviorVerified": false,
   "blocker": "MCP tool call requires approval, but approval policy is never",
-  "blockerDetail": "Codex attached relay MCP and called submit_result, but no per-server approval mode was planned; exit 0, no accepted result. No resume attempted.",
+  "blockerDetail": "Codex attached devchestra MCP and called submit_result, but no per-server approval mode was planned; exit 0, no accepted result. No resume attempted.",
   "s1bSandboxProven": false,
   "crashResumeProven": false
 }

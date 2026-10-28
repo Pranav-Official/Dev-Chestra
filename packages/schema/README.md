@@ -1,27 +1,27 @@
-# @relay/schema
+# @devchestra/schema
 
-Browser-safe Relay workflow contracts for the P1 single-chain slice: parse, validate, normalize,
+Browser-safe DevChestra workflow contracts for the P1 single-chain slice: parse, validate, normalize,
 hash, parameters, restricted output schemas, JSONata expressions and templates.
 
-No filesystem, process, network or model access. The main entry (`@relay/schema`) has no Node
-built-ins; Node expression execution is a separate subpath (`@relay/schema/node`).
+No filesystem, process, network or model access. The main entry (`@devchestra/schema`) has no Node
+built-ins; Node expression execution is a separate subpath (`@devchestra/schema/node`).
 
 ## Commands
 
 ```sh
-pnpm --filter @relay/schema build
-pnpm --filter @relay/schema typecheck
-pnpm --filter @relay/schema test
+pnpm --filter @devchestra/schema build
+pnpm --filter @devchestra/schema typecheck
+pnpm --filter @devchestra/schema test
 pnpm exec biome check packages/schema examples
 ```
 
 `build` compiles TypeScript and copies `src/node/worker.js` to `dist/node/worker.js`.
 
-## Public API (`@relay/schema`)
+## Public API (`@devchestra/schema`)
 
 ```ts
-parseWorkflow(raw: unknown): Result<WorkflowFile, RelayError>
-parseWorkflowJson(text: string): Result<WorkflowFile, RelayError>
+parseWorkflow(raw: unknown): Result<WorkflowFile, DevChestraError>
+parseWorkflowJson(text: string): Result<WorkflowFile, DevChestraError>
 
 validateWorkflow(file: WorkflowFile, ctx?: ValidationContext): ValidationReport
 // ValidationReport = { ok, errors: Issue[], warnings: Issue[], requires: RequiresSummary }
@@ -29,31 +29,31 @@ validateWorkflow(file: WorkflowFile, ctx?: ValidationContext): ValidationReport
 normalizeWorkflow(
   file: WorkflowFile,
   options?: { prompts?: Readonly<Record<string, string>> },
-): Result<NormalizedWorkflow, RelayError>
+): Result<NormalizedWorkflow, DevChestraError>
 hashWorkflow(workflow: NormalizedWorkflow): Promise<string>
 
 validateParams(source: ParamSource, input?: unknown): ParamValidation
 resolveParams(source: ParamSource, input?: unknown): ParamValidation // alias
 
-normalizeOutputSchema(schema: JsonSchemaObject): Result<JsonSchemaObject, RelayError>
+normalizeOutputSchema(schema: JsonSchemaObject): Result<JsonSchemaObject, DevChestraError>
 hashOutputSchema(schema: JsonSchemaObject): Promise<string>
 
-compileExpression(source: string): Result<CompiledExpression, RelayError>
+compileExpression(source: string): Result<CompiledExpression, DevChestraError>
 evaluate(
   compiled: CompiledExpression,
   scope: Readonly<Record<string, unknown>>,
   options?: { timeoutMs?: number; executor?: ExpressionExecutor },
-): Promise<Result<unknown, RelayError>>
+): Promise<Result<unknown, DevChestraError>>
 
 compileTemplate(
   source: string,
   options?: { shell?: boolean },
-): Result<CompiledTemplate, RelayError>
+): Result<CompiledTemplate, DevChestraError>
 renderTemplate(
   template: string | CompiledTemplate,
   scope: Readonly<Record<string, unknown>>,
   options?: { shell?: boolean; timeoutMs?: number; executor?: ExpressionExecutor },
-): Promise<Result<{ text: string; warnings: Issue[] }, RelayError>>
+): Promise<Result<{ text: string; warnings: Issue[] }, DevChestraError>>
 
 SCHEMA_CAPABILITIES // node types, CLIs, legacy node workspaces, runWorkspaces/defaultRunWorkspace, defaults and unsupported list
 ```
@@ -62,7 +62,7 @@ Types exported include `WorkflowFile`, `NormalizedWorkflow`, `NormalizedNode`, `
 `StartNode`, `AgentNode`, `ShellNode`, `EndNode`, `WorkflowParam`, `JsonSchemaObject`, `Issue`,
 `RequiresSummary`, `CompiledExpression`, `ExpressionExecutor`, `CompiledTemplate`.
 
-## Public API (`@relay/schema/node`)
+## Public API (`@devchestra/schema/node`)
 
 ```ts
 createNodeExpressionExecutor(): ExpressionExecutor
@@ -103,7 +103,7 @@ public executor and main API are typechecked.
   for the start node because `start` names run parameters in expressions.
 - `ui` data on nodes/edges is accepted and preserved by `parseWorkflow`, then stripped by
   `normalizeWorkflow`.
-- `agent` supports `cli: "claude-code" | "codex" | "opencode" | "pi"` (`fake` parses only behind `RELAY_ALLOW_FAKE=1` and warns),
+- `agent` supports `cli: "claude-code" | "codex" | "opencode" | "pi"` (`fake` parses only behind `DEVCHESTRA_ALLOW_FAKE=1` and warns),
   optional `model`, `prompt` or `promptFile`, restricted `output`, declared `permissions`,
   scratch workspace and bounded limits.
 - `shell` supports a scratch workspace, `command` template, `timeoutMin` (default 10) and
@@ -124,15 +124,15 @@ prompts and schemas do.
 `promptFile` is never read from disk. Pass its contents as `options.prompts`, keyed either by
 the exact `promptFile` value or by `<workflowId>.prompts/<value>`. Missing content is an
 actionable `E_WORKFLOW_INVALID`. This package does not validate project-relative workflow paths;
-the CLI/workspaces layer owns `.relay/workflows/<id>.json` placement.
+the CLI/workspaces layer owns `.devchestra/workflows/<id>.json` placement.
 
 ### Rejected in P1, with clear diagnostics
 
-Unsupported node types; `fake` (test-only, behind `RELAY_ALLOW_FAKE=1`); per-node workspace execution (legacy `workspace` metadata
+Unsupported node types; `fake` (test-only, behind `DEVCHESTRA_ALLOW_FAKE=1`); per-node workspace execution (legacy `workspace` metadata
 still parses, but fresh runs use the run-level selection); agent context
 reads/writes; top-level supervisor; node supervise modes other than `default`; workflow budgets
 (`maxUsd`, `maxTokens`, `maxActiveMinutes` are not enforced yet and are not accepted); artifact
-`format: "relay-artifact"`; non-empty `cliOptions`; non-empty `env`; project write permission;
+`format: "devchestra-artifact"`; non-empty `cliOptions`; non-empty `env`; project write permission;
 `maxQuotaWaitHours`; raw `{{{ }}}` templates; shell heredocs, placeholders in comments or after a
 trailing backslash, and placeholders inside quotes, backticks, substitutions or after `$`.
 
@@ -199,8 +199,8 @@ server/engine; this package produces the normalized schema and its hash.
 - No `gate`, `join`, `decision`, `approval`, `map`, `loop`, context banks, pins, supervisor,
   artifacts, budgets, worktrees, project writes, browser expression worker, graph editor or I/O.
 - Live Claude Code/Codex behavior is adapter-owned and not verified here.
-- `fake` is only for deterministic tests behind `RELAY_ALLOW_FAKE=1`; user workflows use `claude-code`/`codex`/`opencode`/`pi`.
-- Relay is not a sandbox.
+- `fake` is only for deterministic tests behind `DEVCHESTRA_ALLOW_FAKE=1`; user workflows use `claude-code`/`codex`/`opencode`/`pi`.
+- DevChestra is not a sandbox.
 
 ## Examples
 

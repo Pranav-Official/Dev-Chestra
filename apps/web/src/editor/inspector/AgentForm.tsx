@@ -1,5 +1,5 @@
-import { isRecord } from "@relay/core";
-import type { AgentNode } from "@relay/schema";
+import { isRecord } from "@devchestra/core";
+import type { AgentNode } from "@devchestra/schema";
 import { Bot } from "lucide-react";
 import { AgentLimits } from "./AgentLimits.js";
 import { AgentModelField } from "./AgentModelField.js";
@@ -61,9 +61,7 @@ export function AgentForm({
           {selected?.help === undefined ? null : (
             <p className="inspector-note amber" role="note">
               <Bot size={13} aria-hidden="true" />
-              <span>
-                {selected.label} is an experimental adapter: no OS sandbox, permissions unverified.
-              </span>
+              <span>Permissions are advisory: {selected.label} runs without an OS sandbox.</span>
             </p>
           )}
         </div>

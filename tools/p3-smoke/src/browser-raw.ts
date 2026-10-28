@@ -21,7 +21,7 @@ import {
 } from "./browser-ui.js";
 import { axeRun, injectAxe, seriousViolations } from "./chromium.js";
 import { CLI, makeWorkspace, REPO_ROOT, scriptPath } from "./fixtures.js";
-import { RelayHttp } from "./http.js";
+import { DevChestraHttp } from "./http.js";
 import { type OwnedServer, shutdownOwned, startSentinel, startServer } from "./owned.js";
 import { collectSpawnedAgents } from "./store-read.js";
 import { getWorkflow, type WorkflowFileLike } from "./workflow-api.js";
@@ -48,7 +48,7 @@ function agentOutput(workflow: WorkflowFileLike): Record<string, unknown> {
 }
 
 export async function runRawBrowserScenario(): Promise<RawEvidence> {
-  const ws = await makeWorkspace("relay-p3-raw-");
+  const ws = await makeWorkspace("devchestra-p3-raw-");
   const sentinel = startSentinel();
   let server: OwnedServer | null = null;
   let context: BrowserContext | null = null;
@@ -59,7 +59,7 @@ export async function runRawBrowserScenario(): Promise<RawEvidence> {
       cwd: ws.projectDir,
       fakeScript: scriptPath("raw"),
     });
-    const http = new RelayHttp(server.baseUrl);
+    const http = new DevChestraHttp(server.baseUrl);
     await http.health();
     await http.bootstrap(server.meta.token);
     const session = await launchBrowser(ws);

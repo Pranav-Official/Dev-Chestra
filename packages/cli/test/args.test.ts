@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isFakeScriptEnabled, parseArgs, UsageError } from "../src/args.js";
+import { defaultDataDir } from "../src/data-dir.js";
 
 describe("CLI args", () => {
   it("parses run, params and flags", () => {
@@ -28,11 +29,16 @@ describe("CLI args", () => {
     expect(options.budgetUsd).toBe(2);
   });
 
-  it("requires explicit data dir and project", () => {
+  it("requires a project for run but defaults the data dir", () => {
     expect(() => parseArgs(["run", "w.json", "--data-dir", "/tmp/d"])).toThrow(UsageError);
-    expect(() => parseArgs(["run", "w.json", "--project", "/tmp/p"])).toThrow(UsageError);
-    expect(() => parseArgs(["resume", "r1"])).toThrow(UsageError);
-    expect(() => parseArgs(["doctor"])).toThrow(UsageError);
+    expect(parseArgs(["run", "w.json", "--project", "/tmp/p"]).dataDir).toBe(defaultDataDir());
+    expect(parseArgs(["resume", "r1"]).dataDir).toBe(defaultDataDir());
+    expect(parseArgs(["doctor", "--data-dir", "/tmp/d"]).dataDir).toBe("/tmp/d");
+  });
+
+  it("accepts the deprecated --allow-experimental-adapters flag and records it", () => {
+    const options = parseArgs(["start", "--allow-experimental-adapters"]);
+    expect(options.deprecatedFlags).toEqual(["--allow-experimental-adapters"]);
   });
 
   it("restricts uncertain retry to resume and fake script to run", () => {
@@ -139,10 +145,10 @@ describe("CLI args", () => {
 });
 
 describe("fake script gate", () => {
-  it("follows the single RELAY_ALLOW_FAKE gate owned by @relay/schema", () => {
-    expect(isFakeScriptEnabled({ RELAY_ALLOW_FAKE: "1" })).toBe(true);
-    expect(isFakeScriptEnabled({ RELAY_ALLOW_FAKE: "true" })).toBe(true);
-    expect(isFakeScriptEnabled({ RELAY_ALLOW_FAKE: "0" })).toBe(false);
+  it("follows the single DEVCHESTRA_ALLOW_FAKE gate owned by @devchestra/schema", () => {
+    expect(isFakeScriptEnabled({ DEVCHESTRA_ALLOW_FAKE: "1" })).toBe(true);
+    expect(isFakeScriptEnabled({ DEVCHESTRA_ALLOW_FAKE: "true" })).toBe(true);
+    expect(isFakeScriptEnabled({ DEVCHESTRA_ALLOW_FAKE: "0" })).toBe(false);
     expect(isFakeScriptEnabled({})).toBe(false);
   });
 });

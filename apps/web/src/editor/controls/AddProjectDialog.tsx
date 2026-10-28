@@ -42,7 +42,7 @@ export function AddProjectDialog({
     <Dialog
       open={open}
       title="Add project"
-      description="Register an existing folder. Relay stores its own data elsewhere; it does not create or modify project files here."
+      description="Register an existing folder. DevChestra stores its own data elsewhere; it does not create or modify project files here."
       onClose={onClose}
       testId="add-project-dialog"
       footer={
@@ -82,7 +82,7 @@ export function AddProjectDialog({
             disabled={register.isPending}
           />
           <span className="editor-field-hint">
-            The folder must already exist and must not contain the Relay data directory.
+            The folder must already exist and must not contain the DevChestra data directory.
           </span>
         </label>
         {error === null ? null : (

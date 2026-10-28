@@ -1,4 +1,4 @@
-import type { ExecStatus, RunStatus } from "@relay/core";
+import type { ExecStatus, RunStatus } from "@devchestra/core";
 import {
   Ban,
   CheckCircle2,

@@ -37,7 +37,7 @@ interface Call {
 }
 
 async function harness(): Promise<Harness> {
-  const dir = await mkdtemp(join(tmpdir(), "relay-opencode-"));
+  const dir = await mkdtemp(join(tmpdir(), "devchestra-opencode-"));
   temps.push(dir);
   const home = join(dir, "home");
   await mkdir(home, { recursive: true });
@@ -102,19 +102,19 @@ describe("opencode plan", () => {
     expect(JSON.stringify(describeInvocation(result.value))).not.toContain(TOKEN);
     expect(result.value.files).toEqual([]);
     expect(result.value.stdin).toBeUndefined();
-    expect(result.value.env.RELAY_EXEC_TOKEN).toBe(TOKEN);
+    expect(result.value.env.DEVCHESTRA_EXEC_TOKEN).toBe(TOKEN);
     // MCP attaches through inline config, not argv or files: env alone
     // never registers a server with the child.
     const inline = JSON.parse(result.value.env.OPENCODE_CONFIG_CONTENT ?? "{}") as {
       mcp?: Record<string, Record<string, unknown>>;
     };
-    expect(inline.mcp?.relay).toMatchObject({
+    expect(inline.mcp?.devchestra).toMatchObject({
       type: "local",
       command: ["/usr/bin/node", "/abs/shim.js"],
       environment: {
-        RELAY_EXEC_TOKEN: TOKEN,
-        RELAY_GATEWAY_URL: "http://127.0.0.1:4310",
-        RELAY_TOOLSET: "agent",
+        DEVCHESTRA_EXEC_TOKEN: TOKEN,
+        DEVCHESTRA_GATEWAY_URL: "http://127.0.0.1:4310",
+        DEVCHESTRA_TOOLSET: "agent",
       },
       enabled: true,
     });
@@ -146,13 +146,13 @@ describe("opencode plan", () => {
 
   it("attaches the MCP config on resume and prefixes the submit tool", () => {
     const adapter = createAdapter("opencode");
-    expect(adapter.toolRef("submit_result")).toBe("relay_submit_result");
+    expect(adapter.toolRef("submit_result")).toBe("devchestra_submit_result");
     const resumed = adapter.plan(
       request({ mode: "resume", sessionId: "ses_494719016ffe85dkDMj0FPRbHK" }),
     );
     expect(resumed.ok).toBe(true);
     if (!resumed.ok) return;
-    expect(resumed.value.env.OPENCODE_CONFIG_CONTENT).toContain('"relay"');
+    expect(resumed.value.env.OPENCODE_CONFIG_CONTENT).toContain('"devchestra"');
     expect(
       adapter.plan(
         request({
@@ -160,7 +160,7 @@ describe("opencode plan", () => {
             serverName: "other",
             command: "/usr/bin/node",
             args: ["/abs/shim.js"],
-            env: { RELAY_EXEC_TOKEN: TOKEN },
+            env: { DEVCHESTRA_EXEC_TOKEN: TOKEN },
           },
         }),
       ).ok,
@@ -409,7 +409,7 @@ describe("discoverOpencodeModels", () => {
 
 describe("opencodeConfigIdentity", () => {
   async function configHome(): Promise<{ home: string; dir: string }> {
-    const home = await mkdtemp(join(tmpdir(), "relay-opencode-id-"));
+    const home = await mkdtemp(join(tmpdir(), "devchestra-opencode-id-"));
     temps.push(home);
     const dir = join(home, ".config", "opencode");
     await mkdir(dir, { recursive: true });
@@ -435,7 +435,7 @@ describe("opencodeConfigIdentity", () => {
     expect(missing).toContain("opencode.json:missing");
     expect(missing).toContain("auth.json:missing");
 
-    const xdg = await mkdtemp(join(tmpdir(), "relay-opencode-xdg-"));
+    const xdg = await mkdtemp(join(tmpdir(), "devchestra-opencode-xdg-"));
     temps.push(xdg);
     const xdgDir = join(xdg, "opencode");
     await mkdir(xdgDir, { recursive: true });
@@ -484,7 +484,7 @@ describe("opencode mcp selection", () => {
     });
     const config = inlineConfig(inv);
     expect(config.mcp).toMatchObject({
-      relay: { type: "local", enabled: true },
+      devchestra: { type: "local", enabled: true },
       fixture: {
         type: "local",
         command: ["/usr/bin/node", "echo-server.mjs"],
@@ -504,7 +504,7 @@ describe("opencode mcp selection", () => {
     expect(JSON.stringify(describeInvocation(inv))).not.toContain(SECRET);
   });
 
-  it("switches off known-but-unselected servers and never relay", () => {
+  it("switches off known-but-unselected servers and never devchestra", () => {
     const inv = planned({
       extraMcp: [
         {
@@ -519,7 +519,7 @@ describe("opencode mcp selection", () => {
         { name: "fixture", scope: "global" },
         { name: "other", scope: "global" },
         { name: "docs", scope: "project" },
-        { name: "relay", scope: "global" },
+        { name: "devchestra", scope: "global" },
       ],
     });
     const config = inlineConfig(inv);
@@ -527,13 +527,13 @@ describe("opencode mcp selection", () => {
     expect(mcp.other).toEqual({ enabled: false });
     expect(mcp.docs).toEqual({ enabled: false });
     expect(mcp.fixture).toMatchObject({ enabled: true, type: "local" });
-    expect(mcp.relay).toMatchObject({ enabled: true, type: "local" });
+    expect(mcp.devchestra).toMatchObject({ enabled: true, type: "local" });
   });
 
   it("emits no mcp extras when the engine selected nothing", () => {
     const inv = planned({});
     const config = inlineConfig(inv);
-    expect(Object.keys(config.mcp as Record<string, unknown>)).toEqual(["relay"]);
+    expect(Object.keys(config.mcp as Record<string, unknown>)).toEqual(["devchestra"]);
     expect(config.permission).toBeUndefined();
   });
 
@@ -552,11 +552,11 @@ describe("opencode mcp selection", () => {
     expect(legacy.permission).toBeUndefined();
   });
 
-  it("rejects unsafe names, relay, duplicates and missing launch details", () => {
+  it("rejects unsafe names, devchestra, duplicates and missing launch details", () => {
     const adapter = createAdapter("opencode");
     const bad = [
       { extraMcp: [{ name: "evil.name", scope: "global", transport: "stdio", command: "x" }] },
-      { extraMcp: [{ name: "relay", scope: "global", transport: "stdio", command: "x" }] },
+      { extraMcp: [{ name: "devchestra", scope: "global", transport: "stdio", command: "x" }] },
       {
         extraMcp: [
           { name: "dup", scope: "global", transport: "stdio", command: "x" },
@@ -574,11 +574,11 @@ describe("opencode mcp selection", () => {
 });
 
 describe("splitOpencodeMcpTool", () => {
-  const servers = ["relay", "fixture", "my-server"];
+  const servers = ["devchestra", "fixture", "my-server"];
 
   it("splits <server>_<tool> on the longest known prefix", () => {
-    expect(splitOpencodeMcpTool("relay_submit_result", servers)).toEqual({
-      server: "relay",
+    expect(splitOpencodeMcpTool("devchestra_submit_result", servers)).toEqual({
+      server: "devchestra",
       tool: "submit_result",
     });
     expect(splitOpencodeMcpTool("fixture_fixture_echo", servers)).toEqual({
@@ -595,8 +595,8 @@ describe("splitOpencodeMcpTool", () => {
     expect(splitOpencodeMcpTool("bash", servers)).toBeNull();
     expect(splitOpencodeMcpTool("read", servers)).toBeNull();
     expect(splitOpencodeMcpTool("unknown_tool", servers)).toBeNull();
-    expect(splitOpencodeMcpTool("relay_", servers)).toBeNull();
-    expect(splitOpencodeMcpTool("relay_submit_result", [])).toBeNull();
+    expect(splitOpencodeMcpTool("devchestra_", servers)).toBeNull();
+    expect(splitOpencodeMcpTool("devchestra_submit_result", [])).toBeNull();
   });
 
   it("prefers the longest server prefix on overlap", () => {

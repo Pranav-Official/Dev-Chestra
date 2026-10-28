@@ -7,7 +7,7 @@ import { openTranscript } from "../src/transcript.js";
 const tempDirs: string[] = [];
 
 function temp(): string {
-  const dir = mkdtempSync(join(tmpdir(), "relay-engine-transcript-"));
+  const dir = mkdtempSync(join(tmpdir(), "devchestra-engine-transcript-"));
   tempDirs.push(dir);
   return dir;
 }

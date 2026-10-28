@@ -1,8 +1,8 @@
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { RunDetailResponse } from "@relay/api";
-import { type EventEnvelope, project, type RunId } from "@relay/core";
+import type { RunDetailResponse } from "@devchestra/api";
+import { type EventEnvelope, project, type RunId } from "@devchestra/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type {
   BrowserQueryPort,
@@ -248,7 +248,7 @@ function url(path: string): string {
 function headers(mutation = false): Record<string, string> {
   return {
     Cookie: cookie,
-    ...(mutation ? { "Content-Type": "application/json", "X-Relay-Csrf": "1" } : {}),
+    ...(mutation ? { "Content-Type": "application/json", "X-DevChestra-Csrf": "1" } : {}),
   };
 }
 
@@ -278,7 +278,7 @@ const GATE = {
 };
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "relay-gate-http-"));
+  root = await mkdtemp(join(tmpdir(), "devchestra-gate-http-"));
   dataDir = join(root, "data");
   projectPath = join(root, "project");
   started = [];
@@ -425,7 +425,7 @@ describe("gate preview HTTP route", () => {
   it("applies auth, CSRF, content-type and payload caps", async () => {
     const anonymous = await fetch(url("/api/projects/proj-1/gates/test"), {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Relay-Csrf": "1" },
+      headers: { "Content-Type": "application/json", "X-DevChestra-Csrf": "1" },
       body: JSON.stringify({ gate: GATE, scope: {} }),
     });
     expect(anonymous.status).toBe(401);
@@ -439,7 +439,7 @@ describe("gate preview HTTP route", () => {
 
     const badType = await fetch(url("/api/projects/proj-1/gates/test"), {
       method: "POST",
-      headers: { Cookie: cookie, "Content-Type": "text/plain", "X-Relay-Csrf": "1" },
+      headers: { Cookie: cookie, "Content-Type": "text/plain", "X-DevChestra-Csrf": "1" },
       body: "{}",
     });
     expect(badType.status).toBe(403);

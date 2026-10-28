@@ -2,13 +2,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  DevChestraError,
   type ExecutionIdentity,
   FakeClock,
   FakeIdGen,
   type Path,
-  RelayError,
   type RunId,
-} from "@relay/core";
+} from "@devchestra/core";
 import { afterEach, describe, expect, it } from "vitest";
 import type { RecordDecisionInput } from "../src/index.js";
 import { openStore, type Store } from "../src/index.js";
@@ -26,9 +26,9 @@ afterEach(() => {
 });
 
 function harness(): Harness {
-  const dir = mkdtempSync(join(tmpdir(), "relay-decision-"));
+  const dir = mkdtempSync(join(tmpdir(), "devchestra-decision-"));
   const store = openStore({
-    file: join(dir, "relay.db"),
+    file: join(dir, "devchestra.db"),
     clock: new FakeClock(1_700_000_000_000),
     idGen: new FakeIdGen("r"),
   });
@@ -76,15 +76,15 @@ function begin(h: Harness, nodeId: string): ExecutionIdentity {
   });
 }
 
-function expectRelayError(fn: () => unknown, code: string): void {
+function expectDevChestraError(fn: () => unknown, code: string): void {
   try {
     fn();
   } catch (error) {
-    expect(error).toBeInstanceOf(RelayError);
-    expect((error as RelayError).code).toBe(code);
+    expect(error).toBeInstanceOf(DevChestraError);
+    expect((error as DevChestraError).code).toBe(code);
     return;
   }
-  throw new Error(`Expected RelayError ${code}`);
+  throw new Error(`Expected DevChestraError ${code}`);
 }
 
 function decisionInput(
@@ -253,11 +253,11 @@ describe("decision commits", () => {
     const h = harness();
     const identity = begin(h, "decide");
     const before = h.store.events.list(h.runId).length;
-    expectRelayError(
+    expectDevChestraError(
       () => h.store.routing.recordDecision(decisionInput(identity, { output: { kind: "nope" } })),
       "E_VALIDATION",
     );
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.routing.recordDecision(
           decisionInput(identity, { routing: { branch: "true", reason: "bogus" } }),
@@ -288,7 +288,7 @@ describe("decision commits", () => {
     const identity = begin(h, "decide");
     h.store.routing.recordDecision(decisionInput(identity));
     const before = h.store.events.list(h.runId).length;
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.routing.recordDecision(
           decisionInput(

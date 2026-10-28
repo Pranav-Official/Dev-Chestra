@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, afterEach, describe, it } from "vitest";
 import { CLI } from "../src/fixtures.js";
-import { RelayHttp } from "../src/http.js";
+import { DevChestraHttp } from "../src/http.js";
 import { startSentinel, startServer } from "../src/owned.js";
 import {
   createWorkflow,
@@ -36,7 +36,7 @@ afterAll(() => {
 function load(n: string): WorkflowFileLike {
   return JSON.parse(readFileSync(join(FIX, `${n}.json`), "utf8")) as WorkflowFileLike;
 }
-async function manage(http: RelayHttp, root: string, name: string) {
+async function manage(http: DevChestraHttp, root: string, name: string) {
   const file = load(name);
   const p = await registerProject(http, root);
   await createWorkflow(http, p.id, { name: file.name, id: file.id, template: "blank" });
@@ -49,7 +49,7 @@ async function manage(http: RelayHttp, root: string, name: string) {
   return { projectId: p.id, workflowId: saved.id, etag: saved.etag };
 }
 async function startManaged(
-  http: RelayHttp,
+  http: DevChestraHttp,
   m: { projectId: string; workflowId: string; etag: string },
 ) {
   const r = await http.api(
@@ -75,8 +75,8 @@ function raiseCleanup(failure: unknown, failures: unknown[], label: string): voi
 
 describe("P3.5 deterministic crash-window — no-subscriber store resolve", () => {
   it("stops while waiting, resolves via direct store with no engine, restarts and auto-continues without resume", async () => {
-    const ws = await makeRunWorkspaceRepo("relay-p35-deterministic-");
-    const dataDir = tempRoot("relay-p35-deterministic-data-").dir;
+    const ws = await makeRunWorkspaceRepo("devchestra-p35-deterministic-");
+    const dataDir = tempRoot("devchestra-p35-deterministic-data-").dir;
     const env = {
       HOME: ws.home,
       GIT_CONFIG_GLOBAL: join(ws.home, "gitconfig"),
@@ -91,7 +91,7 @@ describe("P3.5 deterministic crash-window — no-subscriber store resolve", () =
     let fail: unknown;
     try {
       first = await startServer({ cli: CLI, dataDir, cwd: ws.root, fakeScript: FAKE, env });
-      const http = new RelayHttp(first.baseUrl);
+      const http = new DevChestraHttp(first.baseUrl);
       await http.health();
       await http.bootstrap(first.meta.token);
       const m = await manage(http, ws.root, "p3-5-approval-simple");
@@ -125,7 +125,7 @@ describe("P3.5 deterministic crash-window — no-subscriber store resolve", () =
       // Stop test-owned server while still waiting — deterministic crash window, no resolve yet
       await first.stop();
       // Re-derive attempt/generation from persisted store view while server is stopped
-      const dbFile = join(dataDir, "relay.db");
+      const dbFile = join(dataDir, "devchestra.db");
       const { openStore: openStoreTmp } = (await import(
         "../../../packages/store/dist/index.js" as string
       )) as unknown as {
@@ -188,7 +188,7 @@ describe("P3.5 deterministic crash-window — no-subscriber store resolve", () =
     let fail2: unknown;
     try {
       second = await startServer({ cli: CLI, dataDir, cwd: ws.root, fakeScript: FAKE, env });
-      const http = new RelayHttp(second.baseUrl);
+      const http = new DevChestraHttp(second.baseUrl);
       await http.health();
       await http.bootstrap(second.meta.token);
       // Restart must auto-continue via outstanding wake without calling POST /resume or second resolve
@@ -225,7 +225,7 @@ describe("P3.5 deterministic crash-window — no-subscriber store resolve", () =
         "must leave inbox after success",
       );
       // Verify wake was consumed
-      const dbFile2 = join(dataDir, "relay.db");
+      const dbFile2 = join(dataDir, "devchestra.db");
       const { openStore: openStoreCheck } = (await import(
         "../../../packages/store/dist/index.js" as string
       )) as unknown as {

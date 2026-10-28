@@ -13,7 +13,7 @@ import type {
   RunStatus,
   RunView,
   RunWorkspaceBinding,
-} from "@relay/core";
+} from "@devchestra/core";
 import type { SqliteDriver } from "./driver.js";
 
 export interface OpenStoreOptions {
@@ -111,7 +111,7 @@ export interface BeginInvocationInput {
 
 export interface SubmissionBase {
   identity: ExecutionIdentity;
-  /** X-Relay-Call-Id. A transport retry MUST reuse it. */
+  /** X-DevChestra-Call-Id. A transport retry MUST reuse it. */
   callId: string;
   /** Fingerprinted exactly (canonical JSON); never persisted itself. */
   request: unknown;

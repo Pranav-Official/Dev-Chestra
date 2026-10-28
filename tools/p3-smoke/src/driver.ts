@@ -89,7 +89,7 @@ export async function runP3(options: P3Options): Promise<P3Summary> {
   }
 
   summary.notes.push(
-    "Only actual `relay start --port 0` children are used; SQLite, MCP, fake agent and the built web app are real.",
+    "Only actual `devchestra start --port 0` children are used; SQLite, MCP, fake agent and the built web app are real.",
   );
   summary.notes.push(
     "No paid provider CLI is invoked; only the trusted fake agent and shell nodes execute.",

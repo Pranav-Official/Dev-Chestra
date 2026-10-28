@@ -1,10 +1,10 @@
-import type { RelayError, Result } from "@relay/core";
-import { isProdCliId, type ProdCliId } from "@relay/schema";
+import type { DevChestraError, Result } from "@devchestra/core";
+import { isProdCliId, type ProdCliId } from "@devchestra/schema";
 
 export type { ProdCliId };
 export { isProdCliId };
 
-/** Production CLI ids plus the test-only `fake` (behind RELAY_ALLOW_FAKE). */
+/** Production CLI ids plus the test-only `fake` (behind DEVCHESTRA_ALLOW_FAKE). */
 export type CliId = ProdCliId | "fake";
 
 /** Type guard for {@link CliId}. Use it instead of casting CLI ids. */
@@ -163,7 +163,7 @@ export interface CliAdapter {
   readonly caps: AdapterCaps;
   readonly evidence: AdapterEvidence;
   probe(ctx: ProbeCtx, signal: AbortSignal): Promise<ProbeResult>;
-  plan(req: RunRequest): Result<Invocation, RelayError>;
+  plan(req: RunRequest): Result<Invocation, DevChestraError>;
   parser(): StreamParser;
   classify(exit: ExitInfo, tail: Tail): FailureClass;
   toolRef(tool: string): string;

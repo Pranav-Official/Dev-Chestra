@@ -1,4 +1,4 @@
-import { RelayError } from "@relay/core";
+import { DevChestraError } from "@devchestra/core";
 import type { DecisionSecretName } from "./secrets.js";
 import { redactSecrets } from "./secrets.js";
 
@@ -42,8 +42,8 @@ function clampTimerMs(ms: number): number {
   return Math.min(MAX_TIMER_MS, Math.max(0, Math.round(ms)));
 }
 
-function cancelledError(): RelayError {
-  return new RelayError("E_CANCELLED", "Decision request was cancelled.");
+function cancelledError(): DevChestraError {
+  return new DevChestraError("E_CANCELLED", "Decision request was cancelled.");
 }
 
 /** A `redirect: "error"` refusal surfaces as a TypeError whose message or cause names the redirect. */
@@ -58,12 +58,12 @@ function isRedirectError(error: unknown): boolean {
   return false;
 }
 
-function providerError(secrets: SecretMap, message: string, retryable: boolean): RelayError {
-  return new RelayError("E_PROVIDER", redactSecrets(message, secrets), { retryable });
+function providerError(secrets: SecretMap, message: string, retryable: boolean): DevChestraError {
+  return new DevChestraError("E_PROVIDER", redactSecrets(message, secrets), { retryable });
 }
 
-function validationError(secrets: SecretMap, message: string): RelayError {
-  return new RelayError("E_VALIDATION", redactSecrets(message, secrets));
+function validationError(secrets: SecretMap, message: string): DevChestraError {
+  return new DevChestraError("E_VALIDATION", redactSecrets(message, secrets));
 }
 
 /**
@@ -76,7 +76,7 @@ export function assertAllowedUrl(url: string, allowLoopbackHttp: boolean): URL {
   try {
     parsed = new URL(url);
   } catch {
-    throw new RelayError("E_VALIDATION", `Invalid decision URL ${JSON.stringify(url)}.`);
+    throw new DevChestraError("E_VALIDATION", `Invalid decision URL ${JSON.stringify(url)}.`);
   }
   if (parsed.protocol === "https:") {
     return parsed;
@@ -84,7 +84,7 @@ export function assertAllowedUrl(url: string, allowLoopbackHttp: boolean): URL {
   if (parsed.protocol === "http:" && allowLoopbackHttp && LOOPBACK_HOSTS.has(parsed.hostname)) {
     return parsed;
   }
-  throw new RelayError(
+  throw new DevChestraError(
     "E_VALIDATION",
     `Refusing non-HTTPS decision URL for host ${JSON.stringify(parsed.host)}.`,
   );
@@ -224,7 +224,7 @@ function mapBodyReadError(
   error: unknown,
   secrets: SecretMap,
   watch: BodyReadWatch | undefined,
-): RelayError {
+): DevChestraError {
   if (watch?.externalSignal?.aborted === true) return cancelledError();
   if (watch?.timedOut?.() === true) {
     return providerError(
@@ -233,7 +233,7 @@ function mapBodyReadError(
       true,
     );
   }
-  if (error instanceof RelayError) return error;
+  if (error instanceof DevChestraError) return error;
   const detail = error instanceof Error ? error.message : "?";
   return providerError(secrets, `Decision provider broke the response body: ${detail}`, true);
 }
@@ -345,7 +345,7 @@ async function terminalFailure(
   try {
     text = await readCappedText(response, secrets, maxBytes, watch);
   } catch (error) {
-    if (error instanceof RelayError) {
+    if (error instanceof DevChestraError) {
       throw error;
     }
     throw providerError(secrets, `${prefix}: unreadable error body.`, retryable);

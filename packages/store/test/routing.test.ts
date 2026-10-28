@@ -2,13 +2,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  DevChestraError,
   type ExecutionIdentity,
   FakeClock,
   FakeIdGen,
   type Path,
-  RelayError,
   type RunId,
-} from "@relay/core";
+} from "@devchestra/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { openStore, type Store } from "../src/index.js";
 
@@ -25,9 +25,9 @@ afterEach(() => {
 });
 
 function harness(): Harness {
-  const dir = mkdtempSync(join(tmpdir(), "relay-routing-"));
+  const dir = mkdtempSync(join(tmpdir(), "devchestra-routing-"));
   const store = openStore({
-    file: join(dir, "relay.db"),
+    file: join(dir, "devchestra.db"),
     clock: new FakeClock(1_700_000_000_000),
     idGen: new FakeIdGen("r"),
   });
@@ -69,15 +69,15 @@ function begin(h: Harness, nodeId: string, kind: "gate" | "join"): ExecutionIden
   });
 }
 
-function expectRelayError(fn: () => unknown, code: string): void {
+function expectDevChestraError(fn: () => unknown, code: string): void {
   try {
     fn();
   } catch (error) {
-    expect(error).toBeInstanceOf(RelayError);
-    expect((error as RelayError).code).toBe(code);
+    expect(error).toBeInstanceOf(DevChestraError);
+    expect((error as DevChestraError).code).toBe(code);
     return;
   }
-  throw new Error(`Expected RelayError ${code}`);
+  throw new Error(`Expected DevChestraError ${code}`);
 }
 
 describe("atomic routing commits", () => {
@@ -154,7 +154,7 @@ describe("atomic routing commits", () => {
     const h = harness();
     const identity = begin(h, "join", "join");
     const before = h.store.events.list(h.runId).length;
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.routing.recordJoinResolution({
           identity,
@@ -173,7 +173,7 @@ describe("atomic routing commits", () => {
   it("rejects a contradictory successful gate trace", () => {
     const h = harness();
     const identity = begin(h, "gate", "gate");
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.routing.recordGateDecision({
           identity,
@@ -239,7 +239,7 @@ describe("atomic routing commits", () => {
       evaluated: [{ branch: "yes", matched: true }],
     });
     const before = h.store.events.list(h.runId).length;
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.routing.recordGateDecision({
           identity: { ...identity, attempt: 2 },

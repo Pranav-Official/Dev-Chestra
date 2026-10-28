@@ -1,4 +1,4 @@
-import type { RunId } from "@relay/core";
+import type { RunId } from "@devchestra/core";
 import { now, type Runtime } from "./runtime.js";
 import { fail } from "./util.js";
 

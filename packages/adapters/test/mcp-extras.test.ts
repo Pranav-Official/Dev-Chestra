@@ -49,17 +49,17 @@ function flagValues(inv: Invocation, flag: string): string[] {
 describe("claude-code extraMcp", () => {
   it("writes no extras by default and keeps strict config", () => {
     const inv = planned("claude-code");
-    expect(Object.keys(mcpFile(inv).mcpServers)).toEqual(["relay"]);
+    expect(Object.keys(mcpFile(inv).mcpServers)).toEqual(["devchestra"]);
     expect(inv.args).toContain("--strict-mcp-config");
     const allowed = flagValues(inv, "--allowedTools").join(",");
-    expect(allowed).toContain("mcp__relay__*");
-    expect(allowed).not.toMatch(/mcp__(?!relay__).+\*/);
+    expect(allowed).toContain("mcp__devchestra__*");
+    expect(allowed).not.toMatch(/mcp__(?!devchestra__).+\*/);
   });
 
-  it("writes stdio+http extras next to relay and allows their tools", () => {
+  it("writes stdio+http extras next to devchestra and allows their tools", () => {
     const inv = planned("claude-code", { extraMcp: [STDIO_EXTRA, HTTP_EXTRA] });
     const servers = mcpFile(inv).mcpServers;
-    expect(Object.keys(servers).sort()).toEqual(["fixture", "relay", "web"]);
+    expect(Object.keys(servers).sort()).toEqual(["devchestra", "fixture", "web"]);
     expect(servers.fixture).toEqual({
       command: "/usr/bin/node",
       args: ["/abs/echo-server.mjs"],
@@ -72,7 +72,7 @@ describe("claude-code extraMcp", () => {
     });
     expect(inv.args).toContain("--strict-mcp-config");
     const allowed = flagValues(inv, "--allowedTools").join(",");
-    expect(allowed).toContain("mcp__relay__*");
+    expect(allowed).toContain("mcp__devchestra__*");
     expect(allowed).toContain("mcp__fixture__*");
     expect(allowed).toContain("mcp__web__*");
   });
@@ -91,7 +91,7 @@ describe("claude-code extraMcp", () => {
   it("rejects reserved, duplicate and unsafe server names", () => {
     const adapter = createAdapter("claude-code");
     const bad: ResolvedMcpServer[][] = [
-      [{ ...STDIO_EXTRA, name: "relay" }],
+      [{ ...STDIO_EXTRA, name: "devchestra" }],
       [STDIO_EXTRA, { ...STDIO_EXTRA, transport: "http", url: "https://x.example" }],
       [{ ...STDIO_EXTRA, name: "../escape" }],
       [{ ...STDIO_EXTRA, name: "has space" }],
@@ -129,7 +129,9 @@ describe("claude-code extraMcp", () => {
       name: "mcp__fixture__fixture_echo",
       input: {},
     });
-    expect(createAdapter("claude-code").toolRef("submit_result")).toBe("mcp__relay__submit_result");
+    expect(createAdapter("claude-code").toolRef("submit_result")).toBe(
+      "mcp__devchestra__submit_result",
+    );
   });
 });
 
@@ -187,13 +189,13 @@ describe("claude-code shell toggle", () => {
 describe("pi extraMcp", () => {
   it("writes no extras by default", () => {
     const inv = planned("pi");
-    expect(Object.keys(mcpFile(inv).mcpServers)).toEqual(["relay"]);
+    expect(Object.keys(mcpFile(inv).mcpServers)).toEqual(["devchestra"]);
   });
 
   it("writes stdio+http extras in Pi's mcpServers shape", () => {
     const inv = planned("pi", { extraMcp: [STDIO_EXTRA, HTTP_EXTRA] });
     const servers = mcpFile(inv).mcpServers;
-    expect(Object.keys(servers).sort()).toEqual(["fixture", "relay", "web"]);
+    expect(Object.keys(servers).sort()).toEqual(["devchestra", "fixture", "web"]);
     expect(servers.fixture).toEqual({
       command: "/usr/bin/node",
       args: ["/abs/echo-server.mjs"],
@@ -203,7 +205,7 @@ describe("pi extraMcp", () => {
       url: "https://example.com/mcp",
       headers: { Authorization: "Bearer hunter2" },
     });
-    expect(servers.relay).toMatchObject({ exposure: "direct" });
+    expect(servers.devchestra).toMatchObject({ exposure: "direct" });
   });
 
   it("keeps secrets in the 0600 file, never in argv", () => {
@@ -221,7 +223,7 @@ describe("pi extraMcp", () => {
   it("rejects reserved, duplicate and unsafe server names", () => {
     const adapter = createAdapter("pi");
     const bad: ResolvedMcpServer[][] = [
-      [{ ...STDIO_EXTRA, name: "relay" }],
+      [{ ...STDIO_EXTRA, name: "devchestra" }],
       [STDIO_EXTRA, { ...STDIO_EXTRA, transport: "http", url: "https://x.example" }],
       [{ ...STDIO_EXTRA, name: "../escape" }],
       [{ ...STDIO_EXTRA, name: "has space" }],

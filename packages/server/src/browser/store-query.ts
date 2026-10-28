@@ -1,8 +1,13 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import type { ApprovalSummary, RunLayout, RunWorkspaceSelection } from "@relay/api";
-import { type Path, type RunId, type RunStatus, RelayError as StoreError } from "@relay/core";
-import type { NormalizedWorkflow } from "@relay/schema";
+import type { ApprovalSummary, RunLayout, RunWorkspaceSelection } from "@devchestra/api";
+import {
+  type Path,
+  type RunId,
+  type RunStatus,
+  DevChestraError as StoreError,
+} from "@devchestra/core";
+import type { NormalizedWorkflow } from "@devchestra/schema";
 import type {
   ExecutionHistory,
   ProjectRecord,
@@ -10,8 +15,8 @@ import type {
   RunSnapshot,
   Store,
   RunSummary as StoreRunSummary,
-} from "@relay/store";
-import { RelayError } from "../errors.js";
+} from "@devchestra/store";
+import { DevChestraError } from "../errors.js";
 import type {
   BrowserQueryPort,
   EventPage,
@@ -135,7 +140,7 @@ export function projectIdForPath(canonicalPath: string): string {
 
 function approvalSummaryForRecord(
   store: Store,
-  rec: import("@relay/store").ApprovalRecord,
+  rec: import("@devchestra/store").ApprovalRecord,
 ): ApprovalSummary {
   const exec = store.executions.get(rec.runId, rec.path as Path);
   const nodeId = exec?.nodeId ?? rec.path;
@@ -187,7 +192,7 @@ function cleanupCommand(command: () => void): void {
       error instanceof StoreError &&
       (error.code === "E_CONFLICT" || error.code === "E_NOT_FOUND")
     ) {
-      throw new RelayError(error.code, error.message);
+      throw new DevChestraError(error.code, error.message);
     }
     throw error;
   }

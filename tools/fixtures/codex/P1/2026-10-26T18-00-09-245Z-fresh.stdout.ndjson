@@ -1,6 +1,6 @@
 {"type":"thread.started","thread_id":"01a1795e-5479-7f12-aab8-8b7ab3d9a97d"}
 {"type":"turn.started"}
-{"type":"item.started","item":{"id":"item_0","type":"mcp_tool_call","server":"relay","tool":"submit_result","arguments":{"answer":"ok"},"result":null,"error":null,"status":"in_progress"}}
-{"type":"item.completed","item":{"id":"item_0","type":"mcp_tool_call","server":"relay","tool":"submit_result","arguments":{"answer":"ok"},"result":{"content":[{"type":"text","text":"Result accepted. You are done; do not call any other tool."}],"structured_content":null},"error":null,"status":"completed"}}
+{"type":"item.started","item":{"id":"item_0","type":"mcp_tool_call","server":"devchestra","tool":"submit_result","arguments":{"answer":"ok"},"result":null,"error":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_0","type":"mcp_tool_call","server":"devchestra","tool":"submit_result","arguments":{"answer":"ok"},"result":{"content":[{"type":"text","text":"Result accepted. You are done; do not call any other tool."}],"structured_content":null},"error":null,"status":"completed"}}
 {"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":""}}
 {"type":"turn.completed","usage":{"input_tokens":29851,"cached_input_tokens":27008,"cache_write_input_tokens":0,"output_tokens":93,"reasoning_output_tokens":11}}

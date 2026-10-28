@@ -74,7 +74,7 @@ export function Sidebar() {
           <span className="logo" aria-hidden="true">
             R
           </span>
-          <span>Relay</span>
+          <span>DevChestra</span>
         </div>
         <Link
           to="/"
@@ -97,7 +97,9 @@ export function Sidebar() {
           <div className="note" role="status">
             <Activity size={14} />
             <span>
-              {failure.kind === "auth" ? "Open Relay from your terminal." : "Server unavailable."}
+              {failure.kind === "auth"
+                ? "Open DevChestra from your terminal."
+                : "Server unavailable."}
             </span>
           </div>
         ) : null}
@@ -235,7 +237,7 @@ export function Sidebar() {
         </span>
         <span>
           {bootstrap.data
-            ? `Relay ${bootstrap.data.version} · ${bootstrap.data.counts.activeRuns} active`
+            ? `DevChestra ${bootstrap.data.version} · ${bootstrap.data.counts.activeRuns} active`
             : "Not connected"}
         </span>
       </div>

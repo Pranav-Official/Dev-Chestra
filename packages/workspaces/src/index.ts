@@ -40,7 +40,7 @@ export const releaseScratch = (workspace: ScratchWorkspace) => {
 export const removeScratch = (workspace: ScratchWorkspace) =>
   isRunWorkspace(workspace) ? removeRunWorkspace(workspace) : removeScratchOnly(workspace);
 
-export type { RunWorkspaceBinding, RunWorkspaceSelection } from "@relay/core";
+export type { RunWorkspaceBinding, RunWorkspaceSelection } from "@devchestra/core";
 export {
   isInside,
   PathSafety,

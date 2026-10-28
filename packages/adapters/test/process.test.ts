@@ -23,7 +23,7 @@ afterEach(async () => {
 });
 
 async function workspace(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), "relay-adapters-"));
+  const dir = await mkdtemp(join(tmpdir(), "devchestra-adapters-"));
   dirs.push(dir);
   return dir;
 }
@@ -239,7 +239,7 @@ process.stdin.resume();`,
       dir,
       "secret",
       `process.stderr.write("token=" + ${JSON.stringify(TOKEN)} + "\\n");
-process.stdout.write(JSON.stringify({ type: "relay-fake", event: "error", sessionId: "s", message: ${JSON.stringify(TOKEN)} }) + "\\n");`,
+process.stdout.write(JSON.stringify({ type: "devchestra-fake", event: "error", sessionId: "s", message: ${JSON.stringify(TOKEN)} }) + "\\n");`,
     );
     const transcript: string[] = [];
     const result = await runAgent(

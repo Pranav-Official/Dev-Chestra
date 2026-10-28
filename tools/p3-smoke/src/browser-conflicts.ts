@@ -9,7 +9,7 @@ import {
   waitSaved,
 } from "./browser-ui.js";
 import { sleep } from "./fixtures.js";
-import type { RelayHttp } from "./http.js";
+import type { DevChestraHttp } from "./http.js";
 import {
   getRun,
   getWorkflow,
@@ -53,7 +53,11 @@ async function waitConflict(page: Page): Promise<void> {
   await page.getByTestId("conflict-banner").waitFor({ state: "visible", timeout: 20_000 });
 }
 
-async function runCount(http: RelayHttp, projectId: string, workflowId: string): Promise<number> {
+async function runCount(
+  http: DevChestraHttp,
+  projectId: string,
+  workflowId: string,
+): Promise<number> {
   const result = await http.api(
     "GET",
     `/api/runs?project=${encodeURIComponent(projectId)}&workflow=${encodeURIComponent(workflowId)}&limit=100`,
@@ -63,7 +67,7 @@ async function runCount(http: RelayHttp, projectId: string, workflowId: string):
 }
 
 async function saveConflictThenOverwrite(
-  http: RelayHttp,
+  http: DevChestraHttp,
   pid: string,
   wid: string,
   page: Page,
@@ -95,7 +99,7 @@ async function saveConflictThenOverwrite(
 export async function runBrowserConflictFlow(
   context: BrowserContext,
   seed: Page,
-  http: RelayHttp,
+  http: DevChestraHttp,
   projectId: string,
 ): Promise<ConflictEvidence> {
   const workflowId = await createBlankWorkflowThroughUi(

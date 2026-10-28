@@ -2,7 +2,7 @@ import {
   DECISION_PROVIDER_LABELS,
   DECISION_PROVIDERS,
   type DecisionProviderId,
-} from "@relay/schema";
+} from "@devchestra/schema";
 import { decisionOutputSchema, decisionRoutingSchema } from "./events.js";
 import { z } from "./zod.js";
 

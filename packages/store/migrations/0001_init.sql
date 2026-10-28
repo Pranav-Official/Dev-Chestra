@@ -1,4 +1,4 @@
--- Relay P0 store schema. Forward-only; applied transactionally by src/migrate.ts.
+-- DevChestra P0 store schema. Forward-only; applied transactionally by src/migrate.ts.
 
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version INTEGER PRIMARY KEY,
@@ -57,7 +57,7 @@ CREATE INDEX events_run ON events (run_id, id);
 CREATE INDEX events_run_path ON events (run_id, path, id);
 CREATE INDEX events_run_type ON events (run_id, type);
 
--- Projection of the shared @relay/core RunView. Rebuildable from events.
+-- Projection of the shared @devchestra/core RunView. Rebuildable from events.
 CREATE TABLE run_views (
   run_id TEXT PRIMARY KEY REFERENCES runs(id) ON DELETE CASCADE,
   view_json TEXT NOT NULL,
@@ -124,7 +124,7 @@ CREATE TABLE outputs (
 CREATE INDEX outputs_run_path ON outputs (run_id, path, attempt);
 CREATE UNIQUE INDEX outputs_one_accepted ON outputs (run_id, path, attempt) WHERE kind = 'output';
 
--- Durable tool-call receipts. callId is X-Relay-Call-Id; request fingerprint is
+-- Durable tool-call receipts. callId is X-DevChestra-Call-Id; request fingerprint is
 -- the canonical JSON hash of {name, arguments}. A transport retry reuses the key.
 CREATE TABLE tool_receipts (
   run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,

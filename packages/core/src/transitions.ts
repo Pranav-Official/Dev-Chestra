@@ -1,4 +1,4 @@
-import { RelayError } from "./error.js";
+import { DevChestraError } from "./error.js";
 
 export type ExecStatus =
   | "pending"
@@ -101,7 +101,7 @@ export function canTransition(from: ExecStatus, to: ExecStatus): boolean {
 
 export function assertTransition(from: ExecStatus, to: ExecStatus): void {
   if (!canTransition(from, to)) {
-    throw new RelayError("E_INTERNAL", `Illegal execution transition: ${from} -> ${to}`, {
+    throw new DevChestraError("E_INTERNAL", `Illegal execution transition: ${from} -> ${to}`, {
       details: { from, to },
     });
   }
@@ -113,7 +113,7 @@ export function canRunTransition(from: RunStatus, to: RunStatus): boolean {
 
 export function assertRunTransition(from: RunStatus, to: RunStatus): void {
   if (!canRunTransition(from, to)) {
-    throw new RelayError("E_INTERNAL", `Illegal run transition: ${from} -> ${to}`, {
+    throw new DevChestraError("E_INTERNAL", `Illegal run transition: ${from} -> ${to}`, {
       details: { from, to },
     });
   }

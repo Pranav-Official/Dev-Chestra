@@ -80,7 +80,7 @@ export interface ApiClientOptions {
   baseUrl?: string;
   /** Injection seam for tests; defaults to globalThis.fetch. */
   fetch?: typeof fetch;
-  /** `relay` CLI header auth. Browsers authenticate with the session cookie. */
+  /** `devchestra` CLI header auth. Browsers authenticate with the session cookie. */
   token?: string;
   /** Refuse to run against a different API major. */
   apiMajor?: number;
@@ -152,7 +152,7 @@ export class ApiClientBase {
     if (major !== API_MAJOR) {
       throw new ApiProtocolError(
         "version",
-        `@relay/api supports major ${API_MAJOR}, not ${String(major)}`,
+        `@devchestra/api supports major ${API_MAJOR}, not ${String(major)}`,
       );
     }
     this.baseUrl = (options.baseUrl ?? "").replace(/\/+$/u, "");
@@ -584,7 +584,7 @@ export class ApiClientBase {
     if (!parsed.success) {
       throw new ApiProtocolError(
         "invalid-response",
-        "Response does not match @relay/api",
+        "Response does not match @devchestra/api",
         parsed.error,
       );
     }
@@ -683,7 +683,7 @@ export class ApiClientBase {
     if (!parsed.success) {
       throw new ApiProtocolError(
         "invalid-response",
-        `Error response does not match @relay/api (${response.status})`,
+        `Error response does not match @devchestra/api (${response.status})`,
         parsed.error,
       );
     }

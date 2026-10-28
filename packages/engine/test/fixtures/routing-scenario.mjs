@@ -22,12 +22,12 @@ import {
 const root = fileURLToPath(new URL("../../../../", import.meta.url));
 const shim = join(root, "packages/mcp/dist/bin/shim.js");
 const fakeAgent = join(root, "tools/fake-agent/dist/main.js");
-const base = mkdtempSync(join(tmpdir(), "relay-engine-routing-scenario-"));
+const base = mkdtempSync(join(tmpdir(), "devchestra-engine-routing-scenario-"));
 const project = join(base, "project");
 const dataDir = join(base, "data");
 mkdirSync(project);
 mkdirSync(dataDir);
-const store = openStore({ file: join(dataDir, "relay.db") });
+const store = openStore({ file: join(dataDir, "devchestra.db") });
 const tokens = new ExecTokenRegistry({
   registerSecret: (value, name) => store.security.registerSecret(value, name),
 });

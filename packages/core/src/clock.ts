@@ -1,12 +1,12 @@
-import { RelayError } from "./error.js";
+import { DevChestraError } from "./error.js";
 
 export interface Clock {
   now(): number;
   sleep(ms: number, signal?: AbortSignal): Promise<void>;
 }
 
-function cancelled(signal: AbortSignal): RelayError {
-  return new RelayError(
+function cancelled(signal: AbortSignal): DevChestraError {
+  return new DevChestraError(
     "E_CANCELLED",
     "Sleep cancelled",
     signal.reason === undefined ? {} : { cause: signal.reason },
@@ -15,7 +15,7 @@ function cancelled(signal: AbortSignal): RelayError {
 
 function assertDelay(ms: number): void {
   if (!Number.isFinite(ms) || ms < 0) {
-    throw new RelayError("E_VALIDATION", `Invalid sleep duration: ${String(ms)}`);
+    throw new DevChestraError("E_VALIDATION", `Invalid sleep duration: ${String(ms)}`);
   }
 }
 
@@ -57,7 +57,7 @@ export class FakeClock implements Clock {
 
   constructor(start = 0) {
     if (!Number.isFinite(start)) {
-      throw new RelayError("E_VALIDATION", `Invalid fake clock start: ${String(start)}`);
+      throw new DevChestraError("E_VALIDATION", `Invalid fake clock start: ${String(start)}`);
     }
     this.current = start;
   }
@@ -95,7 +95,7 @@ export class FakeClock implements Clock {
 
   advanceTo(target: number): void {
     if (!Number.isFinite(target) || target < this.current) {
-      throw new RelayError("E_VALIDATION", `Cannot advance fake clock to ${String(target)}`);
+      throw new DevChestraError("E_VALIDATION", `Cannot advance fake clock to ${String(target)}`);
     }
     for (;;) {
       let nextIndex = -1;

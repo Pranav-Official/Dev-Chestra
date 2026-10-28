@@ -1,4 +1,4 @@
-import type { WorkflowNode } from "@relay/schema";
+import type { WorkflowNode } from "@devchestra/schema";
 import { stableStringify } from "./stableStringify.js";
 
 /**

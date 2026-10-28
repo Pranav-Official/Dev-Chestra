@@ -32,11 +32,11 @@ const CONTENT_TYPES: Record<string, string> = {
 
 const INSTRUCTIONS = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Relay</title><style>body{font:16px/1.5 system-ui,sans-serif;max-width:42rem;margin:12vh auto;padding:0 1.5rem;color:#111;background:#fafafa}code{background:#eee;padding:.15rem .35rem;border-radius:.25rem}h1{font-size:1.4rem}</style></head>
-<body><h1>Open Relay from your terminal</h1>
-<p>This local Relay instance is running, but this browser has no session.</p>
-<p>Run <code>relay start</code> (or the command that printed this address) and open the printed URL. The session token is placed in an HttpOnly cookie and removed from the address bar.</p>
-<p>Do not share the launch URL. It contains the session token for this local Relay instance; the token stays valid until Relay restarts.</p>
+<title>DevChestra</title><style>body{font:16px/1.5 system-ui,sans-serif;max-width:42rem;margin:12vh auto;padding:0 1.5rem;color:#111;background:#fafafa}code{background:#eee;padding:.15rem .35rem;border-radius:.25rem}h1{font-size:1.4rem}</style></head>
+<body><h1>Open DevChestra from your terminal</h1>
+<p>This local DevChestra instance is running, but this browser has no session.</p>
+<p>Run <code>devchestra start</code> (or the command that printed this address) and open the printed URL. The session token is placed in an HttpOnly cookie and removed from the address bar.</p>
+<p>Do not share the launch URL. It contains the session token for this local DevChestra instance; the token stays valid until DevChestra restarts.</p>
 </body></html>`;
 
 const APP_ROUTE_PATTERNS = [

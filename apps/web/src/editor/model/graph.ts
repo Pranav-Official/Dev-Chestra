@@ -1,4 +1,4 @@
-import type { Edge, NodeType, WorkflowFile, WorkflowNode } from "@relay/schema";
+import type { Edge, NodeType, WorkflowFile, WorkflowNode } from "@devchestra/schema";
 import { checkConnection as checkRoutingConnection, defaultDecisionMode } from "./routing.js";
 import type { ConnectRequest, Position } from "./types.js";
 

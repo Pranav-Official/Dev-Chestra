@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, isAbsolute, resolve } from "node:path";
-import type { McpScope } from "@relay/schema";
+import type { McpScope } from "@devchestra/schema";
 import type { InternalMcpServer } from "./types.js";
 
 const SUMMARY_MAX = 120;
@@ -25,7 +25,7 @@ export function cleanText(value: string, max: number): string {
 }
 
 export function isValidName(name: string): boolean {
-  return name !== "" && name.length <= 128 && !hasControlChars(name) && name !== "relay";
+  return name !== "" && name.length <= 128 && !hasControlChars(name) && name !== "devchestra";
 }
 
 /** Read a file as UTF-8. Returns null when missing; throws on malformed read errors. */

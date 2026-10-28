@@ -13,7 +13,7 @@ function catalog(cli: CatalogCli, projectId = "p1"): CliModelCatalog {
     cli,
     projectId,
     status: "ready",
-    scope: "relay-runtime",
+    scope: "devchestra-runtime",
     source: "codex-app-server",
     cliVersion: "1.2.3",
     items: [{ id: `${cli}-model`, label: `${cli} model`, source: "codex-app-server" }],

@@ -1,4 +1,4 @@
-export type RelayErrorCode =
+export type DevChestraErrorCode =
   | "E_AUTH"
   | "E_FORBIDDEN"
   | "E_FORBIDDEN_PATH"
@@ -10,7 +10,7 @@ export type RelayErrorCode =
   | "E_NOT_FOUND"
   | "E_INTERNAL";
 
-const STATUS: Record<RelayErrorCode, number> = {
+const STATUS: Record<DevChestraErrorCode, number> = {
   E_AUTH: 401,
   E_FORBIDDEN: 403,
   E_FORBIDDEN_PATH: 403,
@@ -27,14 +27,14 @@ const STATUS: Record<RelayErrorCode, number> = {
  * Safe, transport-level error. `message` may be shown to a person; it must
  * never contain a token, stack trace or other secret.
  */
-export class RelayError extends Error {
-  readonly code: RelayErrorCode;
+export class DevChestraError extends Error {
+  readonly code: DevChestraErrorCode;
   readonly status: number;
   readonly details: unknown;
 
-  constructor(code: RelayErrorCode, message: string, details?: unknown) {
+  constructor(code: DevChestraErrorCode, message: string, details?: unknown) {
     super(message);
-    this.name = "RelayError";
+    this.name = "DevChestraError";
     this.code = code;
     this.status = STATUS[code];
     this.details = details;
@@ -43,13 +43,17 @@ export class RelayError extends Error {
 
 export interface ErrorBody {
   error: {
-    code: RelayErrorCode;
+    code: DevChestraErrorCode;
     message: string;
     details?: unknown;
   };
 }
 
-export function errorBody(code: RelayErrorCode, message: string, details?: unknown): ErrorBody {
+export function errorBody(
+  code: DevChestraErrorCode,
+  message: string,
+  details?: unknown,
+): ErrorBody {
   const body: ErrorBody = { error: { code, message } };
   if (details !== undefined) {
     body.error.details = details;
@@ -58,7 +62,7 @@ export function errorBody(code: RelayErrorCode, message: string, details?: unkno
 }
 
 /** Read a durable error code without trusting its message or exposing details. */
-export function relayErrorCode(error: unknown): string | null {
+export function devchestraErrorCode(error: unknown): string | null {
   if (typeof error !== "object" || error === null) {
     return null;
   }
@@ -67,20 +71,20 @@ export function relayErrorCode(error: unknown): string | null {
 }
 
 /** Map any thrown value to a safe wire error without leaking internals. */
-export function toRelayError(error: unknown): RelayError {
-  if (error instanceof RelayError) {
+export function toDevChestraError(error: unknown): DevChestraError {
+  if (error instanceof DevChestraError) {
     return error;
   }
-  switch (relayErrorCode(error)) {
+  switch (devchestraErrorCode(error)) {
     case "E_CONFLICT":
-      return new RelayError("E_CONFLICT", "The submission conflicts with a committed result.");
+      return new DevChestraError("E_CONFLICT", "The submission conflicts with a committed result.");
     case "E_ATTEMPTS_EXHAUSTED":
-      return new RelayError("E_VALIDATION", "No validation attempts left.");
+      return new DevChestraError("E_VALIDATION", "No validation attempts left.");
     case "E_VALIDATION":
-      return new RelayError("E_VALIDATION", "The submission is invalid.");
+      return new DevChestraError("E_VALIDATION", "The submission is invalid.");
     case "E_FORBIDDEN":
-      return new RelayError("E_FORBIDDEN", "That operation is not allowed.");
+      return new DevChestraError("E_FORBIDDEN", "That operation is not allowed.");
     default:
-      return new RelayError("E_INTERNAL", "Internal server error.");
+      return new DevChestraError("E_INTERNAL", "Internal server error.");
   }
 }

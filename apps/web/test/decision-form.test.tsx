@@ -1,10 +1,10 @@
-import type { DecisionTestResult } from "@relay/api";
+import type { DecisionTestResult } from "@devchestra/api";
 import {
   DECISION_PROVIDER_LABELS,
   type DecisionNode,
   type Issue,
   type WorkflowNode,
-} from "@relay/schema";
+} from "@devchestra/schema";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";

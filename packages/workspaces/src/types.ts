@@ -1,4 +1,4 @@
-import type { Path, RunWorkspaceBinding, RunWorkspaceSelection } from "@relay/core";
+import type { Path, RunWorkspaceBinding, RunWorkspaceSelection } from "@devchestra/core";
 export type WorkspaceMode =
   | "scratch"
   | "worktree"

@@ -1,4 +1,4 @@
-import { emptyRunView } from "@relay/core";
+import { emptyRunView } from "@devchestra/core";
 import { describe, expect, it } from "vitest";
 import {
   ApiProtocolError,

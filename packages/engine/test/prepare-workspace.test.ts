@@ -1,14 +1,14 @@
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAdapterRegistry } from "@relay/adapters";
-import { err, ok, RelayError } from "@relay/core";
-import { openStore, type Store } from "@relay/store";
+import { createAdapterRegistry } from "@devchestra/adapters";
+import { DevChestraError, err, ok } from "@devchestra/core";
+import { openStore, type Store } from "@devchestra/store";
 import type {
   AcquireScratchRequest,
   PrepareRunWorkspaceRequest,
   RunWorkspaceIdentity,
-} from "@relay/workspaces";
+} from "@devchestra/workspaces";
 import { afterEach, describe, expect, it } from "vitest";
 import { createEngine } from "../src/engine.js";
 import type { Engine, WorkspacePort } from "../src/types.js";
@@ -28,13 +28,13 @@ interface Harness {
 }
 
 function harness(options: { failPrepare?: boolean } = {}): Harness {
-  const base = mkdtempSync(join(tmpdir(), "relay-engine-prepare-"));
+  const base = mkdtempSync(join(tmpdir(), "devchestra-engine-prepare-"));
   const project = join(base, "project");
   const dataDir = join(base, "data");
   mkdirSync(project);
   mkdirSync(dataDir);
   cleanups.push(() => rmSync(base, { recursive: true, force: true }));
-  const store = openStore({ file: join(dataDir, "relay.db") });
+  const store = openStore({ file: join(dataDir, "devchestra.db") });
   cleanups.push(() => store.close());
   store.projects.ensure({ id: "p1", name: "P1", path: project, kind: "folder" });
   const prepares: PrepareRunWorkspaceRequest[] = [];
@@ -43,7 +43,9 @@ function harness(options: { failPrepare?: boolean } = {}): Harness {
     prepare: async (request) => {
       prepares.push(request);
       if (options.failPrepare === true) {
-        return err(new RelayError("E_WORKSPACE", "prepare failed", { details: { step: "test" } }));
+        return err(
+          new DevChestraError("E_WORKSPACE", "prepare failed", { details: { step: "test" } }),
+        );
       }
       const dir =
         request.selection.mode === "existing-worktree"

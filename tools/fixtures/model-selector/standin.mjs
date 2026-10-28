@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Test-only stand-in for the `codex` and `claude` executables.
 // Codex mode speaks the documented app-server metadata RPC; exec mode captures
-// argv/stdin and submits through the real Relay MCP shim. No provider is called.
+// argv/stdin and submits through the real DevChestra MCP shim. No provider is called.
 import { createRequire } from "node:module";
 import { appendFileSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -81,8 +81,8 @@ const DEFAULT_PAGES = [
       hidden: false,
     },
     {
-      id: "raw-relay-punct",
-      model: "relay-punct.model/v2",
+      id: "raw-devchestra-punct",
+      model: "devchestra-punct.model/v2",
       displayName: "Punctuation Model",
       description: "Subsequence friendly label.",
       hidden: false,
@@ -375,7 +375,7 @@ async function appServer() {
 }
 
 function resolveShim() {
-  const entry = process.env.RELAY_MCP_SHIM_ENTRY;
+  const entry = process.env.DEVCHESTRA_MCP_SHIM_ENTRY;
   if (entry !== undefined && entry !== "") {
     return { command: process.execPath, args: [entry], env: { ...process.env } };
   }
@@ -388,7 +388,7 @@ function resolveShim() {
   } catch {
     return null;
   }
-  const server = config?.mcpServers?.relay;
+  const server = config?.mcpServers?.devchestra;
   if (typeof server?.command !== "string" || !Array.isArray(server.args)) return null;
   return {
     command: server.command,

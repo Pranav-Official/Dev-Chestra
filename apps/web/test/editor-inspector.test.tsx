@@ -1,4 +1,11 @@
-import type { AgentNode, EndNode, Issue, ShellNode, StartNode, WorkflowNode } from "@relay/schema";
+import type {
+  AgentNode,
+  EndNode,
+  Issue,
+  ShellNode,
+  StartNode,
+  WorkflowNode,
+} from "@devchestra/schema";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
@@ -260,7 +267,7 @@ describe("Inspector identity and Start parameters", () => {
 describe("Agent fields", () => {
   it("offers only real CLIs and edits the model only through explicit picker actions", async () => {
     render(<Harness initial={agent} alternate={shell} />);
-    expect(screen.getByText(/experimental adapter/)).toBeInTheDocument();
+    expect(screen.getByText(/Permissions are advisory/)).toBeInTheDocument();
     expect(screen.getAllByText(/not an OS sandbox/i).length).toBeGreaterThan(0);
     expect(screen.queryByTestId("inspector-agent-model")).toBeNull();
     expect(screen.queryByTestId("inspector-agent-model-picker")).toBeInTheDocument();
@@ -283,7 +290,7 @@ describe("Agent fields", () => {
         patch: { cli: "claude-code", model: undefined },
       }),
     );
-    expect(screen.getByText(/experimental adapter/i)).toBeInTheDocument();
+    expect(screen.getByText(/Permissions are advisory/i)).toBeInTheDocument();
 
     const custom = screen.getByTestId("inspector-agent-model-custom-input");
     fireEvent.change(custom, { target: { value: "gpt-test" } });

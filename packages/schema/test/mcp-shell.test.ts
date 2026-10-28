@@ -132,9 +132,9 @@ describe("agent shell toggle and mcpServers selection", () => {
         },
       },
       {
-        label: "reserved relay name",
+        label: "reserved devchestra name",
         mutate: (agent) => {
-          agent.mcpServers = [{ name: "relay", scope: "global" }];
+          agent.mcpServers = [{ name: "devchestra", scope: "global" }];
         },
       },
       {
@@ -181,7 +181,7 @@ describe("agent shell toggle and mcpServers selection", () => {
     agent.mcpServers = [
       { name: "github", scope: "global" },
       { name: "github", scope: "global" },
-      { name: "relay", scope: "project" },
+      { name: "devchestra", scope: "project" },
       { name: "docs", scope: "user" },
     ];
     const report = validateWorkflow(raw as unknown as Parameters<typeof validateWorkflow>[0]);

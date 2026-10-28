@@ -1,6 +1,6 @@
-import type { RunWorkspaceSelection } from "@relay/core";
+import type { RunWorkspaceSelection } from "@devchestra/core";
 
-/** Production agent CLIs. `fake` lives only in the test adapter registry behind RELAY_ALLOW_FAKE. */
+/** Production agent CLIs. `fake` lives only in the test adapter registry behind DEVCHESTRA_ALLOW_FAKE. */
 export const PROD_CLIS = ["claude-code", "codex", "opencode", "pi"] as const;
 
 /** Production CLI id, derived from {@link PROD_CLIS}. This is the only
@@ -30,7 +30,7 @@ export function isProdCliId(value: unknown): value is ProdCliId {
 
 /** Decision-model providers for `decision` nodes. Jev (TypeSafe AI) and Clef
  * (Cloudflare) share the System One request shape; each id is a fixed host
- * preset in `@relay/decisions`. This is the only declaration of the set. */
+ * preset in `@devchestra/decisions`. This is the only declaration of the set. */
 export const DECISION_PROVIDERS = [
   "typesafe-jev",
   "cloudflare-clef",
@@ -139,7 +139,7 @@ export interface AgentNode extends NodeBase {
   promptFile?: string;
   output: JsonSchemaObject;
   permissions: AgentPermissions;
-  /** Extra MCP servers (besides Relay's own). Absent or empty means only `relay`. */
+  /** Extra MCP servers (besides DevChestra's own). Absent or empty means only `devchestra`. */
   mcpServers?: McpSelection[];
   /** Legacy per-node metadata; fresh runs use the run-level workspace choice. */
   workspace?: WorkspaceSpec;
@@ -427,7 +427,7 @@ export const SCHEMA_CAPABILITIES: Capabilities = {
   defaultRunWorkspace: "project",
   unsupported: [
     "node types other than start/agent/shell/gate/join/approval/decision/end",
-    "cli fake (test-only, behind RELAY_ALLOW_FAKE)",
+    "cli fake (test-only, behind DEVCHESTRA_ALLOW_FAKE)",
     "per-node workspace selection (legacy metadata is ignored on fresh runs)",
     "per-node worktree base/setup/from options",
     "agent context reads/writes",

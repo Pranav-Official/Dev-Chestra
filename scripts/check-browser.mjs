@@ -4,16 +4,16 @@ import process from "node:process";
 import { build } from "esbuild";
 
 const targets = [
-  { name: "@relay/core", entry: "packages/core/src/index.ts" },
-  { name: "@relay/schema", entry: "packages/schema/src/index.ts" },
-  { name: "@relay/api", entry: "packages/api/src/index.ts" },
-  { name: "@relay/web", entry: "apps/web/src/main.tsx", app: true },
+  { name: "@devchestra/core", entry: "packages/core/src/index.ts" },
+  { name: "@devchestra/schema", entry: "packages/schema/src/index.ts" },
+  { name: "@devchestra/api", entry: "packages/api/src/index.ts" },
+  { name: "@devchestra/web", entry: "apps/web/src/main.tsx", app: true },
 ];
 
 const aliases = {
-  "@relay/core": path.resolve("packages/core/src/index.ts"),
-  "@relay/schema": path.resolve("packages/schema/src/index.ts"),
-  "@relay/api": path.resolve("packages/api/src/index.ts"),
+  "@devchestra/core": path.resolve("packages/core/src/index.ts"),
+  "@devchestra/schema": path.resolve("packages/schema/src/index.ts"),
+  "@devchestra/api": path.resolve("packages/api/src/index.ts"),
 };
 
 const alias = Object.fromEntries(
@@ -29,7 +29,7 @@ for (const target of targets) {
     if (target.app) {
       pending += 1;
       console.log(`browser-safe bundle pending: ${target.name} has no ${target.entry} yet`);
-    } else if (target.name === "@relay/api") {
+    } else if (target.name === "@devchestra/api") {
       pending += 1;
       console.log(`browser-safe bundle pending: ${target.name} has no source entry yet`);
     }

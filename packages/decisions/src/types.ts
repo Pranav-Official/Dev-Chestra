@@ -1,9 +1,9 @@
-import type { DecisionOutput, JsonValue, RelayError, Result } from "@relay/core";
-import type { DecisionProviderId } from "@relay/schema";
+import type { DecisionOutput, DevChestraError, JsonValue, Result } from "@devchestra/core";
+import type { DecisionProviderId } from "@devchestra/schema";
 
-/** The normalized answer is owned by `@relay/core` (events); re-exported so the
+/** The normalized answer is owned by `@devchestra/core` (events); re-exported so the
  * client result and the stored event payload are the same type. */
-export type { DecisionOutput } from "@relay/core";
+export type { DecisionOutput } from "@devchestra/core";
 
 export type DecisionQuestion =
   | { kind: "boolean"; instructions: string }
@@ -39,7 +39,10 @@ export interface DecisionResponse {
 }
 
 export interface DecisionClient {
-  ask(req: DecisionRequest, signal: AbortSignal): Promise<Result<DecisionResponse, RelayError>>;
+  ask(
+    req: DecisionRequest,
+    signal: AbortSignal,
+  ): Promise<Result<DecisionResponse, DevChestraError>>;
   availability(): { ready: boolean; missing: string[] };
   test(signal: AbortSignal): Promise<TestReport>;
 }

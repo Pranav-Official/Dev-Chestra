@@ -3,7 +3,7 @@ import { readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, afterEach, describe, it } from "vitest";
 import { CLI } from "../src/fixtures.js";
-import { RelayHttp } from "../src/http.js";
+import { DevChestraHttp } from "../src/http.js";
 import { startSentinel, startServer } from "../src/owned.js";
 import {
   createWorkflow,
@@ -59,7 +59,7 @@ interface Managed {
   etag: string;
 }
 
-async function manage(http: RelayHttp, projectRoot: string, name: string): Promise<Managed> {
+async function manage(http: DevChestraHttp, projectRoot: string, name: string): Promise<Managed> {
   const file = fixture(name);
   const project = await registerProject(http, projectRoot);
   await createWorkflow(http, project.id, { name: file.name, id: file.id, template: "blank" });
@@ -73,7 +73,7 @@ async function manage(http: RelayHttp, projectRoot: string, name: string): Promi
 }
 
 async function startWith(
-  http: RelayHttp,
+  http: DevChestraHttp,
   managed: Managed,
   params?: Record<string, unknown>,
   workspace?: unknown,
@@ -113,7 +113,7 @@ function resolved(page: EventPageLike): Record<string, unknown> {
   return events[0]?.payload as Record<string, unknown>;
 }
 
-async function statusOf(http: RelayHttp, runId: string, path: string): Promise<string> {
+async function statusOf(http: DevChestraHttp, runId: string, path: string): Promise<string> {
   const result = await http.api(
     "GET",
     `/api/runs/${encodeURIComponent(runId)}/executions/${encodeURIComponent(path)}`,
@@ -127,10 +127,10 @@ async function statusOf(http: RelayHttp, runId: string, path: string): Promise<s
 
 describe("P4 routing engine over real HTTP + fake agent", () => {
   it("routes gate true/otherwise and join first without spawning the dead branch", async () => {
-    const ws = await makeRunWorkspaceRepo("relay-p4-first-");
+    const ws = await makeRunWorkspaceRepo("devchestra-p4-first-");
     await withServer(
       {
-        dataDir: tempRoot("relay-p4-first-data-").dir,
+        dataDir: tempRoot("devchestra-p4-first-data-").dir,
         projectRoot: ws.root,
         fakeScript: FAKE_SCRIPT,
         env: {
@@ -140,7 +140,7 @@ describe("P4 routing engine over real HTTP + fake agent", () => {
         },
       },
       async (server) => {
-        const http = new RelayHttp(server.baseUrl);
+        const http = new DevChestraHttp(server.baseUrl);
         await http.health();
         await http.bootstrap(server.meta.token);
         const managed = await manage(http, ws.root, "p4-gate-join-first");
@@ -178,10 +178,10 @@ describe("P4 routing engine over real HTTP + fake agent", () => {
   }, 240_000);
 
   it("maps a dead join-all input to null and skips every dead descendant", async () => {
-    const ws = await makeRunWorkspaceRepo("relay-p4-dead-");
+    const ws = await makeRunWorkspaceRepo("devchestra-p4-dead-");
     await withServer(
       {
-        dataDir: tempRoot("relay-p4-dead-data-").dir,
+        dataDir: tempRoot("devchestra-p4-dead-data-").dir,
         projectRoot: ws.root,
         fakeScript: FAKE_SCRIPT,
         env: {
@@ -191,7 +191,7 @@ describe("P4 routing engine over real HTTP + fake agent", () => {
         },
       },
       async (server) => {
-        const http = new RelayHttp(server.baseUrl);
+        const http = new DevChestraHttp(server.baseUrl);
         await http.health();
         await http.bootstrap(server.meta.token);
 
@@ -232,10 +232,10 @@ describe("P4 routing engine over real HTTP + fake agent", () => {
   }, 240_000);
 
   it("durably skips a join with zero active inputs and still reaches the exclusive end", async () => {
-    const ws = await makeRunWorkspaceRepo("relay-p4-zero-");
+    const ws = await makeRunWorkspaceRepo("devchestra-p4-zero-");
     await withServer(
       {
-        dataDir: tempRoot("relay-p4-zero-data-").dir,
+        dataDir: tempRoot("devchestra-p4-zero-data-").dir,
         projectRoot: ws.root,
         fakeScript: FAKE_SCRIPT,
         env: {
@@ -245,7 +245,7 @@ describe("P4 routing engine over real HTTP + fake agent", () => {
         },
       },
       async (server) => {
-        const http = new RelayHttp(server.baseUrl);
+        const http = new DevChestraHttp(server.baseUrl);
         await http.health();
         await http.bootstrap(server.meta.token);
         const managed = await manage(http, ws.root, "p4-join-all-zero-active");
@@ -271,10 +271,10 @@ describe("P4 routing engine over real HTTP + fake agent", () => {
   }, 240_000);
 
   it("keeps siblings out of scope and uses true ancestors only", async () => {
-    const ws = await makeRunWorkspaceRepo("relay-p4-scope-");
+    const ws = await makeRunWorkspaceRepo("devchestra-p4-scope-");
     await withServer(
       {
-        dataDir: tempRoot("relay-p4-scope-data-").dir,
+        dataDir: tempRoot("devchestra-p4-scope-data-").dir,
         projectRoot: ws.root,
         fakeScript: FAKE_SCRIPT,
         env: {
@@ -284,7 +284,7 @@ describe("P4 routing engine over real HTTP + fake agent", () => {
         },
       },
       async (server) => {
-        const http = new RelayHttp(server.baseUrl);
+        const http = new DevChestraHttp(server.baseUrl);
         await http.health();
         await http.bootstrap(server.meta.token);
         const managed = await manage(http, ws.root, "p4-sibling-scope");
@@ -313,10 +313,10 @@ describe("P4 routing engine over real HTTP + fake agent", () => {
   }, 240_000);
 
   it("supports exclusive multiple ends and rejects two active ends", async () => {
-    const ws = await makeRunWorkspaceRepo("relay-p4-ends-");
+    const ws = await makeRunWorkspaceRepo("devchestra-p4-ends-");
     await withServer(
       {
-        dataDir: tempRoot("relay-p4-ends-data-").dir,
+        dataDir: tempRoot("devchestra-p4-ends-data-").dir,
         projectRoot: ws.root,
         fakeScript: FAKE_SCRIPT,
         env: {
@@ -326,7 +326,7 @@ describe("P4 routing engine over real HTTP + fake agent", () => {
         },
       },
       async (server) => {
-        const http = new RelayHttp(server.baseUrl);
+        const http = new DevChestraHttp(server.baseUrl);
         await http.health();
         await http.bootstrap(server.meta.token);
 
@@ -357,10 +357,10 @@ describe("P4 routing engine over real HTTP + fake agent", () => {
   }, 240_000);
 
   it("fails a join-first conflict instead of choosing one active input", async () => {
-    const ws = await makeRunWorkspaceRepo("relay-p4-conflict-");
+    const ws = await makeRunWorkspaceRepo("devchestra-p4-conflict-");
     await withServer(
       {
-        dataDir: tempRoot("relay-p4-conflict-data-").dir,
+        dataDir: tempRoot("devchestra-p4-conflict-data-").dir,
         projectRoot: ws.root,
         fakeScript: FAKE_SCRIPT,
         env: {
@@ -370,7 +370,7 @@ describe("P4 routing engine over real HTTP + fake agent", () => {
         },
       },
       async (server) => {
-        const http = new RelayHttp(server.baseUrl);
+        const http = new DevChestraHttp(server.baseUrl);
         await http.health();
         await http.bootstrap(server.meta.token);
         const managed = await manage(http, ws.root, "p4-join-conflict");
@@ -388,10 +388,10 @@ describe("P4 routing engine over real HTTP + fake agent", () => {
   }, 240_000);
 
   it("fails the gate and run on a non-boolean or broken predicate without falling through", async () => {
-    const ws = await makeRunWorkspaceRepo("relay-p4-badgate-");
+    const ws = await makeRunWorkspaceRepo("devchestra-p4-badgate-");
     await withServer(
       {
-        dataDir: tempRoot("relay-p4-badgate-data-").dir,
+        dataDir: tempRoot("devchestra-p4-badgate-data-").dir,
         projectRoot: ws.root,
         fakeScript: FAKE_SCRIPT,
         env: {
@@ -401,7 +401,7 @@ describe("P4 routing engine over real HTTP + fake agent", () => {
         },
       },
       async (server) => {
-        const http = new RelayHttp(server.baseUrl);
+        const http = new DevChestraHttp(server.baseUrl);
         await http.health();
         await http.bootstrap(server.meta.token);
         for (const name of ["p4-gate-invalid-type", "p4-gate-invalid-expr"]) {
@@ -436,10 +436,10 @@ describe("P4 routing engine over real HTTP + fake agent", () => {
   }, 240_000);
 
   it("uses one chosen run workspace for every active branch", async () => {
-    const ws = await makeRunWorkspaceRepo("relay-p4-ws-");
+    const ws = await makeRunWorkspaceRepo("devchestra-p4-ws-");
     await withServer(
       {
-        dataDir: tempRoot("relay-p4-ws-data-").dir,
+        dataDir: tempRoot("devchestra-p4-ws-data-").dir,
         projectRoot: ws.root,
         fakeScript: FAKE_SCRIPT,
         env: {
@@ -449,7 +449,7 @@ describe("P4 routing engine over real HTTP + fake agent", () => {
         },
       },
       async (server) => {
-        const http = new RelayHttp(server.baseUrl);
+        const http = new DevChestraHttp(server.baseUrl);
         await http.health();
         await http.bootstrap(server.meta.token);
         const managed = await manage(http, ws.root, "p4-sibling-scope");
@@ -481,8 +481,8 @@ function raiseCleanup(failure: unknown, failures: unknown[], label: string): voi
 
 describe("P4 routing crash and restart", () => {
   it("retains the chosen branch and never spawns the dead branch after restart", async () => {
-    const ws = await makeRunWorkspaceRepo("relay-p4-crash-");
-    const dataDir = tempRoot("relay-p4-crash-data-").dir;
+    const ws = await makeRunWorkspaceRepo("devchestra-p4-crash-");
+    const dataDir = tempRoot("devchestra-p4-crash-data-").dir;
     const env = {
       HOME: ws.home,
       GIT_CONFIG_GLOBAL: join(ws.home, "gitconfig"),
@@ -502,7 +502,7 @@ describe("P4 routing crash and restart", () => {
         fakeScript: SLOW_SCRIPT,
         env,
       });
-      const http = new RelayHttp(first.baseUrl);
+      const http = new DevChestraHttp(first.baseUrl);
       await http.health();
       await http.bootstrap(first.meta.token);
       managed = await manage(http, ws.root, "p4-gate-slow");
@@ -535,7 +535,7 @@ describe("P4 routing crash and restart", () => {
         fakeScript: SLOW_SCRIPT,
         env,
       });
-      const http = new RelayHttp(second.baseUrl);
+      const http = new DevChestraHttp(second.baseUrl);
       await http.health();
       await http.bootstrap(second.meta.token);
       const resumed = await http.api("POST", `/api/runs/${encodeURIComponent(runId)}/resume`, {

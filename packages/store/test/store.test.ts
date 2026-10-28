@@ -5,15 +5,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  DevChestraError,
   type ExecutionIdentity,
   FakeClock,
   FakeIdGen,
   type NodeKind,
   type Path,
   project,
-  RelayError,
   type RunId,
-} from "@relay/core";
+} from "@devchestra/core";
 import Database from "better-sqlite3";
 import { afterEach, describe, expect, it } from "vitest";
 import { nodeSqliteDriver } from "../src/driver-node-sqlite.js";
@@ -37,8 +37,8 @@ afterEach(() => {
 });
 
 function harness(options: { validationLimit?: number } = {}): Harness {
-  const dir = mkdtempSync(join(tmpdir(), "relay-store-"));
-  const file = join(dir, "relay.db");
+  const dir = mkdtempSync(join(tmpdir(), "devchestra-store-"));
+  const file = join(dir, "devchestra.db");
   const clock = new FakeClock(1_700_000_000_000);
   const store = openStore({ file, clock, idGen: new FakeIdGen("t") });
   store.projects.ensure({ id: "proj", name: "Project", path: dir, kind: "folder" });
@@ -110,15 +110,15 @@ function h_submit(identity: ExecutionIdentity, callId: string, value: unknown) {
   };
 }
 
-function expectRelayError(fn: () => unknown, code: string): void {
+function expectDevChestraError(fn: () => unknown, code: string): void {
   try {
     fn();
   } catch (error) {
-    expect(error).toBeInstanceOf(RelayError);
-    expect((error as RelayError).code).toBe(code);
+    expect(error).toBeInstanceOf(DevChestraError);
+    expect((error as DevChestraError).code).toBe(code);
     return;
   }
-  throw new Error(`Expected RelayError ${code}`);
+  throw new Error(`Expected DevChestraError ${code}`);
 }
 
 describe("store durability", () => {
@@ -242,9 +242,9 @@ describe("store durability", () => {
   });
 
   it("runs on the node:sqlite fallback driver", () => {
-    const dir = mkdtempSync(join(tmpdir(), "relay-store-node-"));
+    const dir = mkdtempSync(join(tmpdir(), "devchestra-store-node-"));
     cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
-    const file = join(dir, "relay.db");
+    const file = join(dir, "devchestra.db");
     const store = openStore({ file, driver: nodeSqliteDriver, clock: new FakeClock(1) });
     store.projects.ensure({ id: "p", name: "P", path: dir, kind: "folder" });
     const run = store.runs.create({
@@ -288,9 +288,9 @@ describe("store durability", () => {
 
 describe("migrations", () => {
   it("upgrades a real P0 database through 0003 without rewriting events", () => {
-    const dir = mkdtempSync(join(tmpdir(), "relay-store-p0-"));
+    const dir = mkdtempSync(join(tmpdir(), "devchestra-store-p0-"));
     cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
-    const file = join(dir, "relay.db");
+    const file = join(dir, "devchestra.db");
     const p0Sql = readFileSync(
       fileURLToPath(new URL("../migrations/0001_init.sql", import.meta.url)),
       "utf8",
@@ -379,22 +379,22 @@ describe("invocation fencing", () => {
 
     const submission = valid(identity, "c1", 1);
     // Future generation must not be treated as merely "not stale".
-    expectRelayError(
+    expectDevChestraError(
       () => h.store.submissions.submit({ ...submission, identity: { ...identity, generation: 3 } }),
       "E_CONFLICT",
     );
     // Older generation.
-    expectRelayError(
+    expectDevChestraError(
       () => h.store.submissions.submit({ ...submission, identity: { ...identity, generation: 1 } }),
       "E_CONFLICT",
     );
     // Wrong attempt.
-    expectRelayError(
+    expectDevChestraError(
       () => h.store.submissions.submit({ ...submission, identity: { ...identity, attempt: 2 } }),
       "E_CONFLICT",
     );
     // Wrong path.
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.submissions.submit({
           ...submission,
@@ -410,7 +410,7 @@ describe("secret guard", () => {
     const h = harness();
     const sentinel = "sentinel-SNAPSHOT-24680";
     h.store.security.registerSecret(sentinel, "exec-token");
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.runs.create({
           projectId: "proj",
@@ -531,7 +531,7 @@ describe("submissions", () => {
     expect(replay.eventId).toBe(first.eventId);
     expect(h.store.events.list(h.runId, { types: ["node.output.validated"] })).toHaveLength(1);
 
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.submissions.submit({
           ...input,
@@ -576,19 +576,22 @@ describe("submissions", () => {
     expect(h.store.submissions.validationLeft(identity)).toBe(1);
     expect(h.store.events.list(h.runId, { types: ["node.output.rejected"] })).toHaveLength(1);
 
-    expectRelayError(() => h.store.submissions.submit(invalid("bad-wrong", 9)), "E_CONFLICT");
+    expectDevChestraError(() => h.store.submissions.submit(invalid("bad-wrong", 9)), "E_CONFLICT");
     const second = h.store.submissions.submit(invalid("bad-2"));
     if (second.kind !== "rejected") throw new Error("unreachable");
     expect(second.validationAttemptsLeft).toBe(0);
 
-    expectRelayError(() => h.store.submissions.submit(invalid("bad-3")), "E_ATTEMPTS_EXHAUSTED");
+    expectDevChestraError(
+      () => h.store.submissions.submit(invalid("bad-3")),
+      "E_ATTEMPTS_EXHAUSTED",
+    );
 
     // A committed receipt replays after exhaustion without consuming more budget.
     const exhaustedReplay = h.store.submissions.submit(invalid("bad-1"));
     expect(exhaustedReplay.kind).toBe("rejected");
     expect(h.store.submissions.validationLeft(identity)).toBe(0);
 
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.submissions.submit({
           ...invalid("bad-2"),
@@ -614,15 +617,15 @@ describe("secret guard", () => {
     const unregister = h.store.security.registerSecret(sentinel, "exec-token");
     expect(h.store.security.scan({ nested: [`x ${sentinel}`] })?.source).toBe("registered");
 
-    expectRelayError(
+    expectDevChestraError(
       () => h.store.submissions.submit(valid(identity, "leak-1", { note: sentinel })),
       "E_VALIDATION",
     );
-    expectRelayError(
+    expectDevChestraError(
       () => h.store.submissions.submit(valid(identity, "leak-2", { note: "sk-abcdefgh12345678" })),
       "E_VALIDATION",
     );
-    expectRelayError(
+    expectDevChestraError(
       () => h.store.submissions.submit(valid(identity, "leak-3", sentinel)),
       "E_VALIDATION",
     );
@@ -641,7 +644,7 @@ describe("secret guard", () => {
     const sentinel = "sentinel-EVENT-987654321";
     h.store.security.registerSecret(sentinel, "exec-token");
 
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.submissions.submit({
           ...valid(identity, sentinel, 1),
@@ -685,9 +688,9 @@ describe("acceptance is not success", () => {
     const accepted = h.store.submissions.submit(valid(identity, "ok", 7));
     expect(accepted.kind).toBe("accepted");
 
-    expectRelayError(() => h.store.executions.complete({ identity }), "E_CONFLICT");
+    expectDevChestraError(() => h.store.executions.complete({ identity }), "E_CONFLICT");
     h.store.executions.recordProcessStopped({ identity, reason: "exited", exitCode: 0 });
-    expectRelayError(() => h.store.executions.complete({ identity }), "E_CONFLICT");
+    expectDevChestraError(() => h.store.executions.complete({ identity }), "E_CONFLICT");
     expect(h.store.view.get(h.runId).executions[h.path]?.status).toBe("validating");
 
     h.store.executions.recordWorkspaceFinalized({ identity, dir: "/tmp/ws", commitSha: "abc" });
@@ -701,7 +704,7 @@ describe("acceptance is not success", () => {
     expect(h.store.events.list(h.runId, { types: ["node.process.stopped"] })).toHaveLength(1);
     expect(h.store.events.list(h.runId, { types: ["node.workspace.finalized"] })).toHaveLength(1);
 
-    expectRelayError(
+    expectDevChestraError(
       () => h.store.executions.recordProcessStopped({ identity, reason: "killed", exitCode: 137 }),
       "E_CONFLICT",
     );
@@ -720,9 +723,9 @@ describe("acceptance is not success", () => {
     expect(before.executions[h.path]?.acceptedResult?.outputId).toBe(accepted.output.id);
     expect(before.status).not.toBe("succeeded");
 
-    expectRelayError(() => reopened.executions.complete({ identity }), "E_CONFLICT");
+    expectDevChestraError(() => reopened.executions.complete({ identity }), "E_CONFLICT");
     // No re-submit and no new generation: finish the original accepted attempt.
-    expectRelayError(
+    expectDevChestraError(
       () => reopened.executions.beginInvocation({ runId: h.runId, path: h.path, attempt: 1 }),
       "E_CONFLICT",
     );
@@ -748,7 +751,7 @@ describe("acceptance is not success", () => {
     h.store.recovery.recover(h.runId);
     expect(h.store.view.get(h.runId).executions[h.path]?.status).toBe("interrupted");
 
-    expectRelayError(
+    expectDevChestraError(
       () => h.store.executions.beginInvocation({ runId: h.runId, path: h.path, attempt: 1 }),
       "E_CONFLICT",
     );
@@ -855,11 +858,11 @@ describe("terminal run fencing", () => {
 
     const readOnly = h.store.submissions.submit(valid(identity, "new", 6));
     expect(readOnly.kind).toBe("already_accepted");
-    expectRelayError(
+    expectDevChestraError(
       () => h.store.executions.beginInvocation({ runId: h.runId, path: h.path, attempt: 1 }),
       "E_CONFLICT",
     );
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.executions.recordProcessStopped({
           identity,
@@ -868,11 +871,11 @@ describe("terminal run fencing", () => {
         }),
       "E_CONFLICT",
     );
-    expectRelayError(
+    expectDevChestraError(
       () => h.store.executions.recordWorkspaceFinalized({ identity, dir: "/tmp/ws" }),
       "E_CONFLICT",
     );
-    expectRelayError(() => h.store.executions.complete({ identity }), "E_CONFLICT");
+    expectDevChestraError(() => h.store.executions.complete({ identity }), "E_CONFLICT");
 
     const before = h.store.events.list(h.runId).length;
     const report = h.store.recovery.recover(h.runId);
@@ -985,7 +988,7 @@ describe("P1 read ports and lifecycle", () => {
     (run.snapshot as { nodes: unknown[] }).nodes.push({ hacked: true });
     expect(h.store.runs.get(h.runId)?.snapshot).toEqual({ nodes: [] });
 
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.runs.create({
           projectId: "proj",
@@ -997,7 +1000,7 @@ describe("P1 read ports and lifecycle", () => {
         }),
       "E_VALIDATION",
     );
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.runs.create({
           projectId: "proj",
@@ -1061,7 +1064,7 @@ describe("P1 read ports and lifecycle", () => {
       cwd: "/tmp/ws-a",
     });
     expect(h.store.events.list(h.runId, { types: ["node.process.spawned"] })).toHaveLength(1);
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.executions.recordSpawned({
           identity,
@@ -1072,7 +1075,7 @@ describe("P1 read ports and lifecycle", () => {
         }),
       "E_CONFLICT",
     );
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.executions.recordSpawned({
           identity: { ...identity, generation: identity.generation - 1 },
@@ -1086,7 +1089,7 @@ describe("P1 read ports and lifecycle", () => {
 
     const shellPath = addExecution(h, "shell", "shell");
     const shellIdentity = beginAt(h, shellPath);
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.executions.recordSpawned({
           identity: shellIdentity,
@@ -1097,7 +1100,7 @@ describe("P1 read ports and lifecycle", () => {
         }),
       "E_VALIDATION",
     );
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.executions.recordSpawned({
           identity: shellIdentity,
@@ -1153,7 +1156,7 @@ describe("P1 read ports and lifecycle", () => {
     expect(replay.duplicate).toBe(true);
     expect(replay.eventId).toBe(first.eventId);
     expect(h.store.events.list(h.runId, { types: ["node.output.recorded"] })).toHaveLength(1);
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.outputs.recordDeterministic({
           identity,
@@ -1162,9 +1165,9 @@ describe("P1 read ports and lifecycle", () => {
       "E_CONFLICT",
     );
 
-    expectRelayError(() => h.store.executions.complete({ identity }), "E_CONFLICT");
+    expectDevChestraError(() => h.store.executions.complete({ identity }), "E_CONFLICT");
     h.store.executions.recordProcessStopped({ identity, reason: "exited", exitCode: 0 });
-    expectRelayError(() => h.store.executions.complete({ identity }), "E_CONFLICT");
+    expectDevChestraError(() => h.store.executions.complete({ identity }), "E_CONFLICT");
     h.store.executions.recordWorkspaceFinalized({ identity, dir: "/tmp/ws" });
     expect(h.store.executions.complete({ identity }).status).toBe("succeeded");
 
@@ -1189,7 +1192,7 @@ describe("P1 read ports and lifecycle", () => {
     expect(h.store.view.get(h.runId).status).toBe("paused");
     expect(h.store.view.get(h.runId).pauseReason).toBe("uncertain_side_effect");
 
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.executions.beginInvocation({
           runId: h.runId,
@@ -1198,7 +1201,7 @@ describe("P1 read ports and lifecycle", () => {
         }),
       "E_CONFLICT",
     );
-    expectRelayError(
+    expectDevChestraError(
       () =>
         h.store.executions.beginInvocation({
           runId: h.runId,

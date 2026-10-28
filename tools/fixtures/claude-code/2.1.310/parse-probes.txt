@@ -14,12 +14,12 @@ Error: Invalid MCP configuration:
 MCP config file not found: /home/pranavpp/Dev Works/DevChestra/{invalid-json
 exit=1
 
-## claude -p --mcp-config '{invalid-json' --append-system-prompt-file /tmp/relay-spike/empty.md
+## claude -p --mcp-config '{invalid-json' --append-system-prompt-file /tmp/devchestra-spike/empty.md
 Error: Invalid MCP configuration:
 MCP config file not found: /home/pranavpp/Dev Works/DevChestra/{invalid-json
 exit=1
 
-## claude -p --mcp-config '{invalid-json' --system-prompt-file /tmp/relay-spike/empty.md
+## claude -p --mcp-config '{invalid-json' --system-prompt-file /tmp/devchestra-spike/empty.md
 Error: Invalid MCP configuration:
 MCP config file not found: /home/pranavpp/Dev Works/DevChestra/{invalid-json
 exit=1

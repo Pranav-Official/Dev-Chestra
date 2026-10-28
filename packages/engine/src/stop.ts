@@ -1,6 +1,6 @@
-import { RelayError } from "@relay/core";
+import { DevChestraError } from "@devchestra/core";
 
-export class ProcessGroupAliveError extends RelayError {
+export class ProcessGroupAliveError extends DevChestraError {
   constructor(message: string, details?: unknown) {
     super("E_WORKSPACE", message, details === undefined ? {} : { details });
   }
@@ -10,7 +10,7 @@ export class StopSignal extends Error {
   readonly kind: "user" | "shutdown";
 
   constructor(kind: "user" | "shutdown") {
-    super(kind === "user" ? "Run cancelled by user" : "Relay is shutting down");
+    super(kind === "user" ? "Run cancelled by user" : "DevChestra is shutting down");
     this.name = "StopSignal";
     this.kind = kind;
   }

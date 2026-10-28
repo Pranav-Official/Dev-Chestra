@@ -1,5 +1,5 @@
-import type { JsonValue } from "@relay/core";
-import { RelayError } from "@relay/core";
+import type { JsonValue } from "@devchestra/core";
+import { DevChestraError } from "@devchestra/core";
 import type { DecisionPreset } from "./presets.js";
 import type {
   DecisionOutput,
@@ -40,7 +40,7 @@ export function resolveBodyModel(preset: DecisionPreset, override?: string): str
     return preset.bodyModel;
   }
   if (!isValidModelOverride(override)) {
-    throw new RelayError(
+    throw new DevChestraError(
       "E_VALIDATION",
       `Invalid model override ${JSON.stringify(override)}: must match ${String(MODEL_OVERRIDE_PATTERN)}.`,
     );
@@ -56,7 +56,7 @@ function stateSizeBytes(state: string | JsonValue): number {
   try {
     json = JSON.stringify(state) ?? "null";
   } catch {
-    throw new RelayError("E_VALIDATION", "Decision state is not JSON-serializable.");
+    throw new DevChestraError("E_VALIDATION", "Decision state is not JSON-serializable.");
   }
   return Buffer.byteLength(json, "utf8");
 }
@@ -65,7 +65,7 @@ function checkLocalLimits(question: DecisionQuestion, state: string | JsonValue)
   if (question.kind === "choice") {
     const n = question.options.length;
     if (n < MIN_CHOICE_OPTIONS || n > MAX_CHOICE_OPTIONS) {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_VALIDATION",
         `Decision choice options must be ${MIN_CHOICE_OPTIONS}..${MAX_CHOICE_OPTIONS}, got ${n}.`,
       );
@@ -74,7 +74,7 @@ function checkLocalLimits(question: DecisionQuestion, state: string | JsonValue)
   if (question.kind === "score") {
     const n = question.levels.length;
     if (n < MIN_SCORE_LEVELS || n > MAX_SCORE_LEVELS) {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_VALIDATION",
         `Decision score levels must be ${MIN_SCORE_LEVELS}..${MAX_SCORE_LEVELS}, got ${n}.`,
       );
@@ -82,7 +82,7 @@ function checkLocalLimits(question: DecisionQuestion, state: string | JsonValue)
   }
   const size = stateSizeBytes(state);
   if (size > MAX_STATE_BYTES) {
-    throw new RelayError(
+    throw new DevChestraError(
       "E_VALIDATION",
       `Decision state is ${size} bytes, above the ${MAX_STATE_BYTES} byte cap.`,
     );
@@ -337,7 +337,7 @@ export function parseDecisionPayload(args: ParseDecisionPayloadArgs): ParsedDeci
   const top = isRecord(args.payload) ? args.payload : {};
   const envelopeMessage = readEnvelopeError(top);
   if (envelopeMessage !== undefined) {
-    throw new RelayError(
+    throw new DevChestraError(
       "E_PROVIDER",
       `Decision provider failed: ${truncateReason(envelopeMessage)}`,
       {

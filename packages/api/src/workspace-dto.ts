@@ -1,4 +1,4 @@
-import type { RunWorkspaceSelection } from "@relay/core";
+import type { RunWorkspaceSelection } from "@devchestra/core";
 import { z } from "./zod.js";
 
 /**
@@ -8,7 +8,7 @@ import { z } from "./zod.js";
  * project (validated server-side), and `new-worktree` is created by the engine
  * under its data directory. Browser callers never send a project root.
  */
-export type { RunWorkspaceSelection } from "@relay/core";
+export type { RunWorkspaceSelection } from "@devchestra/core";
 
 const worktreePathSchema = z
   .string()

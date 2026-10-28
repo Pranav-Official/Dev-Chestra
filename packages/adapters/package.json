@@ -1,7 +1,7 @@
 {
-  "name": "@relay/adapters",
+  "name": "@devchestra/adapters",
   "version": "0.1.0",
-  "description": "Relay headless CLI adapters and POSIX process runner",
+  "description": "DevChestra headless CLI adapters and POSIX process runner",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -24,8 +24,8 @@
     "@anthropic-ai/claude-agent-sdk": "0.3.296",
     "@anthropic-ai/sdk": "0.133.0",
     "@modelcontextprotocol/sdk": "1.32.1",
-    "@relay/core": "workspace:*",
-    "@relay/schema": "workspace:*",
+    "@devchestra/core": "workspace:*",
+    "@devchestra/schema": "workspace:*",
     "zod": "4.6.7"
   },
   "devDependencies": {

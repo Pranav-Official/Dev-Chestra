@@ -233,7 +233,7 @@ export function HomePage() {
             <div className="card">
               <EmptyState
                 title="No runs yet"
-                message="Run a workflow with the Relay CLI; it will appear here and update live."
+                message="Run a workflow with the DevChestra CLI; it will appear here and update live."
               />
             </div>
           ) : (

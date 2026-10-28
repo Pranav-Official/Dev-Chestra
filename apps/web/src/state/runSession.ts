@@ -1,4 +1,4 @@
-import { type EventEnvelope, emptyRunView, type RunView, reduce } from "@relay/core";
+import { type EventEnvelope, emptyRunView, type RunView, reduce } from "@devchestra/core";
 
 export const CHECKPOINT_INTERVAL = 50;
 

@@ -1,4 +1,4 @@
-import type { WorkflowFile } from "@relay/schema";
+import type { WorkflowFile } from "@devchestra/schema";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import {
   applyExternalChange,

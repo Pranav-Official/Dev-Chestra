@@ -1,4 +1,4 @@
-import { RelayError } from "@relay/core";
+import { DevChestraError } from "@devchestra/core";
 import { providerStatics } from "./provider-config.js";
 import type { BuildEnvOptions, CliId } from "./types.js";
 
@@ -47,12 +47,12 @@ const INJECTION = new Set([
 ]);
 
 function reject(name: string, why: string): never {
-  throw new RelayError("E_VALIDATION", `Environment variable ${name} is not allowed: ${why}`);
+  throw new DevChestraError("E_VALIDATION", `Environment variable ${name} is not allowed: ${why}`);
 }
 
 /**
  * Build a child environment from an explicit allowlist. Process env is never
- * copied wholesale. Declared non-reserved names pass through; RELAY_* only
+ * copied wholesale. Declared non-reserved names pass through; DEVCHESTRA_* only
  * comes from trusted `injected` values; loader/injection vars are refused.
  */
 export function buildChildEnv(cli: CliId, options: BuildEnvOptions = {}): Record<string, string> {
@@ -64,12 +64,13 @@ export function buildChildEnv(cli: CliId, options: BuildEnvOptions = {}): Record
   };
   const declared = (name: string): void => {
     if (INJECTION.has(name)) reject(name, "loader/injection variables are blocked");
-    if (name.startsWith("RELAY_")) reject(name, "RELAY_* must be supplied through injected env");
+    if (name.startsWith("DEVCHESTRA_"))
+      reject(name, "DEVCHESTRA_* must be supplied through injected env");
   };
 
   const identity = providerStatics[cli]?.contextIdentity;
   if (identity === undefined) {
-    throw new RelayError("E_VALIDATION", `Unknown CLI provider '${String(cli)}'`);
+    throw new DevChestraError("E_VALIDATION", `Unknown CLI provider '${String(cli)}'`);
   }
   for (const name of ALWAYS) copy(name);
   for (const name of Object.keys(base)) if (name.startsWith("LC_")) copy(name);
@@ -96,7 +97,7 @@ export function buildChildEnv(cli: CliId, options: BuildEnvOptions = {}): Record
   }
 
   for (const name of Object.keys(env)) {
-    if (name.startsWith("RELAY_") && !(name in (options.injected ?? {}))) delete env[name];
+    if (name.startsWith("DEVCHESTRA_") && !(name in (options.injected ?? {}))) delete env[name];
   }
   env.TERM = "dumb";
   env.CI = "1";

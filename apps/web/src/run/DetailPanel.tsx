@@ -1,4 +1,4 @@
-import type { DecisionRef, EventEnvelope, RunView } from "@relay/core";
+import type { DecisionRef, EventEnvelope, RunView } from "@devchestra/core";
 import { Info, LockKeyhole } from "lucide-react";
 import { classifyError } from "../api/client.js";
 import { useExecutionDetail } from "../api/hooks.js";

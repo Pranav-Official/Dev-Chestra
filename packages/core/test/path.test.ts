@@ -1,6 +1,7 @@
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
+  DevChestraError,
   formatPath,
   fsSlug,
   isUnder,
@@ -8,7 +9,6 @@ import {
   type Path,
   parent,
   parsePath,
-  RelayError,
   type Segment,
 } from "../src/index.js";
 
@@ -58,7 +58,7 @@ describe("execution path grammar", () => {
     for (const value of invalid) {
       const result = parsePath(value);
       expect(result.ok, value).toBe(false);
-      if (!result.ok) expect(result.error).toBeInstanceOf(RelayError);
+      if (!result.ok) expect(result.error).toBeInstanceOf(DevChestraError);
     }
   });
 
@@ -71,10 +71,12 @@ describe("execution path grammar", () => {
   });
 
   it("rejects invalid segments when formatting", () => {
-    expect(() => formatPath([{ node: "Bad" as NodeId }])).toThrow(RelayError);
-    expect(() => formatPath([{ node: "a" as NodeId, index: -1 }])).toThrow(RelayError);
-    expect(() => formatPath([{ node: "a" as NodeId, round: 0 }])).toThrow(RelayError);
-    expect(() => formatPath([{ node: "a" as NodeId, index: 1, round: 1 }])).toThrow(RelayError);
+    expect(() => formatPath([{ node: "Bad" as NodeId }])).toThrow(DevChestraError);
+    expect(() => formatPath([{ node: "a" as NodeId, index: -1 }])).toThrow(DevChestraError);
+    expect(() => formatPath([{ node: "a" as NodeId, round: 0 }])).toThrow(DevChestraError);
+    expect(() => formatPath([{ node: "a" as NodeId, index: 1, round: 1 }])).toThrow(
+      DevChestraError,
+    );
   });
 
   it("compares prefixes segment-wise, never by raw string prefix", () => {

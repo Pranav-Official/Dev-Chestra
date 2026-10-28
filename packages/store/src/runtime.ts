@@ -1,4 +1,4 @@
-import type { Clock, EventEnvelope, IdGen } from "@relay/core";
+import type { Clock, EventEnvelope, IdGen } from "@devchestra/core";
 import type { EventBus } from "./bus.js";
 import type { SqliteDb } from "./driver.js";
 import type { SecretRegistry } from "./secrets.js";

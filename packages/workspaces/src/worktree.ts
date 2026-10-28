@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { err, ok, RelayError, type Result } from "@relay/core";
+import { DevChestraError, err, ok, type Result } from "@devchestra/core";
 import { acquireScratch, finalizeScratch, releaseScratch } from "./scratch.js";
 import {
   parseWorkspacePath,
@@ -36,7 +36,7 @@ import {
   releaseLock,
   removeRecord,
   sameRecord,
-  toRelayError,
+  toDevChestraError,
   validateWorktree,
   WORKTREE_NAME,
   type WorktreeIntent,
@@ -66,7 +66,7 @@ function prepareProjectRoot(raw: string): string {
 function intentRecord(repo: ProjectRepo, dir: string, base: string): WorktreeIntent {
   return {
     version: RECORD_VERSION,
-    kind: "relay.worktree.intent",
+    kind: "devchestra.worktree.intent",
     projectRoot: repo.root,
     projectRootId: repo.rootId,
     commonDir: repo.commonDir,
@@ -79,7 +79,7 @@ function intentRecord(repo: ProjectRepo, dir: string, base: string): WorktreeInt
 function bindingRecord(repo: ProjectRepo, dir: string, base: string): Binding {
   return {
     version: RECORD_VERSION,
-    kind: "relay.worktree",
+    kind: "devchestra.worktree",
     projectRoot: repo.root,
     projectRootId: repo.rootId,
     commonDir: repo.commonDir,
@@ -92,7 +92,7 @@ function bindingRecord(repo: ProjectRepo, dir: string, base: string): Binding {
 function bindingFromIntent(intent: WorktreeIntent): Binding {
   return {
     version: RECORD_VERSION,
-    kind: "relay.worktree",
+    kind: "devchestra.worktree",
     projectRoot: intent.projectRoot,
     projectRootId: intent.projectRootId,
     commonDir: intent.commonDir,
@@ -139,7 +139,7 @@ function inspectPinned(
 function existingDataDir(raw: string): string {
   const resolved = path.resolve(requireAbsolutePath(raw, "dataDir"));
   if (resolved === path.resolve("/")) {
-    throw new RelayError("E_VALIDATION", "dataDir must not be the filesystem root");
+    throw new DevChestraError("E_VALIDATION", "dataDir must not be the filesystem root");
   }
   let real: string;
   try {
@@ -279,7 +279,7 @@ function acquireUnderLock(
 
 export async function acquireWorktree(
   request: AcquireScratchRequest,
-): Promise<Result<ScratchWorkspace, RelayError>> {
+): Promise<Result<ScratchWorkspace, DevChestraError>> {
   let inner: ScratchWorkspace | undefined;
   try {
     if (request.mode !== undefined && request.mode !== "worktree") {
@@ -353,17 +353,17 @@ export async function acquireWorktree(
     return ok(workspace);
   } catch (e) {
     if (inner !== undefined) releaseScratch(inner);
-    return err(toRelayError(e));
+    return err(toDevChestraError(e));
   }
 }
 
 export async function finalizeWorktree(
   workspace: ScratchWorkspace,
   request: FinalizeScratchRequest,
-): Promise<Result<FinalizeScratchInfo, RelayError>> {
+): Promise<Result<FinalizeScratchInfo, DevChestraError>> {
   const record = issued.get(workspace);
   if (record === undefined) {
-    return err(ferr("Worktree was not issued by Relay; reacquire", { step: "unissued" }));
+    return err(ferr("Worktree was not issued by DevChestra; reacquire", { step: "unissued" }));
   }
   try {
     const binding = readBinding(record.bindingFile);
@@ -381,7 +381,7 @@ export async function finalizeWorktree(
     const result = await finalizeScratch(record.inner, request);
     return result.ok ? ok({ ...result.value, dir: record.dir }) : result;
   } catch (e) {
-    return err(toRelayError(e));
+    return err(toDevChestraError(e));
   }
 }
 

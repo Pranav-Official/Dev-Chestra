@@ -2,9 +2,9 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { RunId } from "@relay/core";
-import { ok } from "@relay/core";
-import type { Engine, StartRunInput } from "@relay/engine";
+import type { RunId } from "@devchestra/core";
+import { ok } from "@devchestra/core";
+import type { Engine, StartRunInput } from "@devchestra/engine";
 import { afterEach, describe, expect, it } from "vitest";
 import type { CliOptions } from "../src/args.js";
 import { readServerMetadata, serverMetadataPath } from "../src/server-metadata.js";
@@ -16,7 +16,7 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0).reverse()) cleanup();
 });
 
-function tempDir(prefix = "relay-cli-prop-"): string {
+function tempDir(prefix = "devchestra-cli-prop-"): string {
   const dir = mkdtempSync(join(tmpdir(), prefix));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   return dir;
@@ -28,10 +28,10 @@ function git(cwd: string, args: string[]): void {
     stdio: "ignore",
     env: {
       ...process.env,
-      GIT_AUTHOR_NAME: "Relay Test",
-      GIT_AUTHOR_EMAIL: "relay@example.invalid",
-      GIT_COMMITTER_NAME: "Relay Test",
-      GIT_COMMITTER_EMAIL: "relay@example.invalid",
+      GIT_AUTHOR_NAME: "DevChestra Test",
+      GIT_AUTHOR_EMAIL: "devchestra@example.invalid",
+      GIT_COMMITTER_NAME: "DevChestra Test",
+      GIT_COMMITTER_EMAIL: "devchestra@example.invalid",
     },
   });
 }
@@ -99,10 +99,10 @@ async function waitFor(
 describe("CLI run workspace propagation", () => {
   it("passes the selection to the engine and fingerprints it", async () => {
     const dataDir = tempDir();
-    const projectDir = tempDir("relay-cli-prop-repo-");
-    const webRoot = tempDir("relay-cli-prop-web-");
+    const projectDir = tempDir("devchestra-cli-prop-repo-");
+    const webRoot = tempDir("devchestra-cli-prop-web-");
     const scriptFile = join(dataDir, "fake.json");
-    writeFileSync(join(webRoot, "index.html"), "<!doctype html><title>relay</title>");
+    writeFileSync(join(webRoot, "index.html"), "<!doctype html><title>devchestra</title>");
     writeFileSync(scriptFile, "[]");
     writeFileSync(
       join(projectDir, "flow.json"),
@@ -137,8 +137,8 @@ describe("CLI run workspace propagation", () => {
     if (read.status !== "valid") throw new Error("metadata missing");
     const base = `http://127.0.0.1:${read.value.port}`;
     const auth = {
-      "x-relay-token": read.value.token,
-      "x-relay-csrf": "1",
+      "x-devchestra-token": read.value.token,
+      "x-devchestra-csrf": "1",
       "content-type": "application/json",
     };
     const registered = await fetch(`${base}/api/projects`, {
@@ -180,9 +180,9 @@ describe("CLI run workspace propagation", () => {
 
   it("rejects reusing an idempotency key with a different workspace", async () => {
     const dataDir = tempDir();
-    const projectDir = tempDir("relay-cli-prop-repo-");
-    const webRoot = tempDir("relay-cli-prop-web-");
-    writeFileSync(join(webRoot, "index.html"), "<!doctype html><title>relay</title>");
+    const projectDir = tempDir("devchestra-cli-prop-repo-");
+    const webRoot = tempDir("devchestra-cli-prop-web-");
+    writeFileSync(join(webRoot, "index.html"), "<!doctype html><title>devchestra</title>");
     writeFileSync(join(dataDir, "unused.json"), "[]");
     writeFileSync(
       join(projectDir, "flow.json"),
@@ -215,8 +215,8 @@ describe("CLI run workspace propagation", () => {
     if (read.status !== "valid") throw new Error("metadata missing");
     const base = `http://127.0.0.1:${read.value.port}`;
     const auth = {
-      "x-relay-token": read.value.token,
-      "x-relay-csrf": "1",
+      "x-devchestra-token": read.value.token,
+      "x-devchestra-csrf": "1",
       "content-type": "application/json",
     };
     const registered = await fetch(`${base}/api/projects`, {

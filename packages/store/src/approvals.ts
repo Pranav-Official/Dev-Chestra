@@ -1,4 +1,4 @@
-import type { ExecutionIdentity, Path, RunId } from "@relay/core";
+import type { ExecutionIdentity, Path, RunId } from "@devchestra/core";
 import {
   hasRejectedEdge,
   stableRequestId,

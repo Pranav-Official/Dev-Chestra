@@ -1,9 +1,9 @@
-import type { NodeKind, Path } from "@relay/core";
-import { RelayError } from "@relay/core";
-import { evaluateGate, type GateBranch } from "@relay/schema";
-import type { RunRecord } from "@relay/store";
+import type { NodeKind, Path } from "@devchestra/core";
+import { DevChestraError } from "@devchestra/core";
+import { evaluateGate, type GateBranch } from "@devchestra/schema";
+import type { RunRecord } from "@devchestra/store";
 import type { ActiveRunState, EngineContext } from "./context.js";
-import { toRelayError } from "./context.js";
+import { toDevChestraError } from "./context.js";
 import type { PlanNode, WorkflowPlan } from "./graph-plan.js";
 import { buildScopeData } from "./scope.js";
 import { StopSignal } from "./stop.js";
@@ -33,7 +33,7 @@ export function skipNode(ctx: EngineContext, run: RunRecord, node: PlanNode): vo
       });
     if (execution.status === "skipped") return;
     if (execution.status !== "pending" && execution.status !== "ready") {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_INTERNAL",
         `Cannot skip '${node.id}' from status ${execution.status}`,
         { details: { nodeId: node.id } },
@@ -95,16 +95,16 @@ export async function executeGate(
     });
     if (decision.branch === null) {
       const error = decision.error;
-      throw new RelayError(
+      throw new DevChestraError(
         error?.code ?? "E_EXPR",
         error?.message ?? "Gate expression did not evaluate to a boolean",
       );
     }
   } catch (error) {
     if (error instanceof StopSignal) throw error;
-    const relay = toRelayError(error);
-    ctx.failExecution(run, node, identity, relay);
-    throw relay;
+    const devchestra = toDevChestraError(error);
+    ctx.failExecution(run, node, identity, devchestra);
+    throw devchestra;
   }
 }
 
@@ -140,7 +140,7 @@ export async function executeJoin(
   try {
     const mode = node.raw.mode === "all" ? "all" : "first";
     if (mode === "first" && routing.active.length > 1) {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_JOIN_CONFLICT",
         `Join '${node.id}' has ${routing.active.length} active inputs in mode 'first'`,
         { details: { nodeId: node.id, active: routing.active } },
@@ -158,7 +158,7 @@ export async function executeJoin(
             ]),
           );
     if (mode === "first" && output === null) {
-      throw new RelayError("E_INTERNAL", `Join '${node.id}' active input has no output`);
+      throw new DevChestraError("E_INTERNAL", `Join '${node.id}' active input has no output`);
     }
     validateJoinOutput(ctx, node, mode, output);
     if (active.abort.signal.aborted) throw interrupt(ctx, identity, active);
@@ -171,15 +171,15 @@ export async function executeJoin(
     });
   } catch (error) {
     if (error instanceof StopSignal) throw error;
-    const relay = toRelayError(error);
-    ctx.failExecution(run, node, identity, relay);
-    throw relay;
+    const devchestra = toDevChestraError(error);
+    ctx.failExecution(run, node, identity, devchestra);
+    throw devchestra;
   }
 }
 
 function interrupt(
   ctx: EngineContext,
-  identity: import("@relay/core").ExecutionIdentity,
+  identity: import("@devchestra/core").ExecutionIdentity,
   active: ActiveRunState,
 ): StopSignal {
   const kind = active.reason ?? "user";
@@ -193,7 +193,7 @@ function interrupt(
 function sourceForInput(plan: WorkflowPlan, joinId: string, input: string): string {
   const edge = (plan.incoming.get(joinId) ?? []).find((entry) => entry.targetInput === input);
   if (edge === undefined) {
-    throw new RelayError("E_INTERNAL", `Join '${joinId}' has no edge for input '${input}'`);
+    throw new DevChestraError("E_INTERNAL", `Join '${joinId}' has no edge for input '${input}'`);
   }
   return edge.from;
 }
@@ -208,7 +208,7 @@ function validateJoinOutput(
   if (schema === undefined) return;
   const validate = ctx.deps.validateOutput;
   if (validate === undefined) {
-    throw new RelayError(
+    throw new DevChestraError(
       "E_WORKFLOW_INVALID",
       `Join '${node.id}' declares an output schema but no output validator is configured`,
       { details: { nodeId: node.id } },
@@ -218,13 +218,17 @@ function validateJoinOutput(
   try {
     result = validate(schema as Record<string, unknown>, output);
   } catch (error) {
-    throw new RelayError("E_OUTPUT_INVALID", `Join '${node.id}' output validation failed`, {
+    throw new DevChestraError("E_OUTPUT_INVALID", `Join '${node.id}' output validation failed`, {
       details: { nodeId: node.id, mode, cause: String(error) },
     });
   }
   if (!result.ok) {
-    throw new RelayError("E_OUTPUT_INVALID", `Join '${node.id}' output does not match its schema`, {
-      details: { nodeId: node.id, mode, issues: result.issues },
-    });
+    throw new DevChestraError(
+      "E_OUTPUT_INVALID",
+      `Join '${node.id}' output does not match its schema`,
+      {
+        details: { nodeId: node.id, mode, issues: result.issues },
+      },
+    );
   }
 }

@@ -1,4 +1,4 @@
-import type { ExecStatus } from "@relay/core";
+import type { ExecStatus } from "@devchestra/core";
 import type { LinearChain, LinearNode } from "./sequence.js";
 
 export interface ChainStepState {

@@ -15,7 +15,7 @@ import { workspaceWorkflow } from "./support/run-workspace-harness.js";
 let repo: RunWorkspaceRepo;
 
 beforeAll(() => {
-  repo = makeRunWorkspaceRepo("relay-run-ws-cli-");
+  repo = makeRunWorkspaceRepo("devchestra-run-ws-cli-");
 });
 
 afterAll(() => {
@@ -101,7 +101,7 @@ function runMode(
       },
     ]),
   );
-  const dataDir = tempRoot(`relay-run-ws-cli-data-${dataName}-`).dir;
+  const dataDir = tempRoot(`devchestra-run-ws-cli-data-${dataName}-`).dir;
   const result = runCli([
     "run",
     workflowPath,

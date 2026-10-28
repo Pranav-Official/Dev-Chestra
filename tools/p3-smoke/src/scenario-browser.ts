@@ -9,7 +9,7 @@ import {
   registerProjectThroughUi,
 } from "./browser-ui.js";
 import { CLI, makeWorkspace, scriptPath, sleep } from "./fixtures.js";
-import { header, RelayHttp } from "./http.js";
+import { DevChestraHttp, header } from "./http.js";
 import {
   collectAgent,
   type OwnedServer,
@@ -81,7 +81,7 @@ async function collectAgents(server: OwnedServer, dataDir: string): Promise<Spaw
   try {
     for (const agent of collectSpawnedAgents(dataDir)) agents.set(agent.pid, agent);
   } catch {
-    const http = new RelayHttp(server.baseUrl);
+    const http = new DevChestraHttp(server.baseUrl);
     await http.bootstrap(server.meta.token);
     const runs = await http.api("GET", "/api/runs?limit=100");
     const items = (runs.body as { items?: Array<{ id?: string }> }).items ?? [];
@@ -102,7 +102,7 @@ async function collectAgents(server: OwnedServer, dataDir: string): Promise<Spaw
 }
 
 export async function runBrowserScenario(): Promise<BrowserEvidence> {
-  const ws = await makeWorkspace("relay-p3-browser-");
+  const ws = await makeWorkspace("devchestra-p3-browser-");
   const sentinel = startSentinel();
   let server: OwnedServer | null = null;
   let context: BrowserContext | null = null;
@@ -115,7 +115,7 @@ export async function runBrowserScenario(): Promise<BrowserEvidence> {
       cwd: ws.projectDir,
       fakeScript: scriptPath("slow"),
     });
-    const http = new RelayHttp(server.baseUrl);
+    const http = new DevChestraHttp(server.baseUrl);
     await http.health();
     const boot = await http.bootstrap(server.meta.token);
     assert.ok(!boot.html.includes(server.meta.token));
@@ -141,7 +141,7 @@ export async function runBrowserScenario(): Promise<BrowserEvidence> {
     assert.equal(authHeader.status, 200);
     const strictCsp = cspStrict(authHeader.headers);
     assert.ok(strictCsp, "app context must receive the strict CSP and hardening headers");
-    assert.ok(header(authHeader, "x-relay-api") !== null);
+    assert.ok(header(authHeader, "x-devchestra-api") !== null);
 
     const primary = await runPrimaryBrowserFlow(context, page, http, projectId);
 

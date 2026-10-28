@@ -13,8 +13,8 @@ import {
 
 describe("submit contract", () => {
   it("names the adapter tool reference and exact-once instruction", () => {
-    const contract = renderSubmitContract({ submitRef: "mcp__relay__submit_result" });
-    expect(contract).toContain("mcp__relay__submit_result");
+    const contract = renderSubmitContract({ submitRef: "mcp__devchestra__submit_result" });
+    expect(contract).toContain("mcp__devchestra__submit_result");
     expect(contract).toContain("exactly once");
     expect(contract).toContain("Do not write the result as plain text");
     expect(contract).toContain("fix the listed problems and call it again");
@@ -36,7 +36,7 @@ describe("submit contract", () => {
 describe("automatic agent input context", () => {
   it("renders a stable marker block with one-line canonical JSON", () => {
     const scope = {
-      start: { topic: "relay", zero: 0, flag: false, missing: null },
+      start: { topic: "devchestra", zero: 0, flag: false, missing: null },
       research: { repos: [{ name: "a", stars: 0 }, null, false] },
     };
     const context = renderAgentInputContext(scope);
@@ -47,19 +47,19 @@ describe("automatic agent input context", () => {
     expect(lines).toHaveLength(4);
     expect(JSON.parse(lines[2] as string)).toEqual({
       research: { repos: [{ name: "a", stars: 0 }, null, false] },
-      start: { flag: false, missing: null, topic: "relay", zero: 0 },
+      start: { flag: false, missing: null, topic: "devchestra", zero: 0 },
     });
   });
 
   it("preserves own keys, arrays, null, false, zero and escapes delimiters", () => {
     const scope = JSON.parse(
-      '{"__proto__":{"own":true},"arr":[0,false,null,"</relay_input_context>"],"nested":{"b":2,"a":1}}',
+      '{"__proto__":{"own":true},"arr":[0,false,null,"</devchestra_input_context>"],"nested":{"b":2,"a":1}}',
     );
     const json = canonicalJson(scope);
     expect(json).toBe(
-      '{"__proto__":{"own":true},"arr":[0,false,null,"\\u003c/relay_input_context>"],"nested":{"a":1,"b":2}}',
+      '{"__proto__":{"own":true},"arr":[0,false,null,"\\u003c/devchestra_input_context>"],"nested":{"a":1,"b":2}}',
     );
-    expect(json).not.toContain("</relay_input_context>");
+    expect(json).not.toContain("</devchestra_input_context>");
     expect(JSON.parse(json)).toEqual(scope);
   });
 

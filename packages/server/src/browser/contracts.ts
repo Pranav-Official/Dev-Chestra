@@ -21,8 +21,8 @@ import {
   validateWorkflowResponseSchema,
   workflowDocumentResponseSchema,
   workflowListResponseSchema,
-} from "@relay/api";
-import { RelayError } from "../errors.js";
+} from "@devchestra/api";
+import { DevChestraError } from "../errors.js";
 
 interface SafeSchema {
   safeParse(value: unknown):
@@ -73,6 +73,6 @@ export function makeResponseValidator(
       path: issue.path.join("."),
       message: issue.message,
     }));
-    throw new RelayError("E_INTERNAL", `Response contract violation for ${name}`, { issues });
+    throw new DevChestraError("E_INTERNAL", `Response contract violation for ${name}`, { issues });
   };
 }

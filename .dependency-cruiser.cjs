@@ -64,7 +64,7 @@ const allowed = [
   {
     // Browser editor/viewer. It may use the shared contracts, the typed API
     // client and the browser-safe schema main entry, never Node/server/engine
-    // packages or @relay/schema/node.
+    // packages or @devchestra/schema/node.
     name: "web",
     path: "(^|/)apps/web/",
     deps: ["api", "core", "schema"],
@@ -76,7 +76,7 @@ const directionRules = allowed.map(({ name, path, deps }) => {
   return {
     name: `${name}-imports-only-allowed-packages`,
     severity: "error",
-    comment: `@relay/${name} may import only itself${deps.length ? ` and ${deps.map((d) => `@relay/${d}`).join(", ")}` : ""}.`,
+    comment: `@devchestra/${name} may import only itself${deps.length ? ` and ${deps.map((d) => `@devchestra/${d}`).join(", ")}` : ""}.`,
     from: { path },
     to: { path: `(^|/)packages/(?!(?:${reachable})/)` },
   };
@@ -96,7 +96,7 @@ module.exports = {
       name: "browser-safe-no-node-builtins",
       severity: "error",
       comment:
-        "Browser-safe code (@relay/core, @relay/schema, @relay/api, apps/web) must not require Node built-ins. The explicit @relay/schema/node subpath and Node-only build configs are the only exceptions.",
+        "Browser-safe code (@devchestra/core, @devchestra/schema, @devchestra/api, apps/web) must not require Node built-ins. The explicit @devchestra/schema/node subpath and Node-only build configs are the only exceptions.",
       from: {
         path: "(^|/)(packages/(core|schema|api)|apps/web)/",
         pathNot:
@@ -123,7 +123,7 @@ module.exports = {
       name: "schema-main-cannot-import-node-subpath",
       severity: "error",
       comment:
-        "@relay/schema main stays browser-safe. Node-only helpers live under src/node and are imported through the explicit @relay/schema/node entry.",
+        "@devchestra/schema main stays browser-safe. Node-only helpers live under src/node and are imported through the explicit @devchestra/schema/node entry.",
       from: {
         path: "(^|/)packages/schema/src/",
         pathNot: "(^|/)packages/schema/src/node/",
@@ -134,7 +134,7 @@ module.exports = {
       name: "web-cannot-import-schema-node-subpath",
       severity: "error",
       comment:
-        "apps/web may import the browser-safe @relay/schema main entry only; the Node JSONata executor stays server-side.",
+        "apps/web may import the browser-safe @devchestra/schema main entry only; the Node JSONata executor stays server-side.",
       from: { path: "(^|/)apps/web/" },
       to: { path: "(^|/)packages/schema/src/node/" },
     },
@@ -143,7 +143,7 @@ module.exports = {
   options: {
     doNotFollow: { path: "node_modules" },
     exclude: {
-      path: ["(^|/)(dist|coverage|test-data|\\.relay)/", "\\.d\\.ts$"],
+      path: ["(^|/)(dist|coverage|test-data|\\.devchestra)/", "\\.d\\.ts$"],
     },
     tsPreCompilationDeps: true,
     combinedDependencies: true,

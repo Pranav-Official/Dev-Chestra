@@ -6,7 +6,7 @@
       "!**/dist",
       "!**/coverage",
       "!**/node_modules",
-      "!**/.relay",
+      "!**/.devchestra",
       "!**/data",
       "!**/test-data",
       "!**/fixtures",

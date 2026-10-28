@@ -22,6 +22,6 @@ Trusted, deterministic P1 engine fixtures. They are not live-CLI evidence.
   ```
 
 Both scripts create temporary directories, stores and loopback listeners, and use the
-real `@relay/mcp` stdio shim plus `tools/fake-agent`. They make no paid model calls.
+real `@devchestra/mcp` stdio shim plus `tools/fake-agent`. They make no paid model calls.
 The fake script is supplied by the caller through the adapter registry, never by a
 workflow's `cliOptions`.

@@ -1,16 +1,16 @@
 # Codex CLI 0.164.0 local config-parse probes
-# Captured: 2026-10-26 (UTC). Temp CODEX_HOME=/tmp/relay-spike/fixture-codex-home only; user config/auth not read.
+# Captured: 2026-10-26 (UTC). Temp CODEX_HOME=/tmp/devchestra-spike/fixture-codex-home only; user config/auth not read.
 # Method: 'codex features list' loads config and lists flags; it makes no model call.
 # No model/inference was invoked.
 
 ## accepted: sandbox_mode + MCP env_vars + timeouts
 config:
   sandbox_mode = "workspace-write"
-  [mcp_servers.relay]
+  [mcp_servers.devchestra]
   command = "node"
-  args = ["/tmp/relay-sim/shim.js"]
-  env_vars = ["RELAY_EXEC_TOKEN"]
-  cwd = "/tmp/relay-sim"
+  args = ["/tmp/devchestra-sim/shim.js"]
+  env_vars = ["DEVCHESTRA_EXEC_TOKEN"]
+  cwd = "/tmp/devchestra-sim"
   startup_timeout_sec = 20
   tool_timeout_sec = 120
   [sandbox_workspace_write]
@@ -19,7 +19,7 @@ exit=0
 
 ## rejected: env_vars wrong type
 config:
-  [mcp_servers.relay]
+  [mcp_servers.devchestra]
   command = "node"
   env_vars = "not-a-list"
 exit=1
@@ -27,12 +27,12 @@ exit=1
   
   Caused by:
       invalid type: string "not-a-list", expected a sequence
-      in `mcp_servers.relay.env_vars`
+      in `mcp_servers.devchestra.env_vars`
       
 
 ## ignored typo key (strict-config not on features)
 config:
-  [mcp_servers.relay]
+  [mcp_servers.devchestra]
   command = "node"
   envvars = ["X"]
 exit=0
@@ -50,35 +50,35 @@ exit=1
 
 ## rejected: env_vars unsupported source
 config:
-  [mcp_servers.relay]
+  [mcp_servers.devchestra]
   command = "node"
-  env_vars = [{name = "RELAY_EXEC_TOKEN", source = "bogus"}]
+  env_vars = [{name = "DEVCHESTRA_EXEC_TOKEN", source = "bogus"}]
 exit=1
   Error: failed to load bootstrap configuration
   
   Caused by:
       unsupported env_vars source `bogus`; expected `local` or `remote`
-      in `mcp_servers.relay`
+      in `mcp_servers.devchestra`
       
 
 ## accepted: env_vars name only
 config:
-  [mcp_servers.relay]
+  [mcp_servers.devchestra]
   command = "node"
-  env_vars = [{name = "RELAY_EXEC_TOKEN"}]
+  env_vars = [{name = "DEVCHESTRA_EXEC_TOKEN"}]
 exit=0
 
 ## codex mcp add --env writes plaintext token to config.toml (temp CODEX_HOME)
-$ CODEX_HOME=/tmp/relay-spike/fixture-codex-home codex mcp add relay --env RELAY_EXEC_TOKEN=placeholder -- node /tmp/relay-sim/shim.js
-Added global MCP server 'relay'.
+$ CODEX_HOME=/tmp/devchestra-spike/fixture-codex-home codex mcp add devchestra --env DEVCHESTRA_EXEC_TOKEN=placeholder -- node /tmp/devchestra-sim/shim.js
+Added global MCP server 'devchestra'.
 exit=0
-generated /tmp/relay-spike/fixture-codex-home/config.toml:
-  [mcp_servers.relay]
+generated /tmp/devchestra-spike/fixture-codex-home/config.toml:
+  [mcp_servers.devchestra]
   command = "node"
-  args = ["/tmp/relay-sim/shim.js"]
+  args = ["/tmp/devchestra-sim/shim.js"]
   
-  [mcp_servers.relay.env]
-  RELAY_EXEC_TOKEN = "placeholder"
+  [mcp_servers.devchestra.env]
+  DEVCHESTRA_EXEC_TOKEN = "placeholder"
 
 ## codex exec resume rejects --sandbox / --cd at argument parsing (no session lookup)
 $ codex exec resume --sandbox read-only 00000000-0000-4000-8000-000000000000 </dev/null

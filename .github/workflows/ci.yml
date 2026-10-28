@@ -51,11 +51,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - run: pnpm --filter @relay/p2-smoke exec playwright install --with-deps chromium
+      - run: pnpm --filter @devchestra/p2-smoke exec playwright install --with-deps chromium
       - name: Point the harness at the installed Chromium
         run: |
-          chrome="$(pnpm --filter @relay/p2-smoke exec node --input-type=module -e 'import { chromium } from "playwright"; console.log(chromium.executablePath())')"
+          chrome="$(pnpm --filter @devchestra/p2-smoke exec node --input-type=module -e 'import { chromium } from "playwright"; console.log(chromium.executablePath())')"
           test -x "$chrome"
-          echo "RELAY_CHROMIUM_PATH=$chrome" >> "$GITHUB_ENV"
-      - run: pnpm --filter @relay/p2-smoke test:e2e
-      - run: pnpm --filter @relay/p3-smoke test:e2e
+          echo "DEVCHESTRA_CHROMIUM_PATH=$chrome" >> "$GITHUB_ENV"
+      - run: pnpm --filter @devchestra/p2-smoke test:e2e
+      - run: pnpm --filter @devchestra/p3-smoke test:e2e

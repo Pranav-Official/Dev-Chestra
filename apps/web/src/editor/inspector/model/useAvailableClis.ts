@@ -1,9 +1,9 @@
-import type { CliListItem } from "@relay/api";
-import { type AgentCli, isProdCliId, PROD_CLI_LABELS, PROD_CLIS } from "@relay/schema";
+import type { CliListItem } from "@devchestra/api";
+import { type AgentCli, isProdCliId, PROD_CLI_LABELS, PROD_CLIS } from "@devchestra/schema";
 import { useEffect, useState } from "react";
 import { api } from "../../../api/client.js";
 
-const HELP = "Real CLI adapter. Not an OS sandbox; enforcement is unverified.";
+const HELP = "Real CLI adapter. Not an OS sandbox; permissions are advisory.";
 
 export interface AvailableCli extends Pick<CliListItem, "id" | "label"> {
   id: AgentCli;

@@ -45,7 +45,7 @@ afterEach(() => {
   }
 });
 
-function tempDir(prefix = "relay-model-"): string {
+function tempDir(prefix = "devchestra-model-"): string {
   const dir = mkdtempSync(join(tmpdir(), prefix));
   cleanups.push(() => {
     rmSync(dir, { recursive: true, force: true });
@@ -54,8 +54,8 @@ function tempDir(prefix = "relay-model-"): string {
 }
 
 function webRoot(): string {
-  const dir = tempDir("relay-model-web-");
-  writeFileSync(join(dir, "index.html"), "<!doctype html><title>relay</title>");
+  const dir = tempDir("devchestra-model-web-");
+  writeFileSync(join(dir, "index.html"), "<!doctype html><title>devchestra</title>");
   return dir;
 }
 
@@ -110,11 +110,11 @@ interface TestEnv {
 }
 
 function installTestEnv(): TestEnv {
-  const captureDir = tempDir("relay-model-capture-");
-  const binDir = tempDir("relay-model-bin-");
-  const home = tempDir("relay-model-home-");
-  const codexHome = tempDir("relay-model-codex-home-");
-  const claudeHome = tempDir("relay-model-claude-home-");
+  const captureDir = tempDir("devchestra-model-capture-");
+  const binDir = tempDir("devchestra-model-bin-");
+  const home = tempDir("devchestra-model-home-");
+  const codexHome = tempDir("devchestra-model-codex-home-");
+  const claudeHome = tempDir("devchestra-model-claude-home-");
   const sentinels = [
     { path: join(home, ".sentinel"), bytes: "home sentinel\n" },
     { path: join(codexHome, "config.toml"), bytes: 'model = "sentinel-only"\n' },
@@ -135,7 +135,7 @@ function installTestEnv(): TestEnv {
     const file = join(binDir, name);
     const script = [
       "#!/bin/sh",
-      `RELAY_TEST_CAPTURE_DIR='${captureDir}' RELAY_TEST_PROFILE='${profile}' exec '${process.execPath}' '${FIXTURE}' "$@"`,
+      `DEVCHESTRA_TEST_CAPTURE_DIR='${captureDir}' DEVCHESTRA_TEST_PROFILE='${profile}' exec '${process.execPath}' '${FIXTURE}' "$@"`,
       "",
     ].join("\n");
     writeFileSync(file, script, { mode: 0o755 });
@@ -238,8 +238,8 @@ async function startOwned(
   return {
     base: `http://127.0.0.1:${read.value.port}`,
     auth: {
-      "x-relay-token": read.value.token,
-      "x-relay-csrf": "1",
+      "x-devchestra-token": read.value.token,
+      "x-devchestra-csrf": "1",
       "content-type": "application/json",
     },
     stop: async () => {
@@ -302,7 +302,7 @@ describe("selected model reaches the actual CLI invocation", () => {
   ] as const)("passes the exact node.model to %s", async (cli, flag) => {
     const env = installTestEnv();
     const dataDir = tempDir();
-    const projectDir = tempDir("relay-model-project-");
+    const projectDir = tempDir("devchestra-model-project-");
     const model = `exact-model-${cli}-${String(Date.now())}`;
     const server = await startOwned(dataDir);
     try {
@@ -325,7 +325,7 @@ describe("selected model reaches the actual CLI invocation", () => {
   it("omits the model flag when node.model is absent", async () => {
     const env = installTestEnv();
     const dataDir = tempDir();
-    const projectDir = tempDir("relay-model-project-");
+    const projectDir = tempDir("devchestra-model-project-");
     const server = await startOwned(dataDir);
     try {
       await runWorkflow(server, projectDir, "codex", undefined);

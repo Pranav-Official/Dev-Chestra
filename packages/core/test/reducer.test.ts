@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   acceptedInvocation,
   canTransition,
+  DevChestraError,
   type EventEnvelope,
   type ExecStatus,
   type ExecView,
@@ -13,7 +14,6 @@ import {
   type NodeStateInit,
   type Path,
   project,
-  RelayError,
   type RunView,
   recoveryDecision,
   reduce,
@@ -185,7 +185,7 @@ function workspaceCreated(
 ): EventEnvelope<"workspace.created"> {
   return ev(
     "workspace.created",
-    { attempt, generation, mode: "scratch", dir, branch: "relay/work" },
+    { attempt, generation, mode: "scratch", dir, branch: "devchestra/work" },
     { path },
   );
 }
@@ -358,7 +358,7 @@ describe("durable lifecycle: accepted is not succeeded", () => {
 
   it("refuses success before process stop and workspace finalization", () => {
     const view = project(accepted());
-    expect(() => reduce(view, state("validating", "succeeded"))).toThrow(RelayError);
+    expect(() => reduce(view, state("validating", "succeeded"))).toThrow(DevChestraError);
     expect(() => reduce(view, state("validating", "succeeded"))).toThrow(
       /process stop and workspace finalization/,
     );
@@ -398,7 +398,7 @@ describe("durable lifecycle: accepted is not succeeded", () => {
           reduce(view, completion);
           return false;
         } catch (error) {
-          return error instanceof RelayError && error.code === "E_INTERNAL";
+          return error instanceof DevChestraError && error.code === "E_INTERNAL";
         }
       }),
     );
@@ -478,7 +478,7 @@ describe("durable lifecycle: accepted is not succeeded", () => {
       reduce(view, completed("success"));
       expect.unreachable("successful run completion should be rejected");
     } catch (error) {
-      expect(error).toBeInstanceOf(RelayError);
+      expect(error).toBeInstanceOf(DevChestraError);
       expect(error).toMatchObject({ code: "E_INTERNAL" });
     }
   });
@@ -842,7 +842,7 @@ describe("routing projection", () => {
       { branch: "no", evaluated: [{ branch: "no", matched: true }], attempt: 2, generation: 1 },
       { path: gatePath },
     );
-    expect(() => reduce(view, stale)).toThrow(RelayError);
+    expect(() => reduce(view, stale)).toThrow(DevChestraError);
   });
 
   it("rejects a second conflicting decision", () => {
@@ -858,7 +858,7 @@ describe("routing projection", () => {
       { branch: "no", evaluated: [{ branch: "no", matched: true }] },
       { path: gatePath },
     );
-    expect(() => reduce(view, again)).toThrow(RelayError);
+    expect(() => reduce(view, again)).toThrow(DevChestraError);
   });
 
   it("projects join inputs and resets routing metadata on retries and generations", () => {

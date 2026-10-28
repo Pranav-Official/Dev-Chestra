@@ -18,7 +18,7 @@ import {
 } from "./browser-ui.js";
 import { injectAxe, seriousViolations } from "./chromium.js";
 import { CLI, makeWorkspace, REPO_ROOT, sleep } from "./fixtures.js";
-import { RelayHttp } from "./http.js";
+import { DevChestraHttp } from "./http.js";
 import { installModelStandins, type ModelStandin } from "./model-standin.js";
 import { type OwnedServer, shutdownOwned, startSentinel, startServer } from "./owned.js";
 import { collectSpawnedAgents } from "./store-read.js";
@@ -118,7 +118,7 @@ async function typeQuery(page: Page, query: string): Promise<void> {
 }
 
 async function agentModel(
-  http: RelayHttp,
+  http: DevChestraHttp,
   projectId: string,
   workflowId: string,
 ): Promise<string | null> {
@@ -159,7 +159,7 @@ async function axePicker(page: Page): Promise<{ serious: number; total: number }
 }
 
 export async function runModelBrowserScenario(): Promise<ModelBrowserEvidence> {
-  const ws = await makeWorkspace("relay-p3-models-browser-");
+  const ws = await makeWorkspace("devchestra-p3-models-browser-");
   const sentinel = startSentinel();
   let server: OwnedServer | null = null;
   let context: BrowserContext | null = null;
@@ -172,9 +172,8 @@ export async function runModelBrowserScenario(): Promise<ModelBrowserEvidence> {
       dataDir: ws.dataDir,
       cwd: ws.projectDir,
       env: stub.env,
-      extraArgs: ["--allow-experimental-adapters"],
     });
-    const http = new RelayHttp(server.baseUrl);
+    const http = new DevChestraHttp(server.baseUrl);
     await http.health();
     await http.bootstrap(server.meta.token);
     const project = await registerProject(http, ws.projectDir);
@@ -289,7 +288,7 @@ export async function runModelBrowserScenario(): Promise<ModelBrowserEvidence> {
     const fuzzyPunct = (await optionTexts(page)).some((text) => text.includes("Terra 6.1"));
     await typeQuery(page, "rlypnc");
     const fuzzySubsequence = (await optionTexts(page)).some((text) =>
-      text.includes("relay-punct.model/v2"),
+      text.includes("devchestra-punct.model/v2"),
     );
     await typeQuery(page, "beta exact");
     const fuzzyCase = (await optionTexts(page)).some((text) => text.includes("Beta-Exact"));

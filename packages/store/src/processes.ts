@@ -1,4 +1,4 @@
-import type { ExecutionIdentity, ExecView, Path, RunId } from "@relay/core";
+import type { ExecutionIdentity, ExecView, Path, RunId } from "@devchestra/core";
 import { appendEvents } from "./events.js";
 import { completeExecution, requireCurrent } from "./executions.js";
 import { assertRunActive, loadView } from "./projection.js";

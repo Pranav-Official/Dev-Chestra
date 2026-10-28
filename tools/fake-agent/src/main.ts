@@ -40,17 +40,17 @@ interface ShimLaunch {
   env: Record<string, string>;
 }
 
-const HELP = `relay-fake-agent — scriptable fake agent for Relay
+const HELP = `devchestra-fake-agent — scriptable fake agent for DevChestra
 
 Usage:
-  relay-fake-agent --prompt <text> --cwd <dir> [--script <json|file>]
+  devchestra-fake-agent --prompt <text> --cwd <dir> [--script <json|file>]
                    [--checkpoint <file>] [--resume] [--session <id>]
 
 Environment:
-  RELAY_MCP_SHIM_ENTRY   required; packages/mcp/dist/bin/shim.js (or src/bin/shim.ts)
-  RELAY_EXEC_TOKEN       required for the shim
-  RELAY_GATEWAY_URL      required for the shim
-  RELAY_TOOLSET          required for the shim (agent|supervisor)
+  DEVCHESTRA_MCP_SHIM_ENTRY   required; packages/mcp/dist/bin/shim.js (or src/bin/shim.ts)
+  DEVCHESTRA_EXEC_TOKEN       required for the shim
+  DEVCHESTRA_GATEWAY_URL      required for the shim
+  DEVCHESTRA_TOOLSET          required for the shim (agent|supervisor)
   FAKE_AGENT_SCRIPT      JSON step array when --script is omitted
   FAKE_AGENT_CHECKPOINT  checkpoint path when --checkpoint is omitted
 
@@ -87,7 +87,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     scriptFile: undefined,
     checkpoint: undefined,
     session: undefined,
-    format: "relay-fake",
+    format: "devchestra-fake",
     resume: false,
     help: false,
     positional: undefined,
@@ -219,29 +219,29 @@ function toChildEnv(env: NodeJS.ProcessEnv): Record<string, string> {
 }
 
 async function shimLaunch(cwd: string, env: NodeJS.ProcessEnv): Promise<ShimLaunch> {
-  const entry = env.RELAY_MCP_SHIM_ENTRY;
+  const entry = env.DEVCHESTRA_MCP_SHIM_ENTRY;
   if (entry === undefined || entry === "") {
     throw new Error(
-      "RELAY_MCP_SHIM_ENTRY is required (path to the built shim or its TypeScript source).",
+      "DEVCHESTRA_MCP_SHIM_ENTRY is required (path to the built shim or its TypeScript source).",
     );
   }
   const absolute = resolve(process.cwd(), entry);
   await stat(absolute).catch(() => {
-    throw new Error(`RELAY_MCP_SHIM_ENTRY does not exist: ${absolute}`);
+    throw new Error(`DEVCHESTRA_MCP_SHIM_ENTRY does not exist: ${absolute}`);
   });
   const isTypeScript =
     absolute.endsWith(".ts") || absolute.endsWith(".mts") || absolute.endsWith(".cts");
   const tsxLoader = fileURLToPath(import.meta.resolve("tsx"));
   const args = isTypeScript ? ["--import", tsxLoader, absolute] : [absolute];
 
-  if (env.RELAY_EXEC_TOKEN === undefined || env.RELAY_EXEC_TOKEN === "") {
-    throw new Error("RELAY_EXEC_TOKEN is required.");
+  if (env.DEVCHESTRA_EXEC_TOKEN === undefined || env.DEVCHESTRA_EXEC_TOKEN === "") {
+    throw new Error("DEVCHESTRA_EXEC_TOKEN is required.");
   }
-  if (env.RELAY_GATEWAY_URL === undefined || env.RELAY_GATEWAY_URL === "") {
-    throw new Error("RELAY_GATEWAY_URL is required.");
+  if (env.DEVCHESTRA_GATEWAY_URL === undefined || env.DEVCHESTRA_GATEWAY_URL === "") {
+    throw new Error("DEVCHESTRA_GATEWAY_URL is required.");
   }
-  if (env.RELAY_TOOLSET !== "agent" && env.RELAY_TOOLSET !== "supervisor") {
-    throw new Error('RELAY_TOOLSET must be "agent" or "supervisor".');
+  if (env.DEVCHESTRA_TOOLSET !== "agent" && env.DEVCHESTRA_TOOLSET !== "supervisor") {
+    throw new Error('DEVCHESTRA_TOOLSET must be "agent" or "supervisor".');
   }
 
   return {
@@ -295,7 +295,7 @@ async function emit(
   data: Record<string, unknown> = {},
 ): Promise<void> {
   const line = `${JSON.stringify({
-    type: "relay-fake",
+    type: "devchestra-fake",
     event,
     profile: PROFILE,
     sessionId: context.sessionId,
@@ -328,8 +328,8 @@ export async function runFakeAgent(
     process.stdout.write(HELP);
     return 0;
   }
-  if (parsed.format !== "relay-fake" && parsed.format !== "fake") {
-    throw new Error('Only the explicit "relay-fake" profile is supported.');
+  if (parsed.format !== "devchestra-fake" && parsed.format !== "fake") {
+    throw new Error('Only the explicit "devchestra-fake" profile is supported.');
   }
   if (env.FAKE_AGENT_PROFILE !== undefined && env.FAKE_AGENT_PROFILE !== PROFILE) {
     throw new Error('FAKE_AGENT_PROFILE must be "fake" for this executable.');
@@ -351,11 +351,13 @@ export async function runFakeAgent(
   let checkpoint: FakeCheckpoint | undefined;
   if (parsed.resume) {
     if (checkpointPath === undefined) {
-      process.stderr.write("relay-fake-agent: --resume without a checkpoint; starting fresh.\n");
+      process.stderr.write(
+        "devchestra-fake-agent: --resume without a checkpoint; starting fresh.\n",
+      );
     } else {
       checkpoint = await readCheckpoint(checkpointPath);
       if (checkpoint === undefined) {
-        process.stderr.write("relay-fake-agent: checkpoint not found; starting fresh.\n");
+        process.stderr.write("devchestra-fake-agent: checkpoint not found; starting fresh.\n");
       } else {
         if (checkpoint.cwd !== cwd) {
           throw new Error(
@@ -392,7 +394,7 @@ export async function runFakeAgent(
     env: launch.env,
     stderr: "inherit",
   });
-  const client = new Client({ name: "relay-fake-agent", version: VERSION });
+  const client = new Client({ name: "devchestra-fake-agent", version: VERSION });
 
   const persist = async (nextStepIndex: number): Promise<void> => {
     if (checkpointPath === undefined) {
@@ -433,7 +435,7 @@ export async function runFakeAgent(
           const args = step.type === "submit" ? step.output : step.args;
           const result = await client.callTool({ name, arguments: args });
           const isError = isErrorResult(result);
-          const text = redact(contentText(result), env.RELAY_EXEC_TOKEN);
+          const text = redact(contentText(result), env.DEVCHESTRA_EXEC_TOKEN);
           if (name === "submit_result" && !isError) {
             submitted = true;
           }
@@ -458,7 +460,7 @@ export async function runFakeAgent(
           const args = resolveSubmitFromInputs(prompt, step.path, step.fallback);
           const result = await client.callTool({ name: "submit_result", arguments: args });
           const isError = isErrorResult(result);
-          const text = redact(contentText(result), env.RELAY_EXEC_TOKEN);
+          const text = redact(contentText(result), env.DEVCHESTRA_EXEC_TOKEN);
           if (!isError) {
             submitted = true;
           }
@@ -494,14 +496,14 @@ export async function runFakeAgent(
   } catch (error) {
     const message = redact(
       error instanceof Error ? error.message : "unknown fake agent error",
-      env.RELAY_EXEC_TOKEN,
+      env.DEVCHESTRA_EXEC_TOKEN,
     );
     try {
       await emit(context, "error", { message });
     } catch {
       // stdout may already be closed; stderr below is the fallback.
     }
-    process.stderr.write(`relay-fake-agent: ${message}\n`);
+    process.stderr.write(`devchestra-fake-agent: ${message}\n`);
     try {
       await client.close();
     } catch {
@@ -530,8 +532,8 @@ if (isEntrypoint()) {
     },
     (error: unknown) => {
       const message = error instanceof Error ? error.message : "unknown startup error";
-      const token = process.env.RELAY_EXEC_TOKEN;
-      process.stderr.write(`relay-fake-agent: ${redact(message, token)}\n`);
+      const token = process.env.DEVCHESTRA_EXEC_TOKEN;
+      process.stderr.write(`devchestra-fake-agent: ${redact(message, token)}\n`);
       process.exitCode = 1;
     },
   );

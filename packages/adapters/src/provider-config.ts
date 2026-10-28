@@ -1,4 +1,4 @@
-import { PROD_CLI_LABELS } from "@relay/schema";
+import { PROD_CLI_LABELS } from "@devchestra/schema";
 import type { AdapterOptions, CliAdapter, CliId } from "./types.js";
 
 export type ModelDiscoveryStatus = "ready" | "unsupported" | "unavailable" | "authRequired";
@@ -76,7 +76,7 @@ export interface CliProvider {
   /** CLI flag carrying an explicit model id ("" when the CLI has none). */
   readonly modelArg: string;
   readonly permissionMap: PermissionMap;
-  /** Real CLIs need an explicit experimental opt-in; the fake never does. */
+  /** Reserved: every shipped adapter is official; kept so the API shape stays stable. */
   readonly experimental: boolean;
 }
 
@@ -92,7 +92,7 @@ export interface ProviderStatic {
   /** CLI flag carrying an explicit model id ("" when the CLI has none). */
   readonly modelArg: string;
   readonly permissionMap: PermissionMap;
-  /** Real CLIs need an explicit experimental opt-in; the fake never does. */
+  /** Reserved: every shipped adapter is official; kept so the API shape stays stable. */
   readonly experimental: boolean;
 }
 
@@ -150,7 +150,7 @@ export const claudeStatic: ProviderStatic = {
   },
   modelArg: "--model",
   permissionMap: claudePermissionMap,
-  experimental: true,
+  experimental: false,
 };
 
 export const codexStatic: ProviderStatic = {
@@ -169,7 +169,7 @@ export const codexStatic: ProviderStatic = {
   },
   modelArg: "-m",
   permissionMap: codexPermissionMap,
-  experimental: true,
+  experimental: false,
 };
 
 export const piStatic: ProviderStatic = {
@@ -230,7 +230,7 @@ export const piStatic: ProviderStatic = {
   },
   modelArg: "--model",
   permissionMap: piPermissionMap,
-  experimental: true,
+  experimental: false,
 };
 
 export const fakeStatic: ProviderStatic = {
@@ -268,7 +268,7 @@ export const opencodeStatic: ProviderStatic = {
   },
   modelArg: "--model",
   permissionMap: codexPermissionMap,
-  experimental: true,
+  experimental: false,
 };
 
 /** Static metadata by CLI id, for consumers (adapter plans, child-env)

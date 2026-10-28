@@ -1,4 +1,4 @@
-import { err, RelayError, type Result } from "@relay/core";
+import { DevChestraError, err, type Result } from "@devchestra/core";
 import type { ExitInfo, FailureClass, Invocation } from "./types.js";
 
 export function classifyExit(exit: ExitInfo): FailureClass {
@@ -8,13 +8,13 @@ export function classifyExit(exit: ExitInfo): FailureClass {
   return { kind: "crash", exitCode: exit.code, signal: exit.signal };
 }
 
-export function fail(message: string): Result<Invocation, RelayError> {
-  return err(new RelayError("E_VALIDATION", message));
+export function fail(message: string): Result<Invocation, DevChestraError> {
+  return err(new DevChestraError("E_VALIDATION", message));
 }
 
 export function stringList(value: unknown, name: string): string[] {
   if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
-    throw new RelayError("E_VALIDATION", `${name} must be an array of strings`);
+    throw new DevChestraError("E_VALIDATION", `${name} must be an array of strings`);
   }
   return value as string[];
 }
@@ -25,7 +25,7 @@ export function requireOptionKeys(
 ): void {
   for (const key of Object.keys(options)) {
     if (!allowed.includes(key)) {
-      throw new RelayError("E_VALIDATION", `Unknown cliOptions key: ${key}`);
+      throw new DevChestraError("E_VALIDATION", `Unknown cliOptions key: ${key}`);
     }
   }
 }
@@ -33,7 +33,7 @@ export function requireOptionKeys(
 export function checkToolNames(tools: string[], field: string): string[] {
   for (const tool of tools) {
     if (!/^[A-Za-z0-9_.:*?-]+$/.test(tool)) {
-      throw new RelayError("E_VALIDATION", `${field} contains an invalid tool name: ${tool}`);
+      throw new DevChestraError("E_VALIDATION", `${field} contains an invalid tool name: ${tool}`);
     }
   }
   return tools;
@@ -41,14 +41,14 @@ export function checkToolNames(tools: string[], field: string): string[] {
 
 export function checkId(value: string, field: string): string {
   if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(value)) {
-    throw new RelayError("E_VALIDATION", `${field} is not a safe session identifier`);
+    throw new DevChestraError("E_VALIDATION", `${field} is not a safe session identifier`);
   }
   return value;
 }
 
 export function checkDir(value: string, field: string): string {
   if (value === "" || value.includes("\u0000")) {
-    throw new RelayError("E_VALIDATION", `${field} must be a non-empty path`);
+    throw new DevChestraError("E_VALIDATION", `${field} must be a non-empty path`);
   }
   return value;
 }

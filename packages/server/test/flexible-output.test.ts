@@ -3,10 +3,10 @@ import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
-import { ApiClient } from "@relay/api";
-import type { ExecutionIdentity, Path, RunId } from "@relay/core";
-import { normalizeWorkflow } from "@relay/schema";
-import { openStore, type Store } from "@relay/store";
+import { ApiClient } from "@devchestra/api";
+import type { ExecutionIdentity, Path, RunId } from "@devchestra/core";
+import { normalizeWorkflow } from "@devchestra/schema";
+import { openStore, type Store } from "@devchestra/store";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   type BrowserRunControllerPort,
@@ -106,7 +106,7 @@ class StdioMcpClient {
     await this.request("initialize", {
       protocolVersion: "2024-11-05",
       capabilities: {},
-      clientInfo: { name: "relay-flexible-output-test", version: "0.0.0" },
+      clientInfo: { name: "devchestra-flexible-output-test", version: "0.0.0" },
     });
     this.notify("notifications/initialized", {});
   }
@@ -177,13 +177,13 @@ interface Harness {
 }
 
 async function openHarness(schema: Record<string, unknown>): Promise<Harness> {
-  const root = await mkdtemp(join(tmpdir(), "relay-flexible-output-"));
+  const root = await mkdtemp(join(tmpdir(), "devchestra-flexible-output-"));
   const dataDir = join(root, "data");
   const projectDir = join(root, "project");
   await mkdir(dataDir, { recursive: true });
   await mkdir(projectDir, { recursive: true });
 
-  const store = openStore({ file: join(dataDir, "relay.db") });
+  const store = openStore({ file: join(dataDir, "devchestra.db") });
   store.projects.ensure({ id: "project-1", name: "Project", path: projectDir, kind: "folder" });
   const normalized = normalizeWorkflow({
     schemaVersion: 1,
@@ -247,10 +247,10 @@ async function openHarness(schema: Record<string, unknown>): Promise<Harness> {
 
   const shim = new StdioMcpClient(
     {
-      RELAY_GATEWAY_URL: listener.url,
-      RELAY_EXEC_TOKEN: token,
-      RELAY_TOOLSET: "agent",
-      RELAY_MCP_DEBUG: "0",
+      DEVCHESTRA_GATEWAY_URL: listener.url,
+      DEVCHESTRA_EXEC_TOKEN: token,
+      DEVCHESTRA_TOOLSET: "agent",
+      DEVCHESTRA_MCP_DEBUG: "0",
     },
     root,
   );
@@ -343,7 +343,7 @@ async function submitDirect(
     headers: {
       Authorization: `Bearer ${h.token}`,
       "Content-Type": "application/json",
-      "X-Relay-Call-Id": callId,
+      "X-DevChestra-Call-Id": callId,
     },
     body: JSON.stringify({ name: "submit_result", arguments: args }),
   });
@@ -517,7 +517,7 @@ describe("flexible output through real stdio MCP, gateway, SQLite and API", () =
         attempt: h.identity.attempt,
       }),
     ).toBeNull();
-    const dbFile = join(h.dataDir, "relay.db");
+    const dbFile = join(h.dataDir, "devchestra.db");
     for (const file of [dbFile, `${dbFile}-wal`]) {
       try {
         const bytes = await readFile(file);
@@ -538,10 +538,10 @@ describe("flexible output through real stdio MCP, gateway, SQLite and API", () =
     const futureToken = h.tokens.issue(futureScope);
     const stale = new StdioMcpClient(
       {
-        RELAY_GATEWAY_URL: h.listener.url,
-        RELAY_EXEC_TOKEN: futureToken,
-        RELAY_TOOLSET: "agent",
-        RELAY_MCP_DEBUG: "0",
+        DEVCHESTRA_GATEWAY_URL: h.listener.url,
+        DEVCHESTRA_EXEC_TOKEN: futureToken,
+        DEVCHESTRA_TOOLSET: "agent",
+        DEVCHESTRA_MCP_DEBUG: "0",
       },
       h.dataDir,
     );

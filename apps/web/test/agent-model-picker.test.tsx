@@ -8,7 +8,7 @@ const CATALOG: CliModelCatalog = {
   cli: "codex",
   projectId: "p1",
   status: "ready",
-  scope: "relay-runtime",
+  scope: "devchestra-runtime",
   source: "codex-app-server",
   cliVersion: "1.2.3",
   items: [
@@ -216,7 +216,7 @@ describe("AgentModelPicker", () => {
       cli: "claude-code",
       projectId: "p1",
       status: "ready",
-      scope: "relay-runtime",
+      scope: "devchestra-runtime",
       source: "claude-sdk",
       cliVersion: "2.0.0",
       items: [

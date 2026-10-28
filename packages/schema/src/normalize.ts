@@ -1,4 +1,4 @@
-import { err, hashJson, ok, RelayError, type Result } from "@relay/core";
+import { DevChestraError, err, hashJson, ok, type Result } from "@devchestra/core";
 import { normalizeOutputSchema } from "./output-schema.js";
 import type {
   AgentNode,
@@ -59,16 +59,16 @@ function normalizeWorkspace(workspace?: { mode: string }): NormalizedWorkspaceSp
 
 function resolvePrompt(file: WorkflowFile, node: AgentNode, options: NormalizeOptions): string {
   if (node.prompt !== undefined && node.promptFile !== undefined) {
-    throw new RelayError("E_WORKFLOW_INVALID", "Agent sets both prompt and promptFile.");
+    throw new DevChestraError("E_WORKFLOW_INVALID", "Agent sets both prompt and promptFile.");
   }
   if (node.prompt !== undefined) return node.prompt;
   if (node.promptFile === undefined) {
-    throw new RelayError("E_WORKFLOW_INVALID", "Agent has neither prompt nor promptFile.");
+    throw new DevChestraError("E_WORKFLOW_INVALID", "Agent has neither prompt nor promptFile.");
   }
 
   const prompts = options.prompts;
   if (prompts === undefined) {
-    throw new RelayError(
+    throw new DevChestraError(
       "E_WORKFLOW_INVALID",
       `promptFile '${node.promptFile}' requires an inlined prompts map. The schema package never reads files; pass the contents of '${file.id}.prompts/' as options.prompts.`,
       { details: { pointer: "/promptFile", nodeId: node.id } },
@@ -78,7 +78,7 @@ function resolvePrompt(file: WorkflowFile, node: AgentNode, options: NormalizeOp
   const withPrefix = prompts[`${file.id}.prompts/${node.promptFile}`];
   const content = direct ?? withPrefix;
   if (content === undefined) {
-    throw new RelayError(
+    throw new DevChestraError(
       "E_WORKFLOW_INVALID",
       `promptFile '${node.promptFile}' was not supplied in options.prompts (looked up '${node.promptFile}' and '${file.id}.prompts/${node.promptFile}').`,
       { details: { pointer: "/promptFile", nodeId: node.id } },
@@ -120,7 +120,7 @@ function normalizeAgent(
     context: { project: "none", workflow: "none" },
   };
   if (node.model !== undefined) out.model = node.model;
-  // Absent stays absent: only Relay's own server runs for the node.
+  // Absent stays absent: only DevChestra's own server runs for the node.
   if (node.mcpServers !== undefined) {
     out.mcpServers = node.mcpServers.map((selection) => ({
       name: selection.name,
@@ -254,12 +254,12 @@ function normalizeNode(
 export function normalizeWorkflow(
   file: WorkflowFile,
   options: NormalizeOptions = {},
-): Result<NormalizedWorkflow, RelayError> {
+): Result<NormalizedWorkflow, DevChestraError> {
   const report = validateWorkflow(file);
   if (!report.ok) {
     const first = report.errors[0];
     return err(
-      new RelayError(
+      new DevChestraError(
         "E_WORKFLOW_INVALID",
         `Workflow is invalid: ${first?.message ?? "unknown error"}`,
         { details: { issues: report.errors } },
@@ -284,9 +284,9 @@ export function normalizeWorkflow(
     return ok(workflow);
   } catch (error) {
     return err(
-      error instanceof RelayError
+      error instanceof DevChestraError
         ? error
-        : new RelayError("E_INTERNAL", "Could not normalize workflow", { cause: error }),
+        : new DevChestraError("E_INTERNAL", "Could not normalize workflow", { cause: error }),
     );
   }
 }
@@ -296,7 +296,7 @@ export async function hashWorkflow(workflow: NormalizedWorkflow): Promise<string
   return hashJson(workflow);
 }
 
-/** Hash a normalized output schema. Throws RelayError if the schema is invalid. */
+/** Hash a normalized output schema. Throws DevChestraError if the schema is invalid. */
 export async function hashOutputSchema(schema: JsonSchemaObject): Promise<string> {
   const normalized = normalizeOutputSchema(schema);
   if (!normalized.ok) throw normalized.error;

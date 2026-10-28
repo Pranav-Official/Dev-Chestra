@@ -5,11 +5,11 @@ import {
   assertTransition,
   canRunTransition,
   canTransition,
+  DevChestraError,
   EXEC_STATUSES,
   type ExecStatus,
   isTerminalExecStatus,
   isTerminalRunStatus,
-  RelayError,
   RUN_STATUSES,
   RUN_TRANSITIONS,
   type RunStatus,
@@ -44,7 +44,7 @@ describe("execution transition table", () => {
   it("rejects illegal transitions with E_INTERNAL", () => {
     expect(canTransition("pending", "running")).toBe(false);
     expect(canTransition("succeeded", "running")).toBe(false);
-    expect(() => assertTransition("succeeded", "running")).toThrow(RelayError);
+    expect(() => assertTransition("succeeded", "running")).toThrow(DevChestraError);
     try {
       assertTransition("pending", "running");
     } catch (error) {
@@ -77,7 +77,7 @@ describe("run transition table", () => {
     for (const from of terminal) {
       expect(isTerminalRunStatus(from)).toBe(true);
       for (const to of RUN_STATUSES) expect(canRunTransition(from, to)).toBe(false);
-      expect(() => assertRunTransition(from, "running")).toThrow(RelayError);
+      expect(() => assertRunTransition(from, "running")).toThrow(DevChestraError);
     }
   });
 });

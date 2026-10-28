@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { fitView, saveNow } from "../../src/browser-ui.js";
-import type { RelayHttp } from "../../src/http.js";
+import type { DevChestraHttp } from "../../src/http.js";
 import { getWorkflow } from "../../src/workflow-api.js";
 
 export async function connectHandles(
@@ -58,7 +58,7 @@ export async function connectHandles(
 
 export async function connectAndAssert(
   page: import("@playwright/test").Page,
-  http: RelayHttp,
+  http: DevChestraHttp,
   projectId: string,
   workflowId: string,
   fromTestId: string,

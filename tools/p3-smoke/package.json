@@ -1,5 +1,5 @@
 {
-  "name": "@relay/p3-smoke",
+  "name": "@devchestra/p3-smoke",
   "version": "0.1.0",
   "private": true,
   "description": "P3 acceptance: real workflow authoring, saves, conflicts, runs and browser editor",
@@ -13,8 +13,8 @@
     "test:e2e": "vitest run --config vitest.e2e.config.ts"
   },
   "dependencies": {
-    "@relay/adapters": "workspace:*",
-    "@relay/core": "workspace:*"
+    "@devchestra/adapters": "workspace:*",
+    "@devchestra/core": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",

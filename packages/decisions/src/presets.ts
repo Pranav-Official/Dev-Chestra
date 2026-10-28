@@ -1,4 +1,4 @@
-import type { DecisionProviderId } from "@relay/schema";
+import type { DecisionProviderId } from "@devchestra/schema";
 import type { DecisionSecretName } from "./secrets.js";
 
 /** Fixed per-provider host preset (contract §1). */

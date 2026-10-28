@@ -1,28 +1,28 @@
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createAdapterRegistry, createMcpResolver } from "@relay/adapters";
-import { isTerminalRunStatus, type JsonObject, RelayError, type RunStatus } from "@relay/core";
-import { createDecisionService } from "@relay/decisions";
-import { createEngine, type Engine, type RunOutcome, type WorkspacePort } from "@relay/engine";
-import { PROD_CLIS, validateParams } from "@relay/schema";
-import { OutputValidator } from "@relay/server";
-import { openStore, type Store } from "@relay/store";
+import { createAdapterRegistry, createMcpResolver } from "@devchestra/adapters";
+import {
+  DevChestraError,
+  isTerminalRunStatus,
+  type JsonObject,
+  type RunStatus,
+} from "@devchestra/core";
+import { createDecisionService } from "@devchestra/decisions";
+import { createEngine, type Engine, type RunOutcome, type WorkspacePort } from "@devchestra/engine";
+import { PROD_CLIS, validateParams } from "@devchestra/schema";
+import { OutputValidator } from "@devchestra/server";
+import { openStore, type Store } from "@devchestra/store";
 import {
   acquireScratch,
   finalizeScratch,
   prepareRunWorkspace,
   releaseScratch,
-} from "@relay/workspaces";
+} from "@devchestra/workspaces";
 import { type CliOptions, UsageError } from "./args.js";
 import { loadFakeScript, requireFakeScript } from "./fake-script.js";
 import { type RunningGateway, startGateway } from "./gateway.js";
 import { type ExitCode, exitCodeForOutcome, notice, writeEvent, writeSummary } from "./output.js";
-import {
-  loadWorkflow,
-  requireFakeScriptForFakeNodes,
-  resolveRunWorkspace,
-  workflowRequiresRealAdapter,
-} from "./workflow.js";
+import { loadWorkflow, requireFakeScriptForFakeNodes, resolveRunWorkspace } from "./workflow.js";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const SHIM_ENTRY = join(REPO_ROOT, "packages/mcp/dist/bin/shim.js");
@@ -57,7 +57,7 @@ function summaryFor(
     } else if (outcome.pausedReason === "approval_cap") {
       summary.hint = "Run is waiting for a human approval; this P1 CLI has no approval command.";
     } else {
-      summary.hint = "Run is paused; resume it with `relay resume <runId> --data-dir <dir>`.";
+      summary.hint = "Run is paused; resume it with `devchestra resume <runId> --data-dir <dir>`.";
     }
   }
   return summary;
@@ -85,7 +85,7 @@ export function createCliEngine(
     nodeBin: process.execPath,
     mcpShimEntry: SHIM_ENTRY,
     env: process.env,
-    allowExperimentalClis: options.allowExperimentalAdapters ? [...PROD_CLIS] : [],
+    allowExperimentalClis: [...PROD_CLIS],
     extraEnvNames: ["FAKE_AGENT_CHECKPOINT"],
     validateOutput: (schema, value) => outputValidator.compile(schema).validate(value),
     // Secrets come from process.env then a cwd `.env` (loadDecisionSecrets
@@ -132,7 +132,7 @@ async function closeEngine(
 
 export async function executeRun(options: CliOptions, dataDir: string): Promise<ExitCode> {
   if (options.workflow === undefined || options.project === undefined) {
-    throw new RelayError("E_VALIDATION", "run requires a workflow and --project");
+    throw new DevChestraError("E_VALIDATION", "run requires a workflow and --project");
   }
   if (options.budgetUsd !== undefined) {
     throw new UsageError("--budget-usd is not supported by this runner; remove it.");
@@ -143,24 +143,18 @@ export async function executeRun(options: CliOptions, dataDir: string): Promise<
     options.workspaceMode,
     options.worktreePath,
   );
-  if (workflowRequiresRealAdapter(loaded.normalized) && !options.allowExperimentalAdapters) {
-    throw new RelayError(
-      "E_VALIDATION",
-      "This workflow uses an experimental real CLI adapter. Pass --allow-experimental-adapters only after a live contract check.",
-    );
-  }
   const fakeScript = await loadFakeScript(options.fakeScript);
   if (requireFakeScriptForFakeNodes(loaded.normalized)) {
     requireFakeScript(fakeScript);
   }
   const params = validateParams(loaded.file, options.params);
   if (!params.ok) {
-    throw new RelayError("E_VALIDATION", "Run parameters are invalid", {
+    throw new DevChestraError("E_VALIDATION", "Run parameters are invalid", {
       details: { issues: params.errors },
     });
   }
 
-  const store = openStore({ file: join(dataDir, "relay.db") });
+  const store = openStore({ file: join(dataDir, "devchestra.db") });
   let gateway: RunningGateway | undefined;
   let engine: Engine | undefined;
   let unsubscribe: (() => void) | undefined;
@@ -206,9 +200,9 @@ export async function executeRun(options: CliOptions, dataDir: string): Promise<
 
 export async function executeResume(options: CliOptions, dataDir: string): Promise<ExitCode> {
   if (options.runId === undefined) {
-    throw new RelayError("E_VALIDATION", "resume requires a run id");
+    throw new DevChestraError("E_VALIDATION", "resume requires a run id");
   }
-  const store = openStore({ file: join(dataDir, "relay.db") });
+  const store = openStore({ file: join(dataDir, "devchestra.db") });
   let gateway: RunningGateway | undefined;
   let engine: Engine | undefined;
   let unsubscribe: (() => void) | undefined;
@@ -233,10 +227,13 @@ export async function executeResume(options: CliOptions, dataDir: string): Promi
     unsubscribe = built.unsubscribe;
     const beforeStart = await engine.getRun(options.runId);
     if (beforeStart === null) {
-      throw new RelayError("E_NOT_FOUND", `Run ${options.runId} does not exist`);
+      throw new DevChestraError("E_NOT_FOUND", `Run ${options.runId} does not exist`);
     }
     if (isTerminalRunStatus(beforeStart.status as RunStatus)) {
-      throw new RelayError("E_CONFLICT", `Run ${options.runId} is already ${beforeStart.status}`);
+      throw new DevChestraError(
+        "E_CONFLICT",
+        `Run ${options.runId} is already ${beforeStart.status}`,
+      );
     }
     await engine.start();
     const current = await engine.getRun(options.runId);

@@ -27,10 +27,10 @@ import type {
   TranscriptLine,
   TranscriptPageResponse,
   WorkspaceView,
-} from "@relay/api";
-import type { EventType, JsonObject, RunStatus } from "@relay/core";
-import type { NormalizedWorkflow } from "@relay/schema";
-import type { AcceptedOutput, ExecutionHistory, ExecutionRow } from "@relay/store";
+} from "@devchestra/api";
+import type { EventType, JsonObject, RunStatus } from "@devchestra/core";
+import type { NormalizedWorkflow } from "@devchestra/schema";
+import type { AcceptedOutput, ExecutionHistory, ExecutionRow } from "@devchestra/store";
 import type { Hono } from "hono";
 
 export type {
@@ -138,13 +138,13 @@ export interface BrowserQueryPort {
     path: string,
   ):
     | Promise<{
-        approval: import("@relay/api").ApprovalSummary;
+        approval: import("@devchestra/api").ApprovalSummary;
         requestedEvent: unknown;
         resolvedEvent: unknown | null;
         execution: ExecutionRow | null;
       } | null>
     | {
-        approval: import("@relay/api").ApprovalSummary;
+        approval: import("@devchestra/api").ApprovalSummary;
         requestedEvent: unknown;
         resolvedEvent: unknown | null;
         execution: ExecutionRow | null;

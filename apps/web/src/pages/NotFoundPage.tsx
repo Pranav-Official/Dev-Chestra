@@ -8,7 +8,7 @@ export function NotFoundPage() {
       <div className="content">
         <NotFoundState
           title="Page not found"
-          message="That route does not exist in this read-only Relay viewer."
+          message="That route does not exist in this read-only DevChestra viewer."
           backTo="/"
           backLabel="Back to projects"
         />

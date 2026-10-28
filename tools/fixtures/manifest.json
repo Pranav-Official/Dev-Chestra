@@ -227,7 +227,7 @@
         },
         {
           "path": "tools/fixtures/codex/0.164.0/config-probes.txt",
-          "sourceCommand": "CODEX_HOME=<temp> codex features list; CODEX_HOME=<temp> codex mcp add relay --env RELAY_EXEC_TOKEN=placeholder -- node /tmp/relay-sim/shim.js; codex exec resume --sandbox|--cd ...",
+          "sourceCommand": "CODEX_HOME=<temp> codex features list; CODEX_HOME=<temp> codex mcp add devchestra --env DEVCHESTRA_EXEC_TOKEN=placeholder -- node /tmp/devchestra-sim/shim.js; codex exec resume --sandbox|--cd ...",
           "captureKind": "local config-parse probe",
           "inferenceInvoked": false,
           "inferenceEvidence": "Temp CODEX_HOME under /tmp only; 'features list' loads config and exits; resume flag rejection happens in argument parsing (exit 2) before any session lookup. Placeholder token, no real secret.",

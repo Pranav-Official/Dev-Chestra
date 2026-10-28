@@ -1,6 +1,6 @@
-# @relay/web
+# @devchestra/web
 
-Read-only React 19 + Vite viewer for Relay projects, runs, live events and replay. The UI never
+Read-only React 19 + Vite viewer for DevChestra projects, runs, live events and replay. The UI never
 starts, cancels, resumes or edits a run. Mutations remain CLI/API only.
 
 ## Commands
@@ -8,19 +8,19 @@ starts, cancels, resumes or edits a run. Mutations remain CLI/API only.
 ```sh
 # From the repository root
 pnpm install --frozen-lockfile
-pnpm --filter @relay/web build         # production dist for relay start
-pnpm --filter @relay/web typecheck
-pnpm --filter @relay/web test
+pnpm --filter @devchestra/web build         # production dist for devchestra start
+pnpm --filter @devchestra/web typecheck
+pnpm --filter @devchestra/web test
 
 # Serve the built app with the real API and session cookie
-pnpm relay start --data-dir /tmp/relay-dev --allow-experimental-adapters \
+pnpm devchestra start --data-dir /tmp/devchestra-dev \
   --no-open --print-url
 
 # Full P2 acceptance, including a real Chromium run page and axe checks
 pnpm demo:p2
 ```
 
-`relay start` serves `apps/web/dist` from the same loopback origin as `/api`. Restart `relay start`
+`devchestra start` serves `apps/web/dist` from the same loopback origin as `/api`. Restart `devchestra start`
 after rebuilding the web app: the server caches `index.html` in memory at startup.
 
 ## Routes
@@ -32,12 +32,12 @@ after rebuilding the web app: the server caches `index.html` in memory at startu
 
 ## Data and correctness
 
-- REST types and the `ApiClient` come from `@relay/api`; `RunView` comes from `@relay/core`.
+- REST types and the `ApiClient` come from `@devchestra/api`; `RunView` comes from `@devchestra/core`.
 - Bootstrap reads one atomic `{run, view, snapshot, watermark}` response, then fetches the complete
   event history at or below the watermark in bounded pages. A partial history is never reported as
   complete.
 - The run stream uses native same-origin `EventSource` (cookies work) with the typed
-  `@relay/api` frame parser. Frames are deduplicated and applied strictly by global event id, not by
+  `@devchestra/api` frame parser. Frames are deduplicated and applied strictly by global event id, not by
   array position. Gaps between a run's ids are normal.
 - One run stream is open at a time; one global hint stream invalidates cached lists and bootstrap
   counts. Both are closed on route change/unmount. Offline/online browser events immediately pause
@@ -50,7 +50,7 @@ after rebuilding the web app: the server caches `index.html` in memory at startu
 - The event list renders a 100-row window. Transcript pages are lazy and the newest 2,000 lines are
   rendered at most. All agent text is a React text node; there is no
   `dangerouslySetInnerHTML`.
-- Theme preference is UI-only (`data-theme`, `data-theme-mode`, `localStorage: relay.theme`) and
+- Theme preference is UI-only (`data-theme`, `data-theme-mode`, `localStorage: devchestra.theme`) and
   defaults to `prefers-color-scheme`. No gradients, external fonts or CDNs.
 
 ## Known limits

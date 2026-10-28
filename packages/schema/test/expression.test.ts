@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { RelayError } from "@relay/core";
+import { DevChestraError } from "@devchestra/core";
 import { afterAll, describe, expect, it } from "vitest";
 import {
   type CompiledTemplate,
@@ -14,7 +14,7 @@ import {
 import { createNodeExpressionExecutor } from "../src/node/index.js";
 
 const executor = createNodeExpressionExecutor();
-const temp = mkdtempSync(path.join(tmpdir(), "relay-schema-"));
+const temp = mkdtempSync(path.join(tmpdir(), "devchestra-schema-"));
 
 afterAll(() => {
   rmSync(temp, { recursive: true, force: true });
@@ -81,7 +81,7 @@ describe("JSONata execution", () => {
     if (!compiled.ok) throw compiled.error;
     const result = await evaluate(compiled.value, { start: { topic: "hi" } });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.message).toContain('"@relay/schema/node"');
+    if (!result.ok) expect(result.error.message).toContain('"@devchestra/schema/node"');
   });
 
   it("times out a hung injected executor", async () => {
@@ -105,7 +105,7 @@ describe("JSONata execution", () => {
     const started = Date.now();
     await expect(
       executor.evaluate("(function($f){$f($f)})(function($f){$f($f)})", {}, { timeoutMs: 200 }),
-    ).rejects.toBeInstanceOf(RelayError);
+    ).rejects.toBeInstanceOf(DevChestraError);
     expect(Date.now() - started).toBeLessThan(2000);
   });
 
@@ -123,7 +123,7 @@ describe("JSONata execution", () => {
     for (let index = 0; index < 3; index += 1) {
       await expect(
         executor.evaluate("(function($f){$f($f)})(function($f){$f($f)})", {}, { timeoutMs: 100 }),
-      ).rejects.toBeInstanceOf(RelayError);
+      ).rejects.toBeInstanceOf(DevChestraError);
     }
     await expect(executor.evaluate("1 + 1", {}, { timeoutMs: 1000 })).resolves.toBe(2);
   });

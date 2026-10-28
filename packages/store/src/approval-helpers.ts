@@ -1,4 +1,4 @@
-import type { ExecutionIdentity } from "@relay/core";
+import type { ExecutionIdentity } from "@devchestra/core";
 import { fail } from "./util.js";
 
 export function validateMessage(m: string): string {

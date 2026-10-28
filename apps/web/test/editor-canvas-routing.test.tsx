@@ -1,4 +1,4 @@
-import type { Edge, WorkflowFile, WorkflowNode } from "@relay/schema";
+import type { Edge, WorkflowFile, WorkflowNode } from "@devchestra/schema";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { EditorCanvas } from "../src/editor/canvas/EditorCanvas.js";

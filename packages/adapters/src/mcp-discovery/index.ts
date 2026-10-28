@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
-import { err, ok, RelayError, type Result } from "@relay/core";
-import type { McpSelection, ProdCliId } from "@relay/schema";
+import { DevChestraError, err, ok, type Result } from "@devchestra/core";
+import type { McpSelection, ProdCliId } from "@devchestra/schema";
 import type { ResolvedMcpServer } from "../types.js";
 import { discoverClaudeServers } from "./claude.js";
 import { discoverCodexServers } from "./codex.js";
@@ -83,14 +83,17 @@ function selectionError(
   code: "E_NOT_FOUND" | "E_VALIDATION" | "E_CONFLICT",
   selection: McpSelection,
   reason: string,
-): RelayError {
-  return new RelayError(code, `MCP server "${selection.name}" (${selection.scope}): ${reason}.`);
+): DevChestraError {
+  return new DevChestraError(
+    code,
+    `MCP server "${selection.name}" (${selection.scope}): ${reason}.`,
+  );
 }
 
 function resolveOne(
   servers: InternalMcpServer[],
   selection: McpSelection,
-): Result<ResolvedMcpServer, RelayError> {
+): Result<ResolvedMcpServer, DevChestraError> {
   const found = servers.find(
     (server) => server.name === selection.name && server.scope === selection.scope,
   );
@@ -122,12 +125,12 @@ export function createMcpResolver(options: McpResolverOptions = {}): McpResolver
       }
     },
 
-    async resolve(cli, projectDir, selection): Promise<Result<McpResolveResult, RelayError>> {
+    async resolve(cli, projectDir, selection): Promise<Result<McpResolveResult, DevChestraError>> {
       let result: ReaderResult;
       try {
         result = readAll(cli, projectDir, options);
       } catch {
-        return err(new RelayError("E_INTERNAL", "MCP discovery failed."));
+        return err(new DevChestraError("E_INTERNAL", "MCP discovery failed."));
       }
       const extra: ResolvedMcpServer[] = [];
       for (const item of selection) {

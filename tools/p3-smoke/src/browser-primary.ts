@@ -21,7 +21,7 @@ import {
 } from "./browser-ui.js";
 import { axeRun, injectAxe, seriousViolations } from "./chromium.js";
 import { REPO_ROOT, sleep } from "./fixtures.js";
-import type { RelayHttp } from "./http.js";
+import type { DevChestraHttp } from "./http.js";
 import {
   getRun,
   getWorkflow,
@@ -173,7 +173,7 @@ async function configureLinear(
 export async function runPrimaryBrowserFlow(
   context: BrowserContext,
   page: Page,
-  http: RelayHttp,
+  http: DevChestraHttp,
   projectId: string,
 ): Promise<PrimaryEvidence> {
   const shots = artifactDir();

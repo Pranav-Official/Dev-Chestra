@@ -1,4 +1,4 @@
-import { type EventEnvelope, isRelayError } from "@relay/core";
+import { type EventEnvelope, isDevChestraError } from "@devchestra/core";
 
 export type ExitCode = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -76,7 +76,7 @@ export function exitCodeForOutcome(outcome: RunOutcomeLike): ExitCode {
 }
 
 export function exitCodeForError(error: unknown): ExitCode {
-  if (!isRelayError(error)) {
+  if (!isDevChestraError(error)) {
     return 1;
   }
   const code = error.code;
@@ -101,7 +101,7 @@ export function exitCodeForError(error: unknown): ExitCode {
 }
 
 export function safeError(error: unknown): { code: string; message: string } {
-  if (isRelayError(error)) {
+  if (isDevChestraError(error)) {
     return { code: error.code, message: error.message };
   }
   return { code: "E_INTERNAL", message: error instanceof Error ? error.message : String(error) };
@@ -149,5 +149,5 @@ export function writeSummary(summary: Record<string, unknown>, json: boolean): v
 }
 
 export function notice(message: string): void {
-  process.stderr.write(`relay: ${message}\n`);
+  process.stderr.write(`devchestra: ${message}\n`);
 }

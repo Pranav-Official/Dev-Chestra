@@ -1,7 +1,12 @@
-import { killOrphan } from "@relay/adapters";
-import { type ExecutionIdentity, isTerminalExecStatus, type Path, RelayError } from "@relay/core";
-import type { RunRecord } from "@relay/store";
-import type { ScratchWorkspace } from "@relay/workspaces";
+import { killOrphan } from "@devchestra/adapters";
+import {
+  DevChestraError,
+  type ExecutionIdentity,
+  isTerminalExecStatus,
+  type Path,
+} from "@devchestra/core";
+import type { RunRecord } from "@devchestra/store";
+import type { ScratchWorkspace } from "@devchestra/workspaces";
 import type { EngineContext } from "./context.js";
 
 type StopReason = "exited" | "killed" | "grace_timeout" | "crash";
@@ -38,7 +43,7 @@ export async function recoverAll(ctx: EngineContext): Promise<void> {
       ctx.appendError(
         run.id,
         "",
-        new RelayError(
+        new DevChestraError(
           "E_WORKSPACE",
           "A recorded agent process is still alive; refusing automatic recovery",
           { details: { step: "orphan_alive" } },
@@ -52,7 +57,7 @@ export async function recoverAll(ctx: EngineContext): Promise<void> {
       ctx.appendError(
         run.id,
         "",
-        error instanceof RelayError ? error : new RelayError("E_INTERNAL", String(error)),
+        error instanceof DevChestraError ? error : new DevChestraError("E_INTERNAL", String(error)),
       );
     }
   }
@@ -83,7 +88,7 @@ async function recoverRun(ctx: EngineContext, run: RunRecord): Promise<void> {
       try {
         ctx.recordStop(identity, "crash", process?.exitCode ?? null);
       } catch (error) {
-        if (!(error instanceof RelayError) || error.code !== "E_CONFLICT") throw error;
+        if (!(error instanceof DevChestraError) || error.code !== "E_CONFLICT") throw error;
       }
     }
   }
@@ -125,7 +130,7 @@ async function recoverQueued(ctx: EngineContext, run: RunRecord): Promise<void> 
   try {
     ctx.append(run.id, "", "run.started", "engine", {});
   } catch (error) {
-    if (!(error instanceof RelayError) || error.code !== "E_CONFLICT") throw error;
+    if (!(error instanceof DevChestraError) || error.code !== "E_CONFLICT") throw error;
   }
 }
 
@@ -158,7 +163,7 @@ async function finalizeAcceptedIdentity(
       true,
     );
     if (!workspace.reused) {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_WORKSPACE",
         `Workspace for accepted result ${run.id}/${identity.path} is missing; refusing to recreate it`,
         { details: { step: "workspace_lost", dir: workspace.dir } },

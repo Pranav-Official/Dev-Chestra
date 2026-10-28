@@ -74,7 +74,7 @@ describe("parse and validate the P1 chain", () => {
     newer.schemaVersion = 2;
     const newerParse = parseWorkflow(newer);
     expect(newerParse.ok).toBe(false);
-    if (!newerParse.ok) expect(newerParse.error.message).toContain("upgrade Relay");
+    if (!newerParse.ok) expect(newerParse.error.message).toContain("upgrade DevChestra");
 
     const unknown = chainRaw();
     node(unknown, "agent").bogus = true;
@@ -190,7 +190,7 @@ describe("parse and validate the P1 chain", () => {
           const output = node(raw, "agent").output as {
             properties: Record<string, unknown>;
           };
-          output.properties.report = { type: "string", format: "relay-artifact" };
+          output.properties.report = { type: "string", format: "devchestra-artifact" };
         },
       ],
     ];
@@ -316,9 +316,9 @@ describe("normalization and hashing", () => {
 describe("parameters and scope", () => {
   it("applies defaults, rejects unknown and validates types", () => {
     const file = parseOk(chainRaw());
-    const resolved = validateParams(file, { topic: "relay" });
+    const resolved = validateParams(file, { topic: "devchestra" });
     expect(resolved.ok).toBe(true);
-    expect(resolved.value).toEqual({ topic: "relay", style: "brief" });
+    expect(resolved.value).toEqual({ topic: "devchestra", style: "brief" });
 
     expect(validateParams(file, {}).errors.map((item) => item.code)).toContain("E_PARAM_MISSING");
     expect(

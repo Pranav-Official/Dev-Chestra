@@ -23,7 +23,7 @@ log({
     HOME: process.env.HOME ?? null,
     PATH: process.env.PATH ?? null,
     UNRELATED_SECRET: process.env.UNRELATED_SECRET ?? null,
-    RELAY_LEAK_SENTINEL: process.env.RELAY_LEAK_SENTINEL ?? null,
+    DEVCHESTRA_LEAK_SENTINEL: process.env.DEVCHESTRA_LEAK_SENTINEL ?? null,
     STUB_SCENARIO: process.env.STUB_SCENARIO ?? null,
     STUB_LOG: process.env.STUB_LOG ?? null,
   },

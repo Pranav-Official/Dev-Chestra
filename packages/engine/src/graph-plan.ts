@@ -1,5 +1,5 @@
-import { err, isRecord, ok, RelayError, type Result } from "@relay/core";
-import { analyzeGraph, type GateBranch, validateWorkflow } from "@relay/schema";
+import { DevChestraError, err, isRecord, ok, type Result } from "@devchestra/core";
+import { analyzeGraph, type GateBranch, validateWorkflow } from "@devchestra/schema";
 import { type LinearNodeKind, validateBaseNodeConfig } from "./sequence.js";
 
 export type PlanNodeKind = LinearNodeKind | "gate" | "join" | "approval" | "decision";
@@ -36,8 +36,12 @@ export type ScopeSource = WorkflowPlan;
 const BASE_TYPES = new Set<string>(["start", "agent", "shell", "end", "approval", "decision"]);
 const NODE_ID_RE = /^[a-z][a-z0-9_-]{0,47}$/;
 
-function invalid(message: string, details?: unknown): RelayError {
-  return new RelayError("E_WORKFLOW_INVALID", message, details === undefined ? {} : { details });
+function invalid(message: string, details?: unknown): DevChestraError {
+  return new DevChestraError(
+    "E_WORKFLOW_INVALID",
+    message,
+    details === undefined ? {} : { details },
+  );
 }
 
 function gateBranches(raw: Record<string, unknown>): GateBranch[] {
@@ -71,7 +75,7 @@ function readPlanNode(value: unknown, index: number): PlanNode {
     throw invalid("Node id is missing or invalid", { id, index });
   }
   if (typeof type !== "string" || (!BASE_TYPES.has(type) && type !== "gate" && type !== "join")) {
-    throw new RelayError(
+    throw new DevChestraError(
       "E_WORKFLOW_INVALID",
       `Node type '${String(type)}' is not supported in this increment`,
       { details: { nodeId: id, type } },
@@ -232,7 +236,7 @@ function canonicalJoinOutput(snapshot: unknown): void {
       });
     }
   } catch (error) {
-    if (error instanceof RelayError) throw error;
+    if (error instanceof DevChestraError) throw error;
   }
 }
 
@@ -240,7 +244,7 @@ function canonicalJoinOutput(snapshot: unknown): void {
  * Validate and freeze a top-level routing graph. The plan is the only source of
  * edge/readiness logic; callers never trust a mutable in-memory queue.
  */
-export function analyzeWorkflowPlan(snapshot: unknown): Result<WorkflowPlan, RelayError> {
+export function analyzeWorkflowPlan(snapshot: unknown): Result<WorkflowPlan, DevChestraError> {
   try {
     if (!isRecord(snapshot) || !isRecord(snapshot.graph)) {
       throw invalid("Workflow snapshot must contain a graph object");
@@ -306,7 +310,7 @@ export function analyzeWorkflowPlan(snapshot: unknown): Result<WorkflowPlan, Rel
       ancestorsOf,
     });
   } catch (error) {
-    if (error instanceof RelayError) return err(error);
+    if (error instanceof DevChestraError) return err(error);
     throw error;
   }
 }

@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { FakeClock, FakeIdGen, type Path, type RunId } from "@relay/core";
+import { FakeClock, FakeIdGen, type Path, type RunId } from "@devchestra/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { openStore } from "../src/index.js";
 
@@ -10,7 +10,7 @@ afterEach(() => {
   for (const fn of cleanup.splice(0).reverse()) fn();
 });
 function harness() {
-  const dir = mkdtempSync(join(tmpdir(), "relay-cleanup-"));
+  const dir = mkdtempSync(join(tmpdir(), "devchestra-cleanup-"));
   const file = join(dir, "db.sqlite");
   const clock = new FakeClock(1_700_000_000_000);
   const ids = new FakeIdGen("cleanup");

@@ -1,4 +1,4 @@
-import type { ProjectWorkspaceEntry, RunWorkspaceSelection } from "@relay/api";
+import type { ProjectWorkspaceEntry, RunWorkspaceSelection } from "@devchestra/api";
 import { FolderOpen, GitBranch, Loader2, PlusSquare, RefreshCw, TriangleAlert } from "lucide-react";
 import type { ProjectWorkspacesState } from "./useProjectWorkspaces.js";
 
@@ -120,8 +120,8 @@ export function RunWorkspaceChoice({
             <PlusSquare size={13} aria-hidden="true" /> Create a new Git worktree
           </b>
           <span className="editor-field-hint">
-            Created under Relay's data directory when the run starts, from the project's committed
-            HEAD. Uncommitted and untracked project files are not present.
+            Created under DevChestra's data directory when the run starts, from the project's
+            committed HEAD. Uncommitted and untracked project files are not present.
           </span>
         </span>
       </label>

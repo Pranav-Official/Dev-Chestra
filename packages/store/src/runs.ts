@@ -5,7 +5,7 @@ import {
   type Path,
   type RunId,
   type RunWorkspaceBinding,
-} from "@relay/core";
+} from "@devchestra/core";
 import { appendEvents } from "./events.js";
 import { requireRun } from "./projection.js";
 import { now, type Runtime } from "./runtime.js";

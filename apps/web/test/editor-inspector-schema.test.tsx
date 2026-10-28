@@ -1,4 +1,10 @@
-import type { AgentNode, Issue, JsonSchemaObject, StartNode, WorkflowNode } from "@relay/schema";
+import type {
+  AgentNode,
+  Issue,
+  JsonSchemaObject,
+  StartNode,
+  WorkflowNode,
+} from "@devchestra/schema";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";

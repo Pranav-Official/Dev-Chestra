@@ -1,6 +1,6 @@
 import { statSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
-import { ok, type RelayError, type Result } from "@relay/core";
+import { type DevChestraError, ok, type Result } from "@devchestra/core";
 import { clip, NdjsonParser, num, parseObject, record, str } from "./parsers.js";
 import { checkDir, classifyExit, fail, requireOptionKeys } from "./plan.js";
 import { probeVersion } from "./probe.js";
@@ -309,7 +309,7 @@ function extraMcpEntry(server: ResolvedMcpServer): Record<string, unknown> {
   };
 }
 
-/** Validated extra servers: safe unique names, none colliding with relay. */
+/** Validated extra servers: safe unique names, none colliding with devchestra. */
 function extraMcpServers(req: RunRequest): ResolvedMcpServer[] {
   const extra = req.extraMcp ?? [];
   const seen = new Set<string>();
@@ -317,7 +317,7 @@ function extraMcpServers(req: RunRequest): ResolvedMcpServer[] {
     if (!MCP_NAME_RE.test(server.name)) {
       throw new Error(`extraMcp server name is not safe: ${server.name}`);
     }
-    if (server.name === "relay" || server.name === req.mcp.serverName) {
+    if (server.name === "devchestra" || server.name === req.mcp.serverName) {
       throw new Error(`extraMcp server name is reserved: ${server.name}`);
     }
     if (seen.has(server.name)) {
@@ -356,7 +356,7 @@ function splitModel(model: string): { provider?: string; id: string } {
   return { provider: model.slice(0, slash), id: model.slice(slash + 1) };
 }
 
-/** Canonical agent dir Pi would use without Relay's isolation, resolved from
+/** Canonical agent dir Pi would use without DevChestra's isolation, resolved from
  * the child env exactly like discovery identity does. */
 function canonicalAgentDir(env: Record<string, string>, cwd: string): string | null {
   const override = env.PI_CODING_AGENT_DIR;
@@ -390,14 +390,14 @@ function canonicalFile(
   return target;
 }
 
-function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
+function plan(req: RunRequest, bin: string): Result<Invocation, DevChestraError> {
   try {
     checkDir(req.cwd, "cwd");
     checkDir(req.execDir, "execDir");
     if (req.mcp.command === "" || req.mcp.args.length === 0) {
       throw new Error("mcp.command and mcp.args are required");
     }
-    if (req.mcp.serverName !== "relay") throw new Error("mcp.serverName must be relay");
+    if (req.mcp.serverName !== "devchestra") throw new Error("mcp.serverName must be devchestra");
     const options = req.cliOptions ?? {};
     requireOptionKeys(options, ["approve", "provider"]);
     if (options.approve !== undefined && typeof options.approve !== "boolean") {
@@ -466,7 +466,7 @@ function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
         command: req.mcp.command,
         args: req.mcp.args,
         env: req.mcp.env,
-        // Relay tools are small and model-called: declare them like built-ins
+        // DevChestra tools are small and model-called: declare them like built-ins
         // instead of hiding them behind codemode/tool_search.
         exposure: "direct",
       },
@@ -476,7 +476,7 @@ function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
     for (const name of Object.keys(req.mcp.env)) {
       if (!ENV_NAME_RE.test(name)) throw new Error(`Invalid MCP env name: ${name}`);
     }
-    // The isolated dir carries only Relay's mcp.json, but auth.json (OAuth +
+    // The isolated dir carries only DevChestra's mcp.json, but auth.json (OAuth +
     // API-key credentials), models.json (custom models/endpoints) and
     // settings.json (defaults) link back to the canonical store: Pi keeps
     // working authentication, and credential refresh writes through the
@@ -522,10 +522,10 @@ export function createPiAdapter(options: AdapterOptions = {}): CliAdapter {
       notes: [
         "argv from pi 1.4.0 --help plus docs/json.md, docs/message-types.md, docs/cli.md, docs/mcp.md; no live tool-call run captured",
         "--session-id creates the id when absent (pi warns); resume of a foreign id starts a new session",
-        "isolated PI_CODING_AGENT_DIR carries relay mcp.json plus symlinks to the canonical auth.json/models.json/settings.json when present; API-key providers also pass through documented env vars",
-        "symlinks alone cannot serialize Pi's per-path auth.json lock (proper-lockfile realpath:false): the engine holds auth.json.relay-lock in the canonical dir across Pi runs sharing it",
+        "isolated PI_CODING_AGENT_DIR carries devchestra mcp.json plus symlinks to the canonical auth.json/models.json/settings.json when present; API-key providers also pass through documented env vars",
+        "symlinks alone cannot serialize Pi's per-path auth.json lock (proper-lockfile realpath:false): the engine holds auth.json.devchestra-lock in the canonical dir across Pi runs sharing it",
         "toolResult ok comes from ToolResultMessage.isError; turn_end error comes from stopReason/errorMessage",
-        "extraMcp verified live 2026-10-28 (pi 1.4.0, opencode-go/deepseek-v4.1-flash): fixture stdio server in the isolated mcp.json called as mcp__fixture__fixture_echo (model found it via codemode searchTools; extras default to codemode exposure, only relay is direct); canonical-home unselected server not started",
+        "extraMcp verified live 2026-10-28 (pi 1.4.0, opencode-go/deepseek-v4.1-flash): fixture stdio server in the isolated mcp.json called as mcp__fixture__fixture_echo (model found it via codemode searchTools; extras default to codemode exposure, only devchestra is direct); canonical-home unselected server not started",
         "permissions.shell verified live 2026-10-28: false+write excludes bash+powershell (model reports no bash tool); true+read-only runs bash (echo hi -> hi)",
         "live-run caveats 2026-10-28: isolated runs reinstall settings `packages` (npm is absent on this machine, so the run used settings minus packages); nvidia catalog models 404 for this account, ollama provider is down; opencode-go/deepseek-v4.1-flash worked",
       ],
@@ -533,7 +533,7 @@ export function createPiAdapter(options: AdapterOptions = {}): CliAdapter {
     plan: (req) => plan(req, bin),
     parser: (): StreamParser => new PiParser(),
     classify: (exit: ExitInfo, _tail: Tail): FailureClass => classifyExit(exit),
-    toolRef: (tool) => `mcp__relay__${tool}`,
+    toolRef: (tool) => `mcp__devchestra__${tool}`,
     probe: (ctx: ProbeCtx, signal: AbortSignal): Promise<ProbeResult> =>
       probeVersion("pi", bin, ctx, signal),
   };

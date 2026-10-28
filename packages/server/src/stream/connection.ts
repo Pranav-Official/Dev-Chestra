@@ -1,4 +1,4 @@
-import type { EventEnvelope } from "@relay/core";
+import type { EventEnvelope } from "@devchestra/core";
 import {
   FrameWriter,
   HEARTBEAT_FRAME,

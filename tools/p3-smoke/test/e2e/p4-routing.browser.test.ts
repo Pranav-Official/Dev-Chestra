@@ -17,7 +17,7 @@ import {
   waitValidation,
 } from "../../src/browser-ui.js";
 import { CLI, scriptPath, sleep } from "../../src/fixtures.js";
-import { RelayHttp } from "../../src/http.js";
+import { DevChestraHttp } from "../../src/http.js";
 import { type OwnedServer, shutdownOwned, startSentinel, startServer } from "../../src/owned.js";
 import { collectSpawnedAgents } from "../../src/store-read.js";
 import { getWorkflow, waitTerminal } from "../../src/workflow-api.js";
@@ -130,7 +130,7 @@ async function addPaletteNode(page: Page, type: string): Promise<void> {
 }
 
 async function buildSixNodeWorkflow(
-  http: RelayHttp,
+  http: DevChestraHttp,
   page: Page,
   projectId: string,
   workflowId: string,
@@ -377,7 +377,7 @@ function raiseCleanup(failure: unknown, failures: unknown[], label: string): voi
   if (failures.length > 1) throw new AggregateError(failures, `${label} cleanup`);
 }
 
-// QUARANTINED (opt-in): set RELAY_E2E_P4=1 to run. In a 5x full-suite campaign this
+// QUARANTINED (opt-in): set DEVCHESTRA_E2E_P4=1 to run. In a 5x full-suite campaign this
 // scenario failed in 5/5 runs at three stages: connection start (React Flow
 // never raised `.react-flow__connection`), live `waitDeadEdges`, and replay.
 // The failing runs showed `deriveRouting` and the view were correct while React
@@ -386,10 +386,10 @@ function raiseCleanup(failure: unknown, failures: unknown[], label: string): voi
 // routing logic. The scrub-step collapse that was a product-side race is fixed
 // (see runSession.test.ts). Re-enable once the harness waits on a React Flow
 // readiness signal instead of polling for edge DOM.
-describe.skipIf(process.env.RELAY_E2E_P4 !== "1")("P4 routing Chromium acceptance", () => {
+describe.skipIf(process.env.DEVCHESTRA_E2E_P4 !== "1")("P4 routing Chromium acceptance", () => {
   it("creates, previews, saves, reloads, undoes, runs and replays a six-node routing graph", async () => {
-    const repo = makeRunWorkspaceRepo("relay-p4-browser-");
-    const work = tempRoot("relay-p4-browser-work-");
+    const repo = makeRunWorkspaceRepo("devchestra-p4-browser-");
+    const work = tempRoot("devchestra-p4-browser-work-");
     const dataDir = join(work.dir, "data");
     const profileDir = join(work.dir, "profile");
     mkdirSync(dataDir, { recursive: true });
@@ -410,7 +410,7 @@ describe.skipIf(process.env.RELAY_E2E_P4 !== "1")("P4 routing Chromium acceptanc
           GIT_CONFIG_NOSYSTEM: "1",
         },
       });
-      const http = new RelayHttp(server.baseUrl);
+      const http = new DevChestraHttp(server.baseUrl);
       await http.health();
       await http.bootstrap(server.meta.token);
       const session = await launchBrowser({

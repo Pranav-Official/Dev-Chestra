@@ -7,7 +7,7 @@ export default defineConfig({
     testTimeout: 180_000,
     hookTimeout: 180_000,
     fileParallelism: false,
-    // The fake CLI/script is prod-gated behind RELAY_ALLOW_FAKE; tests opt in.
-    env: { RELAY_ALLOW_FAKE: "1" },
+    // The fake CLI/script is prod-gated behind DEVCHESTRA_ALLOW_FAKE; tests opt in.
+    env: { DEVCHESTRA_ALLOW_FAKE: "1" },
   },
 });

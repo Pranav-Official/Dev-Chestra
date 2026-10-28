@@ -5,7 +5,7 @@ import {
   parseWorkflow,
   type WorkflowFile,
   type WorkflowNode,
-} from "@relay/schema";
+} from "@devchestra/schema";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";

@@ -1,6 +1,6 @@
-import type { CliModelCatalog, ProjectView, WorkflowDocumentResponse } from "@relay/api";
-import { ApiError } from "@relay/api";
-import type { ValidationReport, WorkflowFile } from "@relay/schema";
+import type { CliModelCatalog, ProjectView, WorkflowDocumentResponse } from "@devchestra/api";
+import { ApiError } from "@devchestra/api";
+import type { ValidationReport, WorkflowFile } from "@devchestra/schema";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
@@ -69,7 +69,7 @@ const CATALOG: CliModelCatalog = {
   cli: "codex",
   projectId: "p1",
   status: "ready",
-  scope: "relay-runtime",
+  scope: "devchestra-runtime",
   source: "codex-app-server",
   cliVersion: "1.2.3",
   items: [

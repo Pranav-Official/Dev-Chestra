@@ -1,5 +1,5 @@
-import { type CliId, getProvider } from "@relay/adapters";
-import type { CatalogCli, CliModelItem } from "@relay/server";
+import { type CliId, getProvider } from "@devchestra/adapters";
+import type { CatalogCli, CliModelItem } from "@devchestra/server";
 
 export type DiscoveryStatus = "ready" | "unsupported" | "unavailable" | "authRequired";
 export type DiscoverySource =

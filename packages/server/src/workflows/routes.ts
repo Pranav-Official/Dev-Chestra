@@ -5,8 +5,8 @@ import {
   startWorkflowRunRequestSchema,
   validateWorkflowRequestSchema,
   type WorkflowDocumentResponse,
-} from "@relay/api";
-import type { JsonObject } from "@relay/core";
+} from "@devchestra/api";
+import type { JsonObject } from "@devchestra/core";
 import type { Context, Hono } from "hono";
 import type {
   BrowserQueryPort,
@@ -17,7 +17,7 @@ import type {
 import { readJsonObject } from "../browser/security.js";
 import { assertProjectPathAllowed } from "../browser/workflow.js";
 import { normalizeRunWorkspace, validateRunWorkspace } from "../browser/workspaces.js";
-import { errorBody, RelayError } from "../errors.js";
+import { DevChestraError, errorBody } from "../errors.js";
 import { parseIfMatch, quoteEtag } from "./io.js";
 import type {
   ManagedWorkflowService,
@@ -50,7 +50,7 @@ function toProject(project: ProjectView): WorkflowProject {
   };
 }
 
-function conflictResponse(c: Context, error: RelayError): Response {
+function conflictResponse(c: Context, error: DevChestraError): Response {
   const details = error.details;
   const currentEtag =
     typeof details === "object" && details !== null
@@ -63,8 +63,8 @@ function conflictResponse(c: Context, error: RelayError): Response {
   return c.json(errorBody("E_CONFLICT", error.message, error.details), status as 409);
 }
 
-function isConflict(error: unknown): error is RelayError {
-  return error instanceof RelayError && error.code === "E_CONFLICT";
+function isConflict(error: unknown): error is DevChestraError {
+  return error instanceof DevChestraError && error.code === "E_CONFLICT";
 }
 
 function encodeCursor(id: string): string {
@@ -120,7 +120,7 @@ export function mountWorkflowRoutes(app: Hono, deps: WorkflowRouteDeps): void {
         ...(cursor === null ? {} : { cursor }),
       });
     } catch (error) {
-      if (error instanceof RelayError && error.code === "E_VALIDATION") {
+      if (error instanceof DevChestraError && error.code === "E_VALIDATION") {
         return c.json(errorBody("E_VALIDATION", error.message, error.details), 400);
       }
       throw error;
@@ -243,7 +243,7 @@ export function mountWorkflowRoutes(app: Hono, deps: WorkflowRouteDeps): void {
     try {
       root = assertProjectPathAllowed(found.path, deps.dataDir);
     } catch (error) {
-      if (error instanceof RelayError && error.code === "E_NOT_FOUND") {
+      if (error instanceof DevChestraError && error.code === "E_NOT_FOUND") {
         return c.json(
           errorBody(
             "E_CONFLICT",

@@ -1,5 +1,5 @@
-import type { BootstrapResponse, RunSummary } from "@relay/api";
-import type { RunId } from "@relay/core";
+import type { BootstrapResponse, RunSummary } from "@devchestra/api";
+import type { RunId } from "@devchestra/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

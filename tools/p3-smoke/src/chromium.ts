@@ -5,7 +5,7 @@ import type { Page } from "@playwright/test";
 const require = createRequire(import.meta.url);
 
 export function chromiumPath(): string {
-  const configured = process.env.RELAY_CHROMIUM_PATH;
+  const configured = process.env.DEVCHESTRA_CHROMIUM_PATH;
   if (configured !== undefined && configured !== "") return configured;
   return "/usr/bin/chromium";
 }

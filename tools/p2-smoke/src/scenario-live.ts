@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { EventEnvelope, RunView } from "@relay/core";
+import type { EventEnvelope, RunView } from "@devchestra/core";
 import { defaultIdempotencyKey, getRun, isTerminal, registerProject, startRun } from "./api-ops.js";
 import {
   assertProjectionMatches,
@@ -9,7 +9,7 @@ import {
 } from "./compare.js";
 import { fetchAllEvents, fetchEventPage } from "./events.js";
 import { CLI, makeWorkspace, scriptPath, sleep } from "./fixtures.js";
-import { RelayHttp } from "./http.js";
+import { DevChestraHttp } from "./http.js";
 import {
   collectAgent,
   type OwnedServer,
@@ -72,7 +72,7 @@ async function snapshotWithRetry(dataDir: string, runId: string): Promise<StoreS
 }
 
 export async function runLiveScenario(): Promise<LiveEvidence> {
-  const ws = await makeWorkspace("relay-p2-live-");
+  const ws = await makeWorkspace("devchestra-p2-live-");
   const sentinel = startSentinel();
   const agents = new Map<number, { pid: number; pidStart: string; binary: string }>();
   const runIds: string[] = [];
@@ -84,7 +84,7 @@ export async function runLiveScenario(): Promise<LiveEvidence> {
       cwd: ws.projectDir,
       fakeScript: scriptPath("slow"),
     });
-    const http = new RelayHttp(server.baseUrl);
+    const http = new DevChestraHttp(server.baseUrl);
     const health = await http.health();
     assert.ok(typeof health === "object" && health !== null, "health must be an object");
     const boot = await http.bootstrap(server.meta.token);
@@ -303,7 +303,7 @@ export async function runLiveScenario(): Promise<LiveEvidence> {
   }
 }
 
-export async function assertInvalidCursor(http: RelayHttp, runId: string): Promise<void> {
+export async function assertInvalidCursor(http: DevChestraHttp, runId: string): Promise<void> {
   const result = await http.api(
     "GET",
     `/api/runs/${encodeURIComponent(runId)}/stream?after=999999999`,
@@ -312,7 +312,10 @@ export async function assertInvalidCursor(http: RelayHttp, runId: string): Promi
   assert.equal(result.status, 400, "future cursor must be rejected before streaming");
 }
 
-export async function assertEventPagingContract(http: RelayHttp, runId: string): Promise<number> {
+export async function assertEventPagingContract(
+  http: DevChestraHttp,
+  runId: string,
+): Promise<number> {
   const page = await fetchEventPage(http, runId, { after: 0, limit: 5 });
   assert.ok(page.items.length <= 5, "limit must be respected");
   assert.ok(page.watermark >= (page.items.at(-1)?.id ?? 0), "watermark must cover items");

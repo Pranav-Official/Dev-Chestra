@@ -7,6 +7,6 @@ export default defineConfig({
     testTimeout: 300_000,
     hookTimeout: 300_000,
     fileParallelism: false,
-    env: { RELAY_ALLOW_FAKE: "1" },
+    env: { DEVCHESTRA_ALLOW_FAKE: "1" },
   },
 });

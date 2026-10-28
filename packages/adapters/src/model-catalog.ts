@@ -1,6 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
-import { isRecord } from "@relay/core";
+import { isRecord } from "@devchestra/core";
 import {
   boundCount,
   boundMs,
@@ -431,7 +431,7 @@ export async function discoverCodexModels(
       jsonrpc: "2.0",
       id: 1,
       method: "initialize",
-      params: { clientInfo: { name: "relay", title: "Relay", version: CLIENT_VERSION } },
+      params: { clientInfo: { name: "devchestra", title: "DevChestra", version: CLIENT_VERSION } },
     });
     armPhase(initMs);
     const init = await waitFor(1);

@@ -1,4 +1,4 @@
-import type { EventEnvelope, JsonValue } from "@relay/core";
+import type { EventEnvelope, JsonValue } from "@devchestra/core";
 
 export interface DerivedAttempt {
   attempt: number;

@@ -3,7 +3,7 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { CLI, makeWorkspace, REPO_ROOT } from "./fixtures.js";
-import { type HttpResult, objectBody, RelayHttp } from "./http.js";
+import { DevChestraHttp, type HttpResult, objectBody } from "./http.js";
 import { installModelStandins, type ModelStandin, type StandinLogEntry } from "./model-standin.js";
 import { type OwnedServer, shutdownOwned, startSentinel, startServer } from "./owned.js";
 import { collectSpawnedAgents } from "./store-read.js";
@@ -57,7 +57,7 @@ function itemIds(body: Record<string, unknown>): string[] {
 function assertBase(body: Record<string, unknown>, cli: string, projectId: string): void {
   assert.equal(body.cli, cli);
   assert.equal(body.projectId, projectId);
-  assert.equal(body.scope, "relay-runtime");
+  assert.equal(body.scope, "devchestra-runtime");
   assert.equal(body.customSupported, true);
   assert.equal(typeof body.truncated, "boolean");
   assert.ok(body.fetchedAt === null || typeof body.fetchedAt === "number");
@@ -72,7 +72,7 @@ function forbidden(entry: StandinLogEntry): boolean {
 }
 
 export async function runModelHttpScenario(): Promise<ModelHttpEvidence> {
-  const ws = await makeWorkspace("relay-p3-models-http-");
+  const ws = await makeWorkspace("devchestra-p3-models-http-");
   const sentinel = startSentinel();
   let server: OwnedServer | null = null;
   let standin: ModelStandin | null = null;
@@ -83,9 +83,8 @@ export async function runModelHttpScenario(): Promise<ModelHttpEvidence> {
       dataDir: ws.dataDir,
       cwd: ws.projectDir,
       env: standin.env,
-      extraArgs: ["--allow-experimental-adapters"],
     });
-    const http = new RelayHttp(server.baseUrl);
+    const http = new DevChestraHttp(server.baseUrl);
     await http.health();
     await http.bootstrap(server.meta.token);
     const project = await registerProject(http, ws.projectDir);

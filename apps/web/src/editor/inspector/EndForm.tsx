@@ -1,4 +1,4 @@
-import type { EndNode } from "@relay/schema";
+import type { EndNode } from "@devchestra/schema";
 import { Info } from "lucide-react";
 import { describedBy, Field } from "./fields/fields.js";
 import { fieldIssue } from "./issues.js";

@@ -8,7 +8,7 @@ import {
   realpathSync,
 } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { fsSlug, type Path, parsePath } from "@relay/core";
+import { fsSlug, type Path, parsePath } from "@devchestra/core";
 import type { TranscriptLine, TranscriptPage } from "./ports.js";
 
 const MAX_LINES = 200;

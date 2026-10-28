@@ -1,7 +1,7 @@
 {
-  "name": "@relay/api",
+  "name": "@devchestra/api",
   "version": "0.1.0",
-  "description": "Browser-safe Relay API contract: Zod schemas, typed client and SSE parsing",
+  "description": "Browser-safe DevChestra API contract: Zod schemas, typed client and SSE parsing",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -21,8 +21,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@relay/core": "workspace:*",
-    "@relay/schema": "workspace:*",
+    "@devchestra/core": "workspace:*",
+    "@devchestra/schema": "workspace:*",
     "zod": "4.6.7"
   },
   "devDependencies": {

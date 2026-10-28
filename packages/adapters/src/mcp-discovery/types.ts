@@ -1,10 +1,10 @@
-import type { RelayError, Result } from "@relay/core";
-import type { McpScope, McpSelection, ProdCliId } from "@relay/schema";
+import type { DevChestraError, Result } from "@devchestra/core";
+import type { McpScope, McpSelection, ProdCliId } from "@devchestra/schema";
 import type { ResolvedMcpServer, RunRequest } from "../types.js";
 
 /**
- * What the UI sees. Mirrors `DiscoveredMcpServer` in `@relay/api` (adapters
- * cannot import `@relay/api`, so the shape is duplicated here and kept
+ * What the UI sees. Mirrors `DiscoveredMcpServer` in `@devchestra/api` (adapters
+ * cannot import `@devchestra/api`, so the shape is duplicated here and kept
  * compatible by a compile-time check in the server tests). Never carries env
  * values, header values, tokens or URL credentials.
  */
@@ -49,7 +49,7 @@ export interface McpResolver {
     cli: ProdCliId,
     projectDir: string,
     selection: readonly McpSelection[],
-  ): Promise<Result<McpResolveResult, RelayError>>;
+  ): Promise<Result<McpResolveResult, DevChestraError>>;
 }
 
 export interface McpResolverOptions {

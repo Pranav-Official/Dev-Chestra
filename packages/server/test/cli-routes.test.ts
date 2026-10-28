@@ -1,9 +1,9 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getProvider } from "@relay/adapters";
-import type { ProjectView } from "@relay/api";
-import { PROD_CLIS } from "@relay/schema";
+import { getProvider } from "@devchestra/adapters";
+import type { ProjectView } from "@devchestra/api";
+import { PROD_CLIS } from "@devchestra/schema";
 import { afterEach, describe, expect, it } from "vitest";
 import type { BrowserQueryPort, BrowserRunControllerPort } from "../src/index.js";
 import { createBrowserApp } from "../src/index.js";
@@ -82,7 +82,7 @@ function controller(): BrowserRunControllerPort {
 }
 
 async function app() {
-  const dataDir = await mkdtemp(join(tmpdir(), "relay-clis-data-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "devchestra-clis-data-"));
   cleanups.push(async () => {
     await rm(dataDir, { recursive: true, force: true });
   });
@@ -111,19 +111,19 @@ describe("GET /api/clis", () => {
   it("lists the registry CLIs without live probes", async () => {
     const a = await app();
     const res = await a.request(`http://127.0.0.1:${PORT}/api/clis`, {
-      headers: { Host: HOST, Cookie: `relay_session=${TOKEN}` },
+      headers: { Host: HOST, Cookie: `devchestra_session=${TOKEN}` },
     });
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       clis: { id: string; label: string; experimental: boolean }[];
     };
-    // Server tests opt into RELAY_ALLOW_FAKE=1, so the test-only fake is listed last.
+    // Server tests opt into DEVCHESTRA_ALLOW_FAKE=1, so the test-only fake is listed last.
     expect(body.clis.map((entry) => entry.id)).toEqual([...PROD_CLIS, "fake"]);
     for (const id of PROD_CLIS) {
       const entry = body.clis.find((candidate) => candidate.id === id);
       expect(entry?.label).toBe(getProvider(id).label);
       expect(entry?.label.length).toBeGreaterThan(0);
-      expect(entry?.experimental).toBe(true);
+      expect(entry?.experimental).toBe(false);
     }
   });
 
@@ -132,7 +132,7 @@ describe("GET /api/clis", () => {
     const anon = await a.request(`http://127.0.0.1:${PORT}/api/clis`);
     expect(anon.status).toBe(401);
     const query = await a.request(`http://127.0.0.1:${PORT}/api/clis?x=1`, {
-      headers: { Host: HOST, Cookie: `relay_session=${TOKEN}` },
+      headers: { Host: HOST, Cookie: `devchestra_session=${TOKEN}` },
     });
     expect(query.status).toBe(400);
   });

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Test-only stand-in for `codex` and `claude`. It captures the actual argv that
-// Relay invoked, then submits through the real MCP shim. No provider is called.
+// DevChestra invoked, then submits through the real MCP shim. No provider is called.
 import { createRequire } from "node:module";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -14,8 +14,8 @@ function fail(message) {
 }
 
 function captureDir() {
-  const dir = process.env.RELAY_TEST_CAPTURE_DIR;
-  if (dir === undefined || dir === "") fail("RELAY_TEST_CAPTURE_DIR missing");
+  const dir = process.env.DEVCHESTRA_TEST_CAPTURE_DIR;
+  if (dir === undefined || dir === "") fail("DEVCHESTRA_TEST_CAPTURE_DIR missing");
   return dir;
 }
 
@@ -26,7 +26,7 @@ async function readStdin() {
 }
 
 function resolveShim() {
-  const entry = process.env.RELAY_MCP_SHIM_ENTRY;
+  const entry = process.env.DEVCHESTRA_MCP_SHIM_ENTRY;
   if (entry !== undefined && entry !== "") {
     return { command: process.execPath, args: [entry], env: { ...process.env } };
   }
@@ -39,13 +39,13 @@ function resolveShim() {
   } catch {
     fail("MCP config is not readable JSON");
   }
-  const server = config?.mcpServers?.relay;
+  const server = config?.mcpServers?.devchestra;
   if (
     typeof server?.command !== "string" ||
     !Array.isArray(server.args) ||
     server.args.some((arg) => typeof arg !== "string")
   ) {
-    fail("MCP config relay server is invalid");
+    fail("MCP config devchestra server is invalid");
   }
   return {
     command: server.command,
@@ -104,8 +104,8 @@ function emit(profile) {
 }
 
 async function main() {
-  const profile = process.env.RELAY_TEST_PROFILE;
-  if (profile !== "codex" && profile !== "claude-code") fail("RELAY_TEST_PROFILE missing");
+  const profile = process.env.DEVCHESTRA_TEST_PROFILE;
+  if (profile !== "codex" && profile !== "claude-code") fail("DEVCHESTRA_TEST_PROFILE missing");
   const argv = process.argv.slice(2);
   const stdin = await readStdin();
   const dir = captureDir();

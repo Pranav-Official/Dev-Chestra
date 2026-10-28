@@ -1,5 +1,5 @@
-import type { EventEnvelope } from "@relay/core";
-import { RelayError, relayErrorCode } from "../errors.js";
+import type { EventEnvelope } from "@devchestra/core";
+import { DevChestraError, devchestraErrorCode } from "../errors.js";
 import { Connection, type ResolvedCursor } from "./connection.js";
 import {
   DEFAULT_HEARTBEAT_MS,
@@ -37,7 +37,7 @@ export class StreamHub {
     this.#store = options.store;
     const heartbeat = options.heartbeatMs ?? DEFAULT_HEARTBEAT_MS;
     if (!Number.isFinite(heartbeat) || heartbeat < 0) {
-      throw new RelayError("E_INTERNAL", "heartbeatMs must be a non-negative number");
+      throw new DevChestraError("E_INTERNAL", "heartbeatMs must be a non-negative number");
     }
     this.#heartbeatMs = heartbeat;
     this.#queueLimit = Math.max(1, options.queueLimit ?? DEFAULT_QUEUE_LIMIT);
@@ -54,13 +54,13 @@ export class StreamHub {
   }
 
   async handleRunStream(request: Request, rid: string): Promise<Response> {
-    if (this.#closed) return relayJson("E_INTERNAL", "The server is shutting down");
+    if (this.#closed) return devchestraJson("E_INTERNAL", "The server is shutting down");
     if (rid.length === 0 || rid.length > MAX_RUN_ID_LENGTH) {
-      return relayJson("E_NOT_FOUND", "Run does not exist");
+      return devchestraJson("E_NOT_FOUND", "Run does not exist");
     }
 
     const cursor = resolveCursor(request);
-    if (cursor === null) return relayJson("E_VALIDATION", "Invalid run cursor");
+    if (cursor === null) return devchestraJson("E_VALIDATION", "Invalid run cursor");
 
     const connection = new Connection(this, "run", rid, {
       queueLimit: this.#queueLimit,
@@ -78,7 +78,7 @@ export class StreamHub {
     }
     if (snapshot === null) {
       connection.dispose();
-      return relayJson("E_NOT_FOUND", "Run does not exist");
+      return devchestraJson("E_NOT_FOUND", "Run does not exist");
     }
 
     if (cursor.kind === "cursor") {
@@ -93,7 +93,7 @@ export class StreamHub {
   }
 
   handleGlobalStream(request: Request): Response {
-    if (this.#closed) return relayJson("E_INTERNAL", "The server is shutting down");
+    if (this.#closed) return devchestraJson("E_INTERNAL", "The server is shutting down");
     const connection = new Connection(this, "global", null, {
       queueLimit: this.#queueLimit,
       pageSize: this.#pageSize,
@@ -137,13 +137,13 @@ export class StreamHub {
 
   #validateCursor(runId: string, cursor: number, watermark: number): Response | null {
     if (cursor > watermark) {
-      return relayJson("E_VALIDATION", "Run cursor is ahead of the run watermark");
+      return devchestraJson("E_VALIDATION", "Run cursor is ahead of the run watermark");
     }
     if (cursor === 0) return null;
     // Exact membership. `cursor - 1` may be another run's global event id, so
     // it is never used as a page anchor.
     if (!this.#store.hasEvent(runId, cursor)) {
-      return relayJson("E_VALIDATION", "Run cursor is not valid for this run");
+      return devchestraJson("E_VALIDATION", "Run cursor is not valid for this run");
     }
     return null;
   }
@@ -233,8 +233,11 @@ export function resolveCursor(request: Request): ResolvedCursor | null {
   return { kind: "cursor", value };
 }
 
-function relayJson(code: "E_VALIDATION" | "E_NOT_FOUND" | "E_INTERNAL", message: string): Response {
-  const error = new RelayError(code, message);
+function devchestraJson(
+  code: "E_VALIDATION" | "E_NOT_FOUND" | "E_INTERNAL",
+  message: string,
+): Response {
+  const error = new DevChestraError(code, message);
   const body = { error: { code: error.code, message: error.message } };
   return new Response(JSON.stringify(body), {
     status: error.status,
@@ -243,10 +246,10 @@ function relayJson(code: "E_VALIDATION" | "E_NOT_FOUND" | "E_INTERNAL", message:
 }
 
 function mapStoreError(error: unknown): Response {
-  const code = relayErrorCode(error);
-  if (code === "E_NOT_FOUND") return relayJson("E_NOT_FOUND", "Run does not exist");
+  const code = devchestraErrorCode(error);
+  if (code === "E_NOT_FOUND") return devchestraJson("E_NOT_FOUND", "Run does not exist");
   if (code === "E_VALIDATION" || code === "E_CONFLICT") {
-    return relayJson("E_VALIDATION", "Invalid run cursor");
+    return devchestraJson("E_VALIDATION", "Invalid run cursor");
   }
-  return relayJson("E_INTERNAL", "Stream unavailable");
+  return devchestraJson("E_INTERNAL", "Stream unavailable");
 }

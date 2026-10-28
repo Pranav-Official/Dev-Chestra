@@ -1,4 +1,4 @@
-import { RelayError } from "./error.js";
+import { DevChestraError } from "./error.js";
 import type { EventEnvelope, KnownEventType } from "./events.js";
 import {
   assertIdentity,
@@ -37,12 +37,12 @@ export function reduceLifecycleEvent(view: RunView, envelope: EventEnvelope): Ru
       const payload = (envelope as EventEnvelope<"run.created">).payload;
       positive(payload.runNumber, "Run number");
       if (view.runNumber !== 0 && view.runNumber !== payload.runNumber) {
-        throw new RelayError("E_CONFLICT", "Run was already created with another run number", {
+        throw new DevChestraError("E_CONFLICT", "Run was already created with another run number", {
           details: { existing: view.runNumber, received: payload.runNumber },
         });
       }
       if (view.runNumber !== 0 && view.status !== "queued") {
-        throw new RelayError("E_CONFLICT", "run.created arrived after the run left queued");
+        throw new DevChestraError("E_CONFLICT", "run.created arrived after the run left queued");
       }
       return {
         ...view,
@@ -196,9 +196,13 @@ export function reduceLifecycleEvent(view: RunView, envelope: EventEnvelope): Ru
       return updateExec(view, key, (exec) => {
         fenceOptionalIdentity(exec, type, payload);
         if (exec.gateDecision !== null) {
-          throw new RelayError("E_CONFLICT", "Gate decision is immutable and already recorded", {
-            details: { path, existing: exec.gateDecision, received: payload },
-          });
+          throw new DevChestraError(
+            "E_CONFLICT",
+            "Gate decision is immutable and already recorded",
+            {
+              details: { path, existing: exec.gateDecision, received: payload },
+            },
+          );
         }
         if (exec.status !== "running" && exec.status !== "validating") {
           throw internal("Gate decision arrived in an unexpected status", {
@@ -223,9 +227,13 @@ export function reduceLifecycleEvent(view: RunView, envelope: EventEnvelope): Ru
       return updateExec(view, key, (exec) => {
         fenceOptionalIdentity(exec, type, payload);
         if (exec.joinResolution !== null) {
-          throw new RelayError("E_CONFLICT", "Join resolution is immutable and already recorded", {
-            details: { path, existing: exec.joinResolution, received: payload },
-          });
+          throw new DevChestraError(
+            "E_CONFLICT",
+            "Join resolution is immutable and already recorded",
+            {
+              details: { path, existing: exec.joinResolution, received: payload },
+            },
+          );
         }
         if (exec.status !== "running" && exec.status !== "validating") {
           throw internal("Join resolution arrived in an unexpected status", {
@@ -267,9 +275,13 @@ export function reduceLifecycleEvent(view: RunView, envelope: EventEnvelope): Ru
           JSON.stringify(cur.criteria) === JSON.stringify(payload.criteria ?? null);
         if (same) return withEventId(view, envelope);
         // Different request for same attempt/generation is a conflict (stale UI or retry misuse).
-        throw new RelayError("E_CONFLICT", "Approval request is immutable and already recorded", {
-          details: { path, existing: cur, received: payload },
-        });
+        throw new DevChestraError(
+          "E_CONFLICT",
+          "Approval request is immutable and already recorded",
+          {
+            details: { path, existing: cur, received: payload },
+          },
+        );
       }
       // Run-level waiting_approval transition (for inbox WHERE run.status=waiting_approval).
       let nextView: RunView;
@@ -321,19 +333,23 @@ export function reduceLifecycleEvent(view: RunView, envelope: EventEnvelope): Ru
       // Preserve old event replay as audit/read-only: legacy requested+resolved with omitted requestId rebuilds.
       if (exec.approvalRequest.requestId === null) {
         if (payload.requestId === undefined) return withEventId(view, envelope);
-        throw new RelayError("E_CONFLICT", "Legacy approval without requestId is not resolvable", {
-          details: { path },
-        });
+        throw new DevChestraError(
+          "E_CONFLICT",
+          "Legacy approval without requestId is not resolvable",
+          {
+            details: { path },
+          },
+        );
       }
       // Enforce stable request identity: client must echo requestId.
       const expected = exec.approvalRequest.requestId;
       if (payload.requestId !== undefined && payload.requestId !== expected) {
-        throw new RelayError("E_CONFLICT", "Stale approval requestId; path was retried", {
+        throw new DevChestraError("E_CONFLICT", "Stale approval requestId; path was retried", {
           details: { path, expected, received: payload.requestId },
         });
       }
       if (payload.requestId === undefined) {
-        throw new RelayError("E_CONFLICT", "approval.resolved must carry requestId", {
+        throw new DevChestraError("E_CONFLICT", "approval.resolved must carry requestId", {
           details: { path },
         });
       }
@@ -349,7 +365,7 @@ export function reduceLifecycleEvent(view: RunView, envelope: EventEnvelope): Ru
           // Idempotent replay even after run terminal — do not change run status again.
           return withEventId(view, envelope);
         }
-        throw new RelayError("E_CONFLICT", "Approval decision is immutable", {
+        throw new DevChestraError("E_CONFLICT", "Approval decision is immutable", {
           details: { path, existing: cur, received: payload },
         });
       }
@@ -421,9 +437,13 @@ export function reduceLifecycleEvent(view: RunView, envelope: EventEnvelope): Ru
           cur.routing.reason === routing.reason;
         // Idempotent replay even after run terminal — do not change status again.
         if (same) return withEventId(view, envelope);
-        throw new RelayError("E_CONFLICT", "Decision answer is immutable and already recorded", {
-          details: { path, existing: cur, received: payload },
-        });
+        throw new DevChestraError(
+          "E_CONFLICT",
+          "Decision answer is immutable and already recorded",
+          {
+            details: { path, existing: cur, received: payload },
+          },
+        );
       }
       if (exec.status !== "running" && exec.status !== "validating") {
         throw internal("Decision answer arrived in an unexpected status", {

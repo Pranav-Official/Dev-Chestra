@@ -109,7 +109,7 @@ function edgeState(
 /**
  * Pure, browser-safe routing derivation for the engine and viewer. It accepts
  * the workflow graph snapshot and the durable execution projection; it does not
- * import `@relay/schema`, write state, or run expressions.
+ * import `@devchestra/schema`, write state, or run expressions.
  */
 export function deriveRouting(
   graph: RoutingGraph,

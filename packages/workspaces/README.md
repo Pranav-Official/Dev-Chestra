@@ -1,12 +1,12 @@
-# @relay/workspaces
+# @devchestra/workspaces
 
-Filesystem acquisition for Relay runs. One workflow execution uses exactly one
+Filesystem acquisition for DevChestra runs. One workflow execution uses exactly one
 working directory for every agent and shell.
 
 ## Run-level selection
 
 A fresh run chooses one browser-safe `RunWorkspaceSelection` (exported by
-`@relay/core` and re-exported here):
+`@devchestra/core` and re-exported here):
 
 - `{ mode: "project" }` - the registered project root (Git or plain folder).
 - `{ mode: "existing-worktree", path }` - a canonical worktree already listed by
@@ -29,7 +29,7 @@ revalidate those identities, so replacing a directory at the same path fails
 closed.
 
 Markers always live under the data directory. Project roots and existing
-worktrees are never removed, and no Relay marker is written into a user's
+worktrees are never removed, and no DevChestra marker is written into a user's
 checkout. New worktrees may advance HEAD via workflow commits; the initial base
 is frozen only for evidence.
 
@@ -41,4 +41,4 @@ is frozen only for evidence.
   unlisted/non-canonical paths with `E_VALIDATION`.
 - `prepareRunWorkspace(request)` - bind identities; `requireExisting` for resume.
 - `acquireRunWorkspace` / `finalizeRunWorkspace` / `removeRunWorkspace` - used by
-  the `@relay/workspaces` port wrappers.
+  the `@devchestra/workspaces` port wrappers.

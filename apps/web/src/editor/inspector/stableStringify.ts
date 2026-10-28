@@ -1,4 +1,4 @@
-import { isRecord } from "@relay/core";
+import { isRecord } from "@devchestra/core";
 
 export function stableStringify(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;

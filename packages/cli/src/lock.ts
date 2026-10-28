@@ -13,7 +13,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
-import { RelayError } from "@relay/core";
+import { DevChestraError } from "@devchestra/core";
 
 export interface LockOwner {
   pid: number;
@@ -42,17 +42,17 @@ export class DataDirLockedError extends Error {
   constructor(owner: LockOwner | null, ambiguous = false) {
     super(
       ambiguous
-        ? "The data-directory lock has no readable owner. Inspect or remove relay.lock manually."
+        ? "The data-directory lock has no readable owner. Inspect or remove devchestra.lock manually."
         : owner === null
-          ? "Another Relay process owns this data directory."
-          : `Another Relay process owns this data directory (pid ${owner.pid}).`,
+          ? "Another DevChestra process owns this data directory."
+          : `Another DevChestra process owns this data directory (pid ${owner.pid}).`,
     );
     this.name = "DataDirLockedError";
     this.owner = owner;
   }
 }
 
-const LOCK_DIR = "relay.lock";
+const LOCK_DIR = "devchestra.lock";
 const OWNER_PREFIX = "owner.";
 const OWNER_SUFFIX = ".json";
 
@@ -254,7 +254,7 @@ async function takeReclaimMarker(lockDir: string): Promise<string | null> {
 
 /**
  * Reclaim only via an exclusive marker and an atomic rename of the whole lock
- * directory. The shared `relay.lock` path is never rmdir'd, so a racing
+ * directory. The shared `devchestra.lock` path is never rmdir'd, so a racing
  * reclaimer cannot delete a freshly created empty lock directory.
  */
 async function reclaimStale(lockDir: string, owners: LockOwner[]): Promise<boolean> {
@@ -297,13 +297,13 @@ export async function acquireDataDirLock(
   try {
     const existing = await lstat(dataDir);
     if (existing.isSymbolicLink()) {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_CONFLICT",
         "The data directory must not be a symlink; pass the real directory path.",
       );
     }
     if (!existing.isDirectory()) {
-      throw new RelayError("E_VALIDATION", "The data directory is not a directory.");
+      throw new DevChestraError("E_VALIDATION", "The data directory is not a directory.");
     }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;

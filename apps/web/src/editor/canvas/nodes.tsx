@@ -4,7 +4,7 @@ import {
   type Issue,
   type NodeType,
   type WorkflowNode,
-} from "@relay/schema";
+} from "@devchestra/schema";
 import { Handle, type Node, type NodeProps, Position, useUpdateNodeInternals } from "@xyflow/react";
 import {
   AlertTriangle,

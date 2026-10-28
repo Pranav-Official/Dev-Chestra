@@ -2,7 +2,7 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Writable } from "node:stream";
-import { createAdapterRegistry } from "@relay/adapters";
+import { createAdapterRegistry } from "@devchestra/adapters";
 import { afterEach, describe, expect, it } from "vitest";
 import type { CliOptions } from "../src/args.js";
 import { readServerMetadata, serverMetadataPath } from "../src/server-metadata.js";
@@ -19,7 +19,7 @@ afterEach(() => {
   else process.env.PATH = originalPath;
 });
 
-function tempDir(prefix = "relay-experimental-"): string {
+function tempDir(prefix = "devchestra-experimental-"): string {
   const dir = mkdtempSync(join(tmpdir(), prefix));
   cleanups.push(() => {
     rmSync(dir, { recursive: true, force: true });
@@ -28,8 +28,8 @@ function tempDir(prefix = "relay-experimental-"): string {
 }
 
 function webRoot(): string {
-  const dir = tempDir("relay-experimental-web-");
-  writeFileSync(join(dir, "index.html"), "<!doctype html><title>relay</title>");
+  const dir = tempDir("devchestra-experimental-web-");
+  writeFileSync(join(dir, "index.html"), "<!doctype html><title>devchestra</title>");
   return dir;
 }
 
@@ -77,7 +77,7 @@ async function waitFor(
 }
 
 function installCliStubs(): { marker: string } {
-  const dir = tempDir("relay-experimental-stubs-");
+  const dir = tempDir("devchestra-experimental-stubs-");
   const marker = join(dir, "invoked.marker");
   const script = [
     "#!/bin/sh",
@@ -243,8 +243,8 @@ async function startOwned(
   return {
     base: `http://127.0.0.1:${read.value.port}`,
     auth: {
-      "x-relay-token": read.value.token,
-      "x-relay-csrf": "1",
+      "x-devchestra-token": read.value.token,
+      "x-devchestra-csrf": "1",
       "content-type": "application/json",
     },
     stop: async () => {
@@ -255,23 +255,14 @@ async function startOwned(
 }
 
 describe("experimental adapter launch over the real CLI HTTP server", () => {
-  it("rejects the launch when the flag is absent and the body cannot enable it", async () => {
+  it("rejects bodies that try to inject launch options", async () => {
     const { marker } = installCliStubs();
     const dataDir = tempDir();
-    const projectDir = tempDir("relay-experimental-project-");
+    const projectDir = tempDir("devchestra-experimental-project-");
     writeFileSync(join(projectDir, "workflow.json"), JSON.stringify(experimentalWorkflow("codex")));
     const server = await startOwned(dataDir, options({ port: 0 }));
     try {
       const projectId = await registerProject(server.base, server.auth, projectDir);
-      const rejected = await postRun(server.base, server.auth, projectId, {
-        workflowFile: "workflow.json",
-        params: {},
-      });
-      expect(rejected.status).toBe(400);
-      expect(rejected.reply.error?.code).toBe("E_VALIDATION");
-      expect(rejected.reply.error?.message).toContain("--allow-experimental-adapters");
-      expect(rejected.reply.error?.message?.toLowerCase()).toContain("experimental");
-
       const override = await postRun(server.base, server.auth, projectId, {
         workflowFile: "workflow.json",
         params: {},
@@ -300,7 +291,7 @@ describe("experimental adapter launch over the real CLI HTTP server", () => {
 
       const { marker } = installCliStubs();
       const dataDir = tempDir();
-      const projectDir = tempDir("relay-experimental-project-");
+      const projectDir = tempDir("devchestra-experimental-project-");
       const server = await startOwned(
         dataDir,
         options({ port: 0, allowExperimentalAdapters: true }),

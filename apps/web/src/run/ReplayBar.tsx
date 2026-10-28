@@ -1,4 +1,4 @@
-import type { EventEnvelope } from "@relay/core";
+import type { EventEnvelope } from "@devchestra/core";
 import { ChevronLeft, ChevronRight, Radio } from "lucide-react";
 import { formatEventTime } from "../ui/format.js";
 

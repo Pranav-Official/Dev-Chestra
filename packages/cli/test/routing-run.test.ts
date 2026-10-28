@@ -79,7 +79,7 @@ function conflicting() {
 function options(workflow: string): CliOptions {
   return {
     command: "run",
-    workflow: `.relay/workflows/${workflow}.json`,
+    workflow: `.devchestra/workflows/${workflow}.json`,
     project,
     params: {},
     json: false,
@@ -94,13 +94,13 @@ function options(workflow: string): CliOptions {
 }
 
 async function write(workflow: { id: string }): Promise<void> {
-  const dir = join(project, ".relay", "workflows");
+  const dir = join(project, ".devchestra", "workflows");
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, `${workflow.id}.json`), `${JSON.stringify(workflow, null, 2)}\n`);
 }
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "relay-cli-routing-"));
+  root = await mkdtemp(join(tmpdir(), "devchestra-cli-routing-"));
   project = join(root, "project");
   dataDir = join(root, "data");
   await mkdir(project, { recursive: true });

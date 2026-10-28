@@ -1,4 +1,4 @@
-import type { DecisionRoutingReason } from "@relay/core";
+import type { DecisionRoutingReason } from "@devchestra/core";
 
 /**
  * Structural view over a normalized decision answer. Both the core ExecView

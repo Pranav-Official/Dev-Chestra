@@ -1,8 +1,8 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { WorkflowDocumentResponse, WorkflowListResponse } from "@relay/api";
-import type { RunId } from "@relay/core";
+import type { WorkflowDocumentResponse, WorkflowListResponse } from "@devchestra/api";
+import type { RunId } from "@devchestra/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type {
   BrowserQueryPort,
@@ -94,7 +94,7 @@ function url(path: string): string {
 function headers(mutation = false): Record<string, string> {
   return {
     Cookie: cookie,
-    ...(mutation ? { "Content-Type": "application/json", "X-Relay-Csrf": "1" } : {}),
+    ...(mutation ? { "Content-Type": "application/json", "X-DevChestra-Csrf": "1" } : {}),
   };
 }
 
@@ -118,7 +118,7 @@ async function json<T>(
 }
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "relay-wf-http-"));
+  root = await mkdtemp(join(tmpdir(), "devchestra-wf-http-"));
   dataDir = join(root, "data");
   projectPath = join(root, "project");
   started = [];
@@ -233,7 +233,7 @@ describe("workflow HTTP routes", () => {
     );
     expect(run.status).toBe(202);
     expect(started).toHaveLength(1);
-    expect(started[0]?.workflowFile).toBe(".relay/workflows/runnable.json");
+    expect(started[0]?.workflowFile).toBe(".devchestra/workflows/runnable.json");
     expect(started[0]?.snapshotRaw).toBe(created.body.text);
     expect(started[0]?.idempotencyKey).toBe("test-run-1");
   });

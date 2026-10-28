@@ -4,7 +4,7 @@ import {
   parseWorkflow,
   validateWorkflow,
   type WorkflowFile,
-} from "@relay/schema";
+} from "@devchestra/schema";
 import { describe, expect, it } from "vitest";
 import {
   applyCommandToFile,

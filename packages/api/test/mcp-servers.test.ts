@@ -14,7 +14,7 @@ interface Call {
 function response(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", "X-Relay-Api": "1" },
+    headers: { "Content-Type": "application/json", "X-DevChestra-Api": "1" },
   });
 }
 

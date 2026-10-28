@@ -1,4 +1,4 @@
-import type { Edge } from "@relay/schema";
+import type { Edge } from "@devchestra/schema";
 import {
   BaseEdge,
   EdgeLabelRenderer,

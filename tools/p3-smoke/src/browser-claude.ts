@@ -18,7 +18,7 @@ import {
 } from "./browser-ui.js";
 import { injectAxe, seriousViolations } from "./chromium.js";
 import { CLI, makeWorkspace, REPO_ROOT, sleep } from "./fixtures.js";
-import { RelayHttp } from "./http.js";
+import { DevChestraHttp } from "./http.js";
 import { installModelStandins, type ModelStandin } from "./model-standin.js";
 import { type OwnedServer, shutdownOwned, startSentinel, startServer } from "./owned.js";
 import { collectSpawnedAgents } from "./store-read.js";
@@ -148,7 +148,7 @@ async function waitStatus(page: Page, pattern: RegExp, timeout = 20_000): Promis
 }
 
 async function agentModel(
-  http: RelayHttp,
+  http: DevChestraHttp,
   projectId: string,
   workflowId: string,
 ): Promise<string | null> {
@@ -189,7 +189,7 @@ async function axePicker(page: Page): Promise<{ serious: number; total: number }
 }
 
 export async function runClaudeBrowserScenario(): Promise<ClaudeBrowserEvidence> {
-  const ws = await makeWorkspace("relay-p3-claude-browser-");
+  const ws = await makeWorkspace("devchestra-p3-claude-browser-");
   const sentinel = startSentinel();
   let server: OwnedServer | null = null;
   let context: BrowserContext | null = null;
@@ -207,9 +207,8 @@ export async function runClaudeBrowserScenario(): Promise<ClaudeBrowserEvidence>
       dataDir: ws.dataDir,
       cwd: ws.projectDir,
       env: stub.env,
-      extraArgs: ["--allow-experimental-adapters"],
     });
-    const http = new RelayHttp(server.baseUrl);
+    const http = new DevChestraHttp(server.baseUrl);
     await http.health();
     await http.bootstrap(server.meta.token);
     const project = await registerProject(http, ws.projectDir);

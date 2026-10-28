@@ -1,14 +1,14 @@
-import { type ErrorCode, RelayError } from "@relay/core";
+import { DevChestraError, type ErrorCode } from "@devchestra/core";
 
 export function fail(code: ErrorCode, message: string, details?: unknown): never {
-  throw new RelayError(code, message, details === undefined ? {} : { details });
+  throw new DevChestraError(code, message, details === undefined ? {} : { details });
 }
 
 export function parseJson<T>(text: string): T {
   try {
     return JSON.parse(text) as T;
   } catch (error) {
-    throw new RelayError("E_INTERNAL", "Stored JSON is corrupt", { cause: error });
+    throw new DevChestraError("E_INTERNAL", "Stored JSON is corrupt", { cause: error });
   }
 }
 

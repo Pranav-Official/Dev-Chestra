@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { isRecord, ok, type RelayError, type Result } from "@relay/core";
+import { type DevChestraError, isRecord, ok, type Result } from "@devchestra/core";
 import { hasControl } from "./discovery-util.js";
 import { clip, NdjsonParser, num, parseObject, record, str, UsageDelta } from "./parsers.js";
 import { checkDir, classifyExit, fail, requireOptionKeys, stringList } from "./plan.js";
@@ -66,13 +66,13 @@ const MCP_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const ENV_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /** Names that become `-c` key-path segments must be strict: dots would
- *  escape the intended nesting and `relay` is the always-attached shim. */
+ *  escape the intended nesting and `devchestra` is the always-attached shim. */
 function checkMcpName(name: string, field: string): string {
   if (!MCP_NAME_RE.test(name)) {
     throw new Error(`${field} is not a safe MCP server name: ${name}`);
   }
-  if (name === "relay") {
-    throw new Error(`${field} must not be "relay" (reserved for the Relay shim)`);
+  if (name === "devchestra") {
+    throw new Error(`${field} must not be "devchestra" (reserved for the DevChestra shim)`);
   }
   return name;
 }
@@ -81,7 +81,7 @@ function checkMcpName(name: string, field: string): string {
  *  only in the child process env, never in argv. */
 function headerEnvVar(server: string, header: string): string {
   const clean = (part: string): string => part.toUpperCase().replace(/[^A-Z0-9]/g, "_");
-  return `RELAY_MCP_${clean(server)}_${clean(header)}`;
+  return `DEVCHESTRA_MCP_${clean(server)}_${clean(header)}`;
 }
 
 interface ExtraMcpPlan {
@@ -165,7 +165,7 @@ function planExtraMcp(req: RunRequest): ExtraMcpPlan {
 
   for (const known of req.knownMcp ?? []) {
     if (known.scope === "connector") continue; // covered by the apps gate below
-    if (known.name === "relay") continue; // our own shim, always attached
+    if (known.name === "devchestra") continue; // our own shim, always attached
     checkMcpName(known.name, "knownMcp[].name");
     if (!selectedServers.has(known.name)) {
       flags.push("-c", `mcp_servers.${known.name}.enabled=false`);
@@ -274,7 +274,7 @@ class CodexParser extends NdjsonParser {
   }
 }
 
-function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
+function plan(req: RunRequest, bin: string): Result<Invocation, DevChestraError> {
   try {
     checkDir(req.cwd, "cwd");
     checkDir(req.execDir, "execDir");
@@ -327,19 +327,19 @@ function plan(req: RunRequest, bin: string): Result<Invocation, RelayError> {
     if (req.mode === "resume") args.push("-c", `sandbox_mode=${toml(mode)}`);
     args.push("-c", `sandbox_workspace_write.network_access=${String(req.permissions.network)}`);
 
-    if (req.mcp.serverName !== "relay") throw new Error("mcp.serverName must be relay");
+    if (req.mcp.serverName !== "devchestra") throw new Error("mcp.serverName must be devchestra");
     const envNames = req.mcp.envNames ?? Object.keys(req.mcp.env);
     for (const name of envNames) {
       if (!ENV_NAME_RE.test(name)) {
         throw new Error(`Invalid MCP env name: ${name}`);
       }
     }
-    args.push("-c", `mcp_servers.relay.command=${toml(req.mcp.command)}`);
-    args.push("-c", `mcp_servers.relay.args=${JSON.stringify(req.mcp.args)}`);
-    args.push("-c", `mcp_servers.relay.env_vars=${JSON.stringify(envNames)}`);
-    args.push("-c", `mcp_servers.relay.default_tools_approval_mode=${toml("approve")}`);
-    args.push("-c", "mcp_servers.relay.startup_timeout_sec=20");
-    args.push("-c", "mcp_servers.relay.tool_timeout_sec=120");
+    args.push("-c", `mcp_servers.devchestra.command=${toml(req.mcp.command)}`);
+    args.push("-c", `mcp_servers.devchestra.args=${JSON.stringify(req.mcp.args)}`);
+    args.push("-c", `mcp_servers.devchestra.env_vars=${JSON.stringify(envNames)}`);
+    args.push("-c", `mcp_servers.devchestra.default_tools_approval_mode=${toml("approve")}`);
+    args.push("-c", "mcp_servers.devchestra.startup_timeout_sec=20");
+    args.push("-c", "mcp_servers.devchestra.tool_timeout_sec=120");
     const extraMcp = planExtraMcp(req);
     args.push(...extraMcp.flags);
     // Built-in shell tool: undefined keeps the legacy rule (shell follows the
@@ -393,7 +393,7 @@ export function createCodexAdapter(options: AdapterOptions = {}): CliAdapter {
     plan: (req) => plan(req, bin),
     parser: (): StreamParser => new CodexParser(),
     classify: (exit: ExitInfo, _tail: Tail): FailureClass => classifyExit(exit),
-    toolRef: (tool) => `mcp__relay__${tool}`,
+    toolRef: (tool) => `mcp__devchestra__${tool}`,
     probe: (ctx: ProbeCtx, signal: AbortSignal): Promise<ProbeResult> =>
       probeVersion("codex", bin, ctx, signal),
   };

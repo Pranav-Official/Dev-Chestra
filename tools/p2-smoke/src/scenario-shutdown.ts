@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { Agent, request as httpRequest } from "node:http";
-import { matchesProcess } from "@relay/adapters";
+import { matchesProcess } from "@devchestra/adapters";
 import { defaultIdempotencyKey, registerProject, startRun } from "./api-ops.js";
 import { CLI, makeWorkspace, scriptPath, sleep } from "./fixtures.js";
-import { RelayHttp } from "./http.js";
+import { DevChestraHttp } from "./http.js";
 import {
   collectAgent,
   type OwnedServer,
@@ -68,7 +68,7 @@ function portRefused(port: number): Promise<boolean> {
 }
 
 export async function runShutdownScenario(): Promise<ShutdownEvidence> {
-  const ws = await makeWorkspace("relay-p2-shutdown-");
+  const ws = await makeWorkspace("devchestra-p2-shutdown-");
   const sentinel = startSentinel();
   let server: OwnedServer | null = null;
   const agents = new Map<number, { pid: number; pidStart: string; binary: string }>();
@@ -79,7 +79,7 @@ export async function runShutdownScenario(): Promise<ShutdownEvidence> {
       cwd: ws.projectDir,
       fakeScript: scriptPath("hold"),
     });
-    const http = new RelayHttp(server.baseUrl);
+    const http = new DevChestraHttp(server.baseUrl);
     await http.health();
     const boot = await http.bootstrap(server.meta.token);
     const project = await registerProject(http, ws.projectDir);

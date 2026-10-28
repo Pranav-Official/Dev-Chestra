@@ -1,14 +1,14 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
+  DevChestraError,
   err,
   isRecord,
   isRunWorkspaceSelection,
   ok,
-  RelayError,
   type Result,
   type RunWorkspaceBinding,
-} from "@relay/core";
+} from "@devchestra/core";
 import { validateRunWorkspace } from "./run-workspace-catalog.js";
 import {
   assertStored,
@@ -51,7 +51,7 @@ import {
   readBinding,
   readLstat,
   removeRecord,
-  toRelayError,
+  toDevChestraError,
   WORKTREE_NAME,
   werr,
 } from "./worktree-git.js";
@@ -94,7 +94,7 @@ function releaseBase(workspace: ScratchWorkspace): void {
 async function acquireBase(
   request: AcquireScratchRequest,
   projectRoot: string,
-): Promise<Result<ScratchWorkspace, RelayError>> {
+): Promise<Result<ScratchWorkspace, DevChestraError>> {
   const {
     runWorkspace: _frozen,
     allowHeadMove: _allow,
@@ -120,11 +120,11 @@ async function acquireBase(
 
 export async function acquireRunWorkspace(
   request: AcquireScratchRequest & { runWorkspace: RunWorkspaceBinding },
-): Promise<Result<ScratchWorkspace, RelayError>> {
+): Promise<Result<ScratchWorkspace, DevChestraError>> {
   let base: ScratchWorkspace | undefined;
   try {
     if (aborted(request.signal)) {
-      return err(new RelayError("E_CANCELLED", "Workspace acquisition cancelled"));
+      return err(new DevChestraError("E_CANCELLED", "Workspace acquisition cancelled"));
     }
     requireSegment(request.projectId, "projectId");
     requireSegment(request.runId, "runId");
@@ -133,7 +133,7 @@ export async function acquireRunWorkspace(
     const executionPath = parseWorkspacePath(request.path);
     const binding = request.runWorkspace;
     if (!isRecord(binding) || !isRunWorkspaceSelection(binding.selection)) {
-      throw new RelayError("E_VALIDATION", "runWorkspace must contain a valid selection");
+      throw new DevChestraError("E_VALIDATION", "runWorkspace must contain a valid selection");
     }
     const validated = await validateRunWorkspace(binding.projectRoot, binding.selection);
     if (!validated.ok) return validated;
@@ -155,7 +155,7 @@ export async function acquireRunWorkspace(
     const { runFile } = runLayout(base, executionPath);
     const selectedDir = frozen.selection.mode === "new-worktree" ? base.dir : frozen.dir;
     if (selectedDir === null) {
-      throw new RelayError("E_VALIDATION", "Run workspace directory is missing");
+      throw new DevChestraError("E_VALIDATION", "Run workspace directory is missing");
     }
     const next = storedFor(
       frozen,
@@ -182,13 +182,13 @@ export async function acquireRunWorkspace(
     return ok(issue(base, stored, runFile));
   } catch (error) {
     if (base !== undefined) releaseBase(base);
-    return err(toRelayError(error));
+    return err(toDevChestraError(error));
   }
 }
 
 export async function prepareRunWorkspace(
   request: PrepareRunWorkspaceRequest,
-): Promise<Result<RunWorkspaceIdentity, RelayError>> {
+): Promise<Result<RunWorkspaceIdentity, DevChestraError>> {
   try {
     const validated = await validateRunWorkspace(request.projectRoot, request.selection);
     if (!validated.ok) return validated;
@@ -238,17 +238,19 @@ export async function prepareRunWorkspace(
     releaseRunWorkspace(workspace);
     return ok(identity);
   } catch (error) {
-    return err(toRelayError(error));
+    return err(toDevChestraError(error));
   }
 }
 
 export async function finalizeRunWorkspace(
   workspace: ScratchWorkspace,
   request: FinalizeScratchRequest,
-): Promise<Result<FinalizeScratchInfo, RelayError>> {
+): Promise<Result<FinalizeScratchInfo, DevChestraError>> {
   const record = issued.get(workspace);
   if (record === undefined) {
-    return err(new RelayError("E_WORKSPACE", "Run workspace was not issued by Relay; reacquire"));
+    return err(
+      new DevChestraError("E_WORKSPACE", "Run workspace was not issued by DevChestra; reacquire"),
+    );
   }
   try {
     const stored = readRequired(record.runFile);
@@ -260,7 +262,7 @@ export async function finalizeRunWorkspace(
         : await finalizeScratchOnly(record.base, request);
     return result.ok ? ok({ ...result.value, dir: stored.dir }) : result;
   } catch (error) {
-    return err(toRelayError(error));
+    return err(toDevChestraError(error));
   }
 }
 
@@ -271,11 +273,14 @@ export function releaseRunWorkspace(workspace: ScratchWorkspace): void {
 
 export async function removeRunWorkspace(
   workspace: ScratchWorkspace,
-): Promise<Result<RemoveScratchInfo, RelayError>> {
+): Promise<Result<RemoveScratchInfo, DevChestraError>> {
   try {
     const record = issued.get(workspace);
     if (record === undefined) {
-      throw new RelayError("E_WORKSPACE", "Run workspace was not issued by Relay; reacquire");
+      throw new DevChestraError(
+        "E_WORKSPACE",
+        "Run workspace was not issued by DevChestra; reacquire",
+      );
     }
     if (record.stored.selection.mode !== "new-worktree") {
       return ok({ dir: record.stored.dir, removed: false, alreadyAbsent: false });
@@ -304,6 +309,6 @@ export async function removeRunWorkspace(
     removeRecord(path.join(runDir, INTENT_NAME));
     return ok({ dir: binding.dir, removed: true, alreadyAbsent: false });
   } catch (error) {
-    return err(toRelayError(error));
+    return err(toDevChestraError(error));
   }
 }

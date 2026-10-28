@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { RelayError } from "@relay/core";
+import { DevChestraError } from "@devchestra/core";
 import { isGroupAlive, killTree, spawnIdentity } from "./identity.js";
 import { materializeInvocation } from "./invocation.js";
 import { boundTail, redacted, spawnFailure, waitSpawn, writeStdin } from "./spawn-util.js";
@@ -106,7 +106,7 @@ export async function runAgent(
   signal: AbortSignal,
   opts: RunOpts,
 ): Promise<ExitInfo> {
-  if (signal.aborted) throw new RelayError("E_CANCELLED", "Run was cancelled before spawn");
+  if (signal.aborted) throw new DevChestraError("E_CANCELLED", "Run was cancelled before spawn");
   await materializeInvocation(inv);
 
   const startedAt = Date.now();
@@ -142,7 +142,7 @@ export async function runAgent(
   const pid = child.pid;
   if (pid === undefined) {
     child.kill("SIGKILL");
-    throw new RelayError("E_INTERNAL", "Spawned child has no pid");
+    throw new DevChestraError("E_INTERNAL", "Spawned child has no pid");
   }
   child.on("error", () => undefined);
 

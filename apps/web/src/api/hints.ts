@@ -1,4 +1,4 @@
-import type { GlobalStreamMessage } from "@relay/api";
+import type { GlobalStreamMessage } from "@devchestra/api";
 
 export type HintQueryKey = readonly [string, ...string[]];
 

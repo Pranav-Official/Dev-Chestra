@@ -1,13 +1,13 @@
 import { homedir } from "node:os";
-import { createMcpResolver, scannedMcpPaths } from "@relay/adapters";
+import { createMcpResolver, scannedMcpPaths } from "@devchestra/adapters";
 import {
   type CatalogCli,
   type CliMcpServers,
   catalogCliSchema,
   cliMcpServersSchema,
-} from "@relay/api";
+} from "@devchestra/api";
 import type { Context, Hono } from "hono";
-import { errorBody, RelayError } from "../errors.js";
+import { DevChestraError, errorBody } from "../errors.js";
 import type { BrowserMcpServersPort, BrowserQueryPort } from "./ports.js";
 
 export interface McpRouteDeps {
@@ -59,7 +59,7 @@ export function createMcpServersPort(options: McpServersPortOptions): BrowserMcp
   return {
     async list(projectId, cli): Promise<CliMcpServers> {
       const projectDir = await options.getProjectDir(projectId);
-      if (projectDir === null) throw new RelayError("E_NOT_FOUND", "Project not found.");
+      if (projectDir === null) throw new DevChestraError("E_NOT_FOUND", "Project not found.");
       const { servers, warnings } = await resolver.list(cli, projectDir);
       return {
         cli,
@@ -84,11 +84,11 @@ function emptyBody(projectId: string, cli: CatalogCli, warnings: string[]): CliM
 function assertOutbound(value: unknown, projectId: string, cli: CatalogCli): CliMcpServers {
   const parsed = cliMcpServersSchema.safeParse(value);
   if (!parsed.success) {
-    throw new RelayError("E_INTERNAL", "MCP servers response was invalid.");
+    throw new DevChestraError("E_INTERNAL", "MCP servers response was invalid.");
   }
   const body = parsed.data as CliMcpServers;
   if (body.projectId !== projectId || body.cli !== cli) {
-    throw new RelayError("E_INTERNAL", "MCP servers response did not match the request.");
+    throw new DevChestraError("E_INTERNAL", "MCP servers response did not match the request.");
   }
   return body;
 }

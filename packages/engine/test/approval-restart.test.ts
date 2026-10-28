@@ -1,16 +1,16 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAdapterRegistry } from "@relay/adapters";
-import type { WorkflowFile } from "@relay/schema";
-import { normalizeWorkflow, parseWorkflow } from "@relay/schema";
-import { openStore } from "@relay/store";
+import { createAdapterRegistry } from "@devchestra/adapters";
+import type { WorkflowFile } from "@devchestra/schema";
+import { normalizeWorkflow, parseWorkflow } from "@devchestra/schema";
+import { openStore } from "@devchestra/store";
 import {
   acquireScratch,
   finalizeScratch,
   prepareRunWorkspace,
   releaseScratch,
-} from "@relay/workspaces";
+} from "@devchestra/workspaces";
 import { describe, expect, it } from "vitest";
 import { createEngine } from "../src/index.js";
 
@@ -45,8 +45,8 @@ function endNode(id = "end", result = "start.topic") {
 
 describe("approval restart", () => {
   it("restart after resolve before wake dispatches via reconcile (deterministic barrier)", async () => {
-    const temp = mkdtempSync(join(tmpdir(), "relay-approval-restart-"));
-    const home = mkdtempSync(join(tmpdir(), "relay-home-r-"));
+    const temp = mkdtempSync(join(tmpdir(), "devchestra-approval-restart-"));
+    const home = mkdtempSync(join(tmpdir(), "devchestra-home-r-"));
     const store = openStore({ file: join(temp, "db.sqlite") });
     store.projects.ensure({ id: "p1", name: "P1", path: temp, kind: "folder" });
     const mkEngine = () =>
@@ -119,8 +119,8 @@ describe("approval restart", () => {
   });
 
   it("interrupted shell safety: wake does not auto-restart shell", async () => {
-    const temp = mkdtempSync(join(tmpdir(), "relay-aprv-"));
-    const home = mkdtempSync(join(tmpdir(), "relay-home-"));
+    const temp = mkdtempSync(join(tmpdir(), "devchestra-aprv-"));
+    const home = mkdtempSync(join(tmpdir(), "devchestra-home-"));
     const store = openStore({ file: join(temp, "db.sqlite") });
     store.projects.ensure({ id: "p1", name: "P1", path: temp, kind: "folder" });
     const env = {

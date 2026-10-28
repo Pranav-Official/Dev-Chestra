@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { type EventEnvelope, project, type RunView } from "@relay/core";
+import { type EventEnvelope, project, type RunView } from "@devchestra/core";
 
 export interface ViewSummary {
   status: string;

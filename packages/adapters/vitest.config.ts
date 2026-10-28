@@ -7,7 +7,7 @@ export default defineConfig({
     exclude: ["**/node_modules/**", "**/dist/**"],
     testTimeout: 30_000,
     hookTimeout: 30_000,
-    // The fake provider is prod-gated behind RELAY_ALLOW_FAKE; tests opt in.
-    env: { RELAY_ALLOW_FAKE: "1" },
+    // The fake provider is prod-gated behind DEVCHESTRA_ALLOW_FAKE; tests opt in.
+    env: { DEVCHESTRA_ALLOW_FAKE: "1" },
   },
 });

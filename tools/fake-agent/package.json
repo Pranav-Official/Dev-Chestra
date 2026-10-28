@@ -1,7 +1,7 @@
 {
-  "name": "@relay/fake-agent",
+  "name": "@devchestra/fake-agent",
   "version": "0.1.0",
-  "description": "Scriptable fake agent that drives the real Relay MCP shim over stdio",
+  "description": "Scriptable fake agent that drives the real DevChestra MCP shim over stdio",
   "type": "module",
   "main": "./dist/main.js",
   "types": "./dist/main.d.ts",
@@ -13,7 +13,7 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "relay-fake-agent": "./dist/main.js"
+    "devchestra-fake-agent": "./dist/main.js"
   },
   "files": [
     "dist"

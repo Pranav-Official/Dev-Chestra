@@ -1,7 +1,7 @@
-import type { Path } from "@relay/core";
-import type { RunRecord } from "@relay/store";
+import type { Path } from "@devchestra/core";
+import type { RunRecord } from "@devchestra/store";
 import type { ActiveRunState } from "./context.js";
-import { type EngineContext, toRelayError } from "./context.js";
+import { type EngineContext, toDevChestraError } from "./context.js";
 import type { PlanNode, ScopeSource } from "./graph-plan.js";
 import { buildScopeData } from "./scope.js";
 import type { LinearChain } from "./sequence.js";
@@ -72,14 +72,14 @@ export async function executeDeterministic(
       stopDeterministic(ctx, identity, active);
       throw error;
     }
-    ctx.failExecution(run, node, identity, toRelayError(error));
+    ctx.failExecution(run, node, identity, toDevChestraError(error));
     throw error;
   }
 }
 
 function stopDeterministic(
   ctx: EngineContext,
-  identity: import("@relay/core").ExecutionIdentity,
+  identity: import("@devchestra/core").ExecutionIdentity,
   active: ActiveRunState,
 ): void {
   const kind = active.reason ?? "user";

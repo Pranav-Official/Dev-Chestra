@@ -1,5 +1,5 @@
-import { ApiProtocolError, type EventPageResponse } from "@relay/api";
-import type { EventEnvelope } from "@relay/core";
+import { ApiProtocolError, type EventPageResponse } from "@devchestra/api";
+import type { EventEnvelope } from "@devchestra/core";
 
 export const MAX_HISTORY_PAGES = 200;
 

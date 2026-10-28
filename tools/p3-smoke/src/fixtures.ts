@@ -17,7 +17,7 @@ export interface Workspace {
   profileDir: string;
 }
 
-export async function makeWorkspace(prefix = "relay-p3-"): Promise<Workspace> {
+export async function makeWorkspace(prefix = "devchestra-p3-"): Promise<Workspace> {
   const root = await mkdtemp(join(tmpdir(), prefix));
   if (root.startsWith(REPO_ROOT)) {
     throw new Error("P3 smoke must not create workspaces inside the repository");

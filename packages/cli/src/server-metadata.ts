@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { constants, promises as fs } from "node:fs";
 import { join } from "node:path";
-import { RelayError } from "@relay/core";
+import { DevChestraError } from "@devchestra/core";
 import { processAlive, processIdentity } from "./lock.js";
 
 export interface ServerMetadata {
@@ -119,13 +119,13 @@ async function ensureOwnerDataDir(dataDir: string): Promise<void> {
     stat = await fs.lstat(dataDir);
   }
   if (stat.isSymbolicLink()) {
-    throw new RelayError(
+    throw new DevChestraError(
       "E_CONFLICT",
       "The data directory is a symlink; refusing to write metadata",
     );
   }
   if (!stat.isDirectory()) {
-    throw new RelayError("E_VALIDATION", "The data directory is not a directory");
+    throw new DevChestraError("E_VALIDATION", "The data directory is not a directory");
   }
 }
 
@@ -138,10 +138,10 @@ export async function writeServerMetadata(
   try {
     const existing = await fs.lstat(file);
     if (existing.isSymbolicLink()) {
-      throw new RelayError("E_CONFLICT", "server.json is a symlink; refusing to replace it");
+      throw new DevChestraError("E_CONFLICT", "server.json is a symlink; refusing to replace it");
     }
     if (!existing.isFile()) {
-      throw new RelayError("E_CONFLICT", "server.json is not a regular file");
+      throw new DevChestraError("E_CONFLICT", "server.json is not a regular file");
     }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
@@ -168,7 +168,7 @@ export async function clearServerMetadata(dataDir: string): Promise<void> {
   try {
     const stat = await fs.lstat(file);
     if (stat.isSymbolicLink() || !stat.isFile()) {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_CONFLICT",
         "server.json is not a regular file; refusing to replace it",
       );
@@ -228,7 +228,7 @@ export async function attachToServer(
   if (
     !ownerLooksAlive(metadata, options.identity ?? processIdentity, options.alive ?? processAlive)
   ) {
-    throw new RelayError("E_CONFLICT", "The recorded server owner is not running");
+    throw new DevChestraError("E_CONFLICT", "The recorded server owner is not running");
   }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 2_000);
@@ -242,22 +242,25 @@ export async function attachToServer(
       },
     );
     if (!response.ok) {
-      throw new RelayError("E_CONFLICT", "The running server rejected the health check");
+      throw new DevChestraError("E_CONFLICT", "The running server rejected the health check");
     }
     payload = (await response.json()) as HealthIdentity;
   } catch (error) {
-    if (error instanceof RelayError) throw error;
-    throw new RelayError("E_CONFLICT", "The recorded server did not answer its health check", {
+    if (error instanceof DevChestraError) throw error;
+    throw new DevChestraError("E_CONFLICT", "The recorded server did not answer its health check", {
       details: { cause: error instanceof Error ? error.message : String(error) },
     });
   } finally {
     clearTimeout(timer);
   }
   if (payload.ok !== true || payload.instanceId !== metadata.instanceId) {
-    throw new RelayError("E_CONFLICT", "The running server identity does not match server.json");
+    throw new DevChestraError(
+      "E_CONFLICT",
+      "The running server identity does not match server.json",
+    );
   }
   if (payload.webReady === false) {
-    throw new RelayError("E_CONFLICT", "The running server is not serving the web app");
+    throw new DevChestraError("E_CONFLICT", "The running server is not serving the web app");
   }
 }
 

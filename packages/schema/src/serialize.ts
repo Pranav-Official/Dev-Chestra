@@ -1,4 +1,4 @@
-import { err, ok, RelayError, type Result } from "@relay/core";
+import { DevChestraError, err, ok, type Result } from "@devchestra/core";
 import { MAX_WORKFLOW_FILE_BYTES, WORKFLOW_ID_PATTERN } from "./ids.js";
 import { parseWorkflow } from "./parse.js";
 import type { WorkflowFile } from "./types.js";
@@ -11,8 +11,10 @@ function pointer(path: readonly string[]): string {
   return `/${path.map((part) => part.replace(/~/gu, "~0").replace(/\//gu, "~1")).join("/")}`;
 }
 
-function invalid(message: string, path: readonly string[]): RelayError {
-  return new RelayError("E_WORKFLOW_INVALID", message, { details: { pointer: pointer(path) } });
+function invalid(message: string, path: readonly string[]): DevChestraError {
+  return new DevChestraError("E_WORKFLOW_INVALID", message, {
+    details: { pointer: pointer(path) },
+  });
 }
 
 function compareKeys(left: string, right: string): number {
@@ -76,12 +78,12 @@ function stableValue(value: unknown, path: string[], seen: Set<object>): unknown
  * cannot represent (non-finite numbers, undefined, bigint, functions, cycles,
  * non-plain objects) and enforces the 1 MiB file cap.
  */
-export function serializeWorkflow(file: WorkflowFile): Result<string, RelayError> {
+export function serializeWorkflow(file: WorkflowFile): Result<string, DevChestraError> {
   const parsed = parseWorkflow(file);
   if (!parsed.ok) return err(parsed.error);
   if (!WORKFLOW_ID_PATTERN.test(parsed.value.id)) {
     return err(
-      new RelayError(
+      new DevChestraError(
         "E_WORKFLOW_INVALID",
         `Workflow id '${parsed.value.id}' must match ${WORKFLOW_ID_PATTERN.source}.`,
         { details: { pointer: "/id" } },
@@ -94,9 +96,9 @@ export function serializeWorkflow(file: WorkflowFile): Result<string, RelayError
     stable = stableValue(parsed.value, [], new Set<object>());
   } catch (error) {
     return err(
-      error instanceof RelayError
+      error instanceof DevChestraError
         ? error
-        : new RelayError("E_WORKFLOW_INVALID", "Could not serialize the workflow", {
+        : new DevChestraError("E_WORKFLOW_INVALID", "Could not serialize the workflow", {
             cause: error,
           }),
     );
@@ -106,7 +108,7 @@ export function serializeWorkflow(file: WorkflowFile): Result<string, RelayError
   const bytes = new TextEncoder().encode(text).length;
   if (bytes > MAX_WORKFLOW_FILE_BYTES) {
     return err(
-      new RelayError(
+      new DevChestraError(
         "E_WORKFLOW_INVALID",
         `Workflow file exceeds the ${MAX_WORKFLOW_FILE_BYTES}-byte limit.`,
         { details: { bytes, maxBytes: MAX_WORKFLOW_FILE_BYTES } },

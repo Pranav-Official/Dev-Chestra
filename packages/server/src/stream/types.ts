@@ -1,5 +1,5 @@
-import type { EventEnvelope, RunView } from "@relay/core";
-import type { RunRecord } from "@relay/store";
+import type { EventEnvelope, RunView } from "@devchestra/core";
+import type { RunRecord } from "@devchestra/store";
 
 /**
  * One atomic run read: `view` includes exactly the committed events whose ids

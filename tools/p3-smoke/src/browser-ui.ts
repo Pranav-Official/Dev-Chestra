@@ -3,7 +3,7 @@ import { type BrowserContext, chromium, type Page, type Request } from "@playwri
 import { chromiumPath } from "./chromium.js";
 import type { Workspace } from "./fixtures.js";
 import { sleep } from "./fixtures.js";
-import type { RelayHttp } from "./http.js";
+import type { DevChestraHttp } from "./http.js";
 import { getWorkflow, saveWorkflow } from "./workflow-api.js";
 
 export interface BrowserSession {
@@ -156,14 +156,14 @@ export async function selectNode(page: Page, id: string): Promise<void> {
 }
 
 export async function setAgentCliFake(
-  http: RelayHttp,
+  http: DevChestraHttp,
   page: Page,
   projectId: string,
   workflowId: string,
   id: string,
 ): Promise<void> {
   // Fake is retired from the registry-driven dropdown, so tests set it via
-  // the API (server enforces RELAY_ALLOW_FAKE=1 at run) then reload the editor.
+  // the API (server enforces DEVCHESTRA_ALLOW_FAKE=1 at run) then reload the editor.
   await waitSaved(page);
   const doc = await getWorkflow(http, projectId, workflowId);
   const node = doc.workflow.graph.nodes.find((entry) => entry.id === id);

@@ -1,12 +1,12 @@
-import { RelayError } from "./error.js";
+import { DevChestraError } from "./error.js";
 import type { EventEnvelope, NodeKind } from "./events.js";
 import type { Path } from "./path.js";
 import { parsePath } from "./path.js";
 import { type ExecView, isDurablyComplete, type RunView } from "./reducer-types.js";
 import type { ExecStatus } from "./transitions.js";
 
-export function internal(message: string, details?: unknown): RelayError {
-  return new RelayError("E_INTERNAL", message, details === undefined ? {} : { details });
+export function internal(message: string, details?: unknown): DevChestraError {
+  return new DevChestraError("E_INTERNAL", message, details === undefined ? {} : { details });
 }
 
 export function eventTime(envelope: EventEnvelope): number {

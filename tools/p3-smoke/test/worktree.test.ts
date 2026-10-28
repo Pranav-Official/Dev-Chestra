@@ -11,7 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import type { RelayError, Result } from "@relay/core";
+import type { DevChestraError, Result } from "@devchestra/core";
 import { afterAll, describe, expect, it } from "vitest";
 import {
   acquireScratch,
@@ -29,7 +29,7 @@ const savedEnv = {
   GIT_CONFIG_GLOBAL: process.env.GIT_CONFIG_GLOBAL,
   GIT_CONFIG_NOSYSTEM: process.env.GIT_CONFIG_NOSYSTEM,
 };
-const envHome = mkdtempSync(join(tmpdir(), "relay-worktree-home-"));
+const envHome = mkdtempSync(join(tmpdir(), "devchestra-worktree-home-"));
 process.env.HOME = envHome;
 process.env.GIT_CONFIG_GLOBAL = join(envHome, "gitconfig");
 process.env.GIT_CONFIG_NOSYSTEM = "1";
@@ -67,7 +67,7 @@ interface Repo {
 }
 
 function makeRepo(label: string): Repo {
-  const root = tempDir(`relay-worktree-${label}-`);
+  const root = tempDir(`devchestra-worktree-${label}-`);
   git(root, ["init", "-q"]);
   git(root, ["config", "user.email", "worktree-qa@example.invalid"]);
   git(root, ["config", "user.name", "Worktree QA"]);
@@ -102,12 +102,12 @@ function worktreeRequest(
   } as Parameters<typeof acquireScratch>[0];
 }
 
-function unwrap<T>(result: Result<T, RelayError>): T {
+function unwrap<T>(result: Result<T, DevChestraError>): T {
   if (!result.ok) throw result.error;
   return result.value;
 }
 
-function failure(result: Result<unknown, RelayError>): RelayError {
+function failure(result: Result<unknown, DevChestraError>): DevChestraError {
   if (result.ok) throw new Error("expected an error result");
   return result.error;
 }
@@ -260,7 +260,7 @@ const mixedWorkflow = {
 describe("explicit worktree workspace lifecycle", () => {
   it("shares one detached worktree pinned to the first project HEAD, committed files only", async () => {
     const repo = makeRepo("pinned");
-    const dataDir = join(tempDir("relay-worktree-data-"), "data");
+    const dataDir = join(tempDir("devchestra-worktree-data-"), "data");
     const first = unwrap(await acquireScratch(worktreeRequest(dataDir, repo)));
     const second = unwrap(
       await acquireScratch(worktreeRequest(dataDir, repo, { path: "shell", attempt: 2 })),
@@ -308,7 +308,7 @@ describe("explicit worktree workspace lifecycle", () => {
 
   it("preserves the directory and files across per-node finalization, release and restart", async () => {
     const repo = makeRepo("recover");
-    const dataDir = join(tempDir("relay-worktree-data-"), "data");
+    const dataDir = join(tempDir("devchestra-worktree-data-"), "data");
     const agent = unwrap(await acquireScratch(worktreeRequest(dataDir, repo)));
     writeFileSync(join(agent.dir, "agent.txt"), "kept\n");
     const finalized = unwrap(
@@ -328,12 +328,12 @@ describe("explicit worktree workspace lifecycle", () => {
     writeFileSync(join(shell.dir, "shell.txt"), "also kept\n");
     releaseScratch(shell);
 
-    const requestFile = join(tempDir("relay-worktree-recover-"), "request.json");
+    const requestFile = join(tempDir("devchestra-worktree-recover-"), "request.json");
     writeFileSync(
       requestFile,
       JSON.stringify(worktreeRequest(dataDir, repo, { requireExisting: true })),
     );
-    const script = join(tempDir("relay-worktree-child-"), "recover.mts");
+    const script = join(tempDir("devchestra-worktree-child-"), "recover.mts");
     writeFileSync(
       script,
       [
@@ -365,7 +365,7 @@ describe("explicit worktree workspace lifecycle", () => {
   it("rejects a changed project or repository identity instead of recreating", async () => {
     const repo = makeRepo("identity");
     const other = makeRepo("identity-other");
-    const dataDir = join(tempDir("relay-worktree-data-"), "data");
+    const dataDir = join(tempDir("devchestra-worktree-data-"), "data");
     const original = unwrap(await acquireScratch(worktreeRequest(dataDir, repo)));
     writeFileSync(join(original.dir, "kept.txt"), "kept\n");
 
@@ -394,9 +394,9 @@ describe("explicit worktree workspace lifecycle", () => {
 describe("run-level worktree through the linear CLI runner", () => {
   it("runs every node, including a legacy scratch node, in one selected worktree", () => {
     requireCli();
-    const home = tempDir("relay-worktree-cli-home-");
+    const home = tempDir("devchestra-worktree-cli-home-");
     const repo = makeRepo("cli");
-    const dataDir = join(tempDir("relay-worktree-cli-data-"), "data");
+    const dataDir = join(tempDir("devchestra-worktree-cli-data-"), "data");
     mkdirSync(dataDir, { recursive: true });
     const workflowPath = join(repo.root, "worktree-mixed.json");
     writeFileSync(workflowPath, JSON.stringify(mixedWorkflow, null, 2));
@@ -460,9 +460,9 @@ describe("run-level worktree through the linear CLI runner", () => {
 
   it("rejects unsupported legacy node workspace base/setup/from", () => {
     requireCli();
-    const home = tempDir("relay-worktree-reject-home-");
+    const home = tempDir("devchestra-worktree-reject-home-");
     const repo = makeRepo("reject");
-    const dataDir = join(tempDir("relay-worktree-reject-data-"), "data");
+    const dataDir = join(tempDir("devchestra-worktree-reject-data-"), "data");
     mkdirSync(dataDir, { recursive: true });
     interface MutableView {
       graph: { nodes: Array<{ workspace: Record<string, unknown> }> };

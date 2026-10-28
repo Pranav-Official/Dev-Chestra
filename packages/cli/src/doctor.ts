@@ -8,9 +8,9 @@ import {
   type DecisionService,
   decisionProviders,
   type TestReport,
-} from "@relay/decisions";
-import { DECISION_PROVIDER_LABELS } from "@relay/schema";
-import { openStore, type Store } from "@relay/store";
+} from "@devchestra/decisions";
+import { DECISION_PROVIDER_LABELS } from "@devchestra/schema";
+import { openStore, type Store } from "@devchestra/store";
 import {
   acquireDataDirLock,
   DataDirLockedError,
@@ -44,7 +44,7 @@ function nodeMajor(): number {
 async function checkDataDir(dataDir: string): Promise<DoctorCheck> {
   try {
     await mkdir(dataDir, { recursive: true, mode: 0o700 });
-    const probe = join(dataDir, `.relay-doctor-${randomBytes(6).toString("hex")}`);
+    const probe = join(dataDir, `.devchestra-doctor-${randomBytes(6).toString("hex")}`);
     await writeFile(probe, "ok\n", { mode: 0o600 });
     await rm(probe, { force: true });
     return { name: "data-dir", status: "pass", message: `${dataDir} is writable` };
@@ -53,7 +53,7 @@ async function checkDataDir(dataDir: string): Promise<DoctorCheck> {
       name: "data-dir",
       status: "fail",
       message: error instanceof Error ? error.message : String(error),
-      fix: "Use an explicit writable --data-dir (not ~/.relay in this milestone).",
+      fix: "Use an explicit writable --data-dir (not ~/.devchestra in this milestone).",
     };
   }
 }
@@ -75,7 +75,7 @@ function checkStore(store: Store): DoctorCheck[] {
             name: "open-runs",
             status: "warn",
             message: `${active.length} open run(s): ${active.map((run) => run.id).join(", ")}`,
-            fix: "Run `relay resume <runId> --data-dir <dir>` to recover.",
+            fix: "Run `devchestra resume <runId> --data-dir <dir>` to recover.",
           },
     );
   } catch (error) {
@@ -122,7 +122,7 @@ function checkDecisionProviders(service: DecisionService): DoctorCheck[] {
       name: `decision-${id}`,
       status: "warn" as const,
       message: `${DECISION_PROVIDER_LABELS[id]} is not configured: missing ${availability.missing.join(", ")}`,
-      fix: "Set the named variables in the environment or a `.env` file next to where `relay` is run (see `.env.example`).",
+      fix: "Set the named variables in the environment or a `.env` file next to where `devchestra` is run (see `.env.example`).",
     };
   });
 }
@@ -221,20 +221,20 @@ export async function runDoctor(
             name: "lock",
             status: "fail",
             message: "data-dir lock has no readable owner",
-            fix: "Inspect relay.lock; remove it only after confirming no Relay process is running.",
+            fix: "Inspect devchestra.lock; remove it only after confirming no DevChestra process is running.",
           }
         : inspection.live
           ? {
               name: "lock",
               status: "fail",
               message: `data directory is in use by pid ${inspection.owners.map((owner) => owner.pid).join(", ")}`,
-              fix: "Stop the other Relay process or use a different --data-dir.",
+              fix: "Stop the other DevChestra process or use a different --data-dir.",
             }
           : {
               name: "lock",
               status: "warn",
               message: "stale data-dir lock (owner process is not alive)",
-              fix: "Run `relay run`/`relay resume`; acquisition will reclaim it. Doctor does not delete it.",
+              fix: "Run `devchestra run`/`devchestra resume`; acquisition will reclaim it. Doctor does not delete it.",
             },
     );
     checks.push({
@@ -292,7 +292,7 @@ export async function runDoctor(
 
   let store: Store | undefined;
   try {
-    store = openStore({ file: join(dataDir, "relay.db") });
+    store = openStore({ file: join(dataDir, "devchestra.db") });
     checks.push({
       name: "sqlite",
       status: "pass",

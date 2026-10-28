@@ -1,4 +1,4 @@
-import type { Edge, Issue, WorkflowNode } from "@relay/schema";
+import type { Edge, Issue, WorkflowNode } from "@devchestra/schema";
 
 export interface BufferValidity {
   valid: boolean;

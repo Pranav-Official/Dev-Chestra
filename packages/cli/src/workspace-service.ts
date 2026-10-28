@@ -1,6 +1,6 @@
-import type { RunWorkspaceSelection } from "@relay/core";
-import type { BrowserWorkspacePort, ProjectWorkspacesResponse } from "@relay/server";
-import { listProjectWorkspaces, validateRunWorkspace } from "@relay/workspaces";
+import type { RunWorkspaceSelection } from "@devchestra/core";
+import type { BrowserWorkspacePort, ProjectWorkspacesResponse } from "@devchestra/server";
+import { listProjectWorkspaces, validateRunWorkspace } from "@devchestra/workspaces";
 
 async function catalog(projectRoot: string): Promise<ProjectWorkspacesResponse> {
   const result = await listProjectWorkspaces(projectRoot);

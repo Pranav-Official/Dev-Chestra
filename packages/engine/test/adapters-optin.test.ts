@@ -1,15 +1,15 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type AdapterRegistry, type CliId, createAdapterRegistry } from "@relay/adapters";
-import { err, ok, RelayError } from "@relay/core";
-import { openStore, type Store } from "@relay/store";
+import { type AdapterRegistry, type CliId, createAdapterRegistry } from "@devchestra/adapters";
+import { DevChestraError, err, ok } from "@devchestra/core";
+import { openStore, type Store } from "@devchestra/store";
 import {
   acquireScratch,
   finalizeScratch,
   prepareRunWorkspace,
   releaseScratch,
-} from "@relay/workspaces";
+} from "@devchestra/workspaces";
 import { afterEach, describe, expect, it } from "vitest";
 import { createEngine } from "../src/engine.js";
 import type { Engine, StartRunInput, WorkspacePort } from "../src/types.js";
@@ -39,13 +39,13 @@ function failingWorkspace(): WorkspaceProbe {
       acquire: async () => {
         probe.acquire += 1;
         return err(
-          new RelayError("E_WORKSPACE", "intentional test workspace failure", {
+          new DevChestraError("E_WORKSPACE", "intentional test workspace failure", {
             details: { step: "test_workspace" },
           }),
         );
       },
       finalize: async () =>
-        err(new RelayError("E_WORKSPACE", "intentional test workspace failure")),
+        err(new DevChestraError("E_WORKSPACE", "intentional test workspace failure")),
       release: () => {
         probe.release += 1;
       },
@@ -77,8 +77,8 @@ function setup(
   allow: readonly ("claude-code" | "codex")[],
   options: { ids?: readonly CliId[]; workspaces?: WorkspacePort } = {},
 ): Setup {
-  const dataDir = mkdtempSync(join(tmpdir(), "relay-engine-optin-"));
-  const store = openStore({ file: join(dataDir, "relay.db") });
+  const dataDir = mkdtempSync(join(tmpdir(), "devchestra-engine-optin-"));
+  const store = openStore({ file: join(dataDir, "devchestra.db") });
   store.projects.ensure({ id: "p1", name: "P1", path: dataDir, kind: "folder" });
   const workspace = failingWorkspace();
   const registry = createAdapterRegistry({
@@ -164,34 +164,10 @@ function failureCode(store: Store, runId: string): string | undefined {
   return undefined;
 }
 
-describe("real adapter ids require an explicit trusted opt-in", () => {
+describe("real adapter ids are official and need no opt-in", () => {
   for (const cli of REAL_IDS) {
-    it(`${cli}: no opt-in fails before durable create or workspace/process attempt`, async () => {
+    it(`${cli}: creates durably without any opt-in, then stops at the workspace`, async () => {
       const s = setup([]);
-      const launched = await s.engine.launch(input(cli));
-      expect(launched.ok).toBe(false);
-      if (launched.ok) throw new Error("expected E_CLI_MISSING denial");
-      expect(launched.error.code).toBe("E_CLI_MISSING");
-      expect(launched.error.details).toMatchObject({ cli, behaviorVerified: false });
-      expect(s.store.runs.list({ limit: 100 }).items).toHaveLength(0);
-      expect(s.store.processes.active()).toHaveLength(0);
-      expect(s.workspace.acquire).toBe(0);
-      expect(s.registry.get(cli).evidence.behaviorVerified).toBe(false);
-    });
-
-    it(`${cli}: a different provider's opt-in does not authorize it`, async () => {
-      const other = cli === "codex" ? "claude-code" : "codex";
-      const s = setup([other]);
-      const launched = await s.engine.launch(input(cli));
-      expect(launched.ok).toBe(false);
-      if (launched.ok) throw new Error("expected E_CLI_MISSING denial");
-      expect(launched.error.code).toBe("E_CLI_MISSING");
-      expect(s.store.runs.list({ limit: 100 }).items).toHaveLength(0);
-      expect(s.workspace.acquire).toBe(0);
-    });
-
-    it(`${cli}: matching opt-in creates durably, then stops at the workspace`, async () => {
-      const s = setup([cli]);
       const adapter = s.registry.get(cli);
       expect(adapter.evidence.behaviorVerified).toBe(false);
 
@@ -234,8 +210,8 @@ describe("real adapter ids require an explicit trusted opt-in", () => {
   });
 });
 
-describe("resume keeps the exec-agent opt-in gate", () => {
-  it("resuming a real-CLI run without opt-in fails before any process dispatch", async () => {
+describe("resume with an unavailable CLI", () => {
+  it("resuming a real-CLI run whose binary is missing fails before any process dispatch", async () => {
     const s = setup([], {
       workspaces: {
         prepare: (request) => prepareRunWorkspace(request),

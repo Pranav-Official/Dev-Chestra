@@ -38,13 +38,13 @@ importers:
 
   apps/web:
     dependencies:
-      '@relay/api':
+      '@devchestra/api':
         specifier: workspace:*
         version: link:../../packages/api
-      '@relay/core':
+      '@devchestra/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@relay/schema':
+      '@devchestra/schema':
         specifier: workspace:*
         version: link:../../packages/schema
       '@tanstack/react-query':
@@ -108,15 +108,15 @@ importers:
       '@anthropic-ai/sdk':
         specifier: 0.133.0
         version: 0.133.0(zod@4.6.7)
+      '@devchestra/core':
+        specifier: workspace:*
+        version: link:../core
+      '@devchestra/schema':
+        specifier: workspace:*
+        version: link:../schema
       '@modelcontextprotocol/sdk':
         specifier: 1.32.1
         version: 1.32.1(zod@4.6.7)
-      '@relay/core':
-        specifier: workspace:*
-        version: link:../core
-      '@relay/schema':
-        specifier: workspace:*
-        version: link:../schema
       zod:
         specifier: 4.6.7
         version: 4.6.7
@@ -136,10 +136,10 @@ importers:
 
   packages/api:
     dependencies:
-      '@relay/core':
+      '@devchestra/core':
         specifier: workspace:*
         version: link:../core
-      '@relay/schema':
+      '@devchestra/schema':
         specifier: workspace:*
         version: link:../schema
       zod:
@@ -158,31 +158,31 @@ importers:
 
   packages/cli:
     dependencies:
-      '@relay/adapters':
+      '@devchestra/adapters':
         specifier: workspace:*
         version: link:../adapters
-      '@relay/core':
+      '@devchestra/core':
         specifier: workspace:*
         version: link:../core
-      '@relay/decisions':
+      '@devchestra/decisions':
         specifier: workspace:*
         version: link:../decisions
-      '@relay/engine':
+      '@devchestra/engine':
         specifier: workspace:*
         version: link:../engine
-      '@relay/mcp':
+      '@devchestra/mcp':
         specifier: workspace:*
         version: link:../mcp
-      '@relay/schema':
+      '@devchestra/schema':
         specifier: workspace:*
         version: link:../schema
-      '@relay/server':
+      '@devchestra/server':
         specifier: workspace:*
         version: link:../server
-      '@relay/store':
+      '@devchestra/store':
         specifier: workspace:*
         version: link:../store
-      '@relay/workspaces':
+      '@devchestra/workspaces':
         specifier: workspace:*
         version: link:../workspaces
     devDependencies:
@@ -213,10 +213,10 @@ importers:
 
   packages/decisions:
     dependencies:
-      '@relay/core':
+      '@devchestra/core':
         specifier: workspace:*
         version: link:../core
-      '@relay/schema':
+      '@devchestra/schema':
         specifier: workspace:*
         version: link:../schema
     devDependencies:
@@ -232,22 +232,22 @@ importers:
 
   packages/engine:
     dependencies:
-      '@relay/adapters':
+      '@devchestra/adapters':
         specifier: workspace:*
         version: link:../adapters
-      '@relay/core':
+      '@devchestra/core':
         specifier: workspace:*
         version: link:../core
-      '@relay/decisions':
+      '@devchestra/decisions':
         specifier: workspace:*
         version: link:../decisions
-      '@relay/schema':
+      '@devchestra/schema':
         specifier: workspace:*
         version: link:../schema
-      '@relay/store':
+      '@devchestra/store':
         specifier: workspace:*
         version: link:../store
-      '@relay/workspaces':
+      '@devchestra/workspaces':
         specifier: workspace:*
         version: link:../workspaces
     devDependencies:
@@ -266,12 +266,12 @@ importers:
 
   packages/mcp:
     dependencies:
+      '@devchestra/core':
+        specifier: workspace:*
+        version: link:../core
       '@modelcontextprotocol/sdk':
         specifier: 1.32.1
         version: 1.32.1(zod@4.6.7)
-      '@relay/core':
-        specifier: workspace:*
-        version: link:../core
     devDependencies:
       '@types/node':
         specifier: 22.20.5
@@ -288,7 +288,7 @@ importers:
 
   packages/schema:
     dependencies:
-      '@relay/core':
+      '@devchestra/core':
         specifier: workspace:*
         version: link:../core
       jsonata:
@@ -310,30 +310,30 @@ importers:
 
   packages/server:
     dependencies:
+      '@devchestra/adapters':
+        specifier: workspace:*
+        version: link:../adapters
+      '@devchestra/api':
+        specifier: workspace:*
+        version: link:../api
+      '@devchestra/core':
+        specifier: workspace:*
+        version: link:../core
+      '@devchestra/decisions':
+        specifier: workspace:*
+        version: link:../decisions
+      '@devchestra/mcp':
+        specifier: workspace:*
+        version: link:../mcp
+      '@devchestra/schema':
+        specifier: workspace:*
+        version: link:../schema
+      '@devchestra/store':
+        specifier: workspace:*
+        version: link:../store
       '@hono/node-server':
         specifier: 2.1.4
         version: 2.1.4(hono@4.13.13)
-      '@relay/adapters':
-        specifier: workspace:*
-        version: link:../adapters
-      '@relay/api':
-        specifier: workspace:*
-        version: link:../api
-      '@relay/core':
-        specifier: workspace:*
-        version: link:../core
-      '@relay/decisions':
-        specifier: workspace:*
-        version: link:../decisions
-      '@relay/mcp':
-        specifier: workspace:*
-        version: link:../mcp
-      '@relay/schema':
-        specifier: workspace:*
-        version: link:../schema
-      '@relay/store':
-        specifier: workspace:*
-        version: link:../store
       ajv:
         specifier: 8.20.0
         version: 8.20.0
@@ -356,7 +356,7 @@ importers:
 
   packages/store:
     dependencies:
-      '@relay/core':
+      '@devchestra/core':
         specifier: workspace:*
         version: link:../core
       better-sqlite3:
@@ -378,7 +378,7 @@ importers:
 
   packages/workspaces:
     dependencies:
-      '@relay/core':
+      '@devchestra/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
@@ -413,13 +413,13 @@ importers:
 
   tools/p2-smoke:
     dependencies:
-      '@relay/adapters':
+      '@devchestra/adapters':
         specifier: workspace:*
         version: link:../../packages/adapters
-      '@relay/cli':
+      '@devchestra/cli':
         specifier: workspace:*
         version: link:../../packages/cli
-      '@relay/core':
+      '@devchestra/core':
         specifier: workspace:*
         version: link:../../packages/core
     devDependencies:
@@ -444,10 +444,10 @@ importers:
 
   tools/p3-smoke:
     dependencies:
-      '@relay/adapters':
+      '@devchestra/adapters':
         specifier: workspace:*
         version: link:../../packages/adapters
-      '@relay/core':
+      '@devchestra/core':
         specifier: workspace:*
         version: link:../../packages/core
     devDependencies:

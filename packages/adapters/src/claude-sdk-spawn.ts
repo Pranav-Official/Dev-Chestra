@@ -2,7 +2,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { Transform, Writable } from "node:stream";
 import { StringDecoder } from "node:string_decoder";
 import type { SpawnedProcess, SpawnOptions } from "@anthropic-ai/claude-agent-sdk";
-import { isRecord } from "@relay/core";
+import { isRecord } from "@devchestra/core";
 import { isGroupAlive, killTree } from "./identity.js";
 
 const GUARD_MAX_BYTES = 1024 * 1024;

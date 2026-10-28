@@ -1,5 +1,12 @@
-import type { ExecStatus, NodeKind, Path, RunId, RunPauseReason, RunStatus } from "@relay/core";
-import type { NormalizedWorkflow } from "@relay/schema";
+import type {
+  ExecStatus,
+  NodeKind,
+  Path,
+  RunId,
+  RunPauseReason,
+  RunStatus,
+} from "@devchestra/core";
+import type { NormalizedWorkflow } from "@devchestra/schema";
 import { type ApiErrorCode, apiErrorCodeSchema } from "./errors.js";
 import {
   cursorQuerySchema,
@@ -239,7 +246,7 @@ export type RunLayout = z.infer<typeof runLayoutSchema>;
 
 export interface RunDetailResponse {
   run: RunSummary;
-  view: import("@relay/core").RunView;
+  view: import("@devchestra/core").RunView;
   snapshot: NormalizedWorkflow;
   /** Last event id included in `view` (atomic capture). */
   watermark: number;
@@ -397,7 +404,7 @@ export interface OutputPreview {
   bytes: number;
   /** True when the value exceeded the inline preview cap (64 KiB). */
   truncated: boolean;
-  data: import("@relay/core").JsonValue | null;
+  data: import("@devchestra/core").JsonValue | null;
   contentType: "json";
 }
 

@@ -1,4 +1,4 @@
-import type { WorkflowFile } from "@relay/schema";
+import type { WorkflowFile } from "@devchestra/schema";
 import {
   Bot,
   Flag,
@@ -55,7 +55,7 @@ export function NodePalette({ file, onAdd, disabled = false }: NodePaletteProps)
               onClick={() => onAdd(item.type)}
               onDragStart={(event) => {
                 event.dataTransfer.setData("text/node", item.type);
-                event.dataTransfer.setData("application/relay-node", item.type);
+                event.dataTransfer.setData("application/devchestra-node", item.type);
                 event.dataTransfer.effectAllowed = "copy";
               }}
             >

@@ -1,7 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { lstat, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { killTree, matchesProcess, readProcessIdentity } from "@relay/adapters";
+import { killTree, matchesProcess, readProcessIdentity } from "@devchestra/adapters";
 
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
@@ -86,13 +86,13 @@ export async function startServer(options: StartServerOptions): Promise<OwnedSer
     detached: true,
     // Test-only --fake-script requires the flag in the child too.
     env: {
-      ...(options.fakeScript === undefined ? {} : { RELAY_ALLOW_FAKE: "1" }),
+      ...(options.fakeScript === undefined ? {} : { DEVCHESTRA_ALLOW_FAKE: "1" }),
       ...process.env,
       ...options.env,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
-  if (child.pid === undefined) throw new Error("relay start did not produce a pid");
+  if (child.pid === undefined) throw new Error("devchestra start did not produce a pid");
   const pid = child.pid;
   let recorded: SpawnedAgent | null = null;
   for (let attempt = 0; attempt < 100 && recorded === null; attempt += 1) {
@@ -105,7 +105,7 @@ export async function startServer(options: StartServerOptions): Promise<OwnedSer
   }
   if (recorded === null) {
     child.kill("SIGKILL");
-    throw new Error("Could not capture relay start process identity");
+    throw new Error("Could not capture devchestra start process identity");
   }
 
   const stdoutLines: string[] = [];
@@ -135,7 +135,7 @@ export async function startServer(options: StartServerOptions): Promise<OwnedSer
   let meta: ServerMeta | null = null;
   while (meta === null) {
     if (child.exitCode !== null || child.signalCode !== null) {
-      throw new Error(`relay start exited before readiness. stderr: ${stderr}`);
+      throw new Error(`devchestra start exited before readiness. stderr: ${stderr}`);
     }
     meta = await readMeta(options.dataDir);
     if (meta === null) {
@@ -149,13 +149,13 @@ export async function startServer(options: StartServerOptions): Promise<OwnedSer
   if (meta.pidStart !== recorded.pidStart || meta.pid !== recorded.pid) {
     throw new Error("server.json identity does not match the launched process");
   }
-  const ready = stdoutLines.find((line) => line.includes('"relay.ready"'));
+  const ready = stdoutLines.find((line) => line.includes('"devchestra.ready"'));
   if (ready !== undefined) {
     const record = JSON.parse(ready) as Record<string, unknown>;
-    if (record.type !== "relay.ready") throw new Error("unexpected ready record");
-    if (record.token !== undefined) throw new Error("relay.ready must not contain a token");
+    if (record.type !== "devchestra.ready") throw new Error("unexpected ready record");
+    if (record.token !== undefined) throw new Error("devchestra.ready must not contain a token");
     if (record.port !== meta.port || record.pid !== meta.pid) {
-      throw new Error("relay.ready disagrees with server.json");
+      throw new Error("devchestra.ready disagrees with server.json");
     }
   }
 
@@ -176,7 +176,7 @@ export async function startServer(options: StartServerOptions): Promise<OwnedSer
       await Promise.race([exited, sleep(2_000)]);
     }
     if (await matchesProcess(recorded)) {
-      throw new Error("owned relay process survived graceful stop");
+      throw new Error("owned devchestra process survived graceful stop");
     }
   };
 
@@ -208,7 +208,7 @@ export async function shutdownOwned(input: {
     }
   }
   if (await matchesProcess(input.server.recorded)) {
-    throw new Error("owned relay process survived cleanup");
+    throw new Error("owned devchestra process survived cleanup");
   }
   if (input.sentinel.exitCode !== null || input.sentinel.signalCode !== null) {
     throw new Error("unrelated sentinel died during cleanup");

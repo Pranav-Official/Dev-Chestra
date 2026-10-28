@@ -68,9 +68,9 @@ jobs:
             const version = db.prepare("select sqlite_version() as v").get().v;
             db.exec("CREATE VIRTUAL TABLE docs USING fts5(title, body)");
             const insert = db.prepare("INSERT INTO docs(title, body) VALUES (?, ?)");
-            insert.run("hello", "relay durable recovery");
+            insert.run("hello", "devchestra durable recovery");
             insert.run("other", "unrelated text");
-            const rows = db.prepare("SELECT title FROM docs WHERE docs MATCH ? ORDER BY rank").all("relay");
+            const rows = db.prepare("SELECT title FROM docs WHERE docs MATCH ? ORDER BY rank").all("devchestra");
             if (rows.length !== 1 || rows[0].title !== "hello") throw new Error("FTS5 query mismatch");
             console.log(JSON.stringify({ ok: true, node: process.version, abi: process.versions.modules, sqlite: version, prebuild }));
             db.close();

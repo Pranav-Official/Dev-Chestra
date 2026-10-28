@@ -46,7 +46,7 @@ function cookieValue(setCookies: readonly string[], name: string): string | null
   return null;
 }
 
-export class RelayHttp {
+export class DevChestraHttp {
   readonly baseUrl: string;
   readonly port: number;
   cookie: string | null = null;
@@ -82,7 +82,7 @@ export class RelayHttp {
       }
     }
     const mutating = method !== "GET" && method !== "HEAD";
-    if (mutating && options.csrf !== false) headers["X-Relay-Csrf"] = "1";
+    if (mutating && options.csrf !== false) headers["X-DevChestra-Csrf"] = "1";
 
     const result = await new Promise<HttpResult>((resolve, reject) => {
       const url = new URL(path, this.baseUrl);
@@ -123,8 +123,8 @@ export class RelayHttp {
       throw new Error(`bootstrap expected a redirect, got ${String(result.status)}`);
     }
     const setCookie = parseSetCookies(result.headers);
-    const cookie = cookieValue(setCookie, "relay_session");
-    if (cookie === null) throw new Error("bootstrap did not set relay_session");
+    const cookie = cookieValue(setCookie, "devchestra_session");
+    if (cookie === null) throw new Error("bootstrap did not set devchestra_session");
     const location = typeof result.headers.location === "string" ? result.headers.location : null;
     if (location === null) throw new Error("bootstrap did not set Location");
     if (location.includes("t=") || location.includes(token)) {
@@ -164,7 +164,7 @@ export function etagOf(result: HttpResult): string {
 }
 
 export function isApiVersioned(result: HttpResult): boolean {
-  return header(result, "x-relay-api") !== null;
+  return header(result, "x-devchestra-api") !== null;
 }
 
 export function errorCode(result: HttpResult): string | null {

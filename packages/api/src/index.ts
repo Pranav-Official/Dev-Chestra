@@ -14,8 +14,8 @@ export type {
   RunPauseReason,
   RunStatus,
   RunView,
-} from "@relay/core";
-export type { NormalizedWorkflow } from "@relay/schema";
+} from "@devchestra/core";
+export type { NormalizedWorkflow } from "@devchestra/schema";
 export * from "./approval-dto.js";
 export * from "./client.js";
 export * from "./constants.js";

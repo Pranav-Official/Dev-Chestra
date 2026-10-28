@@ -80,35 +80,38 @@ function parseNonNegativeInt(raw: string | undefined, fallback: number): number 
 
 /** Read the documented shim environment. Errors never include the token. */
 export function readShimConfig(env: NodeJS.ProcessEnv = process.env): ShimOptions {
-  const execToken = env.RELAY_EXEC_TOKEN;
+  const execToken = env.DEVCHESTRA_EXEC_TOKEN;
   if (execToken === undefined || execToken === "") {
-    throw new Error("RELAY_EXEC_TOKEN is required.");
+    throw new Error("DEVCHESTRA_EXEC_TOKEN is required.");
   }
-  const gatewayUrl = env.RELAY_GATEWAY_URL;
+  const gatewayUrl = env.DEVCHESTRA_GATEWAY_URL;
   if (gatewayUrl === undefined || gatewayUrl === "") {
-    throw new Error("RELAY_GATEWAY_URL is required.");
+    throw new Error("DEVCHESTRA_GATEWAY_URL is required.");
   }
-  const toolset = env.RELAY_TOOLSET;
+  const toolset = env.DEVCHESTRA_TOOLSET;
   if (toolset !== "agent" && toolset !== "supervisor") {
-    throw new Error('RELAY_TOOLSET must be "agent" or "supervisor".');
+    throw new Error('DEVCHESTRA_TOOLSET must be "agent" or "supervisor".');
   }
 
-  const debug = env.RELAY_MCP_DEBUG === "1";
+  const debug = env.DEVCHESTRA_MCP_DEBUG === "1";
   const options: ShimOptions = { gatewayUrl, execToken, toolset };
-  options.defaultTimeoutMs = parsePositiveInt(env.RELAY_DEFAULT_TIMEOUT_MS, DEFAULT_TIMEOUT_MS);
-  options.submitTimeoutMs = parsePositiveInt(env.RELAY_SUBMIT_TIMEOUT_MS, SUBMIT_TIMEOUT_MS);
+  options.defaultTimeoutMs = parsePositiveInt(
+    env.DEVCHESTRA_DEFAULT_TIMEOUT_MS,
+    DEFAULT_TIMEOUT_MS,
+  );
+  options.submitTimeoutMs = parsePositiveInt(env.DEVCHESTRA_SUBMIT_TIMEOUT_MS, SUBMIT_TIMEOUT_MS);
   options.maxRequestBytes = parsePositiveInt(
-    env.RELAY_MAX_REQUEST_BYTES,
+    env.DEVCHESTRA_MAX_REQUEST_BYTES,
     DEFAULT_MAX_REQUEST_BYTES,
   );
   options.maxResponseBytes = parsePositiveInt(
-    env.RELAY_MAX_RESPONSE_BYTES,
+    env.DEVCHESTRA_MAX_RESPONSE_BYTES,
     DEFAULT_MAX_RESPONSE_BYTES,
   );
-  options.retries = parseNonNegativeInt(env.RELAY_GATEWAY_RETRIES, 1);
+  options.retries = parseNonNegativeInt(env.DEVCHESTRA_GATEWAY_RETRIES, 1);
   if (debug) {
     options.logger = (line: string): void => {
-      process.stderr.write(`relay-mcp-shim ${line}\n`);
+      process.stderr.write(`devchestra-mcp-shim ${line}\n`);
     };
   }
   return options;
@@ -118,19 +121,19 @@ function mapGatewayError(error: unknown, execToken: string): string {
   if (error instanceof GatewayClientError) {
     switch (error.code) {
       case "E_GATEWAY_UNAVAILABLE":
-        return "Relay is not reachable. Stop and report this.";
+        return "DevChestra is not reachable. Stop and report this.";
       case "E_TIMEOUT":
-        return "Relay gateway request timed out. Stop and report this.";
+        return "DevChestra gateway request timed out. Stop and report this.";
       case "E_ABORTED":
-        return "Relay gateway request was cancelled.";
+        return "DevChestra gateway request was cancelled.";
       case "E_CONFIG":
-        return "Relay MCP transport is misconfigured. Stop and report this.";
+        return "DevChestra MCP transport is misconfigured. Stop and report this.";
       default:
-        return redactToken(`Relay gateway error (${error.code}): ${error.message}`, execToken);
+        return redactToken(`DevChestra gateway error (${error.code}): ${error.message}`, execToken);
     }
   }
   const message = error instanceof Error ? error.message : "unknown transport error";
-  return redactToken(`Relay MCP transport error: ${message}`, execToken);
+  return redactToken(`DevChestra MCP transport error: ${message}`, execToken);
 }
 
 /**
@@ -159,7 +162,7 @@ export async function createShimServer(options: ShimOptions): Promise<Server> {
   let toolsCache: AgentToolDescriptor[] | undefined;
 
   const server = new Server(
-    { name: "relay-mcp-shim", version: SERVER_VERSION },
+    { name: "devchestra-mcp-shim", version: SERVER_VERSION },
     { capabilities: { tools: {} } },
   );
 
@@ -218,7 +221,7 @@ export async function createShimServer(options: ShimOptions): Promise<Server> {
 
 /**
  * Connect the shim to MCP over stdio. stdout is reserved for protocol frames;
- * all diagnostics go to stderr (only when RELAY_MCP_DEBUG=1).
+ * all diagnostics go to stderr (only when DEVCHESTRA_MCP_DEBUG=1).
  */
 export async function runShim(env: NodeJS.ProcessEnv = process.env): Promise<void> {
   const config = readShimConfig(env);

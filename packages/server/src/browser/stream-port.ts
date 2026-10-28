@@ -1,4 +1,4 @@
-import type { Store } from "@relay/store";
+import type { Store } from "@devchestra/store";
 import { createStoreStreamPort, createStreamHub, mountStreamRoutes } from "../stream/index.js";
 import type { BrowserStreamPort } from "./ports.js";
 

@@ -3,7 +3,7 @@ import { readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, it } from "vitest";
 import { makeWorkspace, scriptPath } from "../src/fixtures.js";
-import { errorCode, RelayHttp } from "../src/http.js";
+import { DevChestraHttp, errorCode } from "../src/http.js";
 import { registerProject, waitTerminal } from "../src/workflow-api.js";
 import {
   cleanupTempRoots,
@@ -26,8 +26,8 @@ let repo: RunWorkspaceRepo;
 let rogueDir = "";
 
 beforeAll(() => {
-  repo = makeRunWorkspaceRepo("relay-run-ws-");
-  rogueDir = tempRoot("relay-run-ws-rogue-").dir;
+  repo = makeRunWorkspaceRepo("devchestra-run-ws-");
+  rogueDir = tempRoot("devchestra-run-ws-rogue-").dir;
 });
 
 afterAll(() => {
@@ -42,7 +42,7 @@ function envOf(): Record<string, string> {
   };
 }
 
-async function runCount(http: RelayHttp, projectId: string): Promise<number> {
+async function runCount(http: DevChestraHttp, projectId: string): Promise<number> {
   const result = await http.api("GET", `/api/runs?project=${encodeURIComponent(projectId)}`);
   assert.equal(result.status, 200);
   return ((result.body as { items?: unknown[] }).items ?? []).length;
@@ -50,7 +50,7 @@ async function runCount(http: RelayHttp, projectId: string): Promise<number> {
 
 describe("run-level workspace selection", () => {
   it("defaults to the dirty project root, accepts one listed worktree and creates a new one", async () => {
-    const ws = await makeWorkspace("relay-run-ws-http-");
+    const ws = await makeWorkspace("devchestra-run-ws-http-");
     await withServer(
       {
         dataDir: ws.dataDir,
@@ -59,7 +59,7 @@ describe("run-level workspace selection", () => {
         env: envOf(),
       },
       async (server) => {
-        const http = new RelayHttp(server.baseUrl);
+        const http = new DevChestraHttp(server.baseUrl);
         await http.health();
         await http.bootstrap(server.meta.token);
         const managed = await createManaged(http, repo.root, workspaceWorkflow("scratch"));
@@ -91,7 +91,7 @@ describe("run-level workspace selection", () => {
         ]);
         assert.ok(!catalogBody.worktrees.some((entry) => entry.path === catalogBody.projectRoot));
 
-        const folder = await makeWorkspace("relay-run-ws-folder-");
+        const folder = await makeWorkspace("devchestra-run-ws-folder-");
         const folderProject = await registerProject(http, folder.projectDir);
         const folderCatalog = await http.api(
           "GET",

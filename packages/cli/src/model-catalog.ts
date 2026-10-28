@@ -1,7 +1,7 @@
 import { chmodSync, mkdtempSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { type CliId, getProvider } from "@relay/adapters";
-import type { BrowserModelCatalogPort, CatalogCli, CliModelCatalog } from "@relay/server";
+import { type CliId, getProvider } from "@devchestra/adapters";
+import type { BrowserModelCatalogPort, CatalogCli, CliModelCatalog } from "@devchestra/server";
 import {
   buildContext,
   type CatalogContext,
@@ -120,7 +120,7 @@ export function createModelCatalogService(
     cli,
     projectId,
     status,
-    scope: "relay-runtime",
+    scope: "devchestra-runtime",
     source: status === "ready" ? catalogSourceForCli(cli) : "none",
     cliVersion,
     items: [],
@@ -136,7 +136,7 @@ export function createModelCatalogService(
 
   const ensureRuntimeDir = (): string => {
     if (runtimeDir === null) {
-      runtimeDir = mkdtempSync(join(dataDir, ".relay-model-catalog-"));
+      runtimeDir = mkdtempSync(join(dataDir, ".devchestra-model-catalog-"));
       chmodSync(runtimeDir, 0o700);
     }
     return runtimeDir;
@@ -301,7 +301,7 @@ export function createModelCatalogService(
           cli,
           projectId,
           status: "ready",
-          scope: "relay-runtime",
+          scope: "devchestra-runtime",
           source: itemSource,
           cliVersion: result.cliVersion,
           items,

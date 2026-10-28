@@ -1,9 +1,9 @@
 import { mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Path } from "@relay/core";
-import { openStore, type Store } from "@relay/store";
-import { acquireScratch, finalizeScratch, releaseScratch } from "@relay/workspaces";
+import type { Path } from "@devchestra/core";
+import { openStore, type Store } from "@devchestra/store";
+import { acquireScratch, finalizeScratch, releaseScratch } from "@devchestra/workspaces";
 import { afterEach, describe, expect, it } from "vitest";
 import { countNoSubmit, finalizeAccepted } from "../src/agent-support.js";
 import { type ActiveRunState, EngineContext } from "../src/context.js";
@@ -40,7 +40,7 @@ const fixture = {
 const tempDirs: string[] = [];
 
 function temp(): string {
-  const dir = mkdtempSync(join(tmpdir(), "relay-engine-support-"));
+  const dir = mkdtempSync(join(tmpdir(), "devchestra-engine-support-"));
   tempDirs.push(dir);
   return dir;
 }
@@ -116,7 +116,7 @@ afterEach(() => {
 describe("durable no-submit counting", () => {
   it("counts committed E_NO_SUBMIT receipts, not state events", () => {
     const dataDir = temp();
-    const store = openStore({ file: join(dataDir, "relay.db") });
+    const store = openStore({ file: join(dataDir, "devchestra.db") });
     try {
       const { runId } = seed(store, dataDir);
       const execution = store.executions.ensure({
@@ -136,7 +136,7 @@ describe("durable no-submit counting", () => {
       const submit = {
         identity,
         callId: "engine-no-submit-1-2",
-        request: { name: "relay.engine.no_submit", arguments: {} },
+        request: { name: "devchestra.engine.no_submit", arguments: {} },
         ok: false as const,
         errors: [{ path: "/", message: "no submit" }],
         errorCode: "E_NO_SUBMIT",
@@ -162,7 +162,7 @@ describe("durable no-submit counting", () => {
 describe("accepted finalization without a workspace", () => {
   it("pauses and refuses to recreate a missing accepted workspace", async () => {
     const dataDir = temp();
-    const store = openStore({ file: join(dataDir, "relay.db") });
+    const store = openStore({ file: join(dataDir, "devchestra.db") });
     try {
       const { runId, node } = seed(store, dataDir);
       const identity = accept(store, runId);

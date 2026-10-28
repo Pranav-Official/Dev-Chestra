@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { join } from "node:path";
 import { describe, it } from "vitest";
 import { CLI, makeWorkspace, scriptPath } from "../src/fixtures.js";
-import { errorCode, RelayHttp } from "../src/http.js";
+import { DevChestraHttp, errorCode } from "../src/http.js";
 import { startSentinel, startServer } from "../src/owned.js";
 import { readStoreSnapshot } from "../src/store-read.js";
 import { isTerminal, waitTerminal } from "../src/workflow-api.js";
@@ -49,7 +49,7 @@ async function restartAndResume(
   projectRoot: string,
   env: Record<string, string>,
   runId: string,
-  resume: (http: RelayHttp) => Promise<void>,
+  resume: (http: DevChestraHttp) => Promise<void>,
   options: { allowBootFailure?: boolean } = {},
 ): Promise<void> {
   const sentinel = startSentinel();
@@ -64,7 +64,7 @@ async function restartAndResume(
       fakeScript: scriptPath("slow"),
       env,
     });
-    const http = new RelayHttp(server.baseUrl);
+    const http = new DevChestraHttp(server.baseUrl);
     await http.health();
     await http.bootstrap(server.meta.token);
     const detail = await runDetail(http, runId);
@@ -90,9 +90,9 @@ async function restartAndResume(
 
 describe("run workspace durability and identity", () => {
   it("keeps the selected cwd across a real server restart and resume, including a workflow commit", async () => {
-    const repo = makeRunWorkspaceRepo("relay-run-ws-resume-");
+    const repo = makeRunWorkspaceRepo("devchestra-run-ws-resume-");
     const env = isolatedGitEnv(repo.home);
-    const ws = await makeWorkspace("relay-run-ws-resume-work-");
+    const ws = await makeWorkspace("devchestra-run-ws-resume-work-");
     const projectHeadBefore = git(repo.root, ["rev-parse", "HEAD"], env);
     const existingBefore = dirIdentity(repo.existingWorktree, env);
     let runId = "";
@@ -105,7 +105,7 @@ describe("run workspace durability and identity", () => {
         keepDataDir: true,
       },
       async (server) => {
-        const http = new RelayHttp(server.baseUrl);
+        const http = new DevChestraHttp(server.baseUrl);
         await http.health();
         await http.bootstrap(server.meta.token);
         const managed = await createManaged(http, repo.root, workflowWithCommit());
@@ -143,9 +143,9 @@ describe("run workspace durability and identity", () => {
   }, 300_000);
 
   it("refuses to resume into a different repository placed at the selected worktree path", async () => {
-    const repo = makeRunWorkspaceRepo("relay-run-ws-replaced-");
+    const repo = makeRunWorkspaceRepo("devchestra-run-ws-replaced-");
     const env = isolatedGitEnv(repo.home);
-    const ws = await makeWorkspace("relay-run-ws-replaced-work-");
+    const ws = await makeWorkspace("devchestra-run-ws-replaced-work-");
     const identityBefore = dirIdentity(repo.existingWorktree, env);
     let runId = "";
     await withServer(
@@ -157,7 +157,7 @@ describe("run workspace durability and identity", () => {
         keepDataDir: true,
       },
       async (server) => {
-        const http = new RelayHttp(server.baseUrl);
+        const http = new DevChestraHttp(server.baseUrl);
         await http.health();
         await http.bootstrap(server.meta.token);
         const managed = await createManaged(http, repo.root, workflowWithCommit());
@@ -235,8 +235,8 @@ describe("run workspace durability and identity", () => {
   }, 300_000);
 
   it("fails closed when the durable run workspace binding is missing during resume", async () => {
-    const repo = makeRunWorkspaceRepo("relay-run-ws-nobind-");
-    const ws = await makeWorkspace("relay-run-ws-nobind-work-");
+    const repo = makeRunWorkspaceRepo("devchestra-run-ws-nobind-");
+    const ws = await makeWorkspace("devchestra-run-ws-nobind-work-");
     let runId = "";
     let projectId = "";
     let binding = "";
@@ -249,7 +249,7 @@ describe("run workspace durability and identity", () => {
         keepDataDir: true,
       },
       async (server) => {
-        const http = new RelayHttp(server.baseUrl);
+        const http = new DevChestraHttp(server.baseUrl);
         await http.health();
         await http.bootstrap(server.meta.token);
         const managed = await createManaged(http, repo.root, workspaceWorkflow("scratch"));
@@ -299,9 +299,9 @@ describe("run workspace durability and identity", () => {
   }, 240_000);
 
   it("fails closed when the project repository is replaced at the frozen root path", async () => {
-    const repo = makeRunWorkspaceRepo("relay-run-ws-root-replaced-");
+    const repo = makeRunWorkspaceRepo("devchestra-run-ws-root-replaced-");
     const env = isolatedGitEnv(repo.home);
-    const ws = await makeWorkspace("relay-run-ws-root-replaced-work-");
+    const ws = await makeWorkspace("devchestra-run-ws-root-replaced-work-");
     let runId = "";
     await withServer(
       {
@@ -312,7 +312,7 @@ describe("run workspace durability and identity", () => {
         keepDataDir: true,
       },
       async (server) => {
-        const http = new RelayHttp(server.baseUrl);
+        const http = new DevChestraHttp(server.baseUrl);
         await http.health();
         await http.bootstrap(server.meta.token);
         const managed = await createManaged(http, repo.root, workspaceWorkflow("scratch"));
@@ -369,8 +369,8 @@ describe("run workspace durability and identity", () => {
   }, 240_000);
 
   it("rejects a tampered frozen binding instead of running with it", async () => {
-    const repo = makeRunWorkspaceRepo("relay-run-ws-tamper-");
-    const ws = await makeWorkspace("relay-run-ws-tamper-work-");
+    const repo = makeRunWorkspaceRepo("devchestra-run-ws-tamper-");
+    const ws = await makeWorkspace("devchestra-run-ws-tamper-work-");
     let runId = "";
     let binding = "";
     await withServer(
@@ -382,7 +382,7 @@ describe("run workspace durability and identity", () => {
         keepDataDir: true,
       },
       async (server) => {
-        const http = new RelayHttp(server.baseUrl);
+        const http = new DevChestraHttp(server.baseUrl);
         await http.health();
         await http.bootstrap(server.meta.token);
         const managed = await createManaged(http, repo.root, workspaceWorkflow("scratch"));

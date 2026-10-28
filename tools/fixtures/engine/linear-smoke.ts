@@ -16,8 +16,8 @@ const fakeAgent = join(root, "tools/fake-agent/dist/main.js");
 const snapshot = JSON.parse(readFileSync(join(here, "linear-research.json"), "utf8"));
 const raw = JSON.stringify(snapshot);
 
-const temp = mkdtempSync(join(tmpdir(), "relay-engine-smoke-"));
-const store = openStore({ file: join(temp, "relay.db") });
+const temp = mkdtempSync(join(tmpdir(), "devchestra-engine-smoke-"));
+const store = openStore({ file: join(temp, "devchestra.db") });
 const tokens = new ExecTokenRegistry({
   registerSecret: (value, name) => store.security.registerSecret(value, name),
 });
@@ -85,7 +85,7 @@ try {
     workflowId: "linear-research",
     snapshot,
     snapshotRaw: raw,
-    params: { topic: "relay" },
+    params: { topic: "devchestra" },
   });
   assert.equal(result.ok, true, result.ok ? "" : JSON.stringify(result.error));
   if (!result.ok) throw result.error;
@@ -137,7 +137,7 @@ try {
   for (const token of issuedTokens) assert.equal(allText.includes(token), false, "token leaked");
 
   const startOutput = store.outputs.get({ runId: result.value.runId, path: "start", attempt: 1 });
-  assert.deepEqual(startOutput?.json, { topic: "relay" });
+  assert.deepEqual(startOutput?.json, { topic: "devchestra" });
   assert.equal(store.view.get(result.value.runId).status, "succeeded");
   process.stdout.write(`engine smoke ok: ${result.value.runId}\n`);
 } finally {

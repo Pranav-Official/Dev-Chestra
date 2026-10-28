@@ -1,4 +1,4 @@
-import type { WorkflowListItem } from "@relay/api";
+import type { WorkflowListItem } from "@devchestra/api";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,

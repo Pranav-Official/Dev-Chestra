@@ -170,7 +170,7 @@ export async function discoverPiModels(
           return { ...failure("authRequired", MESSAGES.authRequired), cliVersion };
       }
       if (result.exitCode !== 0) {
-        if (result.exitCode === 127 && /relay-wrapper|ENOENT/i.test(result.stderr)) {
+        if (result.exitCode === 127 && /devchestra-wrapper|ENOENT/i.test(result.stderr)) {
           return { ...failure("unavailable", MESSAGES.missing), cliVersion };
         }
         if (parsed.items.length > 0) {

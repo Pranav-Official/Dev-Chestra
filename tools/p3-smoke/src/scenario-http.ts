@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { access, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { CLI, FIXTURE_ROOT, makeWorkspace, readFixture, scriptPath } from "./fixtures.js";
-import { errorCode, fieldString, RelayHttp } from "./http.js";
+import { DevChestraHttp, errorCode, fieldString } from "./http.js";
 import { type OwnedServer, shutdownOwned, startSentinel, startServer } from "./owned.js";
 import {
   apiHeader,
@@ -85,8 +85,8 @@ async function fileExists(path: string): Promise<boolean> {
 }
 
 export async function runHttpScenario(): Promise<HttpEvidence> {
-  const ws = await makeWorkspace("relay-p3-http-");
-  const other = await makeWorkspace("relay-p3-http-other-");
+  const ws = await makeWorkspace("devchestra-p3-http-");
+  const other = await makeWorkspace("devchestra-p3-http-other-");
   const sentinel = startSentinel();
   let server: OwnedServer | null = null;
   try {
@@ -96,7 +96,7 @@ export async function runHttpScenario(): Promise<HttpEvidence> {
       cwd: ws.projectDir,
       fakeScript: scriptPath("slow"),
     });
-    const http = new RelayHttp(server.baseUrl);
+    const http = new DevChestraHttp(server.baseUrl);
     await http.health();
     await http.bootstrap(server.meta.token);
     const project = await registerProject(http, ws.projectDir);
@@ -117,7 +117,7 @@ export async function runHttpScenario(): Promise<HttpEvidence> {
     apiHeader(blankResult);
     const blank = await getWorkflow(http, project.id, "qa-blank");
     assert.equal(blank.workflow.id, "qa-blank");
-    assert.equal(blank.relativeFile, ".relay/workflows/qa-blank.json");
+    assert.equal(blank.relativeFile, ".devchestra/workflows/qa-blank.json");
     assert.equal(blank.workflow.graph.nodes.length, 0, "blank template starts with an empty graph");
     assert.equal(blank.validation.ok, false, "blank draft is saved with semantic errors");
 
@@ -374,7 +374,7 @@ export async function runHttpScenario(): Promise<HttpEvidence> {
 
     const finalList = await listWorkflows(http, project.id);
     assert.ok(finalList.items.every((item) => item.id !== "p3-incomplete"));
-    const tempEntries = await readdir(join(ws.projectDir, ".relay/workflows"));
+    const tempEntries = await readdir(join(ws.projectDir, ".devchestra/workflows"));
     assert.ok(
       tempEntries.every((name) => name.endsWith(".json") && !name.startsWith(".")),
       `unexpected temporary/lock file in managed directory: ${tempEntries.join(",")}`,
@@ -423,7 +423,7 @@ export async function restartPersistenceScenario(): Promise<{
   projectId: string;
   workflowId: string;
 }> {
-  const ws = await makeWorkspace("relay-p3-restart-");
+  const ws = await makeWorkspace("devchestra-p3-restart-");
   const sentinel = startSentinel();
   let first: OwnedServer | null = null;
   let second: OwnedServer | null = null;
@@ -434,7 +434,7 @@ export async function restartPersistenceScenario(): Promise<{
       cwd: ws.projectDir,
       fakeScript: scriptPath("summary"),
     });
-    const http = new RelayHttp(first.baseUrl);
+    const http = new DevChestraHttp(first.baseUrl);
     await http.health();
     await http.bootstrap(first.meta.token);
     const project = await registerProject(http, ws.projectDir);
@@ -453,7 +453,7 @@ export async function restartPersistenceScenario(): Promise<{
       cwd: ws.projectDir,
       fakeScript: scriptPath("summary"),
     });
-    const http2 = new RelayHttp(second.baseUrl);
+    const http2 = new DevChestraHttp(second.baseUrl);
     await http2.health();
     await http2.bootstrap(second.meta.token);
     const reloaded = await getWorkflow(http2, project.id, "restart-survives");

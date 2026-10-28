@@ -1,4 +1,4 @@
-import type { ValidationReport, WorkflowFile } from "@relay/schema";
+import type { ValidationReport, WorkflowFile } from "@devchestra/schema";
 
 export type AutosaveStatus =
   | "loading"

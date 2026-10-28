@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FakeClock, RelayError } from "../src/index.js";
+import { DevChestraError, FakeClock } from "../src/index.js";
 
 describe("FakeClock", () => {
   it("resolves sleeps in due order", async () => {
@@ -46,12 +46,12 @@ describe("FakeClock", () => {
     const clock = new FakeClock(0);
     const controller = new AbortController();
     controller.abort();
-    await expect(clock.sleep(10, controller.signal)).rejects.toBeInstanceOf(RelayError);
+    await expect(clock.sleep(10, controller.signal)).rejects.toBeInstanceOf(DevChestraError);
   });
 
   it("rejects invalid durations", () => {
     const clock = new FakeClock(0);
-    expect(() => clock.advance(-1)).toThrow(RelayError);
-    expect(() => clock.sleep(Number.NaN)).toThrow(RelayError);
+    expect(() => clock.advance(-1)).toThrow(DevChestraError);
+    expect(() => clock.sleep(Number.NaN)).toThrow(DevChestraError);
   });
 });

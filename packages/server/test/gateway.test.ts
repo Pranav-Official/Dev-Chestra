@@ -1,8 +1,8 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ExecutionIdentity, Path } from "@relay/core";
-import { openStore, type Store } from "@relay/store";
+import type { ExecutionIdentity, Path } from "@devchestra/core";
+import { openStore, type Store } from "@devchestra/store";
 import { afterEach, describe, expect, it } from "vitest";
 import { createAgentGateway } from "../src/gateway.js";
 import type { SubmissionPort } from "../src/ports.js";
@@ -55,8 +55,8 @@ async function openHarness(
   let identity: ExecutionIdentity;
 
   if (options.reuse === undefined) {
-    dataDir = await mkdtemp(join(tmpdir(), "relay-server-test-"));
-    dbFile = join(dataDir, "relay.db");
+    dataDir = await mkdtemp(join(tmpdir(), "devchestra-server-test-"));
+    dbFile = join(dataDir, "devchestra.db");
     store = openStore({ file: dbFile });
     cleanups.push(async () => {
       store.close();
@@ -160,7 +160,7 @@ async function submit(
 ): Promise<Response> {
   return h.app.request(url("/internal/agent/call"), {
     method: "POST",
-    headers: { ...baseHeaders(h.token), "X-Relay-Call-Id": callId },
+    headers: { ...baseHeaders(h.token), "X-DevChestra-Call-Id": callId },
     body: JSON.stringify({ name: "submit_result", arguments: args }),
   });
 }
@@ -180,7 +180,7 @@ describe("agent gateway authentication and transport hardening", () => {
     const res = await h.app.request(url("/internal/agent/tools"), {
       headers: {
         Host: `127.0.0.1:${PORT}`,
-        Cookie: "relay_session=not-an-exec-token",
+        Cookie: "devchestra_session=not-an-exec-token",
       },
     });
     expect(res.status).toBe(401);
@@ -201,7 +201,7 @@ describe("agent gateway authentication and transport hardening", () => {
       headers: {
         ...baseHeaders(h.token),
         Origin: "http://evil.example",
-        "X-Relay-Call-Id": "call-1",
+        "X-DevChestra-Call-Id": "call-1",
       },
       body: JSON.stringify({ name: "submit_result", arguments: { answer: "ok" } }),
     });
@@ -241,7 +241,7 @@ describe("agent gateway authentication and transport hardening", () => {
     expect(tools.status).toBe(403);
     const call = await h.app.request(url("/internal/agent/call"), {
       method: "POST",
-      headers: { ...baseHeaders(supervisor), "X-Relay-Call-Id": "call-1" },
+      headers: { ...baseHeaders(supervisor), "X-DevChestra-Call-Id": "call-1" },
       body: JSON.stringify({ name: "submit_result", arguments: { answer: "ok" } }),
     });
     expect(call.status).toBe(403);
@@ -251,7 +251,7 @@ describe("agent gateway authentication and transport hardening", () => {
     const h = await openHarness();
     const res = await h.app.request(url("/internal/agent/call"), {
       method: "POST",
-      headers: { ...baseHeaders(h.token), "X-Relay-Call-Id": "call-1" },
+      headers: { ...baseHeaders(h.token), "X-DevChestra-Call-Id": "call-1" },
       body: JSON.stringify({ name: "context_read", arguments: {} }),
     });
     expect(res.status).toBe(403);
@@ -271,7 +271,7 @@ describe("agent gateway authentication and transport hardening", () => {
     const h = await openHarness({ maxBodyBytes: 64 });
     const res = await h.app.request(url("/internal/agent/call"), {
       method: "POST",
-      headers: { ...baseHeaders(h.token), "X-Relay-Call-Id": "call-1" },
+      headers: { ...baseHeaders(h.token), "X-DevChestra-Call-Id": "call-1" },
       body: JSON.stringify({ name: "submit_result", arguments: { answer: "x".repeat(200) } }),
     });
     expect(res.status).toBe(413);
@@ -287,7 +287,7 @@ describe("agent gateway authentication and transport hardening", () => {
     });
     const request = new Request(url("/internal/agent/call"), {
       method: "POST",
-      headers: { ...baseHeaders(h.token), "X-Relay-Call-Id": "call-1" },
+      headers: { ...baseHeaders(h.token), "X-DevChestra-Call-Id": "call-1" },
       body: stream,
       duplex: "half",
     } as RequestInit & { duplex: "half" });
@@ -308,7 +308,7 @@ describe("agent gateway authentication and transport hardening", () => {
     });
     const request = new Request(url("/internal/agent/call"), {
       method: "POST",
-      headers: { ...baseHeaders(h.token), "X-Relay-Call-Id": "call-1" },
+      headers: { ...baseHeaders(h.token), "X-DevChestra-Call-Id": "call-1" },
       body: stream,
       duplex: "half",
     } as RequestInit & { duplex: "half" });
@@ -399,7 +399,7 @@ describe("submit_result semantics against the real store", () => {
     const h = await openHarness();
     const res = await h.app.request(url("/internal/agent/call"), {
       method: "POST",
-      headers: { ...baseHeaders(h.token), "X-Relay-Call-Id": h.token },
+      headers: { ...baseHeaders(h.token), "X-DevChestra-Call-Id": h.token },
       body: JSON.stringify({ name: "submit_result", arguments: { answer: "ok" } }),
     });
     expect(res.status).toBe(400);
@@ -438,7 +438,7 @@ describe("submit_result semantics against the real store", () => {
     });
     const request = new Request(url("/internal/agent/call"), {
       method: "POST",
-      headers: { ...baseHeaders(h.token), "X-Relay-Call-Id": "call-1" },
+      headers: { ...baseHeaders(h.token), "X-DevChestra-Call-Id": "call-1" },
       body: stream,
       duplex: "half",
     } as RequestInit & { duplex: "half" });
@@ -469,7 +469,7 @@ describe("submit_result semantics against the real store", () => {
     });
     const request = new Request(url("/internal/agent/call"), {
       method: "POST",
-      headers: { ...baseHeaders(h.token), "X-Relay-Call-Id": "call-1" },
+      headers: { ...baseHeaders(h.token), "X-DevChestra-Call-Id": "call-1" },
       body: stream,
       duplex: "half",
     } as RequestInit & { duplex: "half" });
@@ -516,7 +516,7 @@ describe("submit_result semantics against the real store", () => {
     });
     const res = await h.app.request(url("/internal/agent/call"), {
       method: "POST",
-      headers: { ...baseHeaders(stale), "X-Relay-Call-Id": "call-1" },
+      headers: { ...baseHeaders(stale), "X-DevChestra-Call-Id": "call-1" },
       body: JSON.stringify({ name: "submit_result", arguments: { answer: "stale" } }),
     });
     expect(res.status).toBe(409);
@@ -531,7 +531,7 @@ describe("submit_result semantics against the real store", () => {
     });
     const res = await h.app.request(url("/internal/agent/call"), {
       method: "POST",
-      headers: { ...baseHeaders(future), "X-Relay-Call-Id": "call-1" },
+      headers: { ...baseHeaders(future), "X-DevChestra-Call-Id": "call-1" },
       body: JSON.stringify({ name: "submit_result", arguments: { answer: "future" } }),
     });
     expect(res.status).toBe(409);
@@ -632,7 +632,7 @@ describe("submit_result semantics against the real store", () => {
     });
     const res = await app.request(url("/internal/agent/call"), {
       method: "POST",
-      headers: { ...baseHeaders(token), "X-Relay-Call-Id": "call-3" },
+      headers: { ...baseHeaders(token), "X-DevChestra-Call-Id": "call-3" },
       body: JSON.stringify({ name: "submit_result", arguments: { answer: "late" } }),
     });
     expect(res.status).toBe(200);
@@ -673,7 +673,7 @@ describe("submit_result semantics against the real store", () => {
     });
     const replay = await app.request(url("/internal/agent/call"), {
       method: "POST",
-      headers: { ...baseHeaders(token), "X-Relay-Call-Id": "call-1" },
+      headers: { ...baseHeaders(token), "X-DevChestra-Call-Id": "call-1" },
       body: JSON.stringify({ name: "submit_result", arguments: { answer: 42 } }),
     });
     expect(replay.status).toBe(200);

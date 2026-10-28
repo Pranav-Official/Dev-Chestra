@@ -1,10 +1,10 @@
-import type { RunWorkspaceSelection } from "@relay/api";
+import type { RunWorkspaceSelection } from "@devchestra/api";
 import {
   type ValidationReport,
   validateParams,
   type WorkflowFile,
   type WorkflowParam,
-} from "@relay/schema";
+} from "@devchestra/schema";
 import { AlertTriangle, ArrowLeft, Play, ShieldAlert, TerminalSquare } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { describeWorkflowError, workflowApi } from "../api/workflowApi.js";
@@ -366,10 +366,10 @@ export function RunDialog({
                 </p>
               ) : workspace.mode === "new-worktree" ? (
                 <p>
-                  A new Git worktree is created under Relay's data directory when this run starts,
-                  from the project's committed HEAD. Uncommitted and untracked project files are not
-                  present. The run records its starting HEAD for evidence; your selected checkout is
-                  never deleted or finalized.
+                  A new Git worktree is created under DevChestra's data directory when this run
+                  starts, from the project's committed HEAD. Uncommitted and untracked project files
+                  are not present. The run records its starting HEAD for evidence; your selected
+                  checkout is never deleted or finalized.
                 </p>
               ) : (
                 <p>
@@ -451,7 +451,6 @@ export function RunDialog({
                   node.type === "agent" ? (
                     <li key={node.id}>
                       <b>{node.name}</b> · <span className="mono">{node.cli}</span>
-                      <span className="pill amber">experimental adapter</span>
                       <div className="muted">
                         Network {node.permissions.network ? "enabled" : "disabled"}; write:{" "}
                         {node.permissions.write.length === 0
@@ -466,11 +465,8 @@ export function RunDialog({
             <div className="note amber">
               <ShieldAlert size={16} aria-hidden="true" />
               <span>
-                Relay is not an OS sandbox; agent permission controls are advisory to the CLI. An
-                experimental adapter requires{" "}
-                <span className="mono">--allow-experimental-adapters</span>. The browser cannot
-                enable it. Starting a real-agent run uses your configured CLI account and may incur
-                costs.
+                DevChestra is not an OS sandbox; agent permission controls are advisory to the CLI.
+                Starting a real-agent run uses your configured CLI account and may incur costs.
               </span>
             </div>
           </section>

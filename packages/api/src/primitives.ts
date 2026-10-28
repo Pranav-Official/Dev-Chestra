@@ -11,8 +11,8 @@ import {
   type RunKind,
   type RunPauseReason,
   type RunStatus,
-} from "@relay/core";
-import { WORKFLOW_ID_PATTERN } from "@relay/schema";
+} from "@devchestra/core";
+import { WORKFLOW_ID_PATTERN } from "@devchestra/schema";
 import { z } from "./zod.js";
 
 /** Database/event identifiers are ULIDs (spec 3.1). */

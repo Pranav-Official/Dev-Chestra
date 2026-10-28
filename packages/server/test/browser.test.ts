@@ -6,11 +6,11 @@ import type {
   ExecutionDetailResponse,
   RunDetailResponse,
   TranscriptPageResponse,
-} from "@relay/api";
-import type { EventEnvelope, Path, RunId, RunView } from "@relay/core";
-import { RelayError as CoreRelayError, emptyRunView } from "@relay/core";
-import { type NormalizedWorkflow, normalizeWorkflow } from "@relay/schema";
-import { type ExecutionHistory, openStore } from "@relay/store";
+} from "@devchestra/api";
+import type { EventEnvelope, Path, RunId, RunView } from "@devchestra/core";
+import { DevChestraError as CoreDevChestraError, emptyRunView } from "@devchestra/core";
+import { type NormalizedWorkflow, normalizeWorkflow } from "@devchestra/schema";
+import { type ExecutionHistory, openStore } from "@devchestra/store";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   type BrowserQueryPort,
@@ -291,8 +291,8 @@ interface Harness {
 async function harness(
   options: { webRoot?: string; logger?: boolean; controller?: BrowserRunControllerPort } = {},
 ): Promise<Harness> {
-  const dataDir = await mkdtemp(join(tmpdir(), "relay-browser-data-"));
-  const projectDir = await mkdtemp(join(tmpdir(), "relay-browser-project-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "devchestra-browser-data-"));
+  const projectDir = await mkdtemp(join(tmpdir(), "devchestra-browser-project-"));
   cleanups.push(async () => {
     await rm(dataDir, { recursive: true, force: true });
     await rm(projectDir, { recursive: true, force: true });
@@ -342,15 +342,15 @@ function url(path: string): string {
 }
 
 function cookieHeaders(extra: Record<string, string> = {}): Record<string, string> {
-  return { Host: HOST, Cookie: `relay_session=${TOKEN}`, ...extra };
+  return { Host: HOST, Cookie: `devchestra_session=${TOKEN}`, ...extra };
 }
 
 function mutationHeaders(extra: Record<string, string> = {}): Record<string, string> {
   return {
     Host: HOST,
-    Cookie: `relay_session=${TOKEN}`,
+    Cookie: `devchestra_session=${TOKEN}`,
     Origin: ORIGIN,
-    "X-Relay-Csrf": "1",
+    "X-DevChestra-Csrf": "1",
     "Content-Type": "application/json",
     ...extra,
   };
@@ -362,7 +362,7 @@ describe("browser app security", () => {
     const res = await h.app.request(url("/api/health"));
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ ok: true, instanceId: "instance-1" });
-    expect(res.headers.get("x-relay-api")).toBe("1");
+    expect(res.headers.get("x-devchestra-api")).toBe("1");
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     expect(res.headers.get("referrer-policy")).toBe("no-referrer");
     expect(res.headers.get("cache-control")).toBe("no-store");
@@ -390,7 +390,7 @@ describe("browser app security", () => {
     expect(post.status).toBe(403);
   });
 
-  it("requires a browser session or X-Relay-Token and never accepts a Bearer exec token", async () => {
+  it("requires a browser session or X-DevChestra-Token and never accepts a Bearer exec token", async () => {
     const h = await harness();
     expect((await h.app.request(url("/api/bootstrap"))).status).toBe(401);
     const bearer = await h.app.request(url("/api/bootstrap"), {
@@ -403,7 +403,7 @@ describe("browser app security", () => {
     expect(
       (
         await h.app.request(url("/api/bootstrap"), {
-          headers: { Host: HOST, "X-Relay-Token": TOKEN },
+          headers: { Host: HOST, "X-DevChestra-Token": TOKEN },
         })
       ).status,
     ).toBe(200);
@@ -418,7 +418,11 @@ describe("browser app security", () => {
     const h = await harness();
     const missing = await h.app.request(url("/api/projects"), {
       method: "POST",
-      headers: { Host: HOST, Cookie: `relay_session=${TOKEN}`, "Content-Type": "application/json" },
+      headers: {
+        Host: HOST,
+        Cookie: `devchestra_session=${TOKEN}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({ path: h.projectDir }),
     });
     expect(missing.status).toBe(403);
@@ -426,9 +430,9 @@ describe("browser app security", () => {
       method: "POST",
       headers: {
         Host: HOST,
-        Cookie: `relay_session=${TOKEN}`,
+        Cookie: `devchestra_session=${TOKEN}`,
         Origin: ORIGIN,
-        "X-Relay-Csrf": "1",
+        "X-DevChestra-Csrf": "1",
         "Content-Type": "text/plain",
       },
       body: JSON.stringify({ path: h.projectDir }),
@@ -462,7 +466,7 @@ describe("browser app security", () => {
     expect(res.status).toBe(303);
     expect(res.headers.get("location")).toBe("/");
     const cookie = res.headers.get("set-cookie") ?? "";
-    expect(cookie).toContain(`relay_session=${TOKEN}`);
+    expect(cookie).toContain(`devchestra_session=${TOKEN}`);
     expect(cookie).toContain("HttpOnly");
     expect(cookie).toContain("SameSite=Strict");
     expect(cookie).toContain("Path=/");
@@ -475,13 +479,13 @@ describe("browser app security", () => {
   });
 
   it("shows only terminal instructions without a cookie", async () => {
-    const webRoot = await mkdtemp(join(tmpdir(), "relay-browser-web-"));
+    const webRoot = await mkdtemp(join(tmpdir(), "devchestra-browser-web-"));
     cleanups.push(async () => rm(webRoot, { recursive: true, force: true }));
     await writeFile(join(webRoot, "index.html"), "<html>APP SHELL</html>");
     const h = await harness({ webRoot });
     const anonymous = await h.app.request(url("/"));
     const body = await anonymous.text();
-    expect(body).toContain("Open Relay from your terminal");
+    expect(body).toContain("Open DevChestra from your terminal");
     expect(body).not.toContain("APP SHELL");
     const direct = await h.app.request(url("/index.html"));
     expect(await direct.text()).not.toContain("APP SHELL");
@@ -491,7 +495,7 @@ describe("browser app security", () => {
 
   it("enforces project path boundaries and preserves relink identity", async () => {
     const h = await harness();
-    const other = await mkdtemp(join(tmpdir(), "relay-browser-other-"));
+    const other = await mkdtemp(join(tmpdir(), "devchestra-browser-other-"));
     cleanups.push(async () => rm(other, { recursive: true, force: true }));
     for (const path of [h.dataDir, join(h.dataDir, "nested"), tmpdir()]) {
       const res = await h.app.request(url("/api/projects"), {
@@ -631,7 +635,7 @@ describe("browser read routes", () => {
       type: "node.input.resolved",
       actor: "engine",
       v: 1,
-      payload: { attempt: 1, generation: 1, inputsHash: "hash", inputs: { topic: "relay" } },
+      payload: { attempt: 1, generation: 1, inputsHash: "hash", inputs: { topic: "devchestra" } },
     } as EventEnvelope);
     h.store.output = {
       id: "out-1",
@@ -671,7 +675,7 @@ describe("browser read routes", () => {
     });
     expect(execution.status).toBe(200);
     const body = (await execution.json()) as ExecutionDetailResponse;
-    expect(body.input?.data).toEqual({ topic: "relay" });
+    expect(body.input?.data).toEqual({ topic: "devchestra" });
     expect(body.output?.data).toEqual({ summary: "<b>not html</b>" });
     expect(body.attempts).toHaveLength(1);
   });
@@ -838,7 +842,7 @@ describe("browser read routes", () => {
       logger: true,
       controller: {
         startRun() {
-          throw new CoreRelayError(
+          throw new CoreDevChestraError(
             "E_VALIDATION",
             `provider failed with ${secret} at /home/person/.claude/credentials.json`,
           );
@@ -911,10 +915,10 @@ describe("browser read routes", () => {
     const h = await harness({ logger: true });
     h.store.fail = true;
     const res = await h.app.request(url("/api/bootstrap"), {
-      headers: cookieHeaders({ "X-Relay-Token": TOKEN }),
+      headers: cookieHeaders({ "X-DevChestra-Token": TOKEN }),
     });
     expect(res.status).toBe(500);
-    expect(res.headers.get("x-relay-api")).toBe("1");
+    expect(res.headers.get("x-devchestra-api")).toBe("1");
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     expect(res.headers.get("cache-control")).toBe("no-store");
     const text = await res.text();
@@ -925,8 +929,8 @@ describe("browser read routes", () => {
 
 describe("live loopback listener", () => {
   it("serves health, bootstrap redirect and session auth over real HTTP", async () => {
-    const dataDir = await mkdtemp(join(tmpdir(), "relay-browser-live-data-"));
-    const projectDir = await mkdtemp(join(tmpdir(), "relay-browser-live-project-"));
+    const dataDir = await mkdtemp(join(tmpdir(), "devchestra-browser-live-data-"));
+    const projectDir = await mkdtemp(join(tmpdir(), "devchestra-browser-live-project-"));
     const store = new FakeStore();
     store.projects.push({
       id: "proj-1",
@@ -1006,8 +1010,8 @@ describe("live loopback listener", () => {
 
 describe("static serving", () => {
   it("blocks traversal and symlink escapes and caches hashed assets", async () => {
-    const webRoot = await mkdtemp(join(tmpdir(), "relay-browser-web-"));
-    const outside = await mkdtemp(join(tmpdir(), "relay-browser-secret-"));
+    const webRoot = await mkdtemp(join(tmpdir(), "devchestra-browser-web-"));
+    const outside = await mkdtemp(join(tmpdir(), "devchestra-browser-secret-"));
     cleanups.push(async () => {
       await rm(webRoot, { recursive: true, force: true });
       await rm(outside, { recursive: true, force: true });
@@ -1035,16 +1039,16 @@ describe("static serving", () => {
 
 describe("real store DTO validation", () => {
   it("serves run detail and events from the real store", async () => {
-    const dataDir = await mkdtemp(join(tmpdir(), "relay-browser-store-"));
-    const projectDir = await mkdtemp(join(tmpdir(), "relay-browser-store-project-"));
-    const store = openStore({ file: join(dataDir, "relay.db") });
+    const dataDir = await mkdtemp(join(tmpdir(), "devchestra-browser-store-"));
+    const projectDir = await mkdtemp(join(tmpdir(), "devchestra-browser-store-project-"));
+    const store = openStore({ file: join(dataDir, "devchestra.db") });
     cleanups.push(async () => {
       store.close();
       await rm(dataDir, { recursive: true, force: true });
       await rm(projectDir, { recursive: true, force: true });
     });
     store.projects.ensure({ id: "proj-real", name: "Real", path: projectDir, kind: "folder" });
-    const vanished = await mkdtemp(join(tmpdir(), "relay-browser-vanished-"));
+    const vanished = await mkdtemp(join(tmpdir(), "devchestra-browser-vanished-"));
     store.projects.ensure({
       id: "proj-vanished",
       name: "Vanished",
@@ -1125,9 +1129,9 @@ describe("real store DTO validation", () => {
   });
 
   it("serves normalized worktree agent and shell snapshots without rewriting them", async () => {
-    const dataDir = await mkdtemp(join(tmpdir(), "relay-browser-worktree-data-"));
-    const projectDir = await mkdtemp(join(tmpdir(), "relay-browser-worktree-project-"));
-    const store = openStore({ file: join(dataDir, "relay.db") });
+    const dataDir = await mkdtemp(join(tmpdir(), "devchestra-browser-worktree-data-"));
+    const projectDir = await mkdtemp(join(tmpdir(), "devchestra-browser-worktree-project-"));
+    const store = openStore({ file: join(dataDir, "devchestra.db") });
     cleanups.push(async () => {
       store.close();
       await rm(dataDir, { recursive: true, force: true });

@@ -1,4 +1,4 @@
-import { parseRunStreamEvent, type RunDetailResponse } from "@relay/api";
+import { parseRunStreamEvent, type RunDetailResponse } from "@devchestra/api";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   applyLiveEvent,

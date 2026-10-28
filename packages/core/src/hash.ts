@@ -1,7 +1,7 @@
-import { RelayError } from "./error.js";
+import { DevChestraError } from "./error.js";
 
-function invalid(message: string): RelayError {
-  return new RelayError("E_VALIDATION", message);
+function invalid(message: string): DevChestraError {
+  return new DevChestraError("E_VALIDATION", message);
 }
 
 function encode(value: unknown, ancestors: Set<object>): string {
@@ -61,7 +61,7 @@ export function canonicalJson(value: unknown): string {
 export async function sha256Hex(input: string | Uint8Array): Promise<string> {
   const subtle = globalThis.crypto?.subtle;
   if (subtle === undefined) {
-    throw new RelayError("E_INTERNAL", "Web Crypto SHA-256 is unavailable in this runtime");
+    throw new DevChestraError("E_INTERNAL", "Web Crypto SHA-256 is unavailable in this runtime");
   }
   const bytes = typeof input === "string" ? new TextEncoder().encode(input) : new Uint8Array(input);
   const digest = await subtle.digest("SHA-256", bytes);

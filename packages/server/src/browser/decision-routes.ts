@@ -6,14 +6,14 @@ import {
   decisionTestRequestSchema,
   decisionTestResultSchema,
   MAX_DECISION_TEST_STATE_BYTES,
-} from "@relay/api";
+} from "@devchestra/api";
 import {
   createDecisionService,
   DECISION_PRESETS,
   type DecisionQuestion,
   type DecisionService,
   decisionProviders,
-} from "@relay/decisions";
+} from "@devchestra/decisions";
 import {
   compileTemplate,
   DECISION_PROVIDER_LABELS,
@@ -22,7 +22,7 @@ import {
   type Issue,
   routeDecision,
   validateDecision,
-} from "@relay/schema";
+} from "@devchestra/schema";
 import type { Hono } from "hono";
 import { errorBody } from "../errors.js";
 import type { BrowserQueryPort } from "./ports.js";

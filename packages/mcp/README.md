@@ -1,6 +1,6 @@
-# @relay/mcp
+# @devchestra/mcp
 
-The MCP transport for Relay. It has two halves:
+The MCP transport for DevChestra. It has two halves:
 
 - a stateless stdio shim that an agent CLI starts;
 - a loopback HTTP gateway client used by that shim.
@@ -13,7 +13,7 @@ The shim never validates node output, persists results, or decides that an execu
 |---|---|
 | Package exports | `dist/index.js` |
 | Shim module | `dist/shim.js` |
-| Built shim bin | `dist/bin/shim.js` (`relay-mcp-shim`) |
+| Built shim bin | `dist/bin/shim.js` (`devchestra-mcp-shim`) |
 | Development launch | `node --import tsx packages/mcp/src/bin/shim.ts` |
 
 Every exported type and function is re-exported from `src/index.ts`:
@@ -36,16 +36,16 @@ GatewayErrorCode, LoopbackAddress, JsonRpcRequestId, ShimOptions
 
 | Variable | Meaning |
 |---|---|
-| `RELAY_EXEC_TOKEN` | Bearer exec token. Sent only in `Authorization`; never argv, stdout or logs. |
-| `RELAY_GATEWAY_URL` | Base gateway URL. Plain HTTP on a loopback literal (`127.0.0.1` or `[::1]`). `localhost` is accepted only when every resolved address is loopback, then rewritten to the literal to avoid DNS rebinding. Credentials, queries, fragments and redirects are rejected. |
-| `RELAY_TOOLSET` | `agent` or `supervisor`. The gateway remains authoritative from the token scope. |
+| `DEVCHESTRA_EXEC_TOKEN` | Bearer exec token. Sent only in `Authorization`; never argv, stdout or logs. |
+| `DEVCHESTRA_GATEWAY_URL` | Base gateway URL. Plain HTTP on a loopback literal (`127.0.0.1` or `[::1]`). `localhost` is accepted only when every resolved address is loopback, then rewritten to the literal to avoid DNS rebinding. Credentials, queries, fragments and redirects are rejected. |
+| `DEVCHESTRA_TOOLSET` | `agent` or `supervisor`. The gateway remains authoritative from the token scope. |
 
 Optional operational knobs:
 
-`RELAY_DEFAULT_TIMEOUT_MS` (30000), `RELAY_SUBMIT_TIMEOUT_MS` (60000),
-`RELAY_GATEWAY_RETRIES` (1 extra attempt for network/502/503/504),
-`RELAY_MAX_REQUEST_BYTES` (1 MiB), `RELAY_MAX_RESPONSE_BYTES` (256 KiB),
-`RELAY_MCP_DEBUG=1` (stderr diagnostics only).
+`DEVCHESTRA_DEFAULT_TIMEOUT_MS` (30000), `DEVCHESTRA_SUBMIT_TIMEOUT_MS` (60000),
+`DEVCHESTRA_GATEWAY_RETRIES` (1 extra attempt for network/502/503/504),
+`DEVCHESTRA_MAX_REQUEST_BYTES` (1 MiB), `DEVCHESTRA_MAX_RESPONSE_BYTES` (256 KiB),
+`DEVCHESTRA_MCP_DEBUG=1` (stderr diagnostics only).
 
 ## Gateway protocol
 
@@ -56,7 +56,7 @@ GET  /internal/agent/tools
 
 POST /internal/agent/call
   Authorization: Bearer <exec token>
-  X-Relay-Call-Id: <stable transport receipt id>
+  X-DevChestra-Call-Id: <stable transport receipt id>
   { "name": string, "arguments": object }
   200 { content: [{ type: "text", text: string }], isError: boolean }
   401 E_AUTH  403 E_FORBIDDEN  429 rate limited
@@ -72,7 +72,7 @@ successful `tools/list`.
 
 ## Receipt identity and its boundary
 
-`deriveCallId(shimInstanceId, requestId)` produces the `X-Relay-Call-Id` value.
+`deriveCallId(shimInstanceId, requestId)` produces the `X-DevChestra-Call-Id` value.
 
 - It tags the MCP JSON-RPC id by type: numeric `1` and string `"1"` differ.
 - One shim process has one random `shimInstanceId`; the same MCP request id in
@@ -96,7 +96,7 @@ successful `tools/list`.
 
 ## Tests
 
-`pnpm --filter @relay/mcp test` uses a real stdio SDK client against temporary
+`pnpm --filter @devchestra/mcp test` uses a real stdio SDK client against temporary
 loopback HTTP listeners: tools/list, success, invalid submission, invalid
 gateway result, retry receipt reuse, distinct call ids, numeric vs string ids,
 missing env, unreachable gateway, timeout/abort, limits, URL safety, redirect

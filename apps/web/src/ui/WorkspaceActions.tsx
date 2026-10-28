@@ -1,4 +1,4 @@
-import { isTerminalRunStatus } from "@relay/core";
+import { isTerminalRunStatus } from "@devchestra/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";

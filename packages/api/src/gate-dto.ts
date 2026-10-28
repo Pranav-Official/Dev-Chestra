@@ -4,7 +4,7 @@ import {
   HANDLE_ID_PATTERN,
   MAX_GATE_BRANCHES,
   NODE_ID_PATTERN,
-} from "@relay/schema";
+} from "@devchestra/schema";
 import { coreErrorCodeSchema } from "./errors.js";
 import { gateDecisionEntrySchema } from "./events.js";
 import { jsonObjectSchema } from "./primitives.js";

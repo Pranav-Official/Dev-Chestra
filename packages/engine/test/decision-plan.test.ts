@@ -86,13 +86,13 @@ describe("decision plan", () => {
     const { mkdtempSync, rmSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
-    const { openStore } = await import("@relay/store");
-    const { normalizeWorkflow, parseWorkflow } = await import("@relay/schema");
+    const { openStore } = await import("@devchestra/store");
+    const { normalizeWorkflow, parseWorkflow } = await import("@devchestra/schema");
     const { acquireScratch, finalizeScratch, prepareRunWorkspace, releaseScratch } = await import(
-      "@relay/workspaces"
+      "@devchestra/workspaces"
     );
     const { createEngine } = await import("../src/index.js");
-    const temp = mkdtempSync(join(tmpdir(), "relay-decplan-"));
+    const temp = mkdtempSync(join(tmpdir(), "devchestra-decplan-"));
     const store = openStore({ file: join(temp, "db.sqlite") });
     store.projects.ensure({ id: "p1", name: "P1", path: temp, kind: "folder" });
     const engine = createEngine({

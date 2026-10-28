@@ -1,4 +1,4 @@
-import { err, isRecord, ok, RelayError, type Result } from "@relay/core";
+import { DevChestraError, err, isRecord, ok, type Result } from "@devchestra/core";
 
 export type LinearNodeKind = "start" | "agent" | "shell" | "end";
 
@@ -24,8 +24,12 @@ export interface RunOptionInput {
 const NODE_ID_RE = /^[a-z][a-z0-9_-]{0,47}$/;
 const SUPPORTED_TYPES = new Set<string>(["start", "agent", "shell", "end"]);
 
-function invalid(message: string, details?: unknown): RelayError {
-  return new RelayError("E_WORKFLOW_INVALID", message, details === undefined ? {} : { details });
+function invalid(message: string, details?: unknown): DevChestraError {
+  return new DevChestraError(
+    "E_WORKFLOW_INVALID",
+    message,
+    details === undefined ? {} : { details },
+  );
 }
 
 function readNodes(snapshot: unknown): Record<string, unknown>[] {
@@ -79,7 +83,7 @@ function validateNode(node: Record<string, unknown>): LinearNode {
     throw invalid("Node id is missing or invalid", { id, node });
   }
   if (typeof type !== "string" || !SUPPORTED_TYPES.has(type)) {
-    throw new RelayError(
+    throw new DevChestraError(
       "E_WORKFLOW_INVALID",
       `Node type '${String(type)}' is not supported in the P1 linear runner`,
       { details: { nodeId: id, type } },
@@ -123,7 +127,7 @@ function validateWorkspace(node: Record<string, unknown>, nodeType: string): voi
   if (isRecord(workspace) && workspace.mode === "worktree") {
     for (const key of ["base", "setup", "from"] as const) {
       if (workspace[key] !== undefined) {
-        throw new RelayError(
+        throw new DevChestraError(
           "E_WORKFLOW_INVALID",
           `worktree.${key} is not supported; worktrees start from the project HEAD`,
           { details: { nodeId: node.id, workspace } },
@@ -132,7 +136,7 @@ function validateWorkspace(node: Record<string, unknown>, nodeType: string): voi
     }
     return;
   }
-  throw new RelayError(
+  throw new DevChestraError(
     "E_WORKFLOW_INVALID",
     `P1 supports scratch or worktree workspaces only (${nodeType} node)`,
     { details: { nodeId: node.id, workspace } },
@@ -153,7 +157,7 @@ function validateAgent(node: Record<string, unknown>): void {
     throw invalid("Agent node output must be an object schema", node);
   }
   if (containsArtifact(node.output)) {
-    throw new RelayError(
+    throw new DevChestraError(
       "E_WORKFLOW_INVALID",
       "Artifact outputs are not supported in the P1 linear runner",
       { details: { nodeId: node.id } },
@@ -164,7 +168,7 @@ function validateAgent(node: Record<string, unknown>): void {
   }
   const write = node.permissions.write;
   if (Array.isArray(write) && write.includes("project")) {
-    throw new RelayError(
+    throw new DevChestraError(
       "E_WORKFLOW_INVALID",
       "Project write access is not supported in the P1 linear runner",
       { details: { nodeId: node.id } },
@@ -173,14 +177,14 @@ function validateAgent(node: Record<string, unknown>): void {
   if (node.context !== undefined) {
     if (!isRecord(node.context)) throw invalid("Agent context must be an object", node);
     if (node.context.project !== undefined && node.context.project !== "none") {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_WORKFLOW_INVALID",
         "Context banks are not supported in the P1 linear runner",
         { details: { nodeId: node.id, context: node.context } },
       );
     }
     if (node.context.workflow !== undefined && node.context.workflow !== "none") {
-      throw new RelayError(
+      throw new DevChestraError(
         "E_WORKFLOW_INVALID",
         "Context banks are not supported in the P1 linear runner",
         { details: { nodeId: node.id, context: node.context } },
@@ -219,7 +223,7 @@ function validateLimits(node: Record<string, unknown>): void {
 function containsArtifact(value: unknown): boolean {
   if (Array.isArray(value)) return value.some(containsArtifact);
   if (!isRecord(value)) return false;
-  if (value.format === "relay-artifact") return true;
+  if (value.format === "devchestra-artifact") return true;
   return Object.values(value).some(containsArtifact);
 }
 
@@ -283,7 +287,7 @@ function validateChainShape(nodes: LinearNode[], edges: { from: string; to: stri
   }
 }
 
-export function analyzeLinearWorkflow(snapshot: unknown): Result<LinearChain, RelayError> {
+export function analyzeLinearWorkflow(snapshot: unknown): Result<LinearChain, DevChestraError> {
   try {
     const nodes = readNodes(snapshot).map(validateNode);
     const edges = readEdges(snapshot);
@@ -302,12 +306,12 @@ export function analyzeLinearWorkflow(snapshot: unknown): Result<LinearChain, Re
     }
     return ok({ nodes: ordered, start, end });
   } catch (error) {
-    if (error instanceof RelayError) return err(error);
+    if (error instanceof DevChestraError) return err(error);
     throw error;
   }
 }
 
-export function validateRunOptions(input: RunOptionInput): Result<null, RelayError> {
+export function validateRunOptions(input: RunOptionInput): Result<null, DevChestraError> {
   try {
     if (input.kind !== undefined && input.kind !== "run") {
       throw invalid("Only kind 'run' is supported in the P1 linear runner", { kind: input.kind });
@@ -327,7 +331,7 @@ export function validateRunOptions(input: RunOptionInput): Result<null, RelayErr
     }
     return ok(null);
   } catch (error) {
-    if (error instanceof RelayError) return err(error);
+    if (error instanceof DevChestraError) return err(error);
     throw error;
   }
 }

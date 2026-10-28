@@ -1,5 +1,5 @@
-import type { AgentCli, AgentNode, McpScope, McpSelection } from "@relay/schema";
-import { MCP_SCOPES, PROD_CLI_LABELS } from "@relay/schema";
+import type { AgentCli, AgentNode, McpScope, McpSelection } from "@devchestra/schema";
+import { MCP_SCOPES, PROD_CLI_LABELS } from "@devchestra/schema";
 import { LockKeyhole, RefreshCw, TriangleAlert } from "lucide-react";
 import { CheckboxField, InfoTip } from "./fields/fields.js";
 import type { DiscoveredMcpServer, McpServersClient } from "./model/mcp-servers.js";
@@ -164,8 +164,8 @@ export function AgentTools({
         <div className="inspector-tools-subhead">
           <span>MCP servers</span>
           <InfoTip id="inspector-tools-mcp-help">
-            Only Relay tools plus the servers switched on here are attached. Everything else the CLI
-            knows stays off for this run.
+            Only DevChestra tools plus the servers switched on here are attached. Everything else
+            the CLI knows stays off for this run.
           </InfoTip>
           <button
             type="button"
@@ -181,10 +181,10 @@ export function AgentTools({
         </div>
         <div
           className="inspector-tools-row inspector-tools-locked"
-          data-testid="inspector-tools-relay"
+          data-testid="inspector-tools-devchestra"
         >
           <LockKeyhole size={12} aria-hidden="true" />
-          <span className="inspector-tools-name">Relay tools</span>
+          <span className="inspector-tools-name">DevChestra tools</span>
           <span className="inspector-muted">locked, always on</span>
         </div>
         {loading === "load" ? (

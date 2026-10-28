@@ -1,4 +1,4 @@
-import { DECISION_PROVIDERS } from "@relay/schema";
+import { DECISION_PROVIDERS } from "@devchestra/schema";
 import { describe, expect, it } from "vitest";
 import { DECISION_PRESETS, resolvePresetUrl } from "../src/presets.js";
 

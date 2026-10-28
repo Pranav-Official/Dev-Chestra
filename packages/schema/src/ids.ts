@@ -1,5 +1,5 @@
 /**
- * Managed workflow file ids (the file stem under `.relay/workflows/`). This is
+ * Managed workflow file ids (the file stem under `.devchestra/workflows/`). This is
  * deliberately stricter than generic URL ids: no dots, underscores or uppercase.
  */
 export const WORKFLOW_ID_PATTERN = /^[a-z0-9-]{1,64}$/;

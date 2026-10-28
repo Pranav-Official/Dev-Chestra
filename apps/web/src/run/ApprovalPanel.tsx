@@ -1,4 +1,4 @@
-import type { RunView } from "@relay/core";
+import type { RunView } from "@devchestra/core";
 import { useState } from "react";
 import { resolveApproval } from "../api/approvals.js";
 import { classifyError } from "../api/client.js";

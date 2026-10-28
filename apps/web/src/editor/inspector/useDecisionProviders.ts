@@ -1,5 +1,5 @@
-import type { DecisionProviderView } from "@relay/api";
-import { DECISION_PROVIDERS } from "@relay/schema";
+import type { DecisionProviderView } from "@devchestra/api";
+import { DECISION_PROVIDERS } from "@devchestra/schema";
 import { useEffect, useState } from "react";
 import { api } from "../../api/client.js";
 

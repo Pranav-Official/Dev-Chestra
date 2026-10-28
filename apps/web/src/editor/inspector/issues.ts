@@ -1,4 +1,4 @@
-import type { Issue } from "@relay/schema";
+import type { Issue } from "@devchestra/schema";
 
 export function issuesForNode(issues: readonly Issue[], nodeId: string): Issue[] {
   return issues.filter((issue) => issue.nodeId === nodeId);

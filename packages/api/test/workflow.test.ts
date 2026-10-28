@@ -1,4 +1,4 @@
-import type { WorkflowFile } from "@relay/schema";
+import type { WorkflowFile } from "@devchestra/schema";
 import { describe, expect, it } from "vitest";
 import {
   ApiClient,
@@ -48,7 +48,7 @@ const DOCUMENT = {
   workflow: WORKFLOW,
   text: `${JSON.stringify(WORKFLOW, null, 2)}\n`,
   etag: "abc123",
-  relativeFile: ".relay/workflows/demo.json",
+  relativeFile: ".devchestra/workflows/demo.json",
   validation: VALIDATION,
 };
 
@@ -60,7 +60,7 @@ interface Call {
 function response(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", "X-Relay-Api": "1", ...headers },
+    headers: { "Content-Type": "application/json", "X-DevChestra-Api": "1", ...headers },
   });
 }
 
@@ -96,7 +96,7 @@ describe("workflow API client", () => {
     expect(url.pathname).toBe("/api/projects/p1/workflows");
     expect(url.searchParams.get("cursor")).toBe("c/1");
     expect(url.searchParams.get("limit")).toBe("20");
-    expect(header(call, "X-Relay-Csrf")).toBeNull();
+    expect(header(call, "X-DevChestra-Csrf")).toBeNull();
   });
 
   it("creates a workflow and accepts 201", async () => {
@@ -106,7 +106,7 @@ describe("workflow API client", () => {
     ).resolves.toMatchObject({ etag: "abc123" });
     const call = first(calls);
     expect(call.init.method).toBe("POST");
-    expect(header(call, "X-Relay-Csrf")).toBe("1");
+    expect(header(call, "X-DevChestra-Csrf")).toBe("1");
     expect(JSON.parse(String(call.init.body))).toEqual({
       name: "Demo",
       id: "demo",
@@ -118,7 +118,7 @@ describe("workflow API client", () => {
     const { client, calls } = makeClient(() => response(DOCUMENT, 200, { ETag: '"abc123"' }));
     const document = await client.getWorkflow("p1", "demo");
     expect(document.etag).toBe("abc123");
-    expect(document.relativeFile).toBe(".relay/workflows/demo.json");
+    expect(document.relativeFile).toBe(".devchestra/workflows/demo.json");
     expect(first(calls).url).toBe("http://127.0.0.1:4821/api/projects/p1/workflows/demo");
   });
 
@@ -128,19 +128,19 @@ describe("workflow API client", () => {
     const call = first(calls);
     expect(call.init.method).toBe("PUT");
     expect(header(call, "If-Match")).toBe('"abc123"');
-    expect(header(call, "X-Relay-Csrf")).toBe("1");
+    expect(header(call, "X-DevChestra-Csrf")).toBe("1");
     expect(JSON.parse(String(call.init.body))).toEqual({ workflow: WORKFLOW });
   });
 
   it("deletes with If-Match and accepts an empty 204", async () => {
     const { client, calls } = makeClient(
-      () => new Response(null, { status: 204, headers: { "X-Relay-Api": "1" } }),
+      () => new Response(null, { status: 204, headers: { "X-DevChestra-Api": "1" } }),
     );
     await expect(client.deleteWorkflow("p1", "demo", "abc123")).resolves.toBeUndefined();
     const call = first(calls);
     expect(call.init.method).toBe("DELETE");
     expect(header(call, "If-Match")).toBe('"abc123"');
-    expect(header(call, "X-Relay-Csrf")).toBe("1");
+    expect(header(call, "X-DevChestra-Csrf")).toBe("1");
     expect(header(call, "Content-Type")).toBe("application/json");
     expect(call.init.body).toBeUndefined();
   });
@@ -161,15 +161,15 @@ describe("workflow API client", () => {
     await client.startWorkflowRun(
       "p1",
       "demo",
-      { params: { topic: "relay" }, etag: "abc123" },
+      { params: { topic: "devchestra" }, etag: "abc123" },
       { idempotencyKey: "start-1" },
     );
     const call = first(calls);
     expect(call.url).toBe("http://127.0.0.1:4821/api/projects/p1/workflows/demo/runs");
     expect(header(call, "Idempotency-Key")).toBe("start-1");
-    expect(header(call, "X-Relay-Csrf")).toBe("1");
+    expect(header(call, "X-DevChestra-Csrf")).toBe("1");
     expect(JSON.parse(String(call.init.body))).toEqual({
-      params: { topic: "relay" },
+      params: { topic: "devchestra" },
       etag: "abc123",
     });
   });

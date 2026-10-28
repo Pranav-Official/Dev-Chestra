@@ -17,7 +17,7 @@
     "--permission-mode",
     "dontAsk",
     "--allowedTools",
-    "mcp__relay__*,Read,Glob,Grep,Edit,Write,Bash,WebFetch,WebSearch",
+    "mcp__devchestra__*,Read,Glob,Grep,Edit,Write,Bash,WebFetch,WebSearch",
     "--max-turns",
     "4"
   ]

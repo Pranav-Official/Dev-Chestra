@@ -13,5 +13,5 @@ export type {
   TranscriptLine,
   TranscriptPageResponse,
   WorkspaceView,
-} from "@relay/api";
-export type { EventEnvelope, RunView } from "@relay/core";
+} from "@devchestra/api";
+export type { EventEnvelope, RunView } from "@devchestra/core";

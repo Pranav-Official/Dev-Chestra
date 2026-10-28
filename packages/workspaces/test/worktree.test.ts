@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
-import type { Path } from "@relay/core";
+import type { Path } from "@devchestra/core";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   type AcquireScratchRequest,
@@ -41,11 +41,11 @@ function git(cwd: string, ...args: string[]): string {
 }
 
 function makeRepo(): { root: string; base: string } {
-  const root = join(tempDir("relay-wt-repo-"), "repo");
+  const root = join(tempDir("devchestra-wt-repo-"), "repo");
   mkdirSync(root);
   git(root, "init", "-q");
-  git(root, "config", "user.email", "relay@example.invalid");
-  git(root, "config", "user.name", "Relay Test");
+  git(root, "config", "user.email", "devchestra@example.invalid");
+  git(root, "config", "user.name", "DevChestra Test");
   writeFileSync(join(root, "tracked.txt"), "committed\n");
   mkdirSync(join(root, "sub"));
   writeFileSync(join(root, "sub", "file.txt"), "sub\n");
@@ -55,7 +55,7 @@ function makeRepo(): { root: string; base: string } {
 }
 
 function dataDir(): string {
-  return join(tempDir("relay-wt-data-"), "data");
+  return join(tempDir("devchestra-wt-data-"), "data");
 }
 
 function acquire(root: string, data: string, overrides: Partial<AcquireScratchRequest> = {}) {
@@ -90,7 +90,7 @@ function readBindingFile(ws: ScratchWorkspace): Record<string, unknown> {
 function writeIntent(ws: ScratchWorkspace, binding: Record<string, unknown>): void {
   writeFileSync(
     join(runDir(ws), intentName),
-    `${JSON.stringify({ ...binding, kind: "relay.worktree.intent" })}\n`,
+    `${JSON.stringify({ ...binding, kind: "devchestra.worktree.intent" })}\n`,
     { mode: 0o600 },
   );
 }
@@ -432,8 +432,8 @@ describe("worktree tamper and errors", () => {
     renameSync(root, previous);
     mkdirSync(root);
     git(root, "init", "-q");
-    git(root, "config", "user.email", "relay@example.invalid");
-    git(root, "config", "user.name", "Relay Test");
+    git(root, "config", "user.email", "devchestra@example.invalid");
+    git(root, "config", "user.name", "DevChestra Test");
     writeFileSync(join(root, "tracked.txt"), "other\n");
     git(root, "add", ".");
     git(root, "commit", "-q", "-m", "other");
@@ -447,7 +447,7 @@ describe("worktree tamper and errors", () => {
     const { root } = makeRepo();
     const data = dataDir();
     const agent = unwrap(await acquire(root, data));
-    const outside = tempDir("relay-wt-outside-");
+    const outside = tempDir("devchestra-wt-outside-");
     writeFileSync(join(outside, "secret.txt"), "secret");
 
     const bindingFile = join(runDir(agent), bindingName);
@@ -465,7 +465,7 @@ describe("worktree tamper and errors", () => {
   it("rejects unsupported modes and options, non-git and nested projects", async () => {
     const { root } = makeRepo();
     const data = dataDir();
-    const plain = tempDir("relay-wt-plain-");
+    const plain = tempDir("devchestra-wt-plain-");
     const nested = join(root, "sub");
 
     expect(expectError(await acquire(root, data, { mode: "project" })).details).toMatchObject({
@@ -485,7 +485,7 @@ describe("worktree tamper and errors", () => {
   });
 
   it("rejects an unborn repository and cancellation before creation", async () => {
-    const unborn = tempDir("relay-wt-unborn-");
+    const unborn = tempDir("devchestra-wt-unborn-");
     git(unborn, "init", "-q");
     const data = dataDir();
     expect(expectError(await acquire(unborn, data)).code).toBe("E_WORKSPACE");
@@ -501,7 +501,7 @@ describe("worktree tamper and errors", () => {
     const { root, base } = makeRepo();
     const data = dataDir();
     const previous = process.env.GIT_DIR;
-    process.env.GIT_DIR = join(tempDir("relay-wt-bogus-"), "not-a-repo");
+    process.env.GIT_DIR = join(tempDir("devchestra-wt-bogus-"), "not-a-repo");
     try {
       const agent = unwrap(await acquire(root, data));
       expect(agent.baseSha).toBe(base);

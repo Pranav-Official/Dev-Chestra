@@ -36,7 +36,7 @@ describe("claude parser", () => {
       "usage",
       "turn_end",
     ]);
-    expect(events[2]).toMatchObject({ t: "tool_call", name: "mcp__relay__submit_result" });
+    expect(events[2]).toMatchObject({ t: "tool_call", name: "mcp__devchestra__submit_result" });
     expect(events[4]).toEqual({
       t: "usage",
       tokensIn: 100,

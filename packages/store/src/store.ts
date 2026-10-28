@@ -11,7 +11,7 @@ import {
   type RunView,
   systemClock,
   systemIds,
-} from "@relay/core";
+} from "@devchestra/core";
 import {
   consumeApprovalWake,
   getApproval,
@@ -211,7 +211,7 @@ export interface SecurityApi {
 }
 
 /**
- * @relay/store owns the only SQLite connection. Every write goes through tx();
+ * @devchestra/store owns the only SQLite connection. Every write goes through tx();
  * appendEvents is the only writer of run_views/executions/run status.
  */
 export class Store {
@@ -435,7 +435,7 @@ export class Store {
       | { present?: number }
       | undefined;
     if (!fts?.present) {
-      fail("E_INTERNAL", "This SQLite build lacks FTS5; Relay store refuses to start");
+      fail("E_INTERNAL", "This SQLite build lacks FTS5; DevChestra store refuses to start");
     }
   }
 

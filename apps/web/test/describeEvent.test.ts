@@ -1,4 +1,4 @@
-import { EVENT_TYPES, type EventEnvelope, type RunId } from "@relay/core";
+import { EVENT_TYPES, type EventEnvelope, type RunId } from "@devchestra/core";
 import { describe, expect, it } from "vitest";
 import { describeEvent, eventFilterMatch } from "../src/run/describeEvent.js";
 

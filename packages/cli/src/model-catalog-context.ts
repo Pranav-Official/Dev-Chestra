@@ -1,14 +1,14 @@
 import { createHash } from "node:crypto";
 import { accessSync, constants, existsSync, realpathSync, statSync } from "node:fs";
 import { delimiter, dirname, isAbsolute, join, parse, resolve } from "node:path";
-import { buildChildEnv, type CliId, getProvider } from "@relay/adapters";
-import type { CatalogCli } from "@relay/server";
+import { buildChildEnv, type CliId, getProvider } from "@devchestra/adapters";
+import type { CatalogCli } from "@devchestra/server";
 
 const MAX_ANCESTOR_DEPTH = 32;
 const MAX_ANCESTOR_PATH = 1_024;
 
 // Context observes env names/presence, never values. Rotating a secret without changing
-// presence cannot be detected: restart Relay or refresh explicitly after rotation.
+// presence cannot be detected: restart DevChestra or refresh explicitly after rotation.
 const GLOBAL_ENV_NAMES = ["HOME", "XDG_CONFIG_HOME"] as const;
 
 export interface CatalogContext {

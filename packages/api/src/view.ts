@@ -1,5 +1,5 @@
-import type { RunView } from "@relay/core";
-import { DECISION_PROVIDERS, type NormalizedWorkflow, PROD_CLIS } from "@relay/schema";
+import type { RunView } from "@devchestra/core";
+import { DECISION_PROVIDERS, type NormalizedWorkflow, PROD_CLIS } from "@devchestra/schema";
 import { coreErrorCodeSchema } from "./errors.js";
 import {
   decisionOutputSchema,
@@ -246,7 +246,7 @@ const normalizedAgentNodeSchema = strict({
   ...normalizedNodeBase,
   type: z.literal("agent"),
   // Structural allow-list: fake validates everywhere so browser run views can
-  // display test runs. Run-time layers enforce the RELAY_ALLOW_FAKE=1 gate.
+  // display test runs. Run-time layers enforce the DEVCHESTRA_ALLOW_FAKE=1 gate.
   cli: z.enum([...PROD_CLIS, "fake"]),
   model: z.string().optional(),
   prompt: z.string(),

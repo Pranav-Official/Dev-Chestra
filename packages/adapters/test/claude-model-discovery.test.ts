@@ -35,7 +35,7 @@ interface Call {
 }
 
 async function harness(): Promise<Harness> {
-  const dir = await mkdtemp(join(tmpdir(), "relay-claude-discovery-"));
+  const dir = await mkdtemp(join(tmpdir(), "devchestra-claude-discovery-"));
   temps.push(dir);
   const home = join(dir, "home");
   await mkdir(home, { recursive: true });
@@ -120,8 +120,8 @@ describe("discoverClaudeModels", () => {
     const nonceAlias = `${nonce}-alias`;
     const sentinelSettings = join(h.home, "settings.json");
     await writeFile(sentinelSettings, '{"sentinel":true}\n');
-    const previous = process.env.RELAY_LEAK_SENTINEL;
-    process.env.RELAY_LEAK_SENTINEL = "host-only";
+    const previous = process.env.DEVCHESTRA_LEAK_SENTINEL;
+    process.env.DEVCHESTRA_LEAK_SENTINEL = "host-only";
     try {
       const { result, calls } = await run(
         h,
@@ -230,14 +230,14 @@ describe("discoverClaudeModels", () => {
 
       expect(start.env?.HOME).toBe(h.home);
       expect(start.env?.UNRELATED_SECRET).toBe("dummy-not-a-real-secret");
-      expect(start.env?.RELAY_LEAK_SENTINEL).toBeNull();
+      expect(start.env?.DEVCHESTRA_LEAK_SENTINEL).toBeNull();
       expect(await readFile(sentinelSettings, "utf8")).toBe('{"sentinel":true}\n');
 
       const exit = calls.find((call) => call.t === "stdin_closed");
       expect(exit).toBeDefined();
     } finally {
-      if (previous === undefined) delete process.env.RELAY_LEAK_SENTINEL;
-      else process.env.RELAY_LEAK_SENTINEL = previous;
+      if (previous === undefined) delete process.env.DEVCHESTRA_LEAK_SENTINEL;
+      else process.env.DEVCHESTRA_LEAK_SENTINEL = previous;
     }
   });
 
