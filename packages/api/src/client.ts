@@ -53,6 +53,7 @@ import {
 } from "./dto.js";
 import { ApiError, ApiProtocolError, ApiTransportError, errorResponseSchema } from "./errors.js";
 import { type EventPageResponse, eventPageResponseSchema, type RunEventsQuery } from "./events.js";
+import { type CliMcpServers, cliMcpServersSchema } from "./mcp-servers.js";
 import {
   type CatalogCli,
   type CliModelCatalog,
@@ -235,6 +236,20 @@ export class ApiClientBase {
       "GET",
       ["projects", projectId, "clis", parsedCli, "models"],
       cliModelCatalogSchema,
+      this.req(options),
+    );
+  }
+
+  async getCliMcpServers(
+    projectId: string,
+    cli: CatalogCli,
+    options: ApiRequestOptions = {},
+  ): Promise<CliMcpServers> {
+    const parsedCli = catalogCliSchema.parse(cli);
+    return this.request(
+      "GET",
+      ["projects", projectId, "clis", parsedCli, "mcp-servers"],
+      cliMcpServersSchema,
       this.req(options),
     );
   }
