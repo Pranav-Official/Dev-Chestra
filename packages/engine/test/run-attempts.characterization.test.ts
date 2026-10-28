@@ -512,11 +512,17 @@ describe("runAttempts pre-flight policy checks", () => {
       planError: { code: "E_WORKSPACE", message: "bad plan" },
     });
     const { error } = await runAgent(h);
+    // Lifecycle fix: setup/planning failures persist Failed with the
+    // original error (no Running left behind) instead of only revoking.
     expect(error).toMatchObject({ code: "E_WORKSPACE", message: "bad plan" });
     expect(h.runAgentCalls()).toBe(0);
     expect(h.revokes()).toBe(1);
     expect(h.active.tokens.size).toBe(0);
-    expect(h.finalizes()).toHaveLength(0);
+    expect(h.finalizes()).toEqual([{ outcome: "failed", reason: "crash" }]);
+    expect(h.ctx.execution(h.runId, "a").status).toBe("failed");
+    expect(h.events("error.logged").some((event) => event.payload.code === "E_WORKSPACE")).toBe(
+      true,
+    );
   });
 });
 

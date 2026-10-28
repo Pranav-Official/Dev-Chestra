@@ -1,4 +1,4 @@
-import { getProvider, isCliId } from "@relay/adapters";
+import { getProvider, isCliId, matchesProcess } from "@relay/adapters";
 import type { EventEnvelope, RunId, RunStatus, RunView } from "@relay/core";
 import {
   defaultRunWorkspaceSelection,
@@ -237,6 +237,96 @@ export class LinearEngine implements Engine {
         active.state.abort.abort("user");
         await active.done;
         return ok(undefined);
+      }
+      // Parked cancel (no active drive: waiting_approval / durable park):
+      // fan out durable node.state -> cancelled per non-terminal execution.
+      // Historical run.cancelled reducer semantics are preserved (no store
+      // change); never invent processStopped/workspaceFinalized evidence.
+      // A genuinely-alive process is never marked stopped/finalized: pause
+      // with an error instead of reporting cancelled with no Stop remedy.
+      const aliveBlocked: string[] = [];
+      for (const execution of this.#ctx.store.executions.list(runId as RunId)) {
+        if (
+          execution.status === "succeeded" ||
+          execution.status === "failed" ||
+          execution.status === "skipped" ||
+          execution.status === "rejected" ||
+          execution.status === "cancelled"
+        ) {
+          continue;
+        }
+        const identity = {
+          runId: runId as RunId,
+          path: execution.path,
+          attempt: execution.attempt,
+          generation: execution.generation,
+        };
+        try {
+          const process = this.#ctx.store.executions.getProcess(identity);
+          if (
+            process !== null &&
+            process.pid !== null &&
+            process.pidStart !== null &&
+            process.binary !== null &&
+            process.stoppedAt === null
+          ) {
+            let alive = false;
+            try {
+              alive = await matchesProcess({
+                pid: process.pid,
+                pidStart: process.pidStart,
+                binary: process.binary,
+              });
+            } catch {
+              // Unknown liveness fails closed: never fabricate stopped
+              // evidence; pause for explicit repair instead of cancelled.
+              this.#ctx.appendError(
+                runId,
+                execution.path,
+                new RelayError(
+                  "E_WORKSPACE",
+                  "Cancel found a process with unknown liveness; explicit repair required",
+                  { details: { path: execution.path, pid: process.pid } },
+                ),
+              );
+              aliveBlocked.push(execution.path);
+              continue;
+            }
+            if (alive) {
+              this.#ctx.appendError(
+                runId,
+                execution.path,
+                new RelayError("E_WORKSPACE", "Agent process group is still alive", {
+                  details: { step: "group_still_alive", pid: process.pid },
+                }),
+              );
+              aliveBlocked.push(execution.path);
+              continue;
+            }
+          }
+        } catch (error) {
+          this.#ctx.appendError(runId, execution.path, toRelayError(error, "E_WORKSPACE"));
+          aliveBlocked.push(execution.path);
+          continue;
+        }
+        try {
+          this.#ctx.transition(identity, "cancelled", "cancelled");
+        } catch {
+          // Terminal races / fencing: run.cancelled below still applies.
+        }
+      }
+      if (aliveBlocked.length > 0) {
+        if (this.#ctx.run(runId).status !== "paused") {
+          this.#ctx.append(runId, "", "run.paused", "engine", {
+            reason: "shutdown",
+            detail: `Parked cancel blocked: ${aliveBlocked.length} process group(s) have unresolved liveness; recovery required`,
+          });
+        }
+        return err(
+          new RelayError("E_WORKSPACE", "Parked cancel blocked by live process group(s)", {
+            details: { paths: aliveBlocked },
+          }),
+        );
       }
       this.#ctx.append(runId, "", "run.cancelled", "user", { by: "user" });
       return ok(undefined);

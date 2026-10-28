@@ -42,7 +42,10 @@ export function Topbar({
         />
       ) : null}
       {readonly ? (
-        <span className="readonly-chip" title="This viewer cannot change runs">
+        <span
+          className="readonly-chip"
+          title="Snapshots are read-only; stopping a run is still available"
+        >
           Read-only
         </span>
       ) : null}

@@ -1,16 +1,17 @@
-import type { DecisionRef, EventEnvelope, RunView } from "@relay/core";
-import { Info, LockKeyhole } from "lucide-react";
+import type { DecisionRef, EventEnvelope, RunStatus, RunView } from "@relay/core";
+import { Info, LockKeyhole, TriangleAlert } from "lucide-react";
 import { classifyError } from "../api/client.js";
 import { useExecutionDetail } from "../api/hooks.js";
 import type { AttemptView, ExecutionDetailResponse, RunSummary } from "../api/types.js";
 import { DecisionResultView } from "../ui/DecisionResult.js";
 import { formatCost, formatDuration, formatTime, formatTokens, shortSha } from "../ui/format.js";
 import { JsonView } from "../ui/JsonView.js";
-import { StatusPill } from "../ui/StatusPill.js";
+import { StatusPill, statusLabel } from "../ui/StatusPill.js";
 import { InlineError } from "../ui/states.js";
 import { ApprovalPanel } from "./ApprovalPanel.js";
 import { type DerivedAttempt, deriveDetail } from "./deriveDetail.js";
 import type { WorkflowSnapshot } from "./RunCanvas.js";
+import { isUnresolvedExecution, unresolvedSummary } from "./staleExecution.js";
 
 /** Redacted CLI stderr saved on the node error (engine bounds it to 2 KiB). */
 function errorDiagnostic(details: unknown): string | null {
@@ -240,14 +241,70 @@ function DecisionSection({
   );
 }
 
-function LiveDetail({ data, path }: { data: ExecutionDetailResponse; path: string }) {
+/**
+ * Execution status with honest stale-state presentation: when the run is
+ * already terminal but the execution still reports live work, the animated
+ * pill is replaced by an explicit warning. Raw attempts/input/output below
+ * are always preserved untouched.
+ */
+export function ExecutionStatus({
+  runStatus,
+  execStatus,
+  testId,
+}: {
+  runStatus: RunStatus;
+  execStatus: string;
+  testId?: string;
+}) {
+  if (isUnresolvedExecution(runStatus, execStatus)) {
+    return (
+      <span className="row" style={{ gap: 6 }}>
+        <span className="pill amber" {...(testId === undefined ? {} : { "data-testid": testId })}>
+          <TriangleAlert size={12} aria-hidden="true" />
+          <span>State unresolved</span>
+        </span>
+        <span className="faint">reported {statusLabel(execStatus)}</span>
+      </span>
+    );
+  }
+  return <StatusPill status={execStatus} {...(testId === undefined ? {} : { testId })} />;
+}
+
+function LiveDetail({
+  data,
+  path,
+  runStatus,
+}: {
+  data: ExecutionDetailResponse;
+  path: string;
+  runStatus: RunStatus;
+}) {
   const { execution, attempts, input, output, usage, process, workspace } = data;
+  const unresolved = isUnresolvedExecution(runStatus, execution.status);
   return (
     <>
+      {unresolved ? (
+        <div
+          className="note amber"
+          data-testid="detail-unresolved-note"
+          style={{ marginBottom: 12 }}
+        >
+          <TriangleAlert size={15} aria-hidden="true" />
+          <span>
+            <b>State unresolved — {unresolvedSummary(runStatus, execution.status)}.</b> No terminal
+            event was recorded for this execution, a historical data gap. The attempts, input,
+            output and process figures below are the preserved raw evidence.
+          </span>
+        </div>
+      ) : null}
       <dl className="kv" style={{ marginBottom: 14 }}>
         <dt>Status</dt>
         <dd>
-          <StatusPill status={execution.status} />
+          <ExecutionStatus
+            runStatus={runStatus}
+            execStatus={execution.status}
+            testId="detail-exec-status"
+          />
         </dd>
         <dt>Kind</dt>
         <dd>{execution.kind ?? "—"}</dd>
@@ -506,7 +563,7 @@ export function DetailPanel({
               {path}
             </div>
           </div>
-          <StatusPill status={status} testId="detail-status" />
+          <ExecutionStatus runStatus={view.status} execStatus={status} testId="detail-status" />
         </div>
         <ApprovalPanel
           runId={runId}
@@ -519,7 +576,7 @@ export function DetailPanel({
         {isReplay ? (
           <ReplayDetail events={events} path={path} view={view} />
         ) : execution.data ? (
-          <LiveDetail data={execution.data} path={path} />
+          <LiveDetail data={execution.data} path={path} runStatus={view.status} />
         ) : null}
       </>
     );
@@ -533,7 +590,7 @@ export function DetailPanel({
             {path}
           </div>
         </div>
-        <StatusPill status={status} testId="detail-status" />
+        <ExecutionStatus runStatus={view.status} execStatus={status} testId="detail-status" />
       </div>
       {exec?.decision ? (
         <DecisionSection
@@ -553,7 +610,7 @@ export function DetailPanel({
       ) : execution.error ? (
         <InlineError message={classifyError(execution.error).message} />
       ) : execution.data ? (
-        <LiveDetail data={execution.data} path={path} />
+        <LiveDetail data={execution.data} path={path} runStatus={view.status} />
       ) : null}
     </>
   );
