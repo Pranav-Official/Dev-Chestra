@@ -1,5 +1,5 @@
-import type { DecisionProviderId } from "@relay/schema";
 import type { JsonValue, RelayError, Result } from "@relay/core";
+import type { DecisionProviderId } from "@relay/schema";
 
 // NOTE: this mirrors the `DecisionOutput` contract in section 4 of
 // decision-node-contract.md. `@relay/core` does not export a DecisionOutput
