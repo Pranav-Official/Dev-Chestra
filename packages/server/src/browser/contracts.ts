@@ -5,6 +5,8 @@ import {
   cliListResponseSchema,
   cliModelCatalogSchema,
   commandResponseSchema,
+  decisionProvidersResponseSchema,
+  decisionTestResultSchema,
   eventPageResponseSchema,
   executionDetailResponseSchema,
   gateTestResultSchema,
@@ -50,6 +52,8 @@ const RESPONSE_SCHEMAS: Readonly<Record<string, SafeSchema>> = {
   WorkflowListResponse: workflowListResponseSchema,
   ValidateWorkflowResponse: validateWorkflowResponseSchema,
   GateTestResult: gateTestResultSchema,
+  DecisionProvidersResponse: decisionProvidersResponseSchema,
+  DecisionTestResult: decisionTestResultSchema,
   ApprovalListResponse: approvalListResponseSchema,
   ApprovalResolveResponse: approvalResolveResponseSchema,
 } as unknown as Readonly<Record<string, SafeSchema>>;

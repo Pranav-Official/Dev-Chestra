@@ -23,6 +23,7 @@ import { mountApprovalRoutes } from "./approval-routes.js";
 import { browserError } from "./browser-error.js";
 import { mountCliRoutes } from "./cli-routes.js";
 import { makeResponseValidator } from "./contracts.js";
+import { mountDecisionRoutes } from "./decision-routes.js";
 import {
   buildAttempts,
   buildUsage,
@@ -243,6 +244,11 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
     validate,
   });
   mountGateRoutes(app, { store: deps.store, validate });
+  mountDecisionRoutes(app, {
+    store: deps.store,
+    ...(deps.decisions === undefined ? {} : { decisions: deps.decisions }),
+    validate,
+  });
   mountRunStartRoute(app, {
     store: deps.store,
     controller: deps.controller,
