@@ -19,6 +19,7 @@ export type { NormalizedWorkflow } from "@relay/schema";
 export * from "./approval-dto.js";
 export * from "./client.js";
 export * from "./constants.js";
+export * from "./decision-dto.js";
 export * from "./dto.js";
 export * from "./errors.js";
 export * from "./events.js";
