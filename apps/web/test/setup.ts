@@ -3,6 +3,17 @@ import { afterEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 if (typeof window !== "undefined") {
+  // jsdom has no DOMMatrixReadOnly; React Flow reads a node's CSS transform scale with it
+  // when it measures handles.
+  if (window.DOMMatrixReadOnly === undefined) {
+    window.DOMMatrixReadOnly = class {
+      m22 = 1;
+      constructor(transform?: string) {
+        const scale = transform?.match(/scale\(([\d.]+)\)/)?.[1];
+        if (scale !== undefined) this.m22 = Number(scale);
+      }
+    } as unknown as typeof DOMMatrixReadOnly;
+  }
   if (window.matchMedia === undefined) {
     window.matchMedia = (query: string) =>
       ({

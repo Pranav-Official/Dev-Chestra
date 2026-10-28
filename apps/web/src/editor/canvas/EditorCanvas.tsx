@@ -25,6 +25,7 @@ import {
 } from "react";
 import "@xyflow/react/dist/style.css";
 import "../../styles/editor-canvas.css";
+import { EdgeHealer } from "../../ui/EdgeHealer.js";
 import { applyCommandToFile } from "../model/commands.js";
 import {
   checkConnection,
@@ -93,6 +94,9 @@ function buildNodes(
       id: node.id,
       type: supported ? "editor" : "unsupported",
       position,
+      // Keep the measured size: without it React Flow forgets the handle positions
+      // and the node's edges disappear until the next re-measure.
+      ...(prior?.measured === undefined ? {} : { measured: prior.measured }),
       selected: selection?.kind === "node" && selection.nodeId === node.id,
       draggable: !readOnly && supported,
       connectable: !readOnly && supported,
@@ -526,6 +530,7 @@ export function EditorCanvas({
             size={1}
             color="var(--border-strong)"
           />
+          <EdgeHealer />
           {nodes.length > 1 ? (
             <MiniMap
               pannable

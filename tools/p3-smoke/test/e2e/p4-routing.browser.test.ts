@@ -377,16 +377,10 @@ function raiseCleanup(failure: unknown, failures: unknown[], label: string): voi
   if (failures.length > 1) throw new AggregateError(failures, `${label} cleanup`);
 }
 
-// QUARANTINED (opt-in): set DEVCHESTRA_E2E_P4=1 to run. In a 5x full-suite campaign this
-// scenario failed in 5/5 runs at three stages: connection start (React Flow
-// never raised `.react-flow__connection`), live `waitDeadEdges`, and replay.
-// The failing runs showed `deriveRouting` and the view were correct while React
-// Flow rendered 6 nodes and zero `.react-flow__edge` elements for 20s+, so the
-// cause is the test harness racing React Flow's node measurement, not the
-// routing logic. The scrub-step collapse that was a product-side race is fixed
-// (see runSession.test.ts). Re-enable once the harness waits on a React Flow
-// readiness signal instead of polling for edge DOM.
-describe.skipIf(process.env.DEVCHESTRA_E2E_P4 !== "1")("P4 routing Chromium acceptance", () => {
+// Re-enabled: it was quarantined while React Flow sometimes rendered all nodes and
+// zero edges. That was a product bug (rebuilt nodes lost their handle positions),
+// fixed by EdgeHealer + carrying `measured`; see run-canvas-edges.browser.test.ts.
+describe("P4 routing Chromium acceptance", () => {
   it("creates, previews, saves, reloads, undoes, runs and replays a six-node routing graph", async () => {
     const repo = makeRunWorkspaceRepo("devchestra-p4-browser-");
     const work = tempRoot("devchestra-p4-browser-work-");

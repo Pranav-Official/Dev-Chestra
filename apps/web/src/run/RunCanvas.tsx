@@ -32,6 +32,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { resolveApproval } from "../api/approvals.js";
+import { EdgeHealer } from "../ui/EdgeHealer.js";
 import { StatusPill, statusLabel } from "../ui/StatusPill.js";
 import { approvalForPath, isActionable } from "./approval.js";
 import { isUnresolvedExecution, unresolvedSummary } from "./staleExecution.js";
@@ -452,9 +453,11 @@ export function RunCanvas({
   );
 
   const nodes = useMemo<Node<NodeData>[]>(() => {
+    const measuredOf = (id: string) => instanceRef.current?.getNode(id)?.measured;
     const fallback = autoLayout(snapshot);
     return snapshot.graph.nodes.map((node) => {
       const position = layout?.[node.id] ?? fallback.get(node.id) ?? { x: 0, y: 0 };
+      const measured = measuredOf(node.id);
       const status = nodeStatus(view, node.id);
       const exec = executionFor(view, node.id);
       const derived = node.type === "approval" ? approvalForPath(view, node.id) : null;
@@ -468,6 +471,9 @@ export function RunCanvas({
         id: node.id,
         type: "workflow",
         position,
+        // Keep the measured size: rebuilt nodes without it lose their handle positions
+        // and every edge disappears until React Flow happens to re-measure.
+        ...(measured === undefined ? {} : { measured }),
         selected: selectedPath === node.id,
         data: {
           id: node.id,
@@ -567,6 +573,7 @@ export function RunCanvas({
         proOptions={{ hideAttribution: false }}
         aria-label="Workflow canvas (read-only)"
       >
+        <EdgeHealer />
         <Background
           variant={BackgroundVariant.Dots}
           gap={24}
