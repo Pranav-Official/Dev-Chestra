@@ -6,14 +6,16 @@ export function InspectorSection({
   sectionKey,
   title,
   badge,
+  defaultOpen = true,
   children,
 }: {
   sectionKey: string;
   title: string;
   badge?: ReactNode;
+  defaultOpen?: boolean;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(() => OPEN_STATE.get(sectionKey) ?? true);
+  const [open, setOpen] = useState(() => OPEN_STATE.get(sectionKey) ?? defaultOpen);
   return (
     <details
       className="inspector-section"

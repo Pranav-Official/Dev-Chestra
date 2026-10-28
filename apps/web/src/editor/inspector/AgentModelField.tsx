@@ -30,7 +30,7 @@ export function AgentModelField({
   });
 
   return (
-    <Field id="inspector-agent-model" label="Model (optional)" help={HELP} error={modelIssue}>
+    <Field id="inspector-agent-model" label="Model" help={HELP} error={modelIssue}>
       <AgentModelPicker
         id="inspector-agent-model"
         value={node.model}

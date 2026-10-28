@@ -91,6 +91,7 @@ export function AgentModelPicker({
 }: AgentModelPickerProps) {
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const [customOpen, setCustomOpen] = useState(false);
   const [customValue, setCustomValue] = useState(value ?? "");
   const listboxRef = useRef<HTMLDivElement | null>(null);
 
@@ -230,6 +231,7 @@ export function AgentModelPicker({
     <fieldset
       className="model-picker nowheel nopan nodrag"
       aria-label="Model selector"
+      data-open={open ? "true" : undefined}
       data-testid="inspector-agent-model-field"
       onBlur={(event) => {
         const next = event.relatedTarget;
@@ -416,8 +418,13 @@ export function AgentModelPicker({
         </p>
       )}
 
-      <div className="model-picker-custom">
-        <label className="inspector-label" htmlFor={`${id}-custom`}>
+      <details
+        className="model-picker-custom"
+        open={open || customOpen}
+        onToggle={(event) => setCustomOpen(event.currentTarget.open)}
+      >
+        <summary className="model-picker-custom-summary">Custom model ID</summary>
+        <label className="model-picker-sr" htmlFor={`${id}-custom`}>
           Use custom model ID
         </label>
         <div className="model-picker-custom-row">
@@ -452,7 +459,7 @@ export function AgentModelPicker({
             {customProblem}
           </p>
         )}
-      </div>
+      </details>
     </fieldset>
   );
 }

@@ -177,3 +177,29 @@
     flex-wrap: wrap;
   }
 }
+
+.model-picker:not([data-open]) .model-picker-source {
+  display: none;
+}
+
+.model-picker-custom-summary {
+  color: var(--text-3);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.model-picker-custom-summary:hover {
+  color: var(--text-2);
+}
+
+.model-picker-custom[open] .model-picker-custom-row {
+  margin-top: 6px;
+}
+
+.model-picker-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}

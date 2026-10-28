@@ -867,7 +867,7 @@ export function DecisionForm({
             help="Switching mode replaces the mode config in one undoable step; undo restores it."
             error={modeIssue}
           >
-            <div className="inspector-inline" role="radiogroup" aria-label="Answer mode">
+            <div className="inspector-segmented" role="radiogroup" aria-label="Answer mode">
               {(["boolean", "choice", "score"] as const).map((kind) => (
                 <label key={kind} className="inspector-check">
                   <input
@@ -936,7 +936,7 @@ export function DecisionForm({
             help="'Fail' stops the run on provider errors. 'Uncertain' routes them to the uncertain handle instead."
             error={onErrorIssue}
           >
-            <div className="inspector-inline" role="radiogroup" aria-label="On provider error">
+            <div className="inspector-segmented" role="radiogroup" aria-label="On provider error">
               {(["fail", "uncertain"] as const).map((value) => (
                 <label key={value} className="inspector-check">
                   <input
