@@ -52,6 +52,67 @@ const paramSchema = z.strictObject({
   required: z.boolean(),
 });
 
+const MCP_SERVER_NAME_MAX = 128;
+const MCP_SERVERS_MAX = 32;
+
+// biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting control characters is the point.
+const MCP_SERVER_NAME_CONTROL = /[\u0000-\u001f\u007f]/;
+
+function mcpSelectionIssue(message: string, path: (string | number)[]) {
+  // Zod 4 custom issues carry the message through to the pointer-mapped report below.
+  return { code: "custom" as const, message, path };
+}
+
+const mcpSelectionSchema = z.strictObject({
+  name: z.string(),
+  scope: z.enum(["global", "project", "connector"]),
+});
+
+const mcpServersSchema = z
+  .array(mcpSelectionSchema)
+  .max(MCP_SERVERS_MAX)
+  .superRefine((servers, ctx) => {
+    const seen = new Set<string>();
+    for (let index = 0; index < servers.length; index += 1) {
+      const selection = servers[index];
+      if (selection === undefined) continue;
+      const { name, scope } = selection;
+      if (name.length < 1 || name.length > MCP_SERVER_NAME_MAX) {
+        ctx.addIssue(
+          mcpSelectionIssue(
+            `mcpServers[${index}].name must be 1-${MCP_SERVER_NAME_MAX} characters.`,
+            [index, "name"],
+          ),
+        );
+        continue;
+      }
+      if (MCP_SERVER_NAME_CONTROL.test(name)) {
+        ctx.addIssue(
+          mcpSelectionIssue(`mcpServers[${index}].name must not contain control characters.`, [
+            index,
+            "name",
+          ]),
+        );
+        continue;
+      }
+      if (name === "relay") {
+        ctx.addIssue(
+          mcpSelectionIssue(
+            `mcpServers[${index}].name 'relay' is reserved for Relay's own server.`,
+            [index, "name"],
+          ),
+        );
+        continue;
+      }
+      const key = `${scope}:${name}`;
+      if (seen.has(key)) {
+        ctx.addIssue(mcpSelectionIssue(`mcpServers[${index}] duplicates '${key}'.`, [index]));
+      } else {
+        seen.add(key);
+      }
+    }
+  });
+
 const workspaceSchema = z.discriminatedUnion("mode", [
   z.strictObject({ mode: z.literal("scratch") }),
   z.strictObject({
@@ -99,7 +160,9 @@ const agentNodeSchema = z.strictObject({
   permissions: z.strictObject({
     network: z.boolean(),
     write: z.array(z.enum(["workspace", "project"])),
+    shell: z.boolean().optional(),
   }),
+  mcpServers: mcpServersSchema.optional(),
   workspace: workspaceSchema.optional(),
   limits: limitsSchema.optional(),
   context: contextSchema.optional(),
