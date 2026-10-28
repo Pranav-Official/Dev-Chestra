@@ -24,6 +24,7 @@ import {
 import { type ActiveRunState, EngineContext, isTerminal, toRelayError } from "./context.js";
 import { executeAgent } from "./exec-agent.js";
 import { executeApproval } from "./exec-approval.js";
+import { executeDecision } from "./exec-decision.js";
 import { executeDeterministic } from "./exec-deterministic.js";
 import { executeGate, executeJoin, skipNode } from "./exec-routing.js";
 import { executeShell } from "./exec-shell.js";
@@ -532,7 +533,8 @@ export class LinearEngine implements Engine {
       return;
     }
     if (node.type === "decision") {
-      throw new RelayError("E_INTERNAL", "decision executor not implemented");
+      await executeDecision(this.#ctx, run, plan, node, active);
+      return;
     }
     if (node.type === "shell") {
       await executeShell(this.#ctx, run, plan, node, active);

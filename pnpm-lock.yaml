@@ -235,6 +235,9 @@ importers:
       '@relay/core':
         specifier: workspace:*
         version: link:../core
+      '@relay/decisions':
+        specifier: workspace:*
+        version: link:../decisions
       '@relay/schema':
         specifier: workspace:*
         version: link:../schema

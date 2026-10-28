@@ -82,7 +82,7 @@ describe("decision plan", () => {
     expect(plan.ok).toBe(false);
   });
 
-  it("dispatch for decision fails the run with E_INTERNAL not implemented", async () => {
+  it("dispatch for decision fails closed without a decision service", async () => {
     const { mkdtempSync, rmSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
@@ -148,10 +148,9 @@ describe("decision plan", () => {
       if (!launched.ok) return;
       const outcome = await launched.value.completion;
       expect(outcome.status).toBe("failed");
+      expect(outcome.error?.code).toBe("E_PROVIDER");
       const errors = store.view.get(launched.value.runId as never).errors;
-      expect(errors.some((e) => e.message.includes("decision executor not implemented"))).toBe(
-        true,
-      );
+      expect(errors.some((e) => e.message.includes("decision service"))).toBe(true);
       await engine.stop();
     } finally {
       store.close();
