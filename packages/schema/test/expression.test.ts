@@ -127,6 +127,41 @@ describe("JSONata execution", () => {
     }
     await expect(executor.evaluate("1 + 1", {}, { timeoutMs: 1000 })).resolves.toBe(2);
   });
+
+  it("compares a null operand to false instead of failing", async () => {
+    // Decision refusals store confidence null; thresholds must read false.
+    for (const source of [
+      "d.confidence >= 0.8",
+      "d.confidence > 0.8",
+      "d.confidence <= 0.8",
+      "d.confidence < 0.8",
+    ]) {
+      const compiled = compileExpression(source);
+      if (!compiled.ok) throw compiled.error;
+      const result = await evaluate(compiled.value, { d: { confidence: null } }, { executor });
+      expect(result).toEqual({ ok: true, value: false });
+    }
+  });
+
+  it("still fails closed on non-null comparison type errors", async () => {
+    for (const [source, scope] of [
+      ["s >= 0.8", { s: "high" }],
+      ["b >= 0.8", { b: true }],
+    ] as const) {
+      const compiled = compileExpression(source);
+      if (!compiled.ok) throw compiled.error;
+      const result = await evaluate(compiled.value, scope, { executor });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("E_EXPR");
+    }
+  });
+
+  it("resolves boolean composition around a null comparison", async () => {
+    const compiled = compileExpression("(d.confidence >= 0.8) or true");
+    if (!compiled.ok) throw compiled.error;
+    const result = await evaluate(compiled.value, { d: { confidence: null } }, { executor });
+    expect(result).toEqual({ ok: true, value: true });
+  });
 });
 
 describe("templates and shell quoting", () => {
