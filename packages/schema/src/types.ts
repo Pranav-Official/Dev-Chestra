@@ -28,6 +28,31 @@ export function isProdCliId(value: unknown): value is ProdCliId {
   return typeof value === "string" && prodCliIds.includes(value);
 }
 
+/** Decision-model providers for `decision` nodes. Jev (TypeSafe AI) and Clef
+ * (Cloudflare) share the System One request shape; each id is a fixed host
+ * preset in `@relay/decisions`. This is the only declaration of the set. */
+export const DECISION_PROVIDERS = [
+  "typesafe-jev",
+  "cloudflare-clef",
+  "cloudflare-clef-flash",
+] as const;
+
+export type DecisionProviderId = (typeof DECISION_PROVIDERS)[number];
+
+/** Display labels, keyed by {@link DecisionProviderId}. */
+export const DECISION_PROVIDER_LABELS: Record<DecisionProviderId, string> = {
+  "typesafe-jev": "Jev (TypeSafe AI)",
+  "cloudflare-clef": "Clef (Cloudflare)",
+  "cloudflare-clef-flash": "Clef-flash (Cloudflare)",
+};
+
+const decisionProviderIds: readonly string[] = DECISION_PROVIDERS;
+
+/** Type guard for {@link DecisionProviderId}. */
+export function isDecisionProviderId(value: unknown): value is DecisionProviderId {
+  return typeof value === "string" && decisionProviderIds.includes(value);
+}
+
 export type SuperviseMode = "default" | "checkpoint" | "notify" | "skip";
 
 export type JsonPrimitive = string | number | boolean | null;
@@ -133,6 +158,43 @@ export interface ApprovalNode extends NodeBase {
   irreversible: boolean;
 }
 
+export const DECISION_MODEL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+export const DECISION_UNCERTAIN_HANDLE = "uncertain";
+
+export interface DecisionBooleanMode {
+  kind: "boolean";
+  trueAt?: number;
+  falseAt?: number;
+}
+
+export interface DecisionChoiceMode {
+  kind: "choice";
+  options: { value: string; description?: string }[];
+  branches: { id: string; values: string[] }[];
+  minConfidence?: number;
+}
+
+export interface DecisionScoreMode {
+  kind: "score";
+  levels: { label: string; description?: string }[];
+  bands: { id: string; atLeast: number | null }[];
+  minConfidence?: number;
+}
+
+export type DecisionMode = DecisionBooleanMode | DecisionChoiceMode | DecisionScoreMode;
+
+export interface DecisionNode extends NodeBase {
+  type: "decision";
+  provider: DecisionProviderId;
+  model?: string;
+  /** Template over run params and ancestor outputs (same engine as prompts/shell). */
+  state: string;
+  /** 1..4000 chars question for the decision model. */
+  instructions: string;
+  mode: DecisionMode;
+  onError: "fail" | "uncertain";
+}
+
 export interface GateBranch {
   id: string;
   when?: string;
@@ -160,6 +222,7 @@ export type WorkflowNode =
   | GateNode
   | JoinNode
   | ApprovalNode
+  | DecisionNode
   | EndNode;
 export type NodeType = WorkflowNode["type"];
 
@@ -245,6 +308,16 @@ export interface NormalizedApprovalNode extends NormalizedNodeBase {
   irreversible: boolean;
 }
 
+export interface NormalizedDecisionNode extends NormalizedNodeBase {
+  type: "decision";
+  provider: DecisionProviderId;
+  model?: string;
+  state: string;
+  instructions: string;
+  mode: DecisionMode;
+  onError: "fail" | "uncertain";
+}
+
 export type NormalizedNode =
   | NormalizedStartNode
   | NormalizedAgentNode
@@ -252,6 +325,7 @@ export type NormalizedNode =
   | NormalizedGateNode
   | NormalizedJoinNode
   | NormalizedApprovalNode
+  | NormalizedDecisionNode
   | NormalizedEndNode;
 
 export interface NormalizedEdge {
@@ -332,13 +406,13 @@ export interface Capabilities {
 
 export const SCHEMA_CAPABILITIES: Capabilities = {
   schemaVersion: 1,
-  nodeTypes: ["start", "agent", "shell", "gate", "join", "approval", "end"],
+  nodeTypes: ["start", "agent", "shell", "gate", "join", "approval", "decision", "end"],
   clis: [...PROD_CLIS],
   workspaces: ["scratch", "worktree"],
   runWorkspaces: ["project", "existing-worktree", "new-worktree"],
   defaultRunWorkspace: "project",
   unsupported: [
-    "node types other than start/agent/shell/gate/join/approval/end",
+    "node types other than start/agent/shell/gate/join/approval/decision/end",
     "cli fake (test-only, behind RELAY_ALLOW_FAKE)",
     "per-node workspace selection (legacy metadata is ignored on fresh runs)",
     "per-node worktree base/setup/from options",

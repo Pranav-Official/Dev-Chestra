@@ -2,7 +2,7 @@ import { err, isRecord, ok, RelayError, type Result } from "@relay/core";
 import { analyzeGraph, type GateBranch, validateWorkflow } from "@relay/schema";
 import { type LinearNodeKind, validateBaseNodeConfig } from "./sequence.js";
 
-export type PlanNodeKind = LinearNodeKind | "gate" | "join" | "approval";
+export type PlanNodeKind = LinearNodeKind | "gate" | "join" | "approval" | "decision";
 
 export interface PlanNode {
   readonly id: string;
@@ -33,7 +33,7 @@ export interface WorkflowPlan {
 
 export type ScopeSource = WorkflowPlan;
 
-const BASE_TYPES = new Set<string>(["start", "agent", "shell", "end", "approval"]);
+const BASE_TYPES = new Set<string>(["start", "agent", "shell", "end", "approval", "decision"]);
 const NODE_ID_RE = /^[a-z][a-z0-9_-]{0,47}$/;
 
 function invalid(message: string, details?: unknown): RelayError {
@@ -78,7 +78,9 @@ function readPlanNode(value: unknown, index: number): PlanNode {
     );
   }
   if (BASE_TYPES.has(type)) {
-    if (type !== "approval") validateBaseNodeConfig(value, type as LinearNodeKind);
+    if (type !== "approval" && type !== "decision") {
+      validateBaseNodeConfig(value, type as LinearNodeKind);
+    }
   }
   if (type === "gate") gateBranches(value);
   if (type === "join") joinConfig(value);
@@ -132,8 +134,14 @@ function resolveEndpoints(
           `Edge from approval '${source.id}' must be '${source.id}' or '${source.id}.rejected'`,
         );
       }
+    } else if (source.type === "decision") {
+      if (fromParts.handle === undefined) {
+        throw invalid(`Edge from decision '${source.id}' must use 'decisionId.handleId'`);
+      }
     } else if (fromParts.handle !== undefined) {
-      throw invalid(`Edge source '${value.from}' uses a handle on a non-gate/non-approval node`);
+      throw invalid(
+        `Edge source '${value.from}' uses a handle on a non-gate/non-approval/non-decision node`,
+      );
     }
     if (target.type === "join") {
       if (toParts.handle === undefined) {

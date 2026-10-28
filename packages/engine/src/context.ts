@@ -74,6 +74,20 @@ export function toRelayError(
   });
 }
 
+/**
+ * What expressions and templates see for a decision node. An unknown (null)
+ * confidence reads as the number 0, so `d.confidence >= 0.8` is false and
+ * `d.confidence < 0.5` is true without touching the evaluator (F3).
+ * `confidenceSource` stays null so "unknown" is still detectable. The
+ * persisted output, events, API and UI keep null.
+ */
+function decisionScopeValue(output: unknown): unknown {
+  if (!isRecord(output)) return output;
+  if (output.confidence !== null || output.confidenceSource !== null) return output;
+  if (typeof output.branch !== "string") return output;
+  return { ...output, confidence: 0 };
+}
+
 export function serializeError(error: RelayError): {
   code: RelayError["code"];
   message: string;
@@ -180,7 +194,10 @@ export class EngineContext {
           { details: { runId: run.id } },
         );
       }
-      outputs.push({ nodeId: node.id, output: output.json });
+      outputs.push({
+        nodeId: node.id,
+        output: execution?.kind === "decision" ? decisionScopeValue(output.json) : output.json,
+      });
     }
     return outputs;
   }
@@ -202,7 +219,7 @@ export class EngineContext {
           { details: { runId: run.id } },
         );
       }
-      return output.json;
+      return execution.kind === "decision" ? decisionScopeValue(output.json) : output.json;
     }
     if (
       execution.status === "failed" ||

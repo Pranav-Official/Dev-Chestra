@@ -24,6 +24,7 @@ import {
 import { type ActiveRunState, EngineContext, isTerminal, toRelayError } from "./context.js";
 import { executeAgent } from "./exec-agent.js";
 import { executeApproval } from "./exec-approval.js";
+import { executeDecision } from "./exec-decision.js";
 import { executeDeterministic } from "./exec-deterministic.js";
 import { executeGate, executeJoin, skipNode } from "./exec-routing.js";
 import { executeShell } from "./exec-shell.js";
@@ -531,6 +532,10 @@ export class LinearEngine implements Engine {
       await executeApproval(this.#ctx, run, plan, node, active);
       return;
     }
+    if (node.type === "decision") {
+      await executeDecision(this.#ctx, run, plan, node, active);
+      return;
+    }
     if (node.type === "shell") {
       await executeShell(this.#ctx, run, plan, node, active);
       return;
@@ -578,6 +583,7 @@ function executionStates(
       gateDecision: execution.gateDecision,
       joinResolution: execution.joinResolution,
       approvalDecision: ad ? { decision: ad.decision, requestId: ad.requestId } : null,
+      decision: execution.decision,
     };
   }
   return out;

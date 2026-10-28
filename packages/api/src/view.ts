@@ -1,7 +1,9 @@
 import type { RunView } from "@relay/core";
-import { type NormalizedWorkflow, PROD_CLIS } from "@relay/schema";
+import { DECISION_PROVIDERS, type NormalizedWorkflow, PROD_CLIS } from "@relay/schema";
 import { coreErrorCodeSchema } from "./errors.js";
 import {
+  decisionOutputSchema,
+  decisionRoutingSchema,
   gateDecidedPayloadSchema,
   joinResolvedPayloadSchema,
   processStopReasonSchema,
@@ -142,6 +144,15 @@ export const execViewSchema = strict({
       requestId: z.string().nullable(),
       attempt: z.number().int().positive().nullable(),
       generation: z.number().int().positive().nullable(),
+      eventId: z.number().int().nonnegative(),
+    })
+    .nullable()
+    .optional(),
+  /** Durable decision answer; null until decision.answered. */
+  decision: z
+    .strictObject({
+      output: decisionOutputSchema,
+      routing: decisionRoutingSchema,
       eventId: z.number().int().nonnegative(),
     })
     .nullable()
@@ -303,6 +314,37 @@ const normalizedApprovalNodeSchema = strict({
   minConfidence: z.number().optional(),
 });
 
+const decisionModeSchema = z.discriminatedUnion("kind", [
+  strict({
+    kind: z.literal("boolean"),
+    trueAt: z.number().optional(),
+    falseAt: z.number().optional(),
+  }),
+  strict({
+    kind: z.literal("choice"),
+    options: z.array(strict({ value: z.string(), description: z.string().optional() })),
+    branches: z.array(strict({ id: z.string(), values: z.array(z.string()) })),
+    minConfidence: z.number().optional(),
+  }),
+  strict({
+    kind: z.literal("score"),
+    levels: z.array(strict({ label: z.string(), description: z.string().optional() })),
+    bands: z.array(strict({ id: z.string(), atLeast: z.union([z.number(), z.null()]) })),
+    minConfidence: z.number().optional(),
+  }),
+]);
+
+const normalizedDecisionNodeSchema = strict({
+  ...normalizedNodeBase,
+  type: z.literal("decision"),
+  provider: z.enum(DECISION_PROVIDERS),
+  model: z.string().optional(),
+  state: z.string(),
+  instructions: z.string(),
+  mode: decisionModeSchema,
+  onError: z.enum(["fail", "uncertain"]),
+});
+
 export const normalizedNodeSchema = z.discriminatedUnion("type", [
   normalizedStartNodeSchema,
   normalizedAgentNodeSchema,
@@ -310,6 +352,7 @@ export const normalizedNodeSchema = z.discriminatedUnion("type", [
   normalizedGateNodeSchema,
   normalizedJoinNodeSchema,
   normalizedApprovalNodeSchema,
+  normalizedDecisionNodeSchema,
   normalizedEndNodeSchema,
 ]);
 

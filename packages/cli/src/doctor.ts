@@ -3,6 +3,13 @@ import { existsSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  createDecisionService,
+  type DecisionService,
+  decisionProviders,
+  type TestReport,
+} from "@relay/decisions";
+import { DECISION_PROVIDER_LABELS } from "@relay/schema";
 import { openStore, type Store } from "@relay/store";
 import {
   acquireDataDirLock,
@@ -100,7 +107,99 @@ function checkStore(store: Store): DoctorCheck[] {
   return checks;
 }
 
-export async function runDoctor(dataDir: string): Promise<DoctorResult> {
+function checkDecisionProviders(service: DecisionService): DoctorCheck[] {
+  // Readiness only: missing entries name the VARIABLES, never their values.
+  return decisionProviders().map((id) => {
+    const availability = service.client(id).availability();
+    if (availability.ready) {
+      return {
+        name: `decision-${id}`,
+        status: "pass" as const,
+        message: `${DECISION_PROVIDER_LABELS[id]} is ready`,
+      };
+    }
+    return {
+      name: `decision-${id}`,
+      status: "warn" as const,
+      message: `${DECISION_PROVIDER_LABELS[id]} is not configured: missing ${availability.missing.join(", ")}`,
+      fix: "Set the named variables in the environment or a `.env` file next to where `relay` is run (see `.env.example`).",
+    };
+  });
+}
+
+export interface DoctorOptions {
+  /**
+   * When true, send ONE tiny live request per ready decision provider via the
+   * client's `test()` and report the redacted shape. Costs tokens. Default
+   * false, in which case doctor makes no network calls at all.
+   */
+  probeDecisions?: boolean;
+  /** Test seam: stand-in-backed service. Defaults to the live service. */
+  decisions?: DecisionService;
+}
+
+function yesNo(value: boolean): string {
+  return value ? "yes" : "no";
+}
+
+/** Redacted one-line shape: key names and value types only, never values. */
+function shapeText(report: TestReport): string {
+  const shape = report.shape;
+  if (shape === undefined) return "shape=unavailable";
+  const types = Object.entries(shape.answerValueTypes)
+    .map(([key, type]) => `${key}:${type}`)
+    .join(",");
+  return (
+    `wrapped=${yesNo(shape.wrappedInResult)} ` +
+    `top=[${shape.topLevelKeys.join(",")}] ` +
+    `answer=[${shape.answerKeys.join(",")}] ` +
+    `types={${types}} ` +
+    `confidence=${yesNo(shape.hasConfidence)} ` +
+    `probabilities=${yesNo(shape.hasProbabilities)} ` +
+    `usage=${yesNo(shape.hasUsage)}`
+  );
+}
+
+async function probeDecisionProviders(service: DecisionService): Promise<DoctorCheck[]> {
+  const checks: DoctorCheck[] = [];
+  for (const id of decisionProviders()) {
+    if (!service.client(id).availability().ready) continue;
+    let report: TestReport;
+    try {
+      // One trivial boolean question per ready provider (costs tokens).
+      report = await service.client(id).test(new AbortController().signal);
+    } catch {
+      // `test()` reports provider failures as ok:false; a throw is a bug,
+      // so keep the message generic rather than risk leaking internals.
+      report = { ok: false, provider: id, model: "unknown", latencyMs: 0 };
+    }
+    const label = DECISION_PROVIDER_LABELS[id];
+    if (report.ok) {
+      checks.push({
+        name: `decision-probe-${id}`,
+        status: "pass",
+        message:
+          `${label} probe ok in ${report.latencyMs}ms ` +
+          `model=${report.resolvedModel ?? report.model} ${shapeText(report)}`,
+      });
+    } else {
+      checks.push({
+        name: `decision-probe-${id}`,
+        status: "fail",
+        message:
+          `${label} probe failed in ${report.latencyMs}ms model=${report.model}` +
+          (report.error === undefined ? "" : `: ${report.error}`),
+        fix: "Check the provider key, account id and network, then rerun with --probe-decisions.",
+      });
+    }
+  }
+  return checks;
+}
+
+export async function runDoctor(
+  dataDir: string,
+  options: DoctorOptions = {},
+): Promise<DoctorResult> {
   const checks: DoctorCheck[] = [];
   const major = nodeMajor();
   checks.push(
@@ -189,6 +288,7 @@ export async function runDoctor(dataDir: string): Promise<DoctorResult> {
           fix: "Run `pnpm -r build`.",
         },
   );
+  checks.push(...checkDecisionProviders(options.decisions ?? createDecisionService()));
 
   let store: Store | undefined;
   try {
@@ -209,6 +309,10 @@ export async function runDoctor(dataDir: string): Promise<DoctorResult> {
   } finally {
     store?.close();
     await lock.release();
+  }
+
+  if (options.probeDecisions === true) {
+    checks.push(...(await probeDecisionProviders(options.decisions ?? createDecisionService())));
   }
 
   return { ok: checks.every((check) => check.status !== "fail"), checks };

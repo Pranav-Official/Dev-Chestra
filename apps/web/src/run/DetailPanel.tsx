@@ -1,8 +1,9 @@
-import type { EventEnvelope, RunView } from "@relay/core";
+import type { DecisionRef, EventEnvelope, RunView } from "@relay/core";
 import { Info, LockKeyhole } from "lucide-react";
 import { classifyError } from "../api/client.js";
 import { useExecutionDetail } from "../api/hooks.js";
 import type { AttemptView, ExecutionDetailResponse, RunSummary } from "../api/types.js";
+import { DecisionResultView } from "../ui/DecisionResult.js";
 import { formatCost, formatDuration, formatTime, formatTokens, shortSha } from "../ui/format.js";
 import { JsonView } from "../ui/JsonView.js";
 import { StatusPill } from "../ui/StatusPill.js";
@@ -174,6 +175,28 @@ function ReplayDetail({
                 .join(", ")}
         </dd>
       </dl>
+    </>
+  );
+}
+
+function DecisionSection({
+  decision,
+  tokensIn,
+  tokensOut,
+}: {
+  decision: DecisionRef;
+  tokensIn: number;
+  tokensOut: number;
+}) {
+  return (
+    <>
+      <h3 style={{ margin: "14px 0 6px" }}>Decision</h3>
+      <DecisionResultView
+        output={decision.output}
+        routing={decision.routing}
+        usage={{ inputTokens: tokensIn, outputTokens: tokensOut }}
+        testIdPrefix="detail-decision"
+      />
     </>
   );
 }
@@ -470,6 +493,13 @@ export function DetailPanel({
         </div>
         <StatusPill status={status} testId="detail-status" />
       </div>
+      {exec?.decision ? (
+        <DecisionSection
+          decision={exec.decision}
+          tokensIn={exec.tokensIn}
+          tokensOut={exec.tokensOut}
+        />
+      ) : null}
       {isReplay ? (
         <ReplayDetail events={events} path={path} view={view} />
       ) : execution.isPending ? (

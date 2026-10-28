@@ -1,6 +1,14 @@
 import type { ApiRequestOptions } from "./client.js";
 import { ApiClientBase } from "./client.js";
 import { IDEMPOTENCY_HEADER, IF_MATCH_HEADER } from "./constants.js";
+import {
+  type DecisionProvidersResponse,
+  type DecisionTestRequest,
+  type DecisionTestResult,
+  decisionProvidersResponseSchema,
+  decisionTestRequestSchema,
+  decisionTestResultSchema,
+} from "./decision-dto.js";
 import { type StartRunResponse, startRunResponseSchema } from "./dto.js";
 import {
   type GateTestRequest,
@@ -160,6 +168,31 @@ export class ApiClient extends ApiClientBase {
       "POST",
       ["projects", projectId, "gates", "test"],
       gateTestResultSchema,
+      this.req(options, { body: parsed, mutation: true }),
+    );
+  }
+
+  /** Fixed decision-model provider presets with secret-name-only readiness. */
+  listDecisionProviders(options: ApiRequestOptions = {}): Promise<DecisionProvidersResponse> {
+    return this.request(
+      "GET",
+      ["decision-providers"],
+      decisionProvidersResponseSchema,
+      this.req(options),
+    );
+  }
+
+  /** Live decision-model probe; costs tokens. Never creates a run. */
+  async testDecision(
+    projectId: string,
+    body: DecisionTestRequest,
+    options: ApiRequestOptions = {},
+  ): Promise<DecisionTestResult> {
+    const parsed = decisionTestRequestSchema.parse(body);
+    return this.request(
+      "POST",
+      ["projects", projectId, "decisions", "test"],
+      decisionTestResultSchema,
       this.req(options, { body: parsed, mutation: true }),
     );
   }

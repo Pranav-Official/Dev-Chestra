@@ -1,5 +1,5 @@
 import type { Edge, NodeType, WorkflowFile, WorkflowNode } from "@relay/schema";
-import { checkConnection as checkRoutingConnection } from "./routing.js";
+import { checkConnection as checkRoutingConnection, defaultDecisionMode } from "./routing.js";
 import type { ConnectRequest, Position } from "./types.js";
 
 export const SUPPORTED_NODE_TYPES: readonly string[] = [
@@ -9,6 +9,7 @@ export const SUPPORTED_NODE_TYPES: readonly string[] = [
   "gate",
   "join",
   "approval",
+  "decision",
   "end",
 ] as const;
 
@@ -150,6 +151,18 @@ export function createDefaultNode(
         name,
         message: "Please review and approve to continue.",
         irreversible: false,
+        ui,
+      } as unknown as WorkflowNode;
+    case "decision":
+      return {
+        id,
+        type: "decision",
+        name,
+        provider: "typesafe-jev",
+        state: "{}",
+        instructions: "Decide yes or no from the state.",
+        mode: defaultDecisionMode("boolean"),
+        onError: "fail",
         ui,
       } as unknown as WorkflowNode;
     case "end":

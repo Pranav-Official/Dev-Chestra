@@ -1,6 +1,6 @@
 import { err, ok, RelayError, type Result } from "@relay/core";
 import { MAX_WORKFLOW_FILE_BYTES } from "./ids.js";
-import { PROD_CLIS, type WorkflowFile } from "./types.js";
+import { DECISION_PROVIDERS, PROD_CLIS, type WorkflowFile } from "./types.js";
 import { z } from "./zod.js";
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -150,6 +150,58 @@ const approvalNodeSchema = z.strictObject({
   irreversible: z.boolean(),
 });
 
+const decisionOptionSchema = z.strictObject({
+  value: z.string(),
+  description: z.string().optional(),
+});
+
+const decisionBranchSchema = z.strictObject({
+  id: z.string(),
+  values: z.array(z.string()),
+});
+
+const decisionLevelSchema = z.strictObject({
+  label: z.string(),
+  description: z.string().optional(),
+});
+
+const decisionBandSchema = z.strictObject({
+  id: z.string(),
+  atLeast: z.union([z.number(), z.null()]),
+});
+
+const decisionModeSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("boolean"),
+    trueAt: z.number().optional(),
+    falseAt: z.number().optional(),
+  }),
+  z.strictObject({
+    kind: z.literal("choice"),
+    options: z.array(decisionOptionSchema),
+    branches: z.array(decisionBranchSchema),
+    minConfidence: z.number().optional(),
+  }),
+  z.strictObject({
+    kind: z.literal("score"),
+    levels: z.array(decisionLevelSchema),
+    bands: z.array(decisionBandSchema),
+    minConfidence: z.number().optional(),
+  }),
+]);
+
+const decisionNodeSchema = z.strictObject({
+  ...nodeBase,
+  type: z.literal("decision"),
+  provider: z.enum(DECISION_PROVIDERS),
+  model: z.string().optional(),
+  state: z.string(),
+  instructions: z.string(),
+  mode: decisionModeSchema,
+  // Default "fail" is applied by normalizeWorkflow; the contract type keeps it required.
+  onError: z.enum(["fail", "uncertain"]).optional(),
+});
+
 const edgeSchema = z.strictObject({
   id: z.string(),
   from: z.string(),
@@ -173,6 +225,7 @@ const workflowSchema = z.strictObject({
         gateNodeSchema,
         joinNodeSchema,
         approvalNodeSchema,
+        decisionNodeSchema,
         endNodeSchema,
       ]),
     ),
@@ -187,6 +240,7 @@ const SUPPORTED_NODE_TYPES = new Set([
   "gate",
   "join",
   "approval",
+  "decision",
   "end",
 ]);
 const SUPPORTED_CLIS = new Set<string>([...PROD_CLIS]);
@@ -235,7 +289,7 @@ function precheck(raw: unknown): RelayError | undefined {
       if (typeof type === "string" && !SUPPORTED_NODE_TYPES.has(type)) {
         return new RelayError(
           "E_WORKFLOW_INVALID",
-          `Unsupported node type '${type}' at graph.nodes[${i}]. P1 supports: start, agent, shell, gate, join, approval, end.`,
+          `Unsupported node type '${type}' at graph.nodes[${i}]. P1 supports: start, agent, shell, gate, join, approval, decision, end.`,
           { details: { pointer: `/graph/nodes/${i}/type` } },
         );
       }

@@ -164,6 +164,9 @@ importers:
       '@relay/core':
         specifier: workspace:*
         version: link:../core
+      '@relay/decisions':
+        specifier: workspace:*
+        version: link:../decisions
       '@relay/engine':
         specifier: workspace:*
         version: link:../engine
@@ -208,6 +211,25 @@ importers:
         specifier: 5.0.4
         version: 5.0.4(@types/node@22.20.5)(jsdom@30.1.2)(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(tsx@4.23.15))
 
+  packages/decisions:
+    dependencies:
+      '@relay/core':
+        specifier: workspace:*
+        version: link:../core
+      '@relay/schema':
+        specifier: workspace:*
+        version: link:../schema
+    devDependencies:
+      '@types/node':
+        specifier: 22.20.5
+        version: 22.20.5
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 5.0.4
+        version: 5.0.4(@types/node@22.20.5)(jsdom@30.1.2)(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(tsx@4.23.15))
+
   packages/engine:
     dependencies:
       '@relay/adapters':
@@ -216,6 +238,9 @@ importers:
       '@relay/core':
         specifier: workspace:*
         version: link:../core
+      '@relay/decisions':
+        specifier: workspace:*
+        version: link:../decisions
       '@relay/schema':
         specifier: workspace:*
         version: link:../schema
@@ -297,6 +322,9 @@ importers:
       '@relay/core':
         specifier: workspace:*
         version: link:../core
+      '@relay/decisions':
+        specifier: workspace:*
+        version: link:../decisions
       '@relay/mcp':
         specifier: workspace:*
         version: link:../mcp

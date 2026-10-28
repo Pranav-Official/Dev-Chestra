@@ -52,6 +52,7 @@ export type {
   ProcessRecord,
   ProjectRecord,
   Receipt,
+  RecordDecisionInput,
   RecordDeterministicOutputInput,
   RecordDeterministicOutputResult,
   RecordGateDecisionInput,

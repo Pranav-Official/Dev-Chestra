@@ -1,7 +1,7 @@
 import { deriveRouting, type ExecView, emptyRunView, type RunView } from "@relay/core";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { RunCanvas, type WorkflowSnapshot } from "../src/run/RunCanvas.js";
+import { RunCanvas, toRoutingGraph, type WorkflowSnapshot } from "../src/run/RunCanvas.js";
 
 function snapshot(): WorkflowSnapshot {
   return {
@@ -118,7 +118,7 @@ describe("run routing viewer", () => {
     );
     expect(screen.getByTestId("run-gate-branch-gate")).toHaveTextContent("branch yes");
     expect(screen.getByTestId("run-node-b")).toHaveAttribute("data-node-status", "skipped");
-    const routing = deriveRouting(snapshot().graph, view().executions);
+    const routing = deriveRouting(toRoutingGraph(snapshot()), view().executions);
     expect(routing.edges["e-gate-yes"]).toBe("active");
     expect(routing.edges["e-gate-no"]).toBe("dead");
     expect(routing.edges["e-a-join"]).toBe("active");
@@ -156,6 +156,8 @@ describe("run routing viewer", () => {
       />,
     );
     expect(screen.getByTestId("run-gate-branch-gate")).toHaveTextContent("gate failed");
-    expect(deriveRouting(snapshot().graph, failed.executions).edges["e-gate-yes"]).toBe("dead");
+    expect(deriveRouting(toRoutingGraph(snapshot()), failed.executions).edges["e-gate-yes"]).toBe(
+      "dead",
+    );
   });
 });

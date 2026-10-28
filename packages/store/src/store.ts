@@ -58,7 +58,7 @@ import {
   snapshotRun,
 } from "./read-ports.js";
 import { recover } from "./recovery.js";
-import { recordGateDecision, recordJoinResolution } from "./routing.js";
+import { recordDecision, recordGateDecision, recordJoinResolution } from "./routing.js";
 import { createRun, getRun, listActiveRuns } from "./runs.js";
 import type { Runtime } from "./runtime.js";
 import { type SecretFinding, SecretRegistry } from "./secrets.js";
@@ -93,6 +93,7 @@ import type {
   ProcessRecord,
   ProjectRecord,
   Receipt,
+  RecordDecisionInput,
   RecordDeterministicOutputInput,
   RecordDeterministicOutputResult,
   RecordGateDecisionInput,
@@ -183,6 +184,7 @@ export interface RecoveryApi {
 
 export interface RoutingApi {
   recordGateDecision(input: RecordGateDecisionInput): RoutingCommitResult;
+  recordDecision(input: RecordDecisionInput): RoutingCommitResult;
   recordJoinResolution(input: RecordJoinResolutionInput): RoutingCommitResult;
 }
 
@@ -309,6 +311,7 @@ export class Store {
     };
     this.routing = {
       recordGateDecision: (input) => this.tx(() => recordGateDecision(this.#runtime, input)),
+      recordDecision: (input) => this.tx(() => recordDecision(this.#runtime, input)),
       recordJoinResolution: (input) => this.tx(() => recordJoinResolution(this.#runtime, input)),
     };
     this.approvals = {

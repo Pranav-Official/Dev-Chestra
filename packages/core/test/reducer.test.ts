@@ -215,6 +215,7 @@ function execWithStatus(status: ExecStatus): ExecView {
     joinResolution: null,
     approvalRequest: null,
     approvalDecision: null,
+    decision: null,
     requiresAcceptedResult: false,
     acceptedResult: null,
     recordedOutput: null,

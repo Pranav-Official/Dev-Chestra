@@ -392,10 +392,57 @@ export function reduceLifecycleEvent(view: RunView, envelope: EventEnvelope): Ru
       return withEventId(withDecision, envelope);
     }
 
+    case "decision.requested": {
+      const payload = (envelope as EventEnvelope<"decision.requested">).payload;
+      const exec = view.executions[key];
+      if (exec === undefined) return withEventId(view, envelope);
+      if (payload.attempt !== undefined || payload.generation !== undefined) {
+        fenceOptionalIdentity(exec, type, payload as { attempt?: number; generation?: number });
+      }
+      // Request is audit-only; the answer carries the durable projection.
+      return withEventId(view, envelope);
+    }
+
+    case "decision.answered": {
+      const payload = (envelope as EventEnvelope<"decision.answered">).payload;
+      const exec = view.executions[key];
+      if (exec === undefined) return withEventId(view, envelope);
+      fenceOptionalIdentity(exec, type, payload);
+      const { output, routing } = payload;
+      if (output === undefined || routing === undefined) {
+        // Legacy answer without a normalized output: audit-only, no projection.
+        return withEventId(view, envelope);
+      }
+      if (exec.decision !== null) {
+        const cur = exec.decision;
+        const same =
+          JSON.stringify(cur.output) === JSON.stringify(output) &&
+          cur.routing.branch === routing.branch &&
+          cur.routing.reason === routing.reason;
+        // Idempotent replay even after run terminal — do not change status again.
+        if (same) return withEventId(view, envelope);
+        throw new RelayError("E_CONFLICT", "Decision answer is immutable and already recorded", {
+          details: { path, existing: cur, received: payload },
+        });
+      }
+      if (exec.status !== "running" && exec.status !== "validating") {
+        throw internal("Decision answer arrived in an unexpected status", {
+          path,
+          status: exec.status,
+        });
+      }
+      return updateExec(view, key, (current) => ({
+        ...current,
+        decision: {
+          output,
+          routing: { branch: routing.branch, reason: routing.reason },
+          eventId: envelope.id,
+        },
+      }));
+    }
+
     // Reserved catalog events have no RunView effect in the P0 slice. Their
     // payloads are versioned and replayed safely; later slices add reducers.
-    case "decision.requested":
-    case "decision.answered":
     case "map.started":
     case "map.item.state":
     case "map.completed":

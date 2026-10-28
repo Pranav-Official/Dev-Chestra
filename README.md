@@ -181,6 +181,12 @@ Files are canonical 2-space JSON with a trailing newline; the unquoted SHA-256 c
 
 `relay run` defaults to the project root and accepts `--workspace project|new-worktree|existing-worktree`; use `--worktree-path <dir>` with `existing-worktree`. `relay resume` has no workspace flag and reuses the run's frozen selection.
 
+### Decision providers
+
+Decision nodes ask one of three fixed providers: `typesafe-jev` (Jev), `cloudflare-clef` (Clef 27B) or `cloudflare-clef-flash` (Clef-flash 9B). Keys come from environment variables or a `.env` file in the directory you run `relay` from (see `.env.example`); real shell exports take priority, and only these three names are ever read: `TYPESAFE_API_KEY`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_AUTH_TOKEN`. `relay doctor` reports each provider as ready or missing (names only), and the browser tester at `POST /api/projects/:pid/decisions/test` previews one question without creating a run. Keys kept only in `.env` are never passed to agents (Relay does not load `.env` into `process.env`), but a `TYPESAFE_API_KEY` exported in the shell IS passed to `pi` agent nodes, because Pi uses the same variable name (a pre-existing, intentional entry in the `pi` agent env allowlist, unrelated to decision nodes).
+
+Live probe (opt-in): `pnpm relay:doctor --probe-decisions` (or `relay doctor --data-dir <dir> --probe-decisions`) sends ONE trivial boolean question per ready provider through the client's `test()` and prints, per provider, ok/failed, latency, the resolved model and a redacted response-shape summary: top-level key names, the answer's key names and value types, whether the body was wrapped in `result`, and whether `confidence`/`probabilities`/`usage` were present. It never prints values or keys. Cost: one tiny request per ready provider (providers without keys are skipped). Without the flag, doctor makes no network calls.
+
 ## Workspace
 
 ```text

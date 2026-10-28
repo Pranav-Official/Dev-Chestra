@@ -211,10 +211,35 @@ export interface DecisionRequestedPayload {
   provider: string;
   model: string;
   questionIds: string[];
+  /** Engine-emitted invocation fence; optional for older events. */
+  attempt?: number;
+  generation?: number;
 }
 
+/** Normalized model answer for one decision question (contract section 4). */
+export interface DecisionOutput {
+  kind: "boolean" | "choice" | "score";
+  /** boolean: probability >= 0.5; choice: option; score: level label at round(score); null when refused. */
+  value: boolean | string | null;
+  /** boolean only: P(true). */
+  probability?: number;
+  /** score only: fractional, 0-based. */
+  score?: number;
+  /** choice: by option; score: by level label. */
+  probabilities?: Record<string, number>;
+  /** null compares false in expressions. */
+  confidence: number | null;
+  confidenceSource: "provider" | "derived" | null;
+  refusal?: { reason?: string };
+  /** Resolved model from the provider response. */
+  model: string;
+}
+
+export type DecisionRoutingReason = "matched" | "low_confidence" | "refused" | "error";
+
 export interface DecisionAnsweredPayload {
-  answers: {
+  /** Legacy provider answers; optional so new output-first events still parse. */
+  answers?: {
     id: string;
     kind: string;
     value: JsonValue;
@@ -222,8 +247,15 @@ export interface DecisionAnsweredPayload {
     probabilities?: Record<string, number>;
     refusal?: string;
   }[];
-  latencyMs: number;
+  latencyMs?: number;
   raw?: JsonValue;
+  /** Normalized answer; present on new events, absent on legacy ones. */
+  output?: DecisionOutput;
+  routing?: { branch: string | null; reason: DecisionRoutingReason };
+  usage?: { inputTokens: number; outputTokens: number };
+  /** Engine-emitted invocation fence; optional for older events. */
+  attempt?: number;
+  generation?: number;
 }
 
 export interface ApprovalRequestedPayload {

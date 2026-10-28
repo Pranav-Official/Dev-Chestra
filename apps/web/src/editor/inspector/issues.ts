@@ -56,6 +56,16 @@ const FIELD_PATHS = [
   "/result",
   "/cli",
   "/model",
+  "/provider",
+  "/state",
+  "/instructions",
+  "/options",
+  "/bands",
+  "/levels",
+  "/onError",
+  "/minConfidence",
+  "/trueAt",
+  "/falseAt",
 ];
 
 function isShownByAField(issue: Issue): boolean {

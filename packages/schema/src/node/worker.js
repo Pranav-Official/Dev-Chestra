@@ -66,6 +66,9 @@ parentPort.once("message", async (request) => {
   }
 
   try {
+    // A null side to <, <=, > or >= throws JSONata T2010 and fails closed:
+    // unknown values never silently compare. Decision scopes expose an
+    // unknown confidence as 0 instead, so thresholds read false there.
     const expression = jsonata(request.source, {
       timeout: Math.max(1, Math.trunc(request.timeoutMs)),
       stack: 100,
@@ -80,3 +83,6 @@ parentPort.once("message", async (request) => {
     parentPort.postMessage({ ok: false, error: message });
   }
 });
+
+// Cold start is finished: tell the parent so it can start the evaluation budget.
+parentPort.postMessage({ ready: true });

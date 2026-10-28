@@ -127,6 +127,48 @@ describe("JSONata execution", () => {
     }
     await expect(executor.evaluate("1 + 1", {}, { timeoutMs: 1000 })).resolves.toBe(2);
   });
+
+  it("does not count worker cold start against the evaluation budget", async () => {
+    // The worker takes ~300ms to boot but the evaluation budget is 100ms: the old
+    // behavior started the timer at spawn and failed a healthy expression.
+    const slowBoot = createNodeExpressionExecutor({
+      workerUrl: new URL("./fixtures/slow-boot-worker.mjs", import.meta.url),
+    });
+    await expect(slowBoot.evaluate("1 + 1", {}, { timeoutMs: 100 })).resolves.toBe(2);
+  });
+
+  it("keeps the evaluate() backstop from charging worker cold start", async () => {
+    // The public entry wraps the executor in its own backstop timer; it must allow
+    // the executor's declared startup time, or it cancels the executor-level fix.
+    const slowBoot = createNodeExpressionExecutor({
+      workerUrl: new URL("./fixtures/slow-boot-worker.mjs", import.meta.url),
+    });
+    const compiled = compileExpression("1 + 1");
+    if (!compiled.ok) throw compiled.error;
+    const result = await evaluate(compiled.value, {}, { timeoutMs: 100, executor: slowBoot });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value).toBe(2);
+  });
+
+  it("still enforces the evaluation budget once the worker is running", async () => {
+    const started = Date.now();
+    await expect(
+      executor.evaluate("(function($f){$f($f)})(function($f){$f($f)})", {}, { timeoutMs: 150 }),
+    ).rejects.toThrow(/timed out|stack|depth|exceed/i);
+    // Generous upper bound: cold start is outside the budget but the loop must still be cut.
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+
+  // NB: the null-comparison retry added here in 7f22aae was reverted (F3):
+  // null operands to <, <=, > or >= fail closed with E_EXPR again. Decision
+  // scopes expose an unknown confidence as 0 instead, covered by engine tests.
+  it("fails closed on null comparison operands", async () => {
+    const compiled = compileExpression("d.confidence >= 0.8");
+    if (!compiled.ok) throw compiled.error;
+    const result = await evaluate(compiled.value, { d: { confidence: null } }, { executor });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("E_EXPR");
+  });
 });
 
 describe("templates and shell quoting", () => {

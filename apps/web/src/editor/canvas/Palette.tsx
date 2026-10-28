@@ -1,5 +1,14 @@
 import type { WorkflowFile } from "@relay/schema";
-import { Bot, Flag, GitBranch, GitMerge, Play, ShieldCheck, TerminalSquare } from "lucide-react";
+import {
+  Bot,
+  Flag,
+  GitBranch,
+  GitMerge,
+  Play,
+  Scale,
+  ShieldCheck,
+  TerminalSquare,
+} from "lucide-react";
 import type { Position } from "../model/types.js";
 
 interface PaletteItem {
@@ -16,6 +25,7 @@ const ITEMS: readonly PaletteItem[] = [
   { type: "gate", label: "Gate", description: "Route by condition.", icon: GitBranch },
   { type: "join", label: "Join", description: "Merge branches.", icon: GitMerge },
   { type: "approval", label: "Approval", description: "Pause for a person.", icon: ShieldCheck },
+  { type: "decision", label: "Decision", description: "Ask a decision model.", icon: Scale },
   { type: "end", label: "End", description: "Finish the run.", icon: Flag },
 ];
 

@@ -70,6 +70,7 @@ function options(overrides: Partial<CliOptions> = {}): CliOptions {
     allowExperimentalAdapters: true,
     noOpen: true,
     printUrl: false,
+    probeDecisions: false,
     ...overrides,
   };
 }

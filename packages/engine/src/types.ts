@@ -11,6 +11,7 @@ import type {
   RunWorkspaceSelection,
   SerializedError,
 } from "@relay/core";
+import type { DecisionService } from "@relay/decisions";
 import type { NormalizedWorkflow, ProdCliId } from "@relay/schema";
 import type { Store } from "@relay/store";
 import type {
@@ -83,6 +84,12 @@ export interface EngineDeps {
   readonly maxNodeTimeoutMs?: number;
   /** Join output validation; required (fail closed) only when a join declares output. */
   readonly validateOutput?: (schema: Record<string, unknown>, value: unknown) => OutputValidation;
+  /**
+   * Decision-model service for `decision` nodes. Composition roots pass a
+   * real `createDecisionService()`; when it is missing a decision node fails
+   * with an actionable `E_PROVIDER` error instead of hanging or defaulting.
+   */
+  readonly decisions?: DecisionService;
 }
 
 export interface RunIdempotency {

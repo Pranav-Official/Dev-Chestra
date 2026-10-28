@@ -12,6 +12,7 @@ import {
   RUN_STATUSES,
   type RunStatus,
 } from "@relay/core";
+import type { DecisionService } from "@relay/decisions";
 import { type Context, Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
@@ -22,6 +23,7 @@ import { mountApprovalRoutes } from "./approval-routes.js";
 import { browserError } from "./browser-error.js";
 import { mountCliRoutes } from "./cli-routes.js";
 import { makeResponseValidator } from "./contracts.js";
+import { mountDecisionRoutes } from "./decision-routes.js";
 import {
   buildAttempts,
   buildUsage,
@@ -93,6 +95,12 @@ export interface BrowserAppDeps {
   workflowService?: ManagedWorkflowService;
   modelCatalog?: BrowserModelCatalogPort;
   workspaceService?: BrowserWorkspacePort;
+  /**
+   * Decision-model service for the provider routes. Defaults to a live
+   * `createDecisionService()` (process.env then cwd `.env`); tests inject a
+   * stand-in-backed service.
+   */
+  decisions?: DecisionService;
 }
 
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
@@ -236,6 +244,11 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
     validate,
   });
   mountGateRoutes(app, { store: deps.store, validate });
+  mountDecisionRoutes(app, {
+    store: deps.store,
+    ...(deps.decisions === undefined ? {} : { decisions: deps.decisions }),
+    validate,
+  });
   mountRunStartRoute(app, {
     store: deps.store,
     controller: deps.controller,

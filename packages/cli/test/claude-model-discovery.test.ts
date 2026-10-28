@@ -424,6 +424,7 @@ async function startOwned(
       allowExperimentalAdapters: true,
       noOpen: true,
       printUrl: false,
+      probeDecisions: false,
       port: 0,
     },
     dataDir,

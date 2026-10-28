@@ -26,6 +26,7 @@
   "dependencies": {
     "@relay/adapters": "workspace:*",
     "@relay/core": "workspace:*",
+    "@relay/decisions": "workspace:*",
     "@relay/engine": "workspace:*",
     "@relay/mcp": "workspace:*",
     "@relay/schema": "workspace:*",
