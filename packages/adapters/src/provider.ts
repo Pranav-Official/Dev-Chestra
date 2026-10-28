@@ -1,4 +1,5 @@
 import { RelayError } from "@relay/core";
+import { PROD_CLIS } from "@relay/schema";
 import { createClaudeAdapter } from "./claude.js";
 import { discoverClaudeModels } from "./claude-model-discovery.js";
 import { createCodexAdapter } from "./codex.js";
@@ -141,5 +142,5 @@ export function providerIds(): CliId[] {
 
 /** Production registry ids (no live probes; static registry only). */
 export function prodProviderIds(): ProdCliId[] {
-  return ["claude-code", "codex", "opencode", "pi"];
+  return [...PROD_CLIS];
 }

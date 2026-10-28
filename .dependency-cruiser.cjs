@@ -7,7 +7,7 @@ const allowed = [
   { name: "workspaces", path: "(^|/)packages/workspaces/", deps: ["core"] },
   { name: "decisions", path: "(^|/)packages/decisions/", deps: ["core", "config"] },
   { name: "context", path: "(^|/)packages/context/", deps: ["core", "store"] },
-  { name: "adapters", path: "(^|/)packages/adapters/", deps: ["core", "config"] },
+  { name: "adapters", path: "(^|/)packages/adapters/", deps: ["core", "config", "schema"] },
   { name: "mcp", path: "(^|/)packages/mcp/", deps: ["core", "schema"] },
   {
     name: "engine",

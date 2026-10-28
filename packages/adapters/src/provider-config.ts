@@ -1,3 +1,4 @@
+import { PROD_CLI_LABELS } from "@relay/schema";
 import type { AdapterOptions, CliAdapter, CliId } from "./types.js";
 
 export type ModelDiscoveryStatus = "ready" | "unsupported" | "unavailable" | "authRequired";
@@ -129,7 +130,7 @@ export const fakePermissionMap: PermissionMap = {
 
 export const claudeStatic: ProviderStatic = {
   id: "claude-code",
-  label: "Claude Code",
+  label: PROD_CLI_LABELS["claude-code"],
   binNames: ["claude"],
   defaultBin: "claude",
   contextIdentity: {
@@ -154,7 +155,7 @@ export const claudeStatic: ProviderStatic = {
 
 export const codexStatic: ProviderStatic = {
   id: "codex",
-  label: "Codex",
+  label: PROD_CLI_LABELS.codex,
   binNames: ["codex"],
   defaultBin: "codex",
   contextIdentity: {
@@ -173,7 +174,7 @@ export const codexStatic: ProviderStatic = {
 
 export const piStatic: ProviderStatic = {
   id: "pi",
-  label: "Pi",
+  label: PROD_CLI_LABELS.pi,
   binNames: ["pi"],
   defaultBin: "pi",
   contextIdentity: {
@@ -253,7 +254,7 @@ export const fakeStatic: ProviderStatic = {
 
 export const opencodeStatic: ProviderStatic = {
   id: "opencode",
-  label: "Opencode",
+  label: PROD_CLI_LABELS.opencode,
   binNames: ["opencode"],
   defaultBin: "opencode",
   contextIdentity: {
