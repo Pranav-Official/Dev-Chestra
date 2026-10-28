@@ -38,24 +38,12 @@ The lockfile is present in the workspace. CI installs with `pnpm install --froze
 | `pnpm relay:resume <runId> ...` | `relay resume` forwarding |
 | `pnpm relay:doctor ...` | `relay doctor` forwarding |
 | `pnpm web:build` / `pnpm web:dev` | Vite production build / dev server for `apps/web` |
-| `pnpm demo:p0` | Runs the bounded P0 happy + recovery demo with the fake agent |
-| `pnpm demo:p1` | Historical P1 scratch-only CLI smoke with true backend SIGKILL/resume (predates run-level workspaces) |
-| `pnpm demo:p2` | Runs the real loopback API/SSE viewer replay and browser acceptance demo |
-| `pnpm demo:p3` | Runs real workflow authoring, conflicts, restart, run and browser editor acceptance |
 | `pnpm test:p3` | Runs the bounded P3 real-HTTP/security harness tests |
 | `pnpm test:e2e:p3` | Runs the Chromium P3 editor/autosave/conflict/run-and-a11y e2e test |
 
 Recursive scripts use `pnpm -r --if-present`: a package without that script is skipped, while a real package failure still fails the command. Do not replace this with a script that hides failures. `pnpm test` builds first so integration tests that need package `dist` output cannot silently skip on a fresh install.
 
-### P0 demo
-
-```sh
-pnpm demo:p0
-```
-
-Runs the bounded P0 slice with the fake agent (no live model calls): real stdio MCP shim, loopback gateway, SQLite store, accepted-output finalization, plus a recovery scenario where the agent is SIGKILLed and the store is closed/reopened. It prints a JSON summary and exits 0 on success. The recovery scenario sets `backendProcessKilled: false`, so P0 does not itself prove backend SIGKILL recovery; see the P1 demo for that fake-agent proof. Real-CLI mid-run crash recovery remains open. See [tools/p0-demo/README.md](tools/p0-demo/README.md) and [docs/build-status.md](docs/build-status.md).
-
-### P1 linear CLI and demo
+### P1 linear CLI
 
 A minimal run from the repository root (needs a signed-in provider CLI):
 
@@ -72,13 +60,11 @@ Fresh `relay run` defaults to the registered project root; the starter example o
 
 For a real Claude Code/Codex/Opencode/Pi run, pass `--allow-experimental-adapters` again on resume as well as on run.
 
-The historical `pnpm demo:p1` proved the bounded P1 path: it SIGKILLs the CLI process that hosts SQLite, the engine and the gateway, then resumes the same run in a fresh process. It also exercised accepted-output recovery and an explicitly retried uncertain shell effect. It uses the fake agent and makes no paid model calls. That demo predates run-level workspaces and is preserved as P1 evidence; see [docs/build-status.md](docs/build-status.md) for the current gate state.
-
 Claude Code and Codex adapter contracts are implemented. Basic live fresh + resume was smoke-tested separately, but OS sandbox/permission enforcement, real-CLI crash handling and live mid-run recovery remain unverified; see [docs/build-status.md](docs/build-status.md).
 
 ### P2 loopback API and read-only viewer
 
-Build the workspace first: the server refuses to start without `apps/web/dist` and does not serve a placeholder viewer. Use a **persistent** data directory if you want to open the viewer after the producing process exits. The P0/P1/P2 demos use throwaway temp directories and delete them, so their runs are not viewable afterwards.
+Build the workspace first: the server refuses to start without `apps/web/dist` and does not serve a placeholder viewer. Use a **persistent** data directory if you want to open the viewer after the producing process exits. 
 
 Seed one run into a persistent directory, then start the viewer against the same directory:
 
@@ -100,8 +86,6 @@ pnpm relay:start --data-dir "$data"
 `--data-dir` is required and there is no `~/.relay` fallback. `start` binds loopback only and chooses the first free port in 4821–4890 (or an ephemeral port with `--port 0`); a taken explicit port falls back to an ephemeral one and reports the actual URL. The browser opens by default with a session `?t=<token>` bootstrap URL (the token stays valid until the server restarts); `--no-open` and `--print-url` control that. The token is written owner-only to `<dataDir>/server.json` for the CLI and is not printed in `--json` output. A second `start` attaches to a verified live instance instead of creating a second session.
 
 The viewer is read-only: project and run lists, run detail, execution attempts, paged transcripts, complete event history and event-based replay with a scrubber. Replay uses the shared reducer, disables mutation affordances, and can be linked with `?at=<eventId>`. SSE reconnects from `Last-Event-ID` and refetches on overflow; the live run stream is separate from the low-volume global hints stream. Execution process times are read from stored integer epoch milliseconds; invalid stored timestamps fail with `E_INTERNAL` instead of rendering a fabricated date. Frozen clean: `pnpm check` **567/1950/4 exit 0** with non-browser **1126/135** (`1074/122` + `50/13`, web **190/24**); independent focused P3.5 **1/1 in 9.21s** on `index-CKcmjq75.js` (`/tmp/codex-p35-browser-clean.log`) + HTTP **9/9** valid. Overall Chromium **8/9** on preceding equivalent source: P3.5 + model pass, **P4 routing fails `waitDeadEdges` after succeeded run** (log `/tmp/codex-p35-e2e-fixed.log`; isolated drag fails) — no claim 9/9. Historical routing **1050/124** (`index-ilEE3nLD.js` 1/1 11.59s + 8/8 122.39s) and P3 **915/105** remain historical. Session replay race fixed, limits `note ≤4096`/`criteria 32×≤256` verified, instrumentation removed. Local Linux only, no CI/macOS/live-provider.
-
-`pnpm demo:p2` exercises the real server, temp SQLite, MCP shim, fake agent and built web app: project/run views, live events, tab close/reopen, offline reconnect banner, replay matching the server projection, HTML escaping, keyboard/theme checks and axe with zero serious/critical violations. It also runs bounded API paging and negative security scenarios. It makes no paid model calls and needs a local Chromium; the Playwright e2e entry is `pnpm --filter @relay/p2-smoke test:e2e`.
 
 ### P3 workflow authoring and editor
 
@@ -141,7 +125,7 @@ pnpm relay:start --data-dir "$HOME/relay-data" \
   --allow-experimental-adapters
 ```
 
-`relay start` serves `apps/web/dist`. After `pnpm build` rebuilds the web app, **restart the server manually** if an older process is already running; it will not load the new assets by itself. Existing definitions and past run history are not rewritten: change an agent node's output mode explicitly if you want the new behavior. Automatic input handoff applies to new invocations only. The command opens the loopback URL with a bootstrap token; `--no-open` and `--print-url` control that. Use your own persistent `--data-dir`; do not point the P0–P3 demos at it because they use throwaway temporary directories. `GET /api/clis` lists the registry-backed agent CLIs (`claude-code`, `codex`, `opencode`, `pi`); the test-only fake CLI stays hidden unless `RELAY_ALLOW_FAKE=1`.
+`relay start` serves `apps/web/dist`. After `pnpm build` rebuilds the web app, **restart the server manually** if an older process is already running; it will not load the new assets by itself. Existing definitions and past run history are not rewritten: change an agent node's output mode explicitly if you want the new behavior. Automatic input handoff applies to new invocations only. The command opens the loopback URL with a bootstrap token; `--no-open` and `--print-url` control that. Use your own persistent `--data-dir`; use it only for real runs. `GET /api/clis` lists the registry-backed agent CLIs (`claude-code`, `codex`, `opencode`, `pi`); the test-only fake CLI stays hidden unless `RELAY_ALLOW_FAKE=1`.
 
 In the browser, with no JSON editing:
 
@@ -202,7 +186,7 @@ Files are canonical 2-space JSON with a trailing newline; the unquoted SHA-256 c
 ```text
 packages/*        @relay/core, schema, api, store, workspaces, adapters, engine, mcp, server, cli
 apps/web          React 19 + Vite workflow editor and run viewer
-tools/*           test-only fake agent (RELAY_ALLOW_FAKE=1), fixtures and bounded P0/P1/P2/P3 demos and acceptance
+tools/*           test-only fake agent (RELAY_ALLOW_FAKE=1), fixtures and browser e2e and acceptance harnesses (p2-smoke, p3-smoke)
 examples/*        portable linear workflow examples
 docs/             build plan, status, ADRs and spike reports
 ```
@@ -217,7 +201,7 @@ Conventions:
 
 ## CI
 
-`.github/workflows/ci.yml` runs check, test and build on Linux and macOS with Node 22 and 24, plus demo jobs for P0/P1/P2/P3 and Chromium-backed P2/P3 browser e2e jobs. These workflows are configured; they have not been executed on GitHub. Post-fix `pnpm check` is 567/1950 with non-browser **1126/135** (1074/122 + 50/13, web 190/24); focused P3.5 **1/1** + HTTP **9/9** valid, full suite **8/9** with routing dead-edges failure (not 9/9). Historical routing was 1050/124 with 8/8. Full P4/G4 remain open. `.github/workflows/sqlite-canary.yml` verifies the bundled prebuild and FTS5 on Linux/macOS with Node 22, 24 and 26 without a source compile.
+`.github/workflows/ci.yml` runs check, test and build on Linux and macOS with Node 22 and 24, plus a Chromium-backed P2/P3 browser e2e job. These workflows are configured; they have not been executed on GitHub. Post-fix `pnpm check` is 567/1950 with non-browser **1126/135** (1074/122 + 50/13, web 190/24); focused P3.5 **1/1** + HTTP **9/9** valid, full suite **8/9** with routing dead-edges failure (not 9/9). Historical routing was 1050/124 with 8/8. Full P4/G4 remain open. `.github/workflows/sqlite-canary.yml` verifies the bundled prebuild and FTS5 on Linux/macOS with Node 22, 24 and 26 without a source compile.
 
 The browser jobs install Chromium into the runner cache and export `RELAY_CHROMIUM_PATH`; they do not use a developer browser profile. If web/CLI dist, SQLite or Chromium is missing, the browser acceptance fails instead of skipping.
 
