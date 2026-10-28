@@ -35,7 +35,7 @@ async function main(): Promise<number> {
 
   const dataDir = resolve(options.dataDir ?? "");
   if (options.command === "doctor") {
-    const result = await runDoctor(dataDir);
+    const result = await runDoctor(dataDir, { probeDecisions: options.probeDecisions });
     printDoctor(result, options.json);
     return result.ok ? 0 : 1;
   }

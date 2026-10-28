@@ -89,6 +89,7 @@ function options(workflow: string): CliOptions {
     allowExperimentalAdapters: false,
     noOpen: true,
     printUrl: false,
+    probeDecisions: false,
   };
 }
 

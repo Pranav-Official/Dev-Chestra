@@ -56,6 +56,24 @@ describe("CLI args", () => {
     ).toBe(true);
   });
 
+  it("restricts the decision probe to doctor", () => {
+    expect(parseArgs(["doctor", "--data-dir", "/tmp/d", "--probe-decisions"]).probeDecisions).toBe(
+      true,
+    );
+    expect(parseArgs(["doctor", "--data-dir", "/tmp/d"]).probeDecisions).toBe(false);
+    expect(() =>
+      parseArgs([
+        "run",
+        "w.json",
+        "--project",
+        "/tmp/p",
+        "--data-dir",
+        "/tmp/d",
+        "--probe-decisions",
+      ]),
+    ).toThrow(UsageError);
+  });
+
   it("parses start flags and blocks run-only flags", () => {
     const options = parseArgs([
       "start",

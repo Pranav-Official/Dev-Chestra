@@ -114,6 +114,7 @@ export function options(overrides: Partial<CliOptions> = {}): CliOptions {
     allowExperimentalAdapters: false,
     noOpen: true,
     printUrl: false,
+    probeDecisions: false,
     ...overrides,
   };
 }

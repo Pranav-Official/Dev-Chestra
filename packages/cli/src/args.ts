@@ -21,6 +21,8 @@ export interface CliOptions {
   port?: number;
   noOpen: boolean;
   printUrl: boolean;
+  /** Doctor only: probe each ready decision provider with one live request. */
+  probeDecisions: boolean;
 }
 
 export class UsageError extends Error {
@@ -71,6 +73,7 @@ export function parseArgs(argv: string[]): CliOptions {
     allowExperimentalAdapters: false,
     noOpen: false,
     printUrl: false,
+    probeDecisions: false,
   };
   const positionals: string[] = [];
 
@@ -113,6 +116,10 @@ export function parseArgs(argv: string[]): CliOptions {
     }
     if (arg === "--print-url") {
       options.printUrl = true;
+      continue;
+    }
+    if (arg === "--probe-decisions") {
+      options.probeDecisions = true;
       continue;
     }
     if (arg === "--port") {
@@ -253,6 +260,9 @@ export function parseArgs(argv: string[]): CliOptions {
   if (options.retryUncertainShell && options.command !== "resume") {
     throw new UsageError("--retry-uncertain-shell is only valid with resume.");
   }
+  if (options.probeDecisions && options.command !== "doctor") {
+    throw new UsageError("--probe-decisions is only valid with doctor.");
+  }
   if (
     options.fakeScript !== undefined &&
     options.command !== "run" &&
@@ -276,7 +286,7 @@ Usage:
   relay start --data-dir <dir> [--port N] [--no-open] [--print-url] [options]
   relay run <workflow.json> --project <dir> --data-dir <dir> [options]
   relay resume <runId> --data-dir <dir> [--retry-uncertain-shell] [options]
-  relay doctor --data-dir <dir> [--json]
+  relay doctor --data-dir <dir> [--json] [--probe-decisions]
   relay version
 
 Options:
@@ -294,6 +304,8 @@ Options:
   --allow-experimental-adapters
                               Allow real claude-code/codex adapters; not verified
   --retry-uncertain-shell     Resume only: retry an uncertain shell effect
+  --probe-decisions           Doctor only: send one tiny live request per ready
+                              decision provider and print the redacted shape
   --data-dir <dir>            Required; no default in this milestone
   --project <dir>             Run only: workflow must be inside it
 `;

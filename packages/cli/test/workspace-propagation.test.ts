@@ -47,6 +47,7 @@ function options(dataDir: string, fakeScript: string): CliOptions {
     allowExperimentalAdapters: false,
     noOpen: true,
     printUrl: false,
+    probeDecisions: false,
     dataDir,
     fakeScript,
   };

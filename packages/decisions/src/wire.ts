@@ -1,7 +1,13 @@
 import type { JsonValue } from "@relay/core";
 import { RelayError } from "@relay/core";
 import type { DecisionPreset } from "./presets.js";
-import type { DecisionOutput, DecisionQuestion, DecisionRequest, DecisionUsage } from "./types.js";
+import type {
+  DecisionOutput,
+  DecisionQuestion,
+  DecisionRequest,
+  DecisionUsage,
+  ResponseShapeSummary,
+} from "./types.js";
 
 /** Local limits checked before anything reaches the network (contract §7). */
 export const MAX_STATE_BYTES = 64 * 1024;
@@ -344,4 +350,55 @@ export function parseDecisionPayload(args: ParseDecisionPayloadArgs): ParsedDeci
 
 function questionKindOf(question: DecisionQuestion): DecisionOutput["kind"] {
   return question.kind === "boolean" ? "boolean" : question.kind;
+}
+
+// --- Redacted response shape -------------------------------------------------
+// Key names and value types only: never values, never secret material. Both
+// counts and name lengths are capped so a hostile body cannot bloat logs.
+
+/** At most this many key names per list in a shape summary. */
+export const MAX_SHAPE_KEYS = 32;
+/** Key names longer than this are truncated in a shape summary. */
+export const MAX_SHAPE_KEY_CHARS = 64;
+
+function shapeKey(key: string): string {
+  return key.length > MAX_SHAPE_KEY_CHARS ? key.slice(0, MAX_SHAPE_KEY_CHARS) : key;
+}
+
+function shapeTypeOf(value: unknown): string {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "array";
+  return typeof value;
+}
+
+/**
+ * Summarize the raw provider body for the live probe: top-level key names,
+ * the answer's key names and value TYPES, whether it was `{ result }`
+ * wrapped, and whether confidence/probabilities/usage were present.
+ */
+export function summarizeResponseShape(payload: unknown): ResponseShapeSummary {
+  const top = isRecord(payload) ? payload : {};
+  const wrapped = isRecord(top.result) && top.result !== top;
+  const inner = wrapped ? (top.result as Record<string, unknown>) : top;
+  const container = firstRecord(inner, ANSWER_CONTAINER_KEYS);
+  const answer =
+    container !== undefined && isRecord(container.q0)
+      ? (container.q0 as Record<string, unknown>)
+      : undefined;
+  const answerValueTypes: Record<string, string> = {};
+  if (answer !== undefined) {
+    for (const key of Object.keys(answer).slice(0, MAX_SHAPE_KEYS)) {
+      answerValueTypes[shapeKey(key)] = shapeTypeOf(answer[key]);
+    }
+  }
+  return {
+    wrappedInResult: wrapped,
+    topLevelKeys: Object.keys(top).slice(0, MAX_SHAPE_KEYS).map(shapeKey),
+    answerKeys: Object.keys(answerValueTypes),
+    answerValueTypes,
+    hasConfidence: answer !== undefined && providerConfidence(answer) !== undefined,
+    hasProbabilities:
+      answer !== undefined && firstRecord(answer, PROBABILITY_MAP_KEYS) !== undefined,
+    hasUsage: readUsage(inner) !== undefined || readUsage(top) !== undefined,
+  };
 }

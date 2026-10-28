@@ -12,9 +12,10 @@ import type {
   DecisionRequest,
   DecisionResponse,
   DecisionService,
+  ResponseShapeSummary,
   TestReport,
 } from "./types.js";
-import { buildDecisionBody, parseDecisionPayload } from "./wire.js";
+import { buildDecisionBody, parseDecisionPayload, summarizeResponseShape } from "./wire.js";
 
 /** At most 8 concurrent calls per provider (contract §7). */
 export const MAX_CONCURRENT_PER_PROVIDER = 8;
@@ -212,7 +213,12 @@ export function createDecisionClient(
         question: req.question,
         modelFallback: preset.bodyModel,
       });
-      const response: DecisionResponse = { output: parsed.output, latencyMs: Date.now() - started };
+      const shape: ResponseShapeSummary = summarizeResponseShape(payload);
+      const response: DecisionResponse = {
+        output: parsed.output,
+        latencyMs: Date.now() - started,
+        shape,
+      };
       if (parsed.usage !== undefined) {
         response.usage = parsed.usage;
       }
@@ -247,7 +253,14 @@ export function createDecisionClient(
       signal,
     );
     if (result.ok) {
-      return { ok: true, provider, model, latencyMs: Date.now() - started };
+      return {
+        ok: true,
+        provider,
+        model,
+        latencyMs: Date.now() - started,
+        resolvedModel: result.value.output.model,
+        shape: result.value.shape,
+      };
     }
     return {
       ok: false,
