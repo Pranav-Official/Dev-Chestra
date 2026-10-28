@@ -55,6 +55,14 @@ export async function executeAgent(
     return;
   }
 
+  // Pre-flight CLI gate before any durable work or workspace acquisition.
+  // An unknown or non-opted-in experimental CLI id must fail with E_CLI_MISSING
+  // without acquiring a workspace (previously the unknown-CLI throw happened
+  // after acquire and outside the release `finally`, leaking the workspace)
+  // and without recording a durable attempt. This duplicates the resolution at
+  // the top of runAttempts, which is cheap and idempotent (registry reads).
+  resolveAgentAdapter(ctx, node);
+
   const configHash = await hashJson(stripUi(node.raw));
   const mode =
     execution.status === "interrupted" || execution.sessionId !== null ? "resume" : "fresh";
