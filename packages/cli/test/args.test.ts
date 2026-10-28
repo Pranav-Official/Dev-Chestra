@@ -36,6 +36,17 @@ describe("CLI args", () => {
     expect(parseArgs(["doctor", "--data-dir", "/tmp/d"]).dataDir).toBe("/tmp/d");
   });
 
+  it("parses stop and status with their own flags", () => {
+    expect(parseArgs(["status"]).command).toBe("status");
+    const stop = parseArgs(["stop", "--force", "--timeout", "30", "--json"]);
+    expect(stop).toMatchObject({ command: "stop", force: true, timeoutSecs: 30, json: true });
+    expect(parseArgs(["stop"]).dataDir).toBe(defaultDataDir());
+    expect(() => parseArgs(["status", "--force"])).toThrow(UsageError);
+    expect(() => parseArgs(["stop", "--timeout", "0"])).toThrow(UsageError);
+    expect(() => parseArgs(["stop", "--timeout", "abc"])).toThrow(UsageError);
+    expect(() => parseArgs(["stop", "extra"])).toThrow(UsageError);
+  });
+
   it("accepts the deprecated --allow-experimental-adapters flag and records it", () => {
     const options = parseArgs(["start", "--allow-experimental-adapters"]);
     expect(options.deprecatedFlags).toEqual(["--allow-experimental-adapters"]);

@@ -33,6 +33,7 @@ The lockfile is present in the workspace. CI installs with `pnpm install --froze
 | `pnpm depcruise` | Dependency direction check over `packages`, `tools` and `apps` |
 | `pnpm audit --audit-level high` | Dependency audit at high severity; CI also runs it |
 | `pnpm devchestra ...` | Runs the CLI from source with the workspace root as cwd (`devchestra --help`) |
+| `devchestra stop` / `devchestra status` | Stop the running server (refuses while runs are active unless `--force`) / show whether it is running, its URL and active runs. `status` exits 0 when running, 1 otherwise |
 | `pnpm devchestra:start --data-dir <dir>` | Starts the loopback web server, editor and viewer (requires `apps/web/dist`; the data dir defaults to `~/.local/share/devchestra`) |
 | `pnpm devchestra:run ...` | `devchestra run` forwarding |
 | `pnpm devchestra:resume <runId> ...` | `devchestra resume` forwarding |

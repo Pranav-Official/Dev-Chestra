@@ -5,6 +5,7 @@ import { executeResume, executeRun } from "./commands.js";
 import { printDoctor, runDoctor } from "./doctor.js";
 import { acquireDataDirLock, DataDirLockedError, type LockHandle } from "./lock.js";
 import { exitCodeForError, safeError, writeSummary } from "./output.js";
+import { runStatus, runStop } from "./server-commands.js";
 import { executeStart } from "./start.js";
 
 const VERSION = "0.1.0";
@@ -40,6 +41,16 @@ async function main(): Promise<number> {
     );
   }
   const dataDir = resolve(options.dataDir ?? "");
+  if (options.command === "status") {
+    return await runStatus(dataDir, options.json);
+  }
+  if (options.command === "stop") {
+    return await runStop(dataDir, {
+      force: options.force === true,
+      timeoutMs: (options.timeoutSecs ?? 15) * 1000,
+      json: options.json,
+    });
+  }
   if (options.command === "doctor") {
     const result = await runDoctor(dataDir, { probeDecisions: options.probeDecisions });
     printDoctor(result, options.json);

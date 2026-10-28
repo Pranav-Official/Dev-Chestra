@@ -46,6 +46,18 @@ pnpm devchestra run workflow.json \
 
 The workflow path must resolve inside `--project`. Supported agent CLIs are `claude-code`, `codex`, `opencode` and `pi` (registry-backed; see `GET /api/clis`) and are official (no opt-in flag). The fake CLI is test-only behind `DEVCHESTRA_ALLOW_FAKE=1`; its script is an explicit caller fixture, never read from workflow `cliOptions`.
 
+## Stopping and checking the server
+
+```sh
+devchestra status            # running? url, uptime, active runs; exit 0 if running, 1 if not
+devchestra stop              # graceful stop (SIGTERM); refuses while runs are active
+devchestra stop --force      # stop anyway; SIGKILL if it will not exit within --timeout (default 15s)
+```
+
+Both read the server record in the data dir and verify the recorded process is really the DevChestra server
+(pid and start time) before signalling it, so a recycled pid is never touched. `stop` also clears a leftover
+record after a crash or reboot. Add `--json` for machine-readable output.
+
 ## Options
 
 - `--param k=v` — repeatable; JSON scalars/objects are parsed, otherwise the value is a string.
@@ -55,6 +67,7 @@ The workflow path must resolve inside `--project`. Supported agent CLIs are `cla
 - `--retry-uncertain-shell` — resume only; explicit user approval to retry an interrupted shell that may have had external effects. Without it, an uncertain shell pause exits 5 and is not replayed.
 - `--allow-experimental-adapters` — deprecated and ignored; all adapters are official.
 - `--fake-script <file>` — test-only fake-agent script for start/run/resume (requires `DEVCHESTRA_ALLOW_FAKE=1`). For `start` it applies to every fake-agent run launched through the API; browser requests cannot inject a script.
+- `--force` / `--timeout <secs>` — stop only: stop despite active runs and SIGKILL if the server will not exit; seconds to wait for a clean exit (default 15).
 - `--budget-usd N` — rejected in P1; budgets are not enforced by the linear runner.
 
 ## Exit codes

@@ -1,7 +1,15 @@
 import { isFakeCliEnabled } from "@devchestra/schema";
 import { defaultDataDir } from "./data-dir.js";
 
-export type CommandName = "run" | "resume" | "start" | "doctor" | "version" | "help";
+export type CommandName =
+  | "run"
+  | "resume"
+  | "start"
+  | "stop"
+  | "status"
+  | "doctor"
+  | "version"
+  | "help";
 
 export interface CliOptions {
   command: CommandName;
@@ -25,6 +33,10 @@ export interface CliOptions {
   port?: number;
   noOpen: boolean;
   printUrl: boolean;
+  /** Stop only: stop even with active runs, and SIGKILL if the server will not exit. */
+  force?: boolean;
+  /** Stop only: seconds to wait for a clean exit (default 15). */
+  timeoutSecs?: number;
   /** Doctor only: probe each ready decision provider with one live request. */
   probeDecisions: boolean;
 }
@@ -126,6 +138,19 @@ export function parseArgs(argv: string[]): CliOptions {
       options.printUrl = true;
       continue;
     }
+    if (arg === "--force") {
+      options.force = true;
+      continue;
+    }
+    if (arg === "--timeout") {
+      const taken = takeValue(argv, index, arg);
+      if (!/^\d+$/.test(taken.value) || Number(taken.value) < 1 || Number(taken.value) > 600) {
+        throw new UsageError("--timeout must be a whole number of seconds from 1 to 600.");
+      }
+      options.timeoutSecs = Number(taken.value);
+      index = taken.next;
+      continue;
+    }
     if (arg === "--probe-decisions") {
       options.probeDecisions = true;
       continue;
@@ -223,6 +248,10 @@ export function parseArgs(argv: string[]): CliOptions {
     options.runId = runId;
   } else if (command === "start") {
     options.command = "start";
+  } else if (command === "stop") {
+    options.command = "stop";
+  } else if (command === "status") {
+    options.command = "status";
   } else if (command === "doctor") {
     options.command = "doctor";
   } else if (command === "version") {
@@ -266,6 +295,12 @@ export function parseArgs(argv: string[]): CliOptions {
   if (options.retryUncertainShell && options.command !== "resume") {
     throw new UsageError("--retry-uncertain-shell is only valid with resume.");
   }
+  if (
+    (options.force !== undefined || options.timeoutSecs !== undefined) &&
+    options.command !== "stop"
+  ) {
+    throw new UsageError("--force and --timeout are only valid with stop.");
+  }
   if (options.probeDecisions && options.command !== "doctor") {
     throw new UsageError("--probe-decisions is only valid with doctor.");
   }
@@ -292,6 +327,8 @@ Usage:
   devchestra start [--data-dir <dir>] [--port N] [--no-open] [--print-url] [options]
   devchestra run <workflow.json> --project <dir> [--data-dir <dir>] [options]
   devchestra resume <runId> [--data-dir <dir>] [--retry-uncertain-shell] [options]
+  devchestra stop [--data-dir <dir>] [--force] [--timeout <secs>] [--json]
+  devchestra status [--data-dir <dir>] [--json]
   devchestra doctor [--data-dir <dir>] [--json] [--probe-decisions]
   devchestra version
 
@@ -309,6 +346,8 @@ Options:
   --non-interactive           Never prompt
   --allow-experimental-adapters
                               Deprecated and ignored: all adapters are official
+  --force                     Stop only: stop despite active runs; SIGKILL if it will not exit
+  --timeout <secs>            Stop only: wait this long for a clean exit (default 15)
   --retry-uncertain-shell     Resume only: retry an uncertain shell effect
   --probe-decisions           Doctor only: send one tiny live request per ready
                               decision provider and print the redacted shape
