@@ -193,6 +193,55 @@ describe("engine decision executor", () => {
     await engine.stop();
   });
 
+  it("records the resolved state as the node input and counts the reported usage", async () => {
+    const standin = await startStandin();
+    trackStandin(standin);
+    const { store, deps } = setup(standin);
+    const engine = createEngine(deps);
+    const snap = snapshot(
+      [
+        start(),
+        shell("sh", "printf hello"),
+        decision("d", { state: "summary: {{ sh.stdout }}", instructions: "Is it ready?" }),
+        end("et", '"ok"'),
+        end("ef", '"no"'),
+        end("eu", '"unsure"'),
+      ],
+      [
+        ["start", "sh"],
+        ["sh", "d"],
+        ["d.true", "et"],
+        ["d.false", "ef"],
+        ["d.uncertain", "eu"],
+      ],
+    );
+    const result = await engine.run(launchInput(snap));
+    if (!result.ok) throw result.error;
+    expect(result.value.status).toBe("succeeded");
+
+    // The viewer's "Input" comes from node.input.resolved: it must carry the rendered state.
+    const inputs = events(store, result.value.runId, "node.input.resolved").filter(
+      (e) => e.path === "d",
+    );
+    expect(inputs).toHaveLength(1);
+    expect(inputs[0]?.payload).toMatchObject({
+      inputsHash: expect.any(String),
+      inputs: {
+        provider: "typesafe-jev",
+        kind: "boolean",
+        instructions: "Is it ready?",
+        state: "summary: hello",
+      },
+    });
+
+    // The stand-in reports 12 input and 5 output tokens; the run view must count them.
+    const view = store.view.get(result.value.runId as never);
+    expect(view.executions.d?.tokensIn).toBe(12);
+    expect(view.executions.d?.tokensOut).toBe(5);
+    expect(scanForKeys(store, result.value.runId)).toEqual([]);
+    await engine.stop();
+  });
+
   it("routes choice to the branch holding the picked option", async () => {
     const standin = await startStandin();
     trackStandin(standin);

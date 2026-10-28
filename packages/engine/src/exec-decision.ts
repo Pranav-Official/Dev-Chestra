@@ -1,5 +1,5 @@
 import type { DecisionOutput, ExecutionIdentity, Path } from "@relay/core";
-import { RelayError } from "@relay/core";
+import { hashJson, RelayError } from "@relay/core";
 import type { DecisionQuestion, DecisionRequest } from "@relay/decisions";
 import { DECISION_PRESETS } from "@relay/decisions";
 import {
@@ -183,6 +183,21 @@ export async function executeDecision(
     resolvedConfigHash: configHash,
   });
   try {
+    // Resolve and record the input first, on every path (fresh or recovery), so
+    // the viewer always shows what the question was asked about. Rendering is
+    // deterministic over the frozen ancestors, so a recovery sees the same state.
+    const ancestors = await ctx.chainOutputs(run, plan, node.id);
+    const scope = buildScopeData(run.params, ancestors);
+    const rendered = await ctx.render(config.stateTemplate, scope, false);
+    const resolvedInput = {
+      provider: config.provider,
+      ...(config.model === undefined ? {} : { model: config.model }),
+      kind: config.mode.kind,
+      instructions: config.instructions,
+      state: rendered.text,
+    };
+    ctx.appendInputResolved(identity, await hashJson(resolvedInput), resolvedInput);
+
     // Recovery: an already-persisted answer is reused without calling the
     // provider again (a resume never re-asks and pays again). The wiring
     // decision is re-derived and, when uncertain is unwired, the same clear
@@ -221,9 +236,6 @@ export async function executeDecision(
       );
     }
 
-    const ancestors = await ctx.chainOutputs(run, plan, node.id);
-    const scope = buildScopeData(run.params, ancestors);
-    const rendered = await ctx.render(config.stateTemplate, scope, false);
     const request: DecisionRequest = {
       provider: config.provider,
       ...(config.model === undefined ? {} : { model: config.model }),
@@ -252,6 +264,16 @@ export async function executeDecision(
     // The call returned, so persist the answer before handling the interrupt:
     // an abort that lands here interrupts the run but a resume reuses the
     // stored answer instead of asking (and paying) again (F7a).
+    // Count the tokens the provider reported while the execution is still running,
+    // so the run totals and the viewer reflect what the call used. No cost is
+    // reported by these providers, so the cost source is "none".
+    if (response.usage !== undefined) {
+      ctx.appendUsage(
+        identity,
+        { tokensIn: response.usage.inputTokens, tokensOut: response.usage.outputTokens },
+        "none",
+      );
+    }
     const routing = routeDecision(config.mode, response.output);
     if (routing.branch === null) {
       throw new RelayError(
