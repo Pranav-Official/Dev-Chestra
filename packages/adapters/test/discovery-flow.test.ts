@@ -1,4 +1,4 @@
-import { chmod, copyFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,7 +28,10 @@ async function mkTemp(prefix: string): Promise<string> {
 async function piBin(
   dir: string,
   scenario: Record<string, unknown>,
-): Promise<{ bin: string; req: (extra?: Partial<PiModelDiscoveryRequest>) => PiModelDiscoveryRequest }> {
+): Promise<{
+  bin: string;
+  req: (extra?: Partial<PiModelDiscoveryRequest>) => PiModelDiscoveryRequest;
+}> {
   const bin = join(dir, "pi-stub.mjs");
   await copyFile(PI_STUB, bin);
   await chmod(bin, 0o755);
@@ -53,7 +56,10 @@ async function piBin(
 async function opencodeBin(
   dir: string,
   scenario: Record<string, unknown>,
-): Promise<{ bin: string; req: (extra?: Partial<OpencodeModelDiscoveryRequest>) => OpencodeModelDiscoveryRequest }> {
+): Promise<{
+  bin: string;
+  req: (extra?: Partial<OpencodeModelDiscoveryRequest>) => OpencodeModelDiscoveryRequest;
+}> {
   const bin = join(dir, "opencode-standin.mjs");
   await copyFile(OPENCODE_STANDIN, bin);
   await chmod(bin, 0o755);
@@ -79,7 +85,7 @@ async function opencodeBin(
 
 async function sleeperBin(dir: string, name: string): Promise<string> {
   const bin = join(dir, name);
-  await writeFile(bin, '#!/usr/bin/env node\nawait new Promise((r) => setTimeout(r, 5000));\n');
+  await writeFile(bin, "#!/usr/bin/env node\nawait new Promise((r) => setTimeout(r, 5000));\n");
   await chmod(bin, 0o755);
   return bin;
 }
@@ -111,9 +117,10 @@ describe("pi discovery flow characterization", () => {
 
   it("oversized output is tailed, not failed: ready with fewer items", async () => {
     const dir = await mkTemp("relay-pi-flow-");
-    const rows = Array.from({ length: 20 }, (_, i) => `opencode-go   m${i}   1M   1K   yes   no`).join(
-      "\n",
-    );
+    const rows = Array.from(
+      { length: 20 },
+      (_, i) => `opencode-go   m${i}   1M   1K   yes   no`,
+    ).join("\n");
     const { req } = await piBin(dir, { table: `provider model\n${rows}\n` });
     const result = await discoverPiModels(req({ maxStdoutBytes: 200 }));
     expect(result.status).toBe("ready");
@@ -183,7 +190,12 @@ describe("opencode discovery flow characterization", () => {
     expect(result.cliVersion).toBeNull();
     expect(result.truncated).toBe(false);
     expect(result.items).toEqual([
-      { id: "opencode/gpt-5", label: "opencode/gpt-5", provider: "opencode", source: "opencode-models" },
+      {
+        id: "opencode/gpt-5",
+        label: "opencode/gpt-5",
+        provider: "opencode",
+        source: "opencode-models",
+      },
     ]);
     expect(result.message).toBeUndefined();
   });

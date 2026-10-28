@@ -89,13 +89,14 @@ export async function runModelDiscovery<TItem, TResult>(
 
   let cliVersion: string | null = null;
   try {
-    cliVersion = (await spec.probeCliVersion?.({
-      bin,
-      cwd: request.cwd,
-      env: request.env,
-      signal: request.signal,
-      remaining,
-    })) ?? null;
+    cliVersion =
+      (await spec.probeCliVersion?.({
+        bin,
+        cwd: request.cwd,
+        env: request.env,
+        signal: request.signal,
+        remaining,
+      })) ?? null;
   } catch {
     cliVersion = null;
   }
