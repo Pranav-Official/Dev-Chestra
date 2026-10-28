@@ -104,6 +104,12 @@ export interface ExpressionExecutor {
     scope: Readonly<Record<string, unknown>>,
     options: { timeoutMs: number },
   ): Promise<unknown>;
+  /**
+   * Extra wall-clock time the executor may need to become ready (for example a
+   * worker cold start) before the evaluation budget begins. `evaluate()` adds it to
+   * its backstop timer. Omit for executors that start instantly.
+   */
+  readonly startupGraceMs?: number;
 }
 
 export interface EvaluateOptions {
@@ -382,9 +388,14 @@ export async function evaluate(
     const frozen = cloneScope(scope);
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => {
-        reject(exprError(`Expression timed out after ${timeoutMs}ms`));
-      }, timeoutMs);
+      // Backstop only: the executor owns the real budget. Startup (cold start) is not part
+      // of it, so executors that need time to boot declare `startupGraceMs`.
+      timer = setTimeout(
+        () => {
+          reject(exprError(`Expression timed out after ${timeoutMs}ms`));
+        },
+        timeoutMs + (executor.startupGraceMs ?? 0),
+      );
     });
     let value: unknown;
     try {

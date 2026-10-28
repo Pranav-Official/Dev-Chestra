@@ -39,6 +39,7 @@ export function createNodeExpressionExecutor(
 ): ExpressionExecutor {
   const workerUrl = options.workerUrl ?? new URL("./worker.js", import.meta.url);
   return {
+    startupGraceMs: WORKER_START_TIMEOUT_MS,
     evaluate(source, scope, options) {
       return new Promise<unknown>((resolve, reject) => {
         const timeoutMs =

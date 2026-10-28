@@ -137,6 +137,19 @@ describe("JSONata execution", () => {
     await expect(slowBoot.evaluate("1 + 1", {}, { timeoutMs: 100 })).resolves.toBe(2);
   });
 
+  it("keeps the evaluate() backstop from charging worker cold start", async () => {
+    // The public entry wraps the executor in its own backstop timer; it must allow
+    // the executor's declared startup time, or it cancels the executor-level fix.
+    const slowBoot = createNodeExpressionExecutor({
+      workerUrl: new URL("./fixtures/slow-boot-worker.mjs", import.meta.url),
+    });
+    const compiled = compileExpression("1 + 1");
+    if (!compiled.ok) throw compiled.error;
+    const result = await evaluate(compiled.value, {}, { timeoutMs: 100, executor: slowBoot });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value).toBe(2);
+  });
+
   it("still enforces the evaluation budget once the worker is running", async () => {
     const started = Date.now();
     await expect(
