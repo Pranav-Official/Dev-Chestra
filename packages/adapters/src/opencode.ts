@@ -1,5 +1,6 @@
 import { ok, type RelayError, type Result } from "@relay/core";
 import { clip, NdjsonParser, num, parseObject, record, str } from "./parsers.js";
+import { hasControl } from "./discovery-util.js";
 import { checkDir, classifyExit, fail, requireOptionKeys } from "./plan.js";
 import { probeVersion } from "./probe.js";
 import { opencodeStatic } from "./provider-config.js";
@@ -20,14 +21,6 @@ import type {
 const SESSION_RE = /^ses_[A-Za-z0-9]{1,128}$/;
 const MODEL_MAX = 256;
 const PROMPT_MAX_BYTES = 256 * 1024;
-
-function hasControl(value: string): boolean {
-  for (const char of value) {
-    const code = char.codePointAt(0) ?? 0;
-    if (code < 0x20 || code === 0x7f) return true;
-  }
-  return false;
-}
 
 function usageOf(part: Record<string, unknown>): AdapterEvent[] {
   // step_finish tokens are per-step deltas, not cumulative totals: emit them

@@ -1,3 +1,5 @@
+import { isRecord } from "@relay/core";
+import { boundCount, boundMs, hasControl, printable } from "./discovery-util.js";
 import type { ClaudeModelDiscovery, ClaudeModelDiscoveryStatus, ClaudeModelItem } from "./types.js";
 
 const ID_MAX = 256;
@@ -76,20 +78,6 @@ export function claudeFailure(reason: ClaudeFailureReason): ClaudeModelDiscovery
   };
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-export function boundMs(value: number | undefined, fallback: number): number {
-  if (value === undefined || !Number.isFinite(value)) return fallback;
-  return Math.min(fallback, Math.max(1, Math.floor(value)));
-}
-
-export function boundCount(value: number | undefined, fallback: number): number {
-  if (value === undefined || !Number.isFinite(value)) return fallback;
-  return Math.min(fallback, Math.max(1, Math.floor(value)));
-}
-
 export function claudeLimits(request: {
   timeoutMs?: number;
   maxStdoutBytes?: number;
@@ -105,23 +93,6 @@ export function claudeLimits(request: {
     maxModels: boundCount(request.maxModels, MODELS_MAX),
     graceMs: boundMs(request.graceMs, DEFAULT_GRACE_MS),
   };
-}
-
-function hasControl(value: string): boolean {
-  for (const char of value) {
-    const code = char.codePointAt(0) ?? 0;
-    if (code < 0x20 || code === 0x7f) return true;
-  }
-  return false;
-}
-
-function printable(value: string): string {
-  let out = "";
-  for (const char of value) {
-    const code = char.codePointAt(0) ?? 0;
-    out += code < 0x20 || code === 0x7f ? " " : char;
-  }
-  return out.replace(/\s+/gu, " ").trim();
 }
 
 function capped(value: string, max: number): string {
