@@ -2,6 +2,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createAdapterRegistry } from "@relay/adapters";
 import { isTerminalRunStatus, type JsonObject, RelayError, type RunStatus } from "@relay/core";
+import { createDecisionService } from "@relay/decisions";
 import { createEngine, type Engine, type RunOutcome, type WorkspacePort } from "@relay/engine";
 import { PROD_CLIS, validateParams } from "@relay/schema";
 import { OutputValidator } from "@relay/server";
@@ -87,6 +88,10 @@ export function createCliEngine(
     allowExperimentalClis: options.allowExperimentalAdapters ? [...PROD_CLIS] : [],
     extraEnvNames: ["FAKE_AGENT_CHECKPOINT"],
     validateOutput: (schema, value) => outputValidator.compile(schema).validate(value),
+    // Secrets come from process.env then a cwd `.env` (loadDecisionSecrets
+    // defaults); the service reads them lazily per call and never mutates
+    // process.env. Never passed to agent CLIs or shell nodes.
+    decisions: createDecisionService(),
   });
 }
 

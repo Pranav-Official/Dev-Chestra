@@ -3,6 +3,8 @@ import { existsSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createDecisionService, decisionProviders } from "@relay/decisions";
+import { DECISION_PROVIDER_LABELS } from "@relay/schema";
 import { openStore, type Store } from "@relay/store";
 import {
   acquireDataDirLock,
@@ -100,6 +102,27 @@ function checkStore(store: Store): DoctorCheck[] {
   return checks;
 }
 
+function checkDecisionProviders(): DoctorCheck[] {
+  // Readiness only: missing entries name the VARIABLES, never their values.
+  const service = createDecisionService();
+  return decisionProviders().map((id) => {
+    const availability = service.client(id).availability();
+    if (availability.ready) {
+      return {
+        name: `decision-${id}`,
+        status: "pass" as const,
+        message: `${DECISION_PROVIDER_LABELS[id]} is ready`,
+      };
+    }
+    return {
+      name: `decision-${id}`,
+      status: "warn" as const,
+      message: `${DECISION_PROVIDER_LABELS[id]} is not configured: missing ${availability.missing.join(", ")}`,
+      fix: "Set the named variables in the environment or a `.env` file next to where `relay` is run (see `.env.example`).",
+    };
+  });
+}
+
 export async function runDoctor(dataDir: string): Promise<DoctorResult> {
   const checks: DoctorCheck[] = [];
   const major = nodeMajor();
@@ -189,6 +212,7 @@ export async function runDoctor(dataDir: string): Promise<DoctorResult> {
           fix: "Run `pnpm -r build`.",
         },
   );
+  checks.push(...checkDecisionProviders());
 
   let store: Store | undefined;
   try {

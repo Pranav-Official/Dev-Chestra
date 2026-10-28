@@ -12,6 +12,7 @@ import {
   type RunId,
   type RunStatus,
 } from "@relay/core";
+import { createDecisionService } from "@relay/decisions";
 import type { Engine } from "@relay/engine";
 import type {
   BrowserModelCatalogPort,
@@ -163,6 +164,7 @@ async function defaultBrowserFactory(wiring: BrowserWiring): Promise<BrowserList
     modelCatalog: wiring.modelCatalog,
     workspaceService: createBrowserWorkspaceService(),
     stream: createBrowserStream(wiring.store),
+    decisions: createDecisionService(),
     sessionToken: wiring.sessionToken,
     instanceId: wiring.instanceId,
     version: wiring.version,

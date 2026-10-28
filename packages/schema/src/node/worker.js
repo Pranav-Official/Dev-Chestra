@@ -52,6 +52,50 @@ function capResult(value) {
   return JSON.parse(text);
 }
 
+// A null operand to a relational comparison (<, <=, >, >=) makes JSONata
+// throw T2010. Relay semantics: unknown (null) values compare false instead
+// of failing the expression, so `d.confidence >= 0.8` is false when the
+// provider refused and confidence is null. Every other type error (string
+// vs number, boolean operands, ...) still throws, keeping gates fail-closed.
+function nullsToUndefined(value, seen = new Set()) {
+  if (value === null) return undefined;
+  if (typeof value !== "object" || value === undefined) return value;
+  if (seen.has(value)) return value;
+  seen.add(value);
+  if (Array.isArray(value)) return value.map((item) => nullsToUndefined(item, seen));
+  const proto = Object.getPrototypeOf(value);
+  if (proto !== Object.prototype && proto !== null) return value;
+  const out = {};
+  for (const [key, item] of Object.entries(value)) {
+    const converted = nullsToUndefined(item, seen);
+    if (converted !== undefined) out[key] = converted;
+  }
+  return out;
+}
+
+async function runOnce(source, scope, timeoutMs) {
+  const expression = jsonata(source, {
+    timeout: Math.max(1, Math.trunc(timeoutMs)),
+    stack: 100,
+  });
+  return expression.evaluate(scope);
+}
+
+function workerError(error) {
+  const message =
+    error && typeof error === "object" && "message" in error
+      ? String(error.message)
+      : String(error);
+  const code =
+    error && typeof error === "object" && typeof error.code === "string" ? error.code : undefined;
+  const reply = { ok: false, error: message };
+  if (code !== undefined) reply.code = code;
+  if (error && typeof error === "object" && "value" in error && error.value === null) {
+    reply.nullOperand = true;
+  }
+  return reply;
+}
+
 parentPort.once("message", async (request) => {
   if (
     request === null ||
@@ -66,17 +110,33 @@ parentPort.once("message", async (request) => {
   }
 
   try {
-    const expression = jsonata(request.source, {
-      timeout: Math.max(1, Math.trunc(request.timeoutMs)),
-      stack: 100,
-    });
-    const value = await expression.evaluate(request.scope);
+    const value = await runOnce(request.source, request.scope, request.timeoutMs);
     parentPort.postMessage({ ok: true, value: capResult(value) });
   } catch (error) {
-    const message =
-      error && typeof error === "object" && "message" in error
-        ? String(error.message)
-        : String(error);
-    parentPort.postMessage({ ok: false, error: message });
+    const code = error && typeof error === "object" ? error.code : undefined;
+    const nullOperand =
+      error && typeof error === "object" && "value" in error && error.value === null;
+    if (code === "T2010" && nullOperand) {
+      // Retry with nulls as undefined: a null comparison yields undefined,
+      // which sanitizes to null/false downstream. A concrete retry result is
+      // returned as-is (boolean composition still resolves); any fresh error
+      // is genuine and replaces the original.
+      try {
+        const retry = await runOnce(
+          request.source,
+          nullsToUndefined(request.scope),
+          request.timeoutMs,
+        );
+        if (retry === undefined) {
+          parentPort.postMessage({ ok: true, value: false });
+        } else {
+          parentPort.postMessage({ ok: true, value: capResult(retry) });
+        }
+      } catch (retryError) {
+        parentPort.postMessage(workerError(retryError));
+      }
+      return;
+    }
+    parentPort.postMessage(workerError(error));
   }
 });

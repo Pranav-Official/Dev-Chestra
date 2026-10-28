@@ -25,6 +25,7 @@
     "@relay/adapters": "workspace:*",
     "@relay/api": "workspace:*",
     "@relay/core": "workspace:*",
+    "@relay/decisions": "workspace:*",
     "@relay/mcp": "workspace:*",
     "@relay/schema": "workspace:*",
     "@relay/store": "workspace:*",

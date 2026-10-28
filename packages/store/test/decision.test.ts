@@ -115,7 +115,14 @@ describe("decision commits", () => {
     const identity = begin(h, "decide");
     const result = h.store.routing.recordDecision(decisionInput(identity));
 
-    expect(result.output?.json).toEqual({ branch: "true" });
+    expect(result.output?.json).toEqual({
+      branch: "true",
+      value: true,
+      probability: 0.8,
+      confidence: 0.8,
+      confidenceSource: "derived",
+      model: "jev-latest",
+    });
     expect(result.decisionEventId).not.toBeNull();
     expect(result.completionEventId).not.toBeNull();
     const view = h.store.view.get(h.runId);
@@ -160,12 +167,63 @@ describe("decision commits", () => {
         routing: { branch: "uncertain", reason: "refused" },
       }),
     );
-    expect(result.output?.json).toEqual({ branch: "uncertain" });
+    expect(result.output?.json).toEqual({
+      branch: "uncertain",
+      value: null,
+      confidence: null,
+      confidenceSource: null,
+      model: "clef",
+    });
     expect(result.completionEventId).not.toBeNull();
     expect(h.store.view.get(h.runId).executions.decide?.decision?.routing).toEqual({
       branch: "uncertain",
       reason: "refused",
     });
+  });
+
+  it("persists the full normalized answer for downstream scope reads", () => {
+    const h = harness();
+    const identity = begin(h, "decide");
+    const result = h.store.routing.recordDecision(
+      decisionInput(identity, {
+        output: {
+          kind: "score",
+          value: "high",
+          score: 2.2,
+          probabilities: { low: 0.1, mid: 0.3, high: 0.6 },
+          confidence: 0.6,
+          confidenceSource: "provider",
+          model: "clef",
+        },
+        routing: { branch: "top", reason: "matched" },
+      }),
+    );
+    expect(result.output?.json).toEqual({
+      branch: "top",
+      value: "high",
+      score: 2.2,
+      probabilities: { low: 0.1, mid: 0.3, high: 0.6 },
+      confidence: 0.6,
+      confidenceSource: "provider",
+      model: "clef",
+    });
+    // A null confidence is stored as null so `confidence >= x` compares false.
+    const h2 = harness();
+    const identity2 = begin(h2, "decide");
+    const refused = h2.store.routing.recordDecision(
+      decisionInput(identity2, {
+        output: {
+          kind: "choice",
+          value: null,
+          confidence: null,
+          confidenceSource: null,
+          model: "clef",
+          refusal: { reason: "missing answer for q0" },
+        },
+        routing: { branch: "uncertain", reason: "refused" },
+      }),
+    );
+    expect(refused.output?.json).toMatchObject({ confidence: null });
   });
 
   it("appends events without output or completion for a null branch", () => {
