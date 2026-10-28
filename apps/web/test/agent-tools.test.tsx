@@ -111,23 +111,20 @@ describe("AgentTools", () => {
     const { client } = fakeClient(payload());
     renderTools(agent, client);
 
-    expect(await screen.findByTestId("inspector-tools-devchestra")).toHaveTextContent(
-      /locked, always on/,
-    );
+    expect(await screen.findByTestId("inspector-tools-devchestra")).toHaveTextContent(/always on/i);
     expect(screen.getByTestId("inspector-tools-group-global")).toBeInTheDocument();
     expect(screen.getByTestId("inspector-tools-group-project")).toBeInTheDocument();
     expect(screen.getByTestId("inspector-tools-group-connector")).toBeInTheDocument();
-    expect(screen.getByTestId("inspector-tools-group-connector")).toHaveTextContent(
-      /signed in via Codex/,
-    );
+    expect(screen.getByTestId("inspector-tools-group-connector")).toHaveTextContent(/via Codex/);
     expect(screen.getByTestId("inspector-tools-row-global:github")).toHaveTextContent("stdio");
-    expect(screen.getByTestId("inspector-tools-row-global:github")).toHaveTextContent("ready");
+    // ready rows stay quiet: transport only, no status label
+    expect(screen.getByTestId("inspector-tools-row-global:github")).not.toHaveTextContent("ready");
     expect(screen.getByTestId("inspector-tools-row-global:neon")).toHaveTextContent("needs auth");
     expect(screen.getByTestId("inspector-tools-row-project:old")).toHaveTextContent(
       "disabled in CLI",
     );
-    expect(screen.getByTestId("inspector-tools-row-connector:Notion")).toHaveTextContent(
-      /reaches your real account/i,
+    expect(screen.getByTestId("inspector-tools-row-connector:Notion")).not.toHaveTextContent(
+      /real account/i,
     );
   });
 

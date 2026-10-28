@@ -286,7 +286,7 @@ export async function runModelBrowserScenario(): Promise<ModelBrowserEvidence> {
     const fuzzyTerra = (await optionTexts(page))[0]?.includes("Terra 6.1") ?? false;
     await typeQuery(page, "gpt61");
     const fuzzyPunct = (await optionTexts(page)).some((text) => text.includes("Terra 6.1"));
-    await typeQuery(page, "rlypnc");
+    await typeQuery(page, "dvcpnc");
     const fuzzySubsequence = (await optionTexts(page)).some((text) =>
       text.includes("devchestra-punct.model/v2"),
     );

@@ -240,7 +240,10 @@ export function AgentModelPicker({
       }}
       onKeyDown={(event) => event.stopPropagation()}
     >
-      <div className="model-picker-selected">
+      <div
+        className="model-picker-selected"
+        data-default={value === undefined ? "true" : undefined}
+      >
         <span
           className="model-picker-selected-label"
           data-testid="inspector-agent-model-selected-label"
@@ -412,6 +415,7 @@ export function AgentModelPicker({
       {message === null ? null : (
         <p
           className="inspector-help model-picker-message"
+          data-hint={status === "notLoaded" ? "idle" : undefined}
           data-testid="inspector-agent-model-message"
         >
           {message}

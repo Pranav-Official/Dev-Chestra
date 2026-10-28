@@ -1,7 +1,7 @@
 import type { AgentCli, AgentNode, McpScope, McpSelection } from "@devchestra/schema";
 import { MCP_SCOPES, PROD_CLI_LABELS } from "@devchestra/schema";
-import { LockKeyhole, RefreshCw, TriangleAlert } from "lucide-react";
-import { CheckboxField, InfoTip } from "./fields/fields.js";
+import { Lock, RefreshCw } from "lucide-react";
+import { CheckboxField } from "./fields/fields.js";
 import type { DiscoveredMcpServer, McpServersClient } from "./model/mcp-servers.js";
 import { useCliMcpServers } from "./model/useCliMcpServers.js";
 import type { PatchOf } from "./types.js";
@@ -94,34 +94,28 @@ function ServerRow({
       ? `${server.summary} · ${server.source}`
       : `${reason} ${server.summary} · ${server.source}`;
   return (
-    <div
-      className="inspector-field inspector-check-field inspector-toggle inspector-tools-row"
+    <li
+      className={`inspector-tools-row${switchable ? "" : " unavailable"}`}
       data-testid={`inspector-tools-row-${server.id}`}
       title={title}
     >
-      <div className="inspector-check">
-        <input
-          id={toggleId}
-          data-testid={toggleId}
-          type="checkbox"
-          checked={checked}
-          disabled={!switchable}
-          title={reason ?? undefined}
-          onChange={(event) => onToggle(event.currentTarget.checked)}
-        />
-        <label htmlFor={toggleId}>
-          <span className="inspector-tools-name">{server.name}</span>
-          <span className="chip mono">{server.transport}</span>
-          <span className="chip">{STATUS_TEXT[server.status]}</span>
-        </label>
-      </div>
-      {server.scope === "connector" ? (
-        <p className="inspector-tools-warn">
-          <TriangleAlert size={11} aria-hidden="true" />
-          <span>Reaches your real account.</span>
-        </p>
-      ) : null}
-    </div>
+      <label className="inspector-tools-label" htmlFor={toggleId}>
+        <span className="inspector-tools-name">{server.name}</span>
+        <span className="inspector-tools-meta">
+          {switchable ? server.transport : `${server.transport} · ${STATUS_TEXT[server.status]}`}
+        </span>
+      </label>
+      <input
+        id={toggleId}
+        className="inspector-switch"
+        data-testid={toggleId}
+        type="checkbox"
+        checked={checked}
+        disabled={!switchable}
+        title={reason ?? undefined}
+        onChange={(event) => onToggle(event.currentTarget.checked)}
+      />
+    </li>
   );
 }
 
@@ -156,37 +150,42 @@ export function AgentTools({
       <CheckboxField
         id="inspector-tools-shell"
         label="Shell commands"
+        hint="Let the agent run commands in the workspace"
         checked={effectiveShell(node)}
         onChange={(shell) => onPatch({ permissions: { ...node.permissions, shell } })}
-        help="Built-in shell tool of the CLI, not a sandbox."
+        help="The CLI's built-in shell tool. Advisory only: DevChestra is not an OS sandbox."
       />
-      <div className="inspector-tools-divided">
-        <div className="inspector-tools-subhead">
-          <span>MCP servers</span>
-          <InfoTip id="inspector-tools-mcp-help">
-            Only DevChestra tools plus the servers switched on here are attached. Everything else
-            the CLI knows stays off for this run.
-          </InfoTip>
+      <div className="inspector-tools-block">
+        <div className="inspector-tools-head">
+          <span className="inspector-tools-title">MCP servers</span>
           <button
             type="button"
-            className="btn sm ghost inspector-tools-refresh"
+            className="inspector-icon-btn inspector-tools-refresh"
             data-testid="inspector-tools-refresh"
+            aria-label={loading === "refresh" ? "Refreshing" : "Refresh the server list"}
             disabled={loading !== "idle" || projectId === undefined}
             onClick={refresh}
             title="Refresh the server list"
           >
-            <RefreshCw size={12} aria-hidden="true" />
-            <span>{loading === "refresh" ? "Refreshing…" : "Refresh"}</span>
+            <RefreshCw
+              size={13}
+              aria-hidden="true"
+              className={loading === "refresh" ? "spin" : undefined}
+            />
           </button>
         </div>
-        <div
-          className="inspector-tools-row inspector-tools-locked"
-          data-testid="inspector-tools-devchestra"
-        >
-          <LockKeyhole size={12} aria-hidden="true" />
-          <span className="inspector-tools-name">DevChestra tools</span>
-          <span className="inspector-muted">locked, always on</span>
-        </div>
+        <ul className="inspector-tools-list">
+          <li
+            className="inspector-tools-row inspector-tools-locked"
+            data-testid="inspector-tools-devchestra"
+          >
+            <span className="inspector-tools-label">
+              <span className="inspector-tools-name">DevChestra tools</span>
+              <span className="inspector-tools-meta">Always on</span>
+            </span>
+            <Lock size={13} aria-hidden="true" className="inspector-tools-lock" />
+          </li>
+        </ul>
         {loading === "load" ? (
           <p className="inspector-muted" data-testid="inspector-tools-loading">
             Loading MCP servers…
@@ -214,10 +213,10 @@ export function AgentTools({
                   <p className="inspector-tools-group-label">
                     {label}
                     {scope === "connector" ? (
-                      <span className="inspector-muted"> · signed in via {cliLabel}</span>
+                      <span className="inspector-tools-group-sub">via {cliLabel}</span>
                     ) : null}
                   </p>
-                  <div className="inspector-stack">
+                  <ul className="inspector-tools-list">
                     {group.map((server) => (
                       <ServerRow
                         key={server.id}
@@ -233,23 +232,24 @@ export function AgentTools({
                         }}
                       />
                     ))}
-                  </div>
+                  </ul>
                 </div>
               );
             })}
             {showMissing ? (
               <div data-testid="inspector-tools-group-missing">
                 <p className="inspector-tools-group-label">Saved but not found</p>
-                <div className="inspector-stack">
+                <ul className="inspector-tools-list">
                   {missing.map((entry, index) => (
-                    <div
+                    <li
                       key={`${entry.scope}:${entry.name}`}
-                      className="inspector-tools-row inspector-tools-missing"
+                      className="inspector-tools-row unavailable"
                       data-testid={`inspector-tools-missing-${index}`}
                     >
-                      <span className="inspector-tools-name">{entry.name}</span>
-                      <span className="chip mono">{entry.scope}</span>
-                      <span className="chip">not found</span>
+                      <span className="inspector-tools-label">
+                        <span className="inspector-tools-name">{entry.name}</span>
+                        <span className="inspector-tools-meta">{entry.scope} · not found</span>
+                      </span>
                       <button
                         type="button"
                         className="btn sm ghost danger"
@@ -258,9 +258,9 @@ export function AgentTools({
                       >
                         Remove
                       </button>
-                    </div>
+                    </li>
                   ))}
-                </div>
+                </ul>
               </div>
             ) : null}
           </>

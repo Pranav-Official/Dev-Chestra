@@ -1,6 +1,5 @@
 import { isRecord } from "@devchestra/core";
 import type { AgentNode } from "@devchestra/schema";
-import { Bot } from "lucide-react";
 import { AgentLimits } from "./AgentLimits.js";
 import { AgentModelField } from "./AgentModelField.js";
 import { AgentPermissions } from "./AgentPermissions.js";
@@ -58,12 +57,6 @@ export function AgentForm({
             issues={issues}
             onPatch={onPatch}
           />
-          {selected?.help === undefined ? null : (
-            <p className="inspector-note amber" role="note">
-              <Bot size={13} aria-hidden="true" />
-              <span>Permissions are advisory: {selected.label} runs without an OS sandbox.</span>
-            </p>
-          )}
         </div>
       </InspectorSection>
       <InspectorSection sectionKey="agent:tools" title="Tools">
@@ -82,6 +75,11 @@ export function AgentForm({
       <InspectorSection sectionKey="agent:limits" title="Limits" defaultOpen={false}>
         <AgentLimits node={node} issues={issues} onPatch={onPatch} />
       </InspectorSection>
+      {selected === undefined ? null : (
+        <p className="inspector-footnote" role="note">
+          Permissions are advisory: {selected.label} runs without an OS sandbox.
+        </p>
+      )}
       <p className="inspector-footnote" data-testid="inspector-workspace-note">
         Workspace is chosen when starting the workflow.
       </p>

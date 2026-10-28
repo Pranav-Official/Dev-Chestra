@@ -74,6 +74,7 @@ export function CheckboxField({
   onChange,
   disabled = false,
   help,
+  hint,
   error,
 }: {
   id: string;
@@ -81,12 +82,22 @@ export function CheckboxField({
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
+  /** Longer explanation, shown behind an info icon. */
   help?: string | undefined;
+  /** One short line shown under the label. */
+  hint?: string | undefined;
   error?: string | null | undefined;
 }) {
   return (
     <div className="inspector-field inspector-check-field inspector-toggle">
       <div className="inspector-check">
+        <span className="inspector-check-text">
+          <span className="inspector-check-line">
+            <label htmlFor={id}>{label}</label>
+            {help === undefined ? null : <InfoTip id={`${id}-help`}>{help}</InfoTip>}
+          </span>
+          {hint === undefined ? null : <span className="inspector-check-hint">{hint}</span>}
+        </span>
         <input
           id={id}
           data-testid={id}
@@ -97,8 +108,6 @@ export function CheckboxField({
           aria-describedby={describedBy(id, help, error)}
           onChange={(event) => onChange(event.currentTarget.checked)}
         />
-        <label htmlFor={id}>{label}</label>
-        {help === undefined ? null : <InfoTip id={`${id}-help`}>{help}</InfoTip>}
       </div>
       {error ? (
         <p className="inspector-error" id={`${id}-error`} role="alert">

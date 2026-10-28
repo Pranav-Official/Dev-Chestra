@@ -263,13 +263,41 @@ function ChoiceEditor({
                 <Trash2 size={13} aria-hidden="true" />
               </button>
             </div>
-            <OptionValueInput
-              node={node}
-              value={option.value}
-              index={index}
-              issue={valueIssue}
-              onRoutingChange={onRoutingChange}
-            />
+            <div className="inspector-grid-2">
+              <OptionValueInput
+                node={node}
+                value={option.value}
+                index={index}
+                issue={valueIssue}
+                onRoutingChange={onRoutingChange}
+              />
+              <Field
+                id={`decision-option-${index}-branch`}
+                label="Branch"
+                help="The route taken when the model picks this option."
+              >
+                <select
+                  id={`decision-option-${index}-branch`}
+                  className="inspector-input"
+                  data-testid={`decision-option-${index}-branch`}
+                  value={currentBranch}
+                  onChange={(event) => {
+                    const updated = setDecisionOptionBranch(
+                      node,
+                      option.value,
+                      event.currentTarget.value,
+                    );
+                    if (updated !== null) onRoutingChange({ mode: updated.mode });
+                  }}
+                >
+                  {mode.branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.id}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
             <Field id={`decision-option-${index}-description`} label="Description (optional)">
               <input
                 id={`decision-option-${index}-description`}
@@ -286,32 +314,6 @@ function ChoiceEditor({
                   if (updated !== null) onRoutingChange({ mode: updated.mode });
                 }}
               />
-            </Field>
-            <Field
-              id={`decision-option-${index}-branch`}
-              label="Branch"
-              help="The route taken when the model picks this option."
-            >
-              <select
-                id={`decision-option-${index}-branch`}
-                className="inspector-input"
-                data-testid={`decision-option-${index}-branch`}
-                value={currentBranch}
-                onChange={(event) => {
-                  const updated = setDecisionOptionBranch(
-                    node,
-                    option.value,
-                    event.currentTarget.value,
-                  );
-                  if (updated !== null) onRoutingChange({ mode: updated.mode });
-                }}
-              >
-                {mode.branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.id}
-                  </option>
-                ))}
-              </select>
             </Field>
           </fieldset>
         );

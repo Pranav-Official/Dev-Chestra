@@ -355,10 +355,10 @@ export function SchemaEditor({
 
   return (
     <div className="inspector-stack">
-      <fieldset className="inspector-param" data-testid="inspector-output-mode">
-        <legend className="inspector-label">Output mode</legend>
-        <div className="inspector-inline">
-          <label className="inspector-check">
+      <fieldset className="inspector-fieldset" data-testid="inspector-output-mode">
+        <legend className="sr-only">Output mode</legend>
+        <div className="inspector-segmented">
+          <label>
             <input
               type="radio"
               name={modeName}
@@ -366,9 +366,9 @@ export function SchemaEditor({
               data-testid="inspector-output-mode-raw"
               onChange={switchToRaw}
             />
-            <span>Raw JSON object</span>
+            <span>Raw JSON</span>
           </label>
-          <label className="inspector-check">
+          <label>
             <input
               type="radio"
               name={modeName}
@@ -376,7 +376,7 @@ export function SchemaEditor({
               data-testid="inspector-output-mode-structured"
               onChange={switchToStructured}
             />
-            <span>Structured fields</span>
+            <span>Structured</span>
           </label>
         </div>
       </fieldset>
