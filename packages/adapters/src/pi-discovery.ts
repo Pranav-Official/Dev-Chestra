@@ -1,6 +1,13 @@
 import { realpathSync, statSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { runCommand } from "./command.js";
+import {
+  boundCount,
+  boundMs,
+  hasControl,
+  printable,
+  validateDiscoveryRequest,
+} from "./discovery-util.js";
 import type { PiModelDiscovery, PiModelDiscoveryRequest, PiModelItem } from "./types.js";
 
 const TOTAL_MS = 15_000;
@@ -21,68 +28,6 @@ const MESSAGES = {
 
 function failure(status: PiModelDiscovery["status"], message: string): PiModelDiscovery {
   return { status, items: [], cliVersion: null, truncated: false, message };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function boundMs(value: number | undefined, fallback: number): number {
-  if (value === undefined || !Number.isFinite(value)) return fallback;
-  return Math.min(fallback, Math.max(1, Math.floor(value)));
-}
-
-function boundCount(value: number | undefined, fallback: number): number {
-  if (value === undefined || !Number.isFinite(value)) return fallback;
-  return Math.min(fallback, Math.max(1, Math.floor(value)));
-}
-
-function validRequest(request: PiModelDiscoveryRequest): boolean {
-  if (typeof request.cwd !== "string" || request.cwd === "" || request.cwd.includes("\u0000")) {
-    return false;
-  }
-  if (
-    request.bin !== undefined &&
-    (typeof request.bin !== "string" ||
-      request.bin === "" ||
-      request.bin.length > 4096 ||
-      request.bin.includes("\u0000"))
-  ) {
-    return false;
-  }
-  if (!isRecord(request.env)) return false;
-  for (const [name, value] of Object.entries(request.env)) {
-    if (name === "" || name.includes("=") || name.includes("\u0000")) return false;
-    if (typeof value !== "string" || value.includes("\u0000")) return false;
-  }
-  if (
-    request.search !== undefined &&
-    (typeof request.search !== "string" ||
-      request.search === "" ||
-      request.search.length > 256 ||
-      request.search.includes("\u0000") ||
-      request.search.startsWith("-"))
-  ) {
-    return false;
-  }
-  return true;
-}
-
-function hasControl(value: string): boolean {
-  for (const char of value) {
-    const code = char.codePointAt(0) ?? 0;
-    if (code < 0x20 || code === 0x7f) return true;
-  }
-  return false;
-}
-
-function printable(value: string): string {
-  let out = "";
-  for (const char of value) {
-    const code = char.codePointAt(0) ?? 0;
-    out += code < 0x20 || code === 0x7f ? " " : char;
-  }
-  return out.replace(/\s+/g, " ").trim();
 }
 
 function capped(value: string, max: number): string {
@@ -160,7 +105,7 @@ export function piConfigIdentity(env: Record<string, string>, cwd: string): stri
 export async function discoverPiModels(
   request: PiModelDiscoveryRequest,
 ): Promise<PiModelDiscovery> {
-  if (typeof request !== "object" || request === null || !validRequest(request)) {
+  if (typeof request !== "object" || request === null || !validateDiscoveryRequest(request)) {
     return failure("unavailable", MESSAGES.invalidRequest);
   }
   if (request.signal?.aborted === true) {
