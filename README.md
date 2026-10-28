@@ -1,12 +1,12 @@
 # Relay / DevChestra
 
-Local, single-user workflow orchestrator for headless coding agents. **P3 plus the first P4 routing increment (complete and frozen) plus P3.5 human-approval (integrated non-browser verified, focused browser 1/1, full suite pending; full P4/G4 open):** the P1 runner and P2 loopback server/run viewer now include a browser graph editor for `start`, `agent`, `shell`, `gate`, `join`, `approval` and `end`, a per-CLI fuzzy model selector for Agent nodes (native Codex and Claude catalogs), and a top-level gate/join/approval DAG. Gate branches evaluate in order with a mandatory last `otherwise`; joins support exclusive `first` and `all` with `null` for skipped inputs; skipped paths are explicit; the bounded gate tester previews expressions without starting a run. Approval pauses `waiting_approval` for manual approve/reject with optional note (WIP ≤4096 / criteria 32×≤256) and durable atomic request/resolution via stable `requestId`+`attempt`/`generation` fence and optional `approvalId.rejected` edge; inbox/replay are event-based, no auto-approve/timeout. You can register a project, create a blank workflow, add and configure nodes, connect them, save with conflict-safe ETags, reload, and run it into the live viewer without editing JSON. The runner still uses the real MCP shim, SQLite event store, workspace safety, engine and fake/Claude/Codex adapter contracts. Each workflow execution chooses **one workspace at Start**: the registered project root by default (dirty and untracked files included; direct execution is authorized), an existing Git worktree, or a new per-run worktree (initially detached). Every Agent and Shell step uses that same cwd; the per-node workspace selector is gone, and legacy per-node metadata only affects old run snapshots. Remaining P4 work is decisions, maps, loops and operations/editor controls. There is **no** artifact pin/capture, node-test/pin workflow, import/export, budget enforcement, context bank or release packaging yet. See [docs/build-status.md](docs/build-status.md) for evidence and open gates, and [docs/p4-routing-plan.md](docs/p4-routing-plan.md) for the routing increment.
+Local, single-user workflow orchestrator for headless coding agents. Relay runs workflows of `start`, `agent`, `shell`, `gate`, `join`, `approval` and `end` nodes against the Claude Code, Codex, Opencode and Pi CLIs through a real MCP shim, a SQLite event store and a loopback web server. Use the browser editor to register a project, build and save a workflow with conflict-safe ETags, then run it into the live viewer (events, transcripts and event-based replay) without editing JSON. Each run picks one workspace at Start: the project root (dirty files included), an existing Git worktree, or a new per-run worktree. Gates branch in order with a mandatory `otherwise`, joins resolve with `first` or `all`, and approvals pause the run until a person approves or rejects. Decisions, maps, loops, artifact capture, budgets, context banks and release packaging are not built yet. See [docs/build-status.md](docs/build-status.md) for current gate results and open work, and [docs/p4-routing-plan.md](docs/p4-routing-plan.md) for the routing increment.
 
 The product name is provisional (`Relay` internally). Do not create durable user-facing paths or publish under a final name until that decision is recorded.
 
 ## Prerequisites
 
-- Node.js **22 or newer** (local development in this workspace uses Node 26.11.1)
+- Node.js **22 or newer**. CI runs the test suite on Node 22 and 24; the SQLite canary also covers Node 26.
 - pnpm **10.14.0** (declared in `packageManager`)
 - Git 2.30+ (required only for the existing-worktree and new-worktree run options; the default project root also works for non-Git folders)
 - Linux or macOS; Windows is not supported natively (WSL2 only)
@@ -201,21 +201,17 @@ Conventions:
 
 ## CI
 
-`.github/workflows/ci.yml` runs check, test and build on Linux and macOS with Node 22 and 24, plus a Chromium-backed P2/P3 browser e2e job. These workflows are configured; they have not been executed on GitHub. Post-fix `pnpm check` is 567/1950 with non-browser **1126/135** (1074/122 + 50/13, web 190/24); focused P3.5 **1/1** + HTTP **9/9** valid, full suite **8/9** with routing dead-edges failure (not 9/9). Historical routing was 1050/124 with 8/8. Full P4/G4 remain open. `.github/workflows/sqlite-canary.yml` verifies the bundled prebuild and FTS5 on Linux/macOS with Node 22, 24 and 26 without a source compile.
+`.github/workflows/ci.yml` runs check, test and build on Linux and macOS with Node 22 and 24, plus a Chromium-backed P2/P3 browser e2e job. These workflows are configured but have not been confirmed on GitHub; see [docs/build-status.md](docs/build-status.md) for the current local results and known flaky browser scenarios. `.github/workflows/sqlite-canary.yml` verifies the bundled prebuild and FTS5 on Linux/macOS with Node 22, 24 and 26 without a source compile.
 
 The browser jobs install Chromium into the runner cache and export `RELAY_CHROMIUM_PATH`; they do not use a developer browser profile. If web/CLI dist, SQLite or Chromium is missing, the browser acceptance fails instead of skipping.
 
 ## Documentation
 
-- [Build plan](docs/build-plan.md)
-- [Build status](docs/build-status.md)
-- [P2 root integration](docs/p2-root.md)
-- [P2 acceptance driver](docs/p2-acceptance.md)
-- [P3 root integration](docs/p3-root.md)
-- [P3 acceptance driver](docs/p3-acceptance.md)
-- [P4 routing delivery plan](docs/p4-routing-plan.md)
-- [Worktree acceptance driver (historical per-node selector)](docs/worktree-acceptance.md)
-- [Run workspace acceptance](docs/run-workspace-acceptance.md)
-- [Implementation spec](relay-implementation-spec.md)
-- [High-level design](agent-workflow-orchestrator-design.md)
-- [UI mock](relay-ui-mock.html) (reference only, not production code)
+- [Build status](docs/build-status.md): current gate results, then historical evidence
+- [Implementation spec](docs/relay-implementation-spec.md)
+- [High-level design](docs/agent-workflow-orchestrator-design.md)
+- [P4 routing delivery plan](docs/p4-routing-plan.md) and [acceptance](docs/p4-routing-acceptance.md) (P4 is still open)
+- [Architecture decision records](docs/adr)
+- [Research spikes](docs/spikes)
+- [Archive](docs/archive/README.md): completed per-phase and per-feature plans and acceptance notes
+- [UI mock](docs/relay-ui-mock.html) (reference only, not production code)
