@@ -31,7 +31,7 @@ const allowed = [
     // surface and core contracts. Revisit when the engine owns composition.
     name: "server",
     path: "(^|/)packages/server/",
-    deps: ["api", "engine", "supervisor", "config", "core", "schema", "store", "mcp"],
+    deps: ["api", "engine", "supervisor", "config", "core", "schema", "store", "mcp", "adapters"],
   },
   {
     // P1 embedded CLI composition root: run/resume assemble the slice directly

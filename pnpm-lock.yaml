@@ -285,6 +285,9 @@ importers:
       '@hono/node-server':
         specifier: 2.1.4
         version: 2.1.4(hono@4.13.13)
+      '@relay/adapters':
+        specifier: workspace:*
+        version: link:../adapters
       '@relay/api':
         specifier: workspace:*
         version: link:../api
