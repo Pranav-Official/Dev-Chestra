@@ -41,7 +41,7 @@ import type {
   EditorSelection,
   Position,
 } from "../model/types.js";
-import { EDITOR_EDGE_TYPES, type EditorFlowEdge } from "./edges.js";
+import { EDITOR_EDGE_TYPES, EdgeActionsContext, type EditorFlowEdge } from "./edges.js";
 import { EDITOR_NODE_TYPES, type EditorFlowNode } from "./nodes.js";
 
 export interface EditorCanvasProps {
@@ -457,85 +457,100 @@ export function EditorCanvas({
     [nodes, onRedo, onSelectionChange, onUndo, readOnly, run, selection],
   );
 
+  const edgeActions = useMemo(
+    () =>
+      readOnly
+        ? null
+        : {
+            remove: (edgeId: string) => {
+              const outcome = run({ kind: "removeEdge", edgeId });
+              if (outcome.ok) onSelectionChange(null);
+            },
+          },
+    [onSelectionChange, readOnly, run],
+  );
+
   return (
-    <div
-      className="editor-canvas"
-      ref={wrapRef}
-      role="application"
-      // biome-ignore lint/a11y/noNoninteractiveTabindex: the canvas is the keyboard-navigation surface.
-      tabIndex={0}
-      onKeyDown={handleKeyDown}
-      onDrop={handleDrop}
-      onDragOver={(event) => {
-        if (readOnly) return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "copy";
-      }}
-      aria-label={readOnly ? "Workflow canvas (read-only)" : "Workflow editor canvas"}
-      data-testid="editor-canvas"
-    >
-      <ReactFlow<EditorFlowNode, EditorFlowEdge>
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={EDITOR_NODE_TYPES}
-        edgeTypes={EDITOR_EDGE_TYPES}
-        onInit={onInit}
-        onNodesChange={handleNodesChange}
-        onNodeClick={handleNodeClick}
-        onEdgeClick={handleEdgeClick}
-        onPaneClick={() => onSelectionChange(null)}
-        onNodeDragStop={handleNodeDragStop}
-        onConnect={handleConnect}
-        onConnectEnd={handleConnectEnd}
-        isValidConnection={isValidConnection}
-        nodesDraggable={!readOnly}
-        nodesConnectable={!readOnly}
-        nodesFocusable
-        edgesFocusable
-        elementsSelectable
-        deleteKeyCode={null}
-        snapToGrid
-        snapGrid={[8, 8]}
-        panOnDrag
-        panOnScroll
-        zoomOnScroll={false}
-        zoomOnPinch
-        minZoom={0.35}
-        maxZoom={1.6}
-        fitView={false}
-        proOptions={{ hideAttribution: false }}
+    <EdgeActionsContext.Provider value={edgeActions}>
+      <div
+        className="editor-canvas"
+        ref={wrapRef}
+        role="application"
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: the canvas is the keyboard-navigation surface.
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        onDrop={handleDrop}
+        onDragOver={(event) => {
+          if (readOnly) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+        }}
         aria-label={readOnly ? "Workflow canvas (read-only)" : "Workflow editor canvas"}
+        data-testid="editor-canvas"
       >
-        <Background
-          variant={BackgroundVariant.Dots}
-          gap={24}
-          size={1}
-          color="var(--border-strong)"
-        />
-        {nodes.length > 1 ? (
-          <MiniMap
-            pannable
-            zoomable={false}
-            nodeStrokeWidth={2}
-            maskColor="var(--bg-muted)"
-            nodeColor={(node) =>
-              node.data?.unsupported === true ? "var(--text-3)" : "var(--border-strong)"
-            }
-            style={{ background: "var(--bg)", border: "1px solid var(--border)" }}
+        <ReactFlow<EditorFlowNode, EditorFlowEdge>
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={EDITOR_NODE_TYPES}
+          edgeTypes={EDITOR_EDGE_TYPES}
+          onInit={onInit}
+          onNodesChange={handleNodesChange}
+          onNodeClick={handleNodeClick}
+          onEdgeClick={handleEdgeClick}
+          onPaneClick={() => onSelectionChange(null)}
+          onNodeDragStop={handleNodeDragStop}
+          onConnect={handleConnect}
+          onConnectEnd={handleConnectEnd}
+          isValidConnection={isValidConnection}
+          nodesDraggable={!readOnly}
+          nodesConnectable={!readOnly}
+          nodesFocusable
+          edgesFocusable
+          elementsSelectable
+          deleteKeyCode={null}
+          snapToGrid
+          snapGrid={[8, 8]}
+          panOnDrag
+          panOnScroll
+          zoomOnScroll={false}
+          zoomOnPinch
+          minZoom={0.35}
+          maxZoom={1.6}
+          fitView={false}
+          proOptions={{ hideAttribution: false }}
+          aria-label={readOnly ? "Workflow canvas (read-only)" : "Workflow editor canvas"}
+        >
+          <Background
+            variant={BackgroundVariant.Dots}
+            gap={24}
+            size={1}
+            color="var(--border-strong)"
           />
+          {nodes.length > 1 ? (
+            <MiniMap
+              pannable
+              zoomable={false}
+              nodeStrokeWidth={2}
+              maskColor="var(--bg-muted)"
+              nodeColor={(node) =>
+                node.data?.unsupported === true ? "var(--text-3)" : "var(--border-strong)"
+              }
+              style={{ background: "var(--bg)", border: "1px solid var(--border)" }}
+            />
+          ) : null}
+          <Controls
+            showInteractive={false}
+            onFitView={() => {
+              fitView();
+            }}
+          />
+        </ReactFlow>
+        {nodes.length === 0 ? (
+          <div className="editor-canvas-empty">
+            <p>Add a node from the palette, or drag one here.</p>
+          </div>
         ) : null}
-        <Controls
-          showInteractive={false}
-          onFitView={() => {
-            fitView();
-          }}
-        />
-      </ReactFlow>
-      {nodes.length === 0 ? (
-        <div className="editor-canvas-empty">
-          <p>Add a node from the palette, or drag one here.</p>
-        </div>
-      ) : null}
-    </div>
+      </div>
+    </EdgeActionsContext.Provider>
   );
 }
