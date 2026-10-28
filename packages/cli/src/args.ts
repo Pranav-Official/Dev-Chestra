@@ -289,10 +289,10 @@ export function parseArgs(argv: string[]): CliOptions {
 export const HELP = `devchestra — local DevChestra runner and browser API
 
 Usage:
-  devchestra start --data-dir <dir> [--port N] [--no-open] [--print-url] [options]
-  devchestra run <workflow.json> --project <dir> --data-dir <dir> [options]
-  devchestra resume <runId> --data-dir <dir> [--retry-uncertain-shell] [options]
-  devchestra doctor --data-dir <dir> [--json] [--probe-decisions]
+  devchestra start [--data-dir <dir>] [--port N] [--no-open] [--print-url] [options]
+  devchestra run <workflow.json> --project <dir> [--data-dir <dir>] [options]
+  devchestra resume <runId> [--data-dir <dir>] [--retry-uncertain-shell] [options]
+  devchestra doctor [--data-dir <dir>] [--json] [--probe-decisions]
   devchestra version
 
 Options:

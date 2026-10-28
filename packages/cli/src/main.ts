@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { resolve } from "node:path";
 import { type CliOptions, HELP, parseArgs, UsageError } from "./args.js";
 import { executeResume, executeRun } from "./commands.js";
