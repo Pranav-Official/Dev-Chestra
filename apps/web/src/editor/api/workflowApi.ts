@@ -1,6 +1,8 @@
 import {
   type ApiError,
   ApiTransportError,
+  type DecisionTestRequest,
+  type DecisionTestResult,
   type GateTestResult,
   isApiError,
   type StartRunResponse,
@@ -9,7 +11,7 @@ import {
   type WorkflowListResponse,
   type WorkflowTemplate,
 } from "@relay/api";
-import type { GateNode, ValidationReport, WorkflowFile } from "@relay/schema";
+import type { DecisionNode, GateNode, ValidationReport, WorkflowFile } from "@relay/schema";
 import { api } from "../../api/client.js";
 
 export type WorkflowDocument = WorkflowDocumentResponse;
@@ -104,6 +106,26 @@ export const workflowApi = {
     options: { signal?: AbortSignal } = {},
   ): Promise<GateTestResult> {
     return api.testGate(projectId, { gate, scope }, options);
+  },
+
+  /**
+   * Live decision-model probe. Calls the real provider (it costs tokens).
+   * Never creates a run.
+   */
+  testDecision(
+    projectId: string,
+    node: DecisionNode,
+    state: string,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<DecisionTestResult> {
+    const body: DecisionTestRequest = {
+      provider: node.provider,
+      ...(node.model === undefined ? {} : { model: node.model }),
+      state,
+      instructions: node.instructions,
+      mode: node.mode,
+    };
+    return api.testDecision(projectId, body, options);
   },
 };
 

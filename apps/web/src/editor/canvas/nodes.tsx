@@ -278,7 +278,11 @@ export function EditorNodeView({ data, selected }: NodeProps<EditorFlowNode>) {
           ))}
         </div>
       )}
-      {!unsupported && node.type !== "end" && gate === null && approval === null && decision === null ? (
+      {!unsupported &&
+      node.type !== "end" &&
+      gate === null &&
+      approval === null &&
+      decision === null ? (
         <Handle
           type="source"
           position={Position.Right}

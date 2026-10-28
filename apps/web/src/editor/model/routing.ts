@@ -253,7 +253,12 @@ function asScore(node: DecisionNode): DecisionScoreMode | null {
 export function addDecisionOption(node: DecisionNode, value?: string): DecisionNode | null {
   const mode = asChoice(node);
   if (mode === null || mode.options.length >= 255) return null;
-  const next = value ?? nextHandleId("option", mode.options.map((option) => option.value));
+  const next =
+    value ??
+    nextHandleId(
+      "option",
+      mode.options.map((option) => option.value),
+    );
   if (mode.options.some((option) => option.value === next)) return null;
   const options = [...mode.options, { value: next }];
   const branches =
@@ -401,7 +406,11 @@ export function addDecisionLevel(node: DecisionNode, label?: string): DecisionNo
   const mode = asScore(node);
   if (mode === null || mode.levels.length >= 10) return null;
   const next =
-    label ?? nextHandleId("level", mode.levels.map((level) => level.label));
+    label ??
+    nextHandleId(
+      "level",
+      mode.levels.map((level) => level.label),
+    );
   if (mode.levels.some((level) => level.label === next)) return null;
   const levels = [...mode.levels, { label: next }];
   return { ...node, mode: { ...mode, levels, bands: defaultDecisionBandsForLevels(levels) } };
