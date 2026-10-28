@@ -1,13 +1,8 @@
 import { realpathSync, statSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { runCommand } from "./command.js";
-import {
-  boundCount,
-  boundMs,
-  hasControl,
-  printable,
-  validateDiscoveryRequest,
-} from "./discovery-util.js";
+import { runModelDiscovery } from "./discovery-runner.js";
+import { hasControl, printable } from "./discovery-util.js";
 import type { PiModelDiscovery, PiModelDiscoveryRequest, PiModelItem } from "./types.js";
 
 const TOTAL_MS = 15_000;
@@ -105,110 +100,100 @@ export function piConfigIdentity(env: Record<string, string>, cwd: string): stri
 export async function discoverPiModels(
   request: PiModelDiscoveryRequest,
 ): Promise<PiModelDiscovery> {
-  if (typeof request !== "object" || request === null || !validateDiscoveryRequest(request)) {
-    return failure("unavailable", MESSAGES.invalidRequest);
-  }
-  if (request.signal?.aborted === true) {
-    return failure("unavailable", MESSAGES.invalidRequest);
-  }
-  const totalMs = boundMs(request.timeoutMs, TOTAL_MS);
-  const maxStdout = boundCount(request.maxStdoutBytes, STDOUT_MAX);
-  const maxStderr = boundCount(request.maxStderrBytes, STDERR_MAX);
-  const maxModels = boundCount(request.maxModels, MODELS_MAX);
-  const startedAt = Date.now();
-  const remaining = (): number => Math.max(1, totalMs - (Date.now() - startedAt));
-  const bin = request.bin ?? "pi";
-
-  let cliVersion: string | null = null;
-  try {
-    const version = await runCommand(
-      {
-        cmd: bin,
-        args: ["--version"],
-        cwd: request.cwd,
-        env: { ...request.env },
-        timeoutMs: Math.min(VERSION_MS, remaining()),
-        maxStdoutBytes: 4096,
-        maxStderrBytes: 4096,
-      },
-      {},
-      request.signal,
-    );
-    const text = `${version.stdout}\n${version.stderr}`;
-    const match = /\b(\d+\.\d+\.\d+(?:[-+][\w.]+)?)\b/.exec(text.slice(0, 1024));
-    if (match?.[1] !== undefined) cliVersion = match[1].slice(0, 64);
-  } catch {
-    cliVersion = null;
-  }
-
-  const args = ["--list-models"];
-  if (request.search !== undefined) args.push(request.search);
-  let stdout: string;
-  try {
-    const result = await runCommand(
-      {
-        cmd: bin,
-        args,
-        cwd: request.cwd,
-        env: { ...request.env },
-        timeoutMs: remaining(),
-        maxStdoutBytes: maxStdout,
-        maxStderrBytes: maxStderr,
-      },
-      {},
-      request.signal,
-    );
-    if (result.killedBy === "timeout")
-      return failure("unavailable", "Pi model discovery timed out.");
-    if (result.killedBy === "cancel")
-      return failure("unavailable", "Pi model discovery was cancelled.");
-    stdout = result.stdout;
-    const combined = `${result.stdout}\n${result.stderr}`;
-    if (
-      /no models available|not logged|login|sign in|api.?key|unauthori[sz]ed|credential/i.test(
-        combined,
-      )
-    ) {
-      const { items } = parsePiModelTable(stdout);
-      if (items.length === 0)
-        return { ...failure("authRequired", MESSAGES.authRequired), cliVersion };
-    }
-    if (result.exitCode !== 0) {
-      if (result.exitCode === 127 && /relay-wrapper|ENOENT/i.test(result.stderr)) {
-        return { ...failure("unavailable", MESSAGES.missing), cliVersion };
+  return runModelDiscovery<PiModelItem, PiModelDiscovery>({
+    request,
+    limits: {
+      totalMs: TOTAL_MS,
+      stdoutMax: STDOUT_MAX,
+      stderrMax: STDERR_MAX,
+      modelsMax: MODELS_MAX,
+    },
+    messages: {
+      invalidRequest: MESSAGES.invalidRequest,
+      missing: MESSAGES.missing,
+      unavailable: MESSAGES.unavailable,
+      timeout: "Pi model discovery timed out.",
+      cancelled: "Pi model discovery was cancelled.",
+    },
+    // Drift (kept): a pre-aborted request reports invalid-request, while
+    // opencode reports cancelled for the same case.
+    abortedMessage: MESSAGES.invalidRequest,
+    resolveBin: () => request.bin ?? "pi",
+    buildArgs: () => {
+      const args = ["--list-models"];
+      if (request.search !== undefined) args.push(request.search);
+      return args;
+    },
+    probeCliVersion: async ({ bin, cwd, env, signal, remaining }) => {
+      const version = await runCommand(
+        {
+          cmd: bin,
+          args: ["--version"],
+          cwd,
+          env: { ...env },
+          timeoutMs: Math.min(VERSION_MS, remaining()),
+          maxStdoutBytes: 4096,
+          maxStderrBytes: 4096,
+        },
+        {},
+        signal,
+      );
+      const text = `${version.stdout}\n${version.stderr}`;
+      const match = /\b(\d+\.\d+\.\d+(?:[-+][\w.]+)?)\b/.exec(text.slice(0, 1024));
+      if (match?.[1] === undefined) return null;
+      return match[1].slice(0, 64);
+    },
+    parse: parsePiModelTable,
+    // Drift (kept): E_CANCELLED and cause-ENOENT branches have no opencode
+    // equivalent; the pre-aborted check in the runner covers abort-before-spawn.
+    classifyCaughtError: (error) => {
+      if (request.signal?.aborted) {
+        return "Pi model discovery was cancelled.";
       }
-      const { items } = parsePiModelTable(stdout);
-      if (items.length > 0) {
-        return {
-          status: "ready",
-          items: items.slice(0, maxModels),
-          cliVersion,
-          truncated: items.length > maxModels,
-        };
+      const code = (error as { code?: unknown } | null)?.code;
+      const cause = (error as { cause?: unknown } | null)?.cause as { code?: unknown } | undefined;
+      if (code === "E_CANCELLED") {
+        return "Pi model discovery was cancelled.";
       }
-      return { ...failure("unavailable", MESSAGES.unavailable), cliVersion };
-    }
-  } catch (error) {
-    if (request.signal?.aborted) {
-      return { ...failure("unavailable", "Pi model discovery was cancelled."), cliVersion };
-    }
-    const code = (error as { code?: unknown } | null)?.code;
-    const cause = (error as { cause?: unknown } | null)?.cause as { code?: unknown } | undefined;
-    if (code === "E_CANCELLED") {
-      return { ...failure("unavailable", "Pi model discovery was cancelled."), cliVersion };
-    }
-    if (code === "E_CLI_MISSING" || code === "ENOENT" || cause?.code === "ENOENT") {
-      return { ...failure("unavailable", MESSAGES.missing), cliVersion };
-    }
-    return { ...failure("unavailable", MESSAGES.unavailable), cliVersion };
-  }
-
-  const parsed = parsePiModelTable(stdout);
-  const items = parsed.items.slice(0, maxModels);
-  return {
-    status: "ready",
-    items,
-    cliVersion,
-    truncated: parsed.truncated || parsed.items.length > maxModels,
-  };
+      if (code === "E_CLI_MISSING" || code === "ENOENT" || cause?.code === "ENOENT") {
+        return MESSAGES.missing;
+      }
+      return MESSAGES.unavailable;
+    },
+    interpret: ({ result, combined, parsed, maxModels, cliVersion }) => {
+      if (
+        /no models available|not logged|login|sign in|api.?key|unauthori[sz]ed|credential/i.test(
+          combined,
+        )
+      ) {
+        if (parsed.items.length === 0)
+          return { ...failure("authRequired", MESSAGES.authRequired), cliVersion };
+      }
+      if (result.exitCode !== 0) {
+        if (result.exitCode === 127 && /relay-wrapper|ENOENT/i.test(result.stderr)) {
+          return { ...failure("unavailable", MESSAGES.missing), cliVersion };
+        }
+        if (parsed.items.length > 0) {
+          return {
+            status: "ready",
+            items: parsed.items.slice(0, maxModels),
+            cliVersion,
+            truncated: parsed.items.length > maxModels,
+          };
+        }
+        return { ...failure("unavailable", MESSAGES.unavailable), cliVersion };
+      }
+      const items = parsed.items.slice(0, maxModels);
+      return {
+        status: "ready",
+        items,
+        cliVersion,
+        truncated: parsed.truncated || parsed.items.length > maxModels,
+      };
+    },
+    fail: (status, message, cliVersion) => ({
+      ...failure(status as PiModelDiscovery["status"], message),
+      cliVersion,
+    }),
+  });
 }
