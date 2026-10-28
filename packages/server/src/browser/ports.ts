@@ -4,6 +4,7 @@ import type {
   AttemptView,
   BootstrapSettings,
   CatalogCli,
+  CliMcpServers,
   CliModelCatalog,
   CliModelItem,
   CliProbeSummary,
@@ -36,6 +37,7 @@ export type {
   AttemptView,
   BootstrapSettings,
   CatalogCli,
+  CliMcpServers,
   CliModelCatalog,
   CliModelItem,
   CliProbeSummary,
@@ -200,4 +202,9 @@ export interface BrowserModelCatalogPort {
   get(projectId: string, cli: CatalogCli): Promise<CliModelCatalog>;
   refresh(projectId: string, cli: CatalogCli): Promise<CliModelCatalog>;
   close?(): void | Promise<void>;
+}
+
+/** Read-only MCP server discovery, composed by the CLI outside the server. */
+export interface BrowserMcpServersPort {
+  list(projectId: string, cli: CatalogCli): Promise<CliMcpServers>;
 }
