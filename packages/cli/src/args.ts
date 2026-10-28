@@ -1,3 +1,5 @@
+import { isFakeCliEnabled } from "@relay/schema";
+
 export type CommandName = "run" | "resume" | "start" | "doctor" | "version" | "help";
 
 export interface CliOptions {
@@ -29,10 +31,8 @@ export class UsageError extends Error {
 }
 
 /** Test-only seam: the fake agent script is invisible unless explicitly enabled. */
-// ponytail: single env flag; promote to CLI options if more test seams appear.
 export function isFakeScriptEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  const value = env.RELAY_ALLOW_FAKE;
-  return value === "1" || value === "true";
+  return isFakeCliEnabled(env);
 }
 
 function takeValue(argv: string[], index: number, flag: string): { value: string; next: number } {

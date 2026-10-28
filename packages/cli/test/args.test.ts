@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseArgs, UsageError } from "../src/args.js";
+import { isFakeScriptEnabled, parseArgs, UsageError } from "../src/args.js";
 
 describe("CLI args", () => {
   it("parses run, params and flags", () => {
@@ -117,5 +117,14 @@ describe("CLI args", () => {
     expect(() =>
       parseArgs(["run", "w.json", "--project", "/tmp/p", "--data-dir", "/tmp/d", "--bogus"]),
     ).toThrow(UsageError);
+  });
+});
+
+describe("fake script gate", () => {
+  it("follows the single RELAY_ALLOW_FAKE gate owned by @relay/schema", () => {
+    expect(isFakeScriptEnabled({ RELAY_ALLOW_FAKE: "1" })).toBe(true);
+    expect(isFakeScriptEnabled({ RELAY_ALLOW_FAKE: "true" })).toBe(true);
+    expect(isFakeScriptEnabled({ RELAY_ALLOW_FAKE: "0" })).toBe(false);
+    expect(isFakeScriptEnabled({})).toBe(false);
   });
 });

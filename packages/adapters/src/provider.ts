@@ -1,5 +1,5 @@
 import { RelayError } from "@relay/core";
-import { PROD_CLIS } from "@relay/schema";
+import { isFakeCliEnabled, PROD_CLIS } from "@relay/schema";
 import { createClaudeAdapter } from "./claude.js";
 import { discoverClaudeModels } from "./claude-model-discovery.js";
 import { createCodexAdapter } from "./codex.js";
@@ -79,10 +79,8 @@ export const fakeProvider: CliProvider = {
 };
 
 /** Test-only gate: the fake provider is invisible unless explicitly enabled. */
-// ponytail: single env flag; promote to a registry option if more test seams appear.
 export function isFakeProviderEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  const value = env.RELAY_ALLOW_FAKE;
-  return value === "1" || value === "true";
+  return isFakeCliEnabled(env);
 }
 
 export const opencodeProvider: CliProvider = {
