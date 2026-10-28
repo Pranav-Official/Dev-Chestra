@@ -531,6 +531,9 @@ export class LinearEngine implements Engine {
       await executeApproval(this.#ctx, run, plan, node, active);
       return;
     }
+    if (node.type === "decision") {
+      throw new RelayError("E_INTERNAL", "decision executor not implemented");
+    }
     if (node.type === "shell") {
       await executeShell(this.#ctx, run, plan, node, active);
       return;
@@ -578,6 +581,7 @@ function executionStates(
       gateDecision: execution.gateDecision,
       joinResolution: execution.joinResolution,
       approvalDecision: ad ? { decision: ad.decision, requestId: ad.requestId } : null,
+      decision: execution.decision,
     };
   }
   return out;

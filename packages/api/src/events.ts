@@ -201,21 +201,51 @@ const decisionRequestedPayloadSchema = strict({
   provider: z.string(),
   model: z.string(),
   questionIds: z.array(z.string()),
+  attempt: z.number().int().positive().optional(),
+  generation: z.number().int().positive().optional(),
+});
+
+/** Normalized model answer for one decision question (core DecisionOutput). */
+export const decisionOutputSchema = strict({
+  kind: z.enum(["boolean", "choice", "score"]),
+  value: z.union([z.boolean(), z.string(), z.null()]),
+  probability: z.number().optional(),
+  score: z.number().optional(),
+  probabilities: z.record(z.string(), z.number()).optional(),
+  confidence: z.number().nullable(),
+  confidenceSource: z.enum(["provider", "derived"]).nullable(),
+  refusal: strict({ reason: optionalString }).optional(),
+  model: z.string(),
+});
+
+export const decisionRoutingSchema = strict({
+  branch: z.string().nullable(),
+  reason: z.enum(["matched", "low_confidence", "refused", "error"]),
 });
 
 const decisionAnsweredPayloadSchema = strict({
-  answers: z.array(
-    strict({
-      id: z.string(),
-      kind: z.string(),
-      value: jsonValueSchema,
-      confidence: z.number().optional(),
-      probabilities: z.record(z.string(), z.number()).optional(),
-      refusal: optionalString,
-    }),
-  ),
-  latencyMs: z.number().nonnegative(),
+  answers: z
+    .array(
+      strict({
+        id: z.string(),
+        kind: z.string(),
+        value: jsonValueSchema,
+        confidence: z.number().optional(),
+        probabilities: z.record(z.string(), z.number()).optional(),
+        refusal: optionalString,
+      }),
+    )
+    .optional(),
+  latencyMs: z.number().nonnegative().optional(),
   raw: jsonValueSchema.optional(),
+  output: decisionOutputSchema.optional(),
+  routing: decisionRoutingSchema.optional(),
+  usage: strict({
+    inputTokens: z.number().int().nonnegative(),
+    outputTokens: z.number().int().nonnegative(),
+  }).optional(),
+  attempt: z.number().int().positive().optional(),
+  generation: z.number().int().positive().optional(),
 });
 
 const approvalRequestedPayloadSchema = strict({

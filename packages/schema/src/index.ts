@@ -1,3 +1,4 @@
+export * from "./decision-route.js";
 export * from "./expression.js";
 export * from "./gate.js";
 export * from "./graph.js";
@@ -12,3 +13,4 @@ export * from "./serialize.js";
 export * from "./template.js";
 export * from "./types.js";
 export * from "./validate.js";
+export * from "./validate-decision.js";

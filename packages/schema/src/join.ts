@@ -56,6 +56,8 @@ function outputSchema(node: WorkflowNode | undefined): JsonSchemaObject | null {
       return node.output === undefined ? null : normalize(node.output);
     case "approval":
       return null;
+    case "decision":
+      return null;
     case "start":
       return OPAQUE_OBJECT;
     case "end":

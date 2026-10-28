@@ -1,4 +1,4 @@
-import type { Issue, NodeType, WorkflowNode } from "@relay/schema";
+import { decisionHandles, type Issue, type NodeType, type WorkflowNode } from "@relay/schema";
 import { Handle, type Node, type NodeProps, Position, useUpdateNodeInternals } from "@xyflow/react";
 import {
   AlertTriangle,
@@ -46,6 +46,8 @@ export function handleSignature(node: WorkflowNode): string | null {
       return `join:${node.inputs.join("|")}`;
     case "approval":
       return `approval:${node.id}`;
+    case "decision":
+      return `decision:${decisionHandles(node).join("|")}`;
     case "start":
     case "agent":
     case "shell":
@@ -74,6 +76,10 @@ export function subtitle(node: WorkflowNode): string {
       const msg = node.message ?? "";
       const short = msg.trim().slice(0, 32);
       return node.irreversible ? `Irreversible · ${short}` : short || "Waits for a person";
+    }
+    case "decision": {
+      const short = (node.instructions ?? "").trim().slice(0, 32);
+      return short === "" ? `Asks ${node.provider}` : `${node.provider} · ${short}`;
     }
     case "end":
       return `Ends as ${node.status}`;

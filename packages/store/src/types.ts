@@ -264,6 +264,17 @@ export interface RecordGateDecisionInput {
   evaluated: readonly GateEvaluationInput[];
 }
 
+export interface RecordDecisionInput {
+  identity: ExecutionIdentity;
+  provider: string;
+  model: string;
+  questionIds?: readonly string[];
+  /** Normalized model answer (contract section 4). */
+  output: unknown;
+  routing: { branch: string | null; reason: string };
+  usage?: { inputTokens: number; outputTokens: number };
+}
+
 export interface RecordJoinResolutionInput {
   identity: ExecutionIdentity;
   mode: "first" | "all";

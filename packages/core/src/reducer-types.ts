@@ -1,5 +1,6 @@
 import type { ErrorCode } from "./error.js";
 import type {
+  DecisionAnsweredPayload,
   GateDecidedPayload,
   JoinResolvedPayload,
   NodeKind,
@@ -90,6 +91,12 @@ export interface ApprovalDecisionRef {
   eventId: number;
 }
 
+export interface DecisionRef {
+  output: NonNullable<DecisionAnsweredPayload["output"]>;
+  routing: NonNullable<DecisionAnsweredPayload["routing"]>;
+  eventId: number;
+}
+
 export interface ExecView {
   path: Path;
   nodeId: string;
@@ -101,6 +108,8 @@ export interface ExecView {
   joinResolution: JoinResolvedPayload | null;
   approvalRequest: ApprovalRequestRef | null;
   approvalDecision: ApprovalDecisionRef | null;
+  /** Durable decision answer; null until decision.answered. */
+  decision: DecisionRef | null;
   requiresAcceptedResult: boolean;
   acceptedResult: AcceptedResultRef | null;
   recordedOutput: RecordedOutputRef | null;

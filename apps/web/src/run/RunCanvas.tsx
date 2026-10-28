@@ -14,6 +14,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import "@xyflow/react/dist/style.css";
 import { deriveRouting, type RunView } from "@relay/core";
+import type { DecisionMode } from "@relay/schema";
 import {
   Bot,
   CheckCircle2,
@@ -42,8 +43,10 @@ interface SnapshotNode {
   command?: string;
   status?: string;
   branches?: { id: string; when?: string; otherwise?: true }[];
-  mode?: "first" | "all";
+  mode?: "first" | "all" | DecisionMode;
   inputs?: string[];
+  provider?: string;
+  instructions?: string;
 }
 
 export interface WorkflowSnapshot {
@@ -51,6 +54,33 @@ export interface WorkflowSnapshot {
   graph: {
     nodes: SnapshotNode[];
     edges: { id: string; from: string; to: string }[];
+  };
+}
+
+/**
+ * Routing-graph projection of a run snapshot. Decision routing comes from the
+ * execution projection; a decision object mode is not a routing-graph mode
+ * string, so only routing-relevant fields are forwarded.
+ */
+export function toRoutingGraph(snapshot: WorkflowSnapshot): {
+  nodes: {
+    id: string;
+    type: string;
+    branches?: { id: string }[];
+    mode?: string;
+    inputs?: string[];
+  }[];
+  edges: { id: string; from: string; to: string }[];
+} {
+  return {
+    nodes: snapshot.graph.nodes.map((node) => ({
+      id: node.id,
+      type: node.type,
+      ...(node.branches === undefined ? {} : { branches: node.branches }),
+      ...(typeof node.mode === "string" ? { mode: node.mode } : {}),
+      ...(node.inputs === undefined ? {} : { inputs: node.inputs }),
+    })),
+    edges: snapshot.graph.edges,
   };
 }
 
@@ -353,8 +383,7 @@ export function RunCanvas({
   }, []);
 
   const routing = useMemo(
-    () =>
-      deriveRouting({ nodes: snapshot.graph.nodes, edges: snapshot.graph.edges }, view.executions),
+    () => deriveRouting(toRoutingGraph(snapshot), view.executions),
     [snapshot, view],
   );
 

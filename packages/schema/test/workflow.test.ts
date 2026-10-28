@@ -53,11 +53,11 @@ describe("parse and validate the P1 chain", () => {
   });
 
   it("rejects unsupported node types, CLIs, versions and unknown fields", () => {
-    const decision = chainRaw();
-    node(decision, "agent").type = "decision";
-    const decisionParse = parseWorkflow(decision);
-    expect(decisionParse.ok).toBe(false);
-    if (!decisionParse.ok) expect(decisionParse.error.message).toContain("Unsupported node type");
+    const map = chainRaw();
+    node(map, "agent").type = "map";
+    const mapParse = parseWorkflow(map);
+    expect(mapParse.ok).toBe(false);
+    if (!mapParse.ok) expect(mapParse.error.message).toContain("Unsupported node type");
 
     const opencode = chainRaw();
     node(opencode, "agent").cli = "opencode";

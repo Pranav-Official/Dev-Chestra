@@ -1,3 +1,4 @@
+import { decisionHandles } from "./decision-route.js";
 import { HANDLE_ID_PATTERN, NODE_ID_PATTERN } from "./ids.js";
 import { validateGate, validateJoin } from "./routing.js";
 import type { Edge, GateBranch, Graph, Issue, JoinNode, WorkflowNode } from "./types.js";
@@ -5,7 +6,16 @@ import type { Edge, GateBranch, Graph, Issue, JoinNode, WorkflowNode } from "./t
 export { HANDLE_ID_PATTERN, NODE_ID_PATTERN };
 
 const EDGE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-const SUPPORTED_TYPES = new Set(["start", "agent", "shell", "gate", "join", "approval", "end"]);
+const SUPPORTED_TYPES = new Set([
+  "start",
+  "agent",
+  "shell",
+  "gate",
+  "join",
+  "approval",
+  "decision",
+  "end",
+]);
 
 export interface ResolvedEdge {
   readonly edge: Edge;
@@ -111,9 +121,26 @@ function validateEndpoint(
         }
         return undefined;
       }
+      if (node.type === "decision") {
+        if (!HANDLE_ID_PATTERN.test(endpoint.handle)) {
+          return endpointIssue(
+            "E_EDGE_HANDLE",
+            `Decision handle id '${endpoint.handle}' must match ${HANDLE_ID_PATTERN.source}.`,
+            pointer,
+          );
+        }
+        if (!decisionHandles(node).includes(endpoint.handle)) {
+          return endpointIssue(
+            "E_EDGE_BRANCH",
+            `Edge source '${endpoint.raw}' does not name a handle of decision '${node.id}'.`,
+            pointer,
+          );
+        }
+        return undefined;
+      }
       return endpointIssue(
         "E_EDGE_HANDLE",
-        `Edge source '${endpoint.raw}' names a handle, but '${node.id}' is not a gate or approval.`,
+        `Edge source '${endpoint.raw}' names a handle, but '${node.id}' is not a gate, approval or decision.`,
         pointer,
       );
     }
@@ -121,6 +148,13 @@ function validateEndpoint(
       return endpointIssue(
         "E_EDGE_HANDLE",
         `Gate '${node.id}' edges must name a branch ('${node.id}.branchId').`,
+        pointer,
+      );
+    }
+    if (node.type === "decision") {
+      return endpointIssue(
+        "E_EDGE_HANDLE",
+        `Decision '${node.id}' edges must name a handle ('${node.id}.handleId').`,
         pointer,
       );
     }
@@ -229,7 +263,7 @@ export function analyzeGraph(graph: Graph): { analysis: GraphAnalysis; issues: I
       issues.push(
         issue(
           "E_NODE_TYPE",
-          `Unsupported node type '${node.type}'; P1 routing supports start, agent, shell, gate, join, approval, end.`,
+          `Unsupported node type '${node.type}'; P1 routing supports start, agent, shell, gate, join, approval, decision, end.`,
           `${pointer}/type`,
           node.id,
         ),
