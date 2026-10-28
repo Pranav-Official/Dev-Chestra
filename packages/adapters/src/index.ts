@@ -5,6 +5,14 @@ import type { AdapterOptions, AdapterRegistry, CliAdapter, CliId, Invocation } f
 
 export { discoverClaudeModels } from "./claude-model-discovery.js";
 export { runCommand } from "./command.js";
+export {
+  boundCount,
+  boundMs,
+  type DiscoveryRequestFields,
+  hasControl,
+  printable,
+  validateDiscoveryRequest,
+} from "./discovery-util.js";
 export { buildChildEnv } from "./env.js";
 export {
   acquireFileLock,
