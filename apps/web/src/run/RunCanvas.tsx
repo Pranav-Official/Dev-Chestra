@@ -14,7 +14,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import "@xyflow/react/dist/style.css";
 import { deriveRouting, type RunView } from "@relay/core";
-import type { DecisionMode } from "@relay/schema";
+import { type DecisionMode, type DecisionNode, decisionHandles } from "@relay/schema";
 import {
   Bot,
   CheckCircle2,
@@ -95,6 +95,9 @@ interface NodeData extends Record<string, unknown> {
   gateEvaluated: { branch: string; matched: boolean; error?: string }[];
   joinActive: string[];
   joinSkipped: string[];
+  decisionBranch: string | null;
+  decisionReason: string | null;
+  decisionHandles: string[];
   runId: string;
   approvalCanAct: boolean;
   approvalRequestId: string | null;
@@ -261,6 +264,23 @@ function WorkflowNode({ data }: NodeProps<Node<NodeData>>) {
           )}
         </div>
       ) : null}
+      {data.kind === "decision" ? (
+        <div className="flow-node-route" data-testid={`run-decision-branch-${String(data.id)}`}>
+          {data.decisionBranch === null
+            ? data.status === "succeeded"
+              ? "decision failed"
+              : data.status === "skipped"
+                ? "not run"
+                : "pending"
+            : `branch ${data.decisionBranch}`}
+          {data.decisionReason === null ? "" : ` · ${data.decisionReason}`}
+          {data.decisionHandles.length === 0
+            ? ""
+            : ` · ${data.decisionHandles
+                .map((handle) => `${handle === data.decisionBranch ? "→" : ""}${handle}`)
+                .join(" ")}`}
+        </div>
+      ) : null}
       {data.kind === "approval" && data.approvalCanAct ? <ApprovalNodeActions data={data} /> : null}
       <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
     </div>
@@ -331,7 +351,28 @@ function autoLayout(snapshot: WorkflowSnapshot): Map<string, { x: number; y: num
 function subtitle(node: SnapshotNode): string {
   if (node.command) return node.command;
   if (node.cli) return node.model ? `${node.cli} · ${node.model}` : node.cli;
+  if (node.provider) {
+    const short = (node.instructions ?? "").trim().slice(0, 32);
+    return short === "" ? node.provider : `${node.provider} · ${short}`;
+  }
   return "";
+}
+
+/** Output handle ids for a decision snapshot node (single source: @relay/schema). */
+function decisionHandlesFor(node: SnapshotNode): string[] {
+  const mode = node.mode;
+  if (typeof mode !== "object" || mode === null) return [];
+  const kind = (mode as { kind?: unknown }).kind;
+  const hasBranches = Array.isArray((mode as { branches?: unknown }).branches);
+  const hasBands = Array.isArray((mode as { bands?: unknown }).bands);
+  if (
+    (kind === "choice" && !hasBranches) ||
+    (kind === "score" && !hasBands) ||
+    (kind !== "boolean" && kind !== "choice" && kind !== "score")
+  ) {
+    return [];
+  }
+  return decisionHandles({ ...node, type: "decision", mode } as unknown as DecisionNode);
 }
 
 export function RunCanvas({
@@ -417,6 +458,9 @@ export function RunCanvas({
           gateEvaluated: exec?.gateDecision?.evaluated ?? [],
           joinActive: exec?.joinResolution?.active ?? [],
           joinSkipped: exec?.joinResolution?.skipped ?? [],
+          decisionBranch: exec?.decision?.routing.branch ?? null,
+          decisionReason: exec?.decision?.routing.reason ?? null,
+          decisionHandles: node.type === "decision" ? decisionHandlesFor(node) : [],
           runId,
           approvalCanAct: canAct,
           approvalRequestId:

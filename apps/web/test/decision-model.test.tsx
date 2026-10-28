@@ -1,9 +1,9 @@
 import {
+  type DecisionNode,
   decisionHandles,
+  type Edge,
   parseWorkflow,
   validateWorkflow,
-  type DecisionNode,
-  type Edge,
   type WorkflowFile,
   type WorkflowNode,
 } from "@relay/schema";
@@ -11,6 +11,11 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { EditorCanvas } from "../src/editor/canvas/EditorCanvas.js";
 import { NodePalette } from "../src/editor/canvas/Palette.js";
+import {
+  applyCommandToFile,
+  createEditorState,
+  executeCommand,
+} from "../src/editor/model/commands.js";
 import { createDefaultNode } from "../src/editor/model/graph.js";
 import {
   addDecisionBranch,
@@ -27,7 +32,6 @@ import {
   updateDecisionLevel,
   updateDecisionOption,
 } from "../src/editor/model/routing.js";
-import { applyCommandToFile, createEditorState, executeCommand } from "../src/editor/model/commands.js";
 
 function decision(overrides: Partial<DecisionNode> = {}): DecisionNode {
   const base = createDefaultNode("decision", []);
@@ -53,10 +57,13 @@ describe("decision defaults", () => {
     const start = createDefaultNode("start", []);
     const dec = createDefaultNode("decision", [start]);
     const end = createDefaultNode("end", [start, dec]);
-    const file = fileWith([start, dec, end], [
-      { id: "e1", from: "start", to: dec.id },
-      { id: "e2", from: `${dec.id}.true`, to: end.id },
-    ]);
+    const file = fileWith(
+      [start, dec, end],
+      [
+        { id: "e1", from: "start", to: dec.id },
+        { id: "e2", from: `${dec.id}.true`, to: end.id },
+      ],
+    );
     const parsed = parseWorkflow(file);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
@@ -255,10 +262,13 @@ describe("decision connection rules", () => {
   it("follows the chosen handle when the mode changes", () => {
     const { start, dec, end } = connected();
     const choice: DecisionNode = { ...dec, mode: defaultDecisionMode("choice") };
-    const file = fileWith([start, choice, end], [
-      { id: "e1", from: "start", to: choice.id },
-      { id: "e2", from: `${choice.id}.yes`, to: end.id },
-    ]);
+    const file = fileWith(
+      [start, choice, end],
+      [
+        { id: "e1", from: "start", to: choice.id },
+        { id: "e2", from: `${choice.id}.yes`, to: end.id },
+      ],
+    );
     const stale = executeCommand(createEditorState(file), {
       kind: "connect",
       connection: { source: `${choice.id}.true`, target: end.id },
@@ -269,10 +279,13 @@ describe("decision connection rules", () => {
   it("rejects a patch that orphans a connected decision handle", () => {
     const { start, dec, end } = connected();
     const choice: DecisionNode = { ...dec, mode: defaultDecisionMode("choice") };
-    const file = fileWith([start, choice, end], [
-      { id: "e1", from: "start", to: choice.id },
-      { id: "e2", from: `${choice.id}.yes`, to: end.id },
-    ]);
+    const file = fileWith(
+      [start, choice, end],
+      [
+        { id: "e1", from: "start", to: choice.id },
+        { id: "e2", from: `${choice.id}.yes`, to: end.id },
+      ],
+    );
     const renamed = renameDecisionBranch(choice, "yes", "affirmative");
     expect(renamed).not.toBeNull();
     if (renamed === null) return;

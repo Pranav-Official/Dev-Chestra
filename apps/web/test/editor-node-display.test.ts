@@ -52,7 +52,10 @@ function end(status: EndNode["status"] = "success"): EndNode {
   return { id: "end", type: "end", name: "End", status, result: "done" };
 }
 
-function decision(mode: DecisionNode["mode"], provider: DecisionNode["provider"] = "typesafe-jev"): DecisionNode {
+function decision(
+  mode: DecisionNode["mode"],
+  provider: DecisionNode["provider"] = "typesafe-jev",
+): DecisionNode {
   return {
     id: "decision",
     type: "decision",

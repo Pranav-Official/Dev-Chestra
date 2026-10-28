@@ -1,17 +1,17 @@
+import type { DecisionTestResult } from "@relay/api";
 import {
   DECISION_PROVIDER_LABELS,
   type DecisionNode,
   type Issue,
   type WorkflowNode,
 } from "@relay/schema";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { api } from "../src/api/client.js";
-import { Inspector } from "../src/editor/inspector/Inspector.js";
 import { DecisionTester } from "../src/editor/inspector/DecisionTester.js";
-import type { DecisionTestResult } from "@relay/api";
+import { Inspector } from "../src/editor/inspector/Inspector.js";
 
 function decisionNode(overrides: Partial<DecisionNode> = {}): DecisionNode {
   return {
@@ -60,7 +60,12 @@ function currentNode(): DecisionNode {
 
 function readyProviders() {
   return [
-    { id: "typesafe-jev", label: DECISION_PROVIDER_LABELS["typesafe-jev"], ready: true, missing: [] },
+    {
+      id: "typesafe-jev",
+      label: DECISION_PROVIDER_LABELS["typesafe-jev"],
+      ready: true,
+      missing: [],
+    },
     {
       id: "cloudflare-clef",
       label: DECISION_PROVIDER_LABELS["cloudflare-clef"],
@@ -338,18 +343,20 @@ describe("DecisionTester", () => {
         ],
       },
     });
-    const runTest = vi.fn(async () => ({
-      output: {
-        kind: "choice",
-        value: "b",
-        probabilities: { a: 0.3, b: 0.7 },
-        confidence: 0.7,
-        confidenceSource: "provider",
-        model: "clef",
-      },
-      routing: { branch: "b", reason: "matched" },
-      latencyMs: 100,
-    }));
+    const runTest = vi.fn(
+      async (): Promise<DecisionTestResult> => ({
+        output: {
+          kind: "choice",
+          value: "b",
+          probabilities: { a: 0.3, b: 0.7 },
+          confidence: 0.7,
+          confidenceSource: "provider",
+          model: "clef",
+        },
+        routing: { branch: "b", reason: "matched" },
+        latencyMs: 100,
+      }),
+    );
     const { unmount } = render(testerHarness(choice, runTest));
     await user.click(screen.getByTestId("decision-tester-run"));
     expect(await screen.findByTestId("decision-tester-prob-b")).toHaveTextContent("70.0%");
@@ -366,19 +373,21 @@ describe("DecisionTester", () => {
         ],
       },
     });
-    const runScore = vi.fn(async () => ({
-      output: {
-        kind: "score",
-        value: "high",
-        score: 1.2,
-        probabilities: { low: 0.2, high: 0.8 },
-        confidence: 0.8,
-        confidenceSource: "derived",
-        model: "jev-latest",
-      },
-      routing: { branch: "high", reason: "matched" },
-      latencyMs: 90,
-    }));
+    const runScore = vi.fn(
+      async (): Promise<DecisionTestResult> => ({
+        output: {
+          kind: "score",
+          value: "high",
+          score: 1.2,
+          probabilities: { low: 0.2, high: 0.8 },
+          confidence: 0.8,
+          confidenceSource: "derived",
+          model: "jev-latest",
+        },
+        routing: { branch: "high", reason: "matched" },
+        latencyMs: 90,
+      }),
+    );
     render(testerHarness(score, runScore));
     await user.click(screen.getByTestId("decision-tester-run"));
     expect(await screen.findByTestId("decision-tester-value")).toHaveTextContent("high");
@@ -400,7 +409,12 @@ describe("DecisionTester", () => {
   it("shows a busy state while the test is in flight", async () => {
     const user = userEvent.setup();
     let resolve!: (value: DecisionTestResult) => void;
-    const runTest = vi.fn(() => new Promise<DecisionTestResult>((done) => { resolve = done; }));
+    const runTest = vi.fn(
+      () =>
+        new Promise<DecisionTestResult>((done) => {
+          resolve = done;
+        }),
+    );
     render(testerHarness(decisionNode(), runTest));
     await user.click(screen.getByTestId("decision-tester-run"));
     expect(await screen.findByText("Asking…")).toBeInTheDocument();
