@@ -18,3 +18,21 @@ export type {
   DecisionUsage,
   TestReport,
 } from "./types.js";
+export type {
+  DecisionWireBody,
+  ParseDecisionPayloadArgs,
+  ParsedDecisionPayload,
+  WireQuestion,
+} from "./wire.js";
+export {
+  buildDecisionBody,
+  isValidModelOverride,
+  MAX_CHOICE_OPTIONS,
+  MAX_SCORE_LEVELS,
+  MAX_STATE_BYTES,
+  MIN_CHOICE_OPTIONS,
+  MIN_SCORE_LEVELS,
+  MODEL_OVERRIDE_PATTERN,
+  parseDecisionPayload,
+  resolveBodyModel,
+} from "./wire.js";
