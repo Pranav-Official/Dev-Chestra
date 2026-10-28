@@ -3,11 +3,8 @@ import { join } from "node:path";
 import {
   type AdapterEvent,
   acquireFileLock,
-  type CliId,
   type FailureClass,
   getProvider,
-  isCliId,
-  isProdCliId,
   killOrphan,
   piCredentialScope,
   type ReleaseFileLock,
@@ -16,6 +13,7 @@ import {
 import { type ExecutionIdentity, fsSlug, hashJson, type Path, RelayError } from "@relay/core";
 import type { RunRecord } from "@relay/store";
 import { resolveInside, type ScratchWorkspace } from "@relay/workspaces";
+import { readCliId, resolveAgentAdapter } from "./agent-preflight.js";
 import { consumeNoSubmit, countNoSubmit, finalizeAccepted, secretValues } from "./agent-support.js";
 import { type ActiveRunState, type EngineContext, toRelayError } from "./context.js";
 import type { PlanNode, ScopeSource } from "./graph-plan.js";
@@ -34,13 +32,6 @@ import { openTranscript, type TranscriptWriter } from "./transcript.js";
 
 const NO_SUBMIT_PROMPT =
   "You ended your turn without calling submit_result. Call it now with your final result.";
-
-/** Plan nodes carry `cli` as unknown; narrow with the guard so an unregistered
- * id fails here instead of compiling through a cast. */
-function readCliId(value: unknown): CliId {
-  if (isCliId(value)) return value;
-  throw new RelayError("E_CLI_MISSING", `Adapter '${String(value)}' is not available`);
-}
 
 function mapFailure(failure: FailureClass): AttemptFailure | null {
   switch (failure.kind) {
@@ -190,18 +181,7 @@ async function runAttempts(
   state: AttemptState,
 ): Promise<void> {
   let workspace = initialWorkspace;
-  const provider = getProvider(readCliId(node.raw.cli));
-  const adapter = ctx.deps.adapters.get(provider.id);
-  if (provider.experimental) {
-    const allowed = ctx.deps.allowExperimentalClis ?? [];
-    if (!(isProdCliId(provider.id) && allowed.includes(provider.id))) {
-      throw new RelayError(
-        "E_CLI_MISSING",
-        `Adapter '${provider.id}' is not enabled in this build. The caller must opt in with an explicit experimental flag after a live contract check.`,
-        { details: { cli: provider.id, behaviorVerified: adapter.evidence.behaviorVerified } },
-      );
-    }
-  }
+  const { adapter } = resolveAgentAdapter(ctx, node);
   const ancestors = await ctx.chainOutputs(run, source, node.id);
   const scope = buildScopeData(run.params, ancestors);
   const rendered = await ctx.render(String(stripUi(node.raw).prompt ?? ""), scope);
