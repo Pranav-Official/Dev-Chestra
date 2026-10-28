@@ -17,17 +17,6 @@ import { ShellForm } from "./ShellForm.js";
 import { StartForm } from "./StartForm.js";
 import type { BufferValidity, InspectorProps, PatchOf } from "./types.js";
 
-const TYPE_LABEL: Record<string, string> = {
-  start: "Start",
-  agent: "Agent",
-  shell: "Shell",
-  gate: "Gate",
-  join: "Join",
-  approval: "Approval",
-  decision: "Decision",
-  end: "End",
-};
-
 function NodeIssues({ issues }: { issues: readonly Issue[] }) {
   if (issues.length === 0) return null;
   return (
@@ -162,65 +151,60 @@ export function Inspector({
         </div>
       ) : (
         <>
-          <header className="inspector-head">
-            <div>
-              <p className="inspector-eyebrow">{TYPE_LABEL[node.type]} node</p>
-              <h2>{node.name.trim() === "" ? "Untitled node" : node.name}</h2>
-            </div>
-            <span className="pill">{TYPE_LABEL[node.type]}</span>
-          </header>
           <div className="inspector-body" key={session}>
             <BufferContext.Provider value={registry}>
               <NodeHeader node={node} issues={nodeIssues} onPatch={emit} />
-              {node.type === "start" ? (
-                <StartForm node={node} issues={nodeIssues} onPatch={emit} />
-              ) : null}
-              {node.type === "agent" ? (
-                <AgentForm node={node} issues={nodeIssues} projectId={projectId} onPatch={emit} />
-              ) : null}
-              {node.type === "shell" ? (
-                <ShellForm node={node} issues={nodeIssues} onPatch={emit} />
-              ) : null}
-              {node.type === "gate" ? (
-                <GateForm
-                  node={node}
-                  issues={nodeIssues}
-                  projectId={projectId}
-                  edges={edges ?? []}
-                  onPatch={emit}
-                  onRoutingChange={emitRouting}
-                />
-              ) : null}
-              {node.type === "join" ? (
-                <JoinForm
-                  node={node}
-                  issues={nodeIssues}
-                  edges={edges ?? []}
-                  onPatch={emit}
-                  onRoutingChange={emitRouting}
-                />
-              ) : null}
-              {(node as { type: string }).type === "approval" ? (
-                <ApprovalForm
-                  node={node as unknown as never}
-                  issues={nodeIssues}
-                  onPatch={emit as unknown as never}
-                />
-              ) : null}
-              {node.type === "decision" ? (
-                <DecisionForm
-                  node={node}
-                  issues={nodeIssues}
-                  projectId={projectId}
-                  edges={edges ?? []}
-                  onPatch={emit}
-                  onRoutingChange={emitRouting}
-                />
-              ) : null}
-              {node.type === "end" ? (
-                <EndForm node={node} issues={nodeIssues} onPatch={emit} />
-              ) : null}
-              <NodeIssues issues={summary} />
+              <div className="inspector-content">
+                {node.type === "start" ? (
+                  <StartForm node={node} issues={nodeIssues} onPatch={emit} />
+                ) : null}
+                {node.type === "agent" ? (
+                  <AgentForm node={node} issues={nodeIssues} projectId={projectId} onPatch={emit} />
+                ) : null}
+                {node.type === "shell" ? (
+                  <ShellForm node={node} issues={nodeIssues} onPatch={emit} />
+                ) : null}
+                {node.type === "gate" ? (
+                  <GateForm
+                    node={node}
+                    issues={nodeIssues}
+                    projectId={projectId}
+                    edges={edges ?? []}
+                    onPatch={emit}
+                    onRoutingChange={emitRouting}
+                  />
+                ) : null}
+                {node.type === "join" ? (
+                  <JoinForm
+                    node={node}
+                    issues={nodeIssues}
+                    edges={edges ?? []}
+                    onPatch={emit}
+                    onRoutingChange={emitRouting}
+                  />
+                ) : null}
+                {(node as { type: string }).type === "approval" ? (
+                  <ApprovalForm
+                    node={node as unknown as never}
+                    issues={nodeIssues}
+                    onPatch={emit as unknown as never}
+                  />
+                ) : null}
+                {node.type === "decision" ? (
+                  <DecisionForm
+                    node={node}
+                    issues={nodeIssues}
+                    projectId={projectId}
+                    edges={edges ?? []}
+                    onPatch={emit}
+                    onRoutingChange={emitRouting}
+                  />
+                ) : null}
+                {node.type === "end" ? (
+                  <EndForm node={node} issues={nodeIssues} onPatch={emit} />
+                ) : null}
+                <NodeIssues issues={summary} />
+              </div>
             </BufferContext.Provider>
           </div>
         </>

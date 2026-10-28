@@ -262,7 +262,6 @@ describe("Agent fields", () => {
     render(<Harness initial={agent} alternate={shell} />);
     expect(screen.getByText(/experimental adapter/)).toBeInTheDocument();
     expect(screen.getAllByText(/not an OS sandbox/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/provider keys/i)).toBeInTheDocument();
     expect(screen.queryByTestId("inspector-agent-model")).toBeNull();
     expect(screen.queryByTestId("inspector-agent-model-picker")).toBeInTheDocument();
     expect(screen.getByTestId("inspector-agent-model-selected-id")).toHaveTextContent(
@@ -453,7 +452,7 @@ describe("Shell and End fields", () => {
     fireEvent.click(screen.getByTestId("inspector-shell-allow-failure"));
     await waitFor(() => expect(lastPatch()?.patch.allowFailure).toBe(true));
     expect(screen.getByTestId("inspector-shell-effects-note")).toHaveTextContent(
-      "arbitrary side effects",
+      "real side effects",
     );
     expect(screen.getByTestId("inspector-workspace-note")).toHaveTextContent(
       "Workspace is chosen when starting the workflow.",

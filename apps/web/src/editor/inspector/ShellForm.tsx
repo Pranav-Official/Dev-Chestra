@@ -1,5 +1,5 @@
 import type { Issue, ShellNode } from "@relay/schema";
-import { Terminal, TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 import { CheckboxField, describedBy, Field } from "./fields/fields.js";
 import { useBufferedNumber } from "./fields/useBufferedNumber.js";
 import { fieldIssue } from "./issues.js";
@@ -74,25 +74,13 @@ export function ShellForm({ node, issues, onPatch }: FormProps<ShellNode>) {
               onChange={(event) => onPatch({ command: event.currentTarget.value })}
             />
           </Field>
-          <div
-            className="inspector-note amber"
-            data-testid="inspector-shell-effects-note"
-            role="note"
-          >
-            <TriangleAlert size={14} aria-hidden="true" />
-            <div>
-              <b>Arbitrary effects when this runs</b>
-              <p>
-                Relay does not execute this command during editing. At run time it runs in the
-                workspace chosen for the run (project root, an existing Git worktree, or a new
-                worktree) and can have arbitrary side effects. This inspector is not a sandbox and
-                does not show a fake sandbox badge.
-              </p>
-            </div>
-          </div>
+          <p className="inspector-footnote" data-testid="inspector-shell-effects-note" role="note">
+            <TriangleAlert size={12} aria-hidden="true" /> Runs in the run's workspace with real
+            side effects. Not a sandbox.
+          </p>
         </div>
       </InspectorSection>
-      <InspectorSection sectionKey="shell:execution" title="Execution">
+      <InspectorSection sectionKey="shell:execution" title="Options" defaultOpen={false}>
         <div className="inspector-stack">
           <ShellTimeout node={node} issues={issues} onPatch={onPatch} />
           <CheckboxField
@@ -105,20 +93,9 @@ export function ShellForm({ node, issues, onPatch }: FormProps<ShellNode>) {
           />
         </div>
       </InspectorSection>
-      <InspectorSection sectionKey="shell:workspace" title="Workspace">
-        <p className="inspector-help" data-testid="inspector-workspace-note">
-          Workspace is chosen when starting the workflow.
-        </p>
-      </InspectorSection>
-      <InspectorSection sectionKey="shell:unsupported" title="Not implemented">
-        <p className="inspector-help">
-          Private command previews are not provided: review the command text itself before running.
-        </p>
-        <p className="inspector-help">
-          <Terminal size={12} aria-hidden="true" /> Real execution is a run action, not an inspector
-          action.
-        </p>
-      </InspectorSection>
+      <p className="inspector-footnote" data-testid="inspector-workspace-note">
+        Workspace is chosen when starting the workflow.
+      </p>
     </>
   );
 }

@@ -71,17 +71,9 @@ export function AgentPermissions({
           </button>
         </>
       ) : null}
-      <div className="inspector-note amber" role="note">
-        <ShieldAlert size={14} aria-hidden="true" />
-        <div>
-          <b>Permissions are advisory, not an OS sandbox</b>
-          <p>
-            Relay asks the agent CLI to enforce network and write permissions. Claude Code and Codex
-            enforcement is partial and unverified; Relay does not provide an operating-system
-            sandbox. Do not treat this switch as a security boundary.
-          </p>
-        </div>
-      </div>
+      <p className="inspector-footnote" role="note">
+        <ShieldAlert size={12} aria-hidden="true" /> Advisory only. Relay is not an OS sandbox.
+      </p>
       {sectionIssue ? (
         <p className="inspector-error" role="alert">
           {sectionIssue}
