@@ -1,7 +1,9 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { getProvider } from "@relay/adapters";
 import type { ProjectView } from "@relay/api";
+import { PROD_CLIS } from "@relay/schema";
 import { afterEach, describe, expect, it } from "vitest";
 import type { BrowserQueryPort, BrowserRunControllerPort } from "../src/index.js";
 import { createBrowserApp } from "../src/index.js";
@@ -112,17 +114,16 @@ describe("GET /api/clis", () => {
       headers: { Host: HOST, Cookie: `relay_session=${TOKEN}` },
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { clis: { id: string; label: string }[] };
+    const body = (await res.json()) as {
+      clis: { id: string; label: string; experimental: boolean }[];
+    };
     // Server tests opt into RELAY_ALLOW_FAKE=1, so the test-only fake is listed last.
-    expect(body.clis.map((entry) => entry.id)).toEqual([
-      "claude-code",
-      "codex",
-      "opencode",
-      "pi",
-      "fake",
-    ]);
-    for (const entry of body.clis) {
-      expect(entry.label.length).toBeGreaterThan(0);
+    expect(body.clis.map((entry) => entry.id)).toEqual([...PROD_CLIS, "fake"]);
+    for (const id of PROD_CLIS) {
+      const entry = body.clis.find((candidate) => candidate.id === id);
+      expect(entry?.label).toBe(getProvider(id).label);
+      expect(entry?.label.length).toBeGreaterThan(0);
+      expect(entry?.experimental).toBe(true);
     }
   });
 

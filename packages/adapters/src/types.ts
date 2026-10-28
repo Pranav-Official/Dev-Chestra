@@ -1,11 +1,16 @@
 import type { RelayError, Result } from "@relay/core";
+import { isProdCliId, type ProdCliId } from "@relay/schema";
 
-/** Production CLI ids. `fake` is test-only behind RELAY_ALLOW_FAKE. */
-export const PROD_CLI_IDS = ["claude-code", "codex", "opencode", "pi"] as const;
+export type { ProdCliId };
+export { isProdCliId };
 
-export type ProdCliId = (typeof PROD_CLI_IDS)[number];
-
+/** Production CLI ids plus the test-only `fake` (behind RELAY_ALLOW_FAKE). */
 export type CliId = ProdCliId | "fake";
+
+/** Type guard for {@link CliId}. Use it instead of casting CLI ids. */
+export function isCliId(value: unknown): value is CliId {
+  return isProdCliId(value) || value === "fake";
+}
 
 export interface AdapterCaps {
   enforcesPermissions: "enforced" | "partial" | "advisory";

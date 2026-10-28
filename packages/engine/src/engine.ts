@@ -1,4 +1,4 @@
-import { type CliId, getProvider } from "@relay/adapters";
+import { getProvider, isCliId } from "@relay/adapters";
 import type { EventEnvelope, RunId, RunStatus, RunView } from "@relay/core";
 import {
   defaultRunWorkspaceSelection,
@@ -11,7 +11,7 @@ import {
   type RoutingExecutionState,
   type RoutingView,
 } from "@relay/core";
-import { resolveParams } from "@relay/schema";
+import { isProdCliId, resolveParams } from "@relay/schema";
 import type { CreateRunInput, CreateRunResult, RunRecord } from "@relay/store";
 import {
   consumeStaleWakesForWaiting,
@@ -270,8 +270,8 @@ export class LinearEngine implements Engine {
   #assertAdapters(plan: WorkflowPlan): void {
     for (const node of plan.nodes) {
       if (node.type !== "agent") continue;
-      const cli = node.raw.cli as CliId;
-      if (!this.#ctx.deps.adapters.has(cli as never)) {
+      const cli: unknown = node.raw.cli;
+      if (!isCliId(cli) || !this.#ctx.deps.adapters.has(cli)) {
         throw new RelayError("E_CLI_MISSING", `Adapter '${String(cli)}' is not available`, {
           details: { cli },
         });
@@ -279,8 +279,8 @@ export class LinearEngine implements Engine {
       const provider = getProvider(cli);
       if (provider.experimental) {
         const allowed = this.#ctx.deps.allowExperimentalClis ?? [];
-        const adapter = this.#ctx.deps.adapters.get(cli as never);
-        if (!allowed.includes(provider.id as "claude-code" | "codex" | "opencode" | "pi")) {
+        const adapter = this.#ctx.deps.adapters.get(cli);
+        if (!(isProdCliId(provider.id) && allowed.includes(provider.id))) {
           throw new RelayError(
             "E_CLI_MISSING",
             `Adapter '${provider.id}' requires an explicit experimental opt-in only after a live contract check`,

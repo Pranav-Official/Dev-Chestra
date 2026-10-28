@@ -7,7 +7,7 @@ const allowed = [
   { name: "workspaces", path: "(^|/)packages/workspaces/", deps: ["core"] },
   { name: "decisions", path: "(^|/)packages/decisions/", deps: ["core", "config"] },
   { name: "context", path: "(^|/)packages/context/", deps: ["core", "store"] },
-  { name: "adapters", path: "(^|/)packages/adapters/", deps: ["core", "config"] },
+  { name: "adapters", path: "(^|/)packages/adapters/", deps: ["core", "config", "schema"] },
   { name: "mcp", path: "(^|/)packages/mcp/", deps: ["core", "schema"] },
   {
     name: "engine",
@@ -31,7 +31,7 @@ const allowed = [
     // surface and core contracts. Revisit when the engine owns composition.
     name: "server",
     path: "(^|/)packages/server/",
-    deps: ["api", "engine", "supervisor", "config", "core", "schema", "store", "mcp"],
+    deps: ["api", "engine", "supervisor", "config", "core", "schema", "store", "mcp", "adapters"],
   },
   {
     // P1 embedded CLI composition root: run/resume assemble the slice directly

@@ -6,6 +6,8 @@ import {
   type CliId,
   type FailureClass,
   getProvider,
+  isCliId,
+  isProdCliId,
   killOrphan,
   piCredentialScope,
   type ReleaseFileLock,
@@ -32,6 +34,13 @@ import { openTranscript, type TranscriptWriter } from "./transcript.js";
 
 const NO_SUBMIT_PROMPT =
   "You ended your turn without calling submit_result. Call it now with your final result.";
+
+/** Plan nodes carry `cli` as unknown; narrow with the guard so an unregistered
+ * id fails here instead of compiling through a cast. */
+function readCliId(value: unknown): CliId {
+  if (isCliId(value)) return value;
+  throw new RelayError("E_CLI_MISSING", `Adapter '${String(value)}' is not available`);
+}
 
 function mapFailure(failure: FailureClass): AttemptFailure | null {
   switch (failure.kind) {
@@ -133,7 +142,7 @@ export async function executeAgent(
   // exclude each other and concurrent OAuth refreshes lose updates. The
   // scope matches plan()'s symlink predicate over the same base env, so a
   // null scope means this run touches no shared store and skips the lock.
-  const agentCli = node.raw.cli as CliId;
+  const agentCli = readCliId(node.raw.cli);
   const agentAdapter = ctx.deps.adapters.get(getProvider(agentCli).id);
   const credentialScope =
     agentAdapter.id === "pi" ? piCredentialScope(ctx.baseEnv(agentCli), workspace.dir) : null;
@@ -181,11 +190,11 @@ async function runAttempts(
   state: AttemptState,
 ): Promise<void> {
   let workspace = initialWorkspace;
-  const provider = getProvider(node.raw.cli as CliId);
+  const provider = getProvider(readCliId(node.raw.cli));
   const adapter = ctx.deps.adapters.get(provider.id);
   if (provider.experimental) {
     const allowed = ctx.deps.allowExperimentalClis ?? [];
-    if (!allowed.includes(provider.id as "claude-code" | "codex" | "opencode" | "pi")) {
+    if (!(isProdCliId(provider.id) && allowed.includes(provider.id))) {
       throw new RelayError(
         "E_CLI_MISSING",
         `Adapter '${provider.id}' is not enabled in this build. The caller must opt in with an explicit experimental flag after a live contract check.`,
