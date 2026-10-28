@@ -36,6 +36,7 @@ export interface RoutingExecutionState {
   // but must accept null: ExecView carries null for legacy decisions, and
   // callers pass run views straight in without mapping.
   approvalDecision?: { decision: "approve" | "reject"; requestId?: string | null } | null;
+  decision?: { routing: { branch: string | null } } | null;
 }
 
 export interface RoutingView {
@@ -89,6 +90,10 @@ function edgeState(
   if (status !== "succeeded") return "pending";
   if (node?.type === "gate") {
     const chosen = execution?.gateDecision?.branch ?? null;
+    return chosen !== null && source.handle === chosen ? "active" : "dead";
+  }
+  if (node?.type === "decision") {
+    const chosen = execution?.decision?.routing.branch ?? null;
     return chosen !== null && source.handle === chosen ? "active" : "dead";
   }
   if (node?.type === "approval") {

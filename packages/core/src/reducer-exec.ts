@@ -89,6 +89,7 @@ export function reduceExecutionEvent(view: RunView, envelope: EventEnvelope): Ru
           joinResolution: null,
           approvalRequest: null,
           approvalDecision: null,
+          decision: null,
           requiresAcceptedResult:
             exec.requiresAcceptedResult || (payload.init?.requireSubmission ?? false),
           acceptedResult: null,
@@ -251,6 +252,7 @@ export function reduceExecutionEvent(view: RunView, envelope: EventEnvelope): Ru
               joinResolution: null,
               approvalRequest: null,
               approvalDecision: null,
+              decision: null,
               processSpawned: null,
               processStopped: null,
               workspaceFinalized: null,
