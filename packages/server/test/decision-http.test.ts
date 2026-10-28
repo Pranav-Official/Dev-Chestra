@@ -278,6 +278,70 @@ describe("decision provider HTTP routes", () => {
     expect(huge.body.error.code).toBe("E_VALIDATION");
   });
 
+  it("rejects schema-invalid modes with 400 without calling the provider", async () => {
+    // F10: the tester enforces the same rules as validateDecision, beyond
+    // the Zod shape (counts, uniqueness, band order, model pattern, reserved
+    // names). None of these reach the provider.
+    const before = standin.requests().length;
+    const cases: Record<string, unknown>[] = [
+      // 256 options exceed the 1..255 limit.
+      {
+        ...TEST_BODY,
+        mode: {
+          kind: "choice",
+          options: Array.from({ length: 256 }, (_, i) => ({ value: `v${i}` })),
+          branches: [{ id: "x", values: ["v0"] }],
+        },
+      },
+      // Duplicate option value with full branch coverage.
+      {
+        ...TEST_BODY,
+        mode: {
+          kind: "choice",
+          options: [{ value: "a" }, { value: "a" }],
+          branches: [{ id: "x", values: ["a"] }],
+        },
+      },
+      // Bands are not strictly decreasing.
+      {
+        ...TEST_BODY,
+        mode: {
+          kind: "score",
+          levels: [{ label: "low" }, { label: "high" }],
+          bands: [
+            { id: "top", atLeast: 1 },
+            { id: "mid", atLeast: 1 },
+            { id: "floor", atLeast: null },
+          ],
+        },
+      },
+      // Model override violates the pattern.
+      { ...TEST_BODY, model: "-bad" },
+      // Reserved option value.
+      {
+        ...TEST_BODY,
+        mode: {
+          kind: "choice",
+          options: [{ value: "a" }, { value: "__proto__" }],
+          branches: [
+            { id: "x", values: ["a"] },
+            { id: "y", values: ["__proto__"] },
+          ],
+        },
+      },
+    ];
+    for (const body of cases) {
+      const rejected = await json<{ error: { code: string; message: string } }>(
+        "POST",
+        "/api/projects/proj-1/decisions/test",
+        body,
+      );
+      expect(rejected.status).toBe(400);
+      expect(rejected.body.error.code).toBe("E_VALIDATION");
+    }
+    expect(standin.requests()).toHaveLength(before);
+  });
+
   it("returns redacted provider errors without key material", async () => {
     standin.setNext(["error-400"]);
     const failed = await json<{ error: { code: string; message: string } }>(
