@@ -219,7 +219,7 @@ export async function waitFor(
 }
 
 export interface EventPageLike {
-  events: Array<{ type: string; path: string; payload: unknown }>;
+  events: Array<{ id: number; type: string; path: string; payload: unknown }>;
 }
 
 let eventPageSchema: { parse(value: unknown): unknown } | null = null;
