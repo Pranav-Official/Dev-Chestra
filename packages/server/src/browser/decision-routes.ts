@@ -14,7 +14,15 @@ import {
   type DecisionService,
   decisionProviders,
 } from "@relay/decisions";
-import { DECISION_PROVIDER_LABELS, type DecisionMode, routeDecision } from "@relay/schema";
+import {
+  compileTemplate,
+  DECISION_PROVIDER_LABELS,
+  type DecisionMode,
+  type DecisionNode,
+  type Issue,
+  routeDecision,
+  validateDecision,
+} from "@relay/schema";
 import type { Hono } from "hono";
 import { errorBody } from "../errors.js";
 import type { BrowserQueryPort } from "./ports.js";
@@ -56,6 +64,60 @@ function questionFor(body: DecisionTestRequest): DecisionQuestion {
       ...(level.description === undefined ? {} : { description: level.description }),
     })),
   };
+}
+
+/**
+ * F10: the tester validates with the same rules as stored workflows. Builds
+ * a synthetic node from the request and reuses `validateDecision` (option
+ * counts, uniqueness, band order, model pattern, reserved names). The state
+ * template has no run scope at test time, so its own roots are allowed: only
+ * the template shape rules apply to state, not scope membership.
+ */
+function decisionTestIssues(body: DecisionTestRequest): { path: string; message: string }[] {
+  const node: DecisionNode = {
+    id: "decision-test",
+    type: "decision",
+    name: "Decision test",
+    provider: body.provider,
+    ...(body.model === undefined ? {} : { model: body.model }),
+    state: body.state,
+    instructions: body.instructions,
+    mode: body.mode as DecisionMode,
+    onError: "fail",
+  };
+  const allowed = new Set<string>();
+  const compiled = compileTemplate(body.state, { shell: false });
+  if (compiled.ok) {
+    for (const part of compiled.value.parts) {
+      if (part.kind === "expression") {
+        for (const root of part.compiled.roots) {
+          allowed.add(root);
+        }
+      }
+    }
+  }
+  const errors: Issue[] = [];
+  validateDecision(
+    node,
+    "",
+    allowed,
+    (item) => {
+      errors.push(item);
+    },
+    (error, pointer, nodeId) => {
+      errors.push({
+        severity: "error",
+        code: error.code,
+        message: error.message,
+        ...(pointer === undefined ? {} : { pointer }),
+        ...(nodeId === undefined ? {} : { nodeId }),
+      });
+    },
+  );
+  return errors.slice(0, 5).map((entry) => ({
+    path: (entry.pointer ?? "").replace(/^\//, ""),
+    message: entry.message,
+  }));
 }
 
 function routeModeFor(body: DecisionTestRequest): DecisionMode {
@@ -134,6 +196,13 @@ export function mountDecisionRoutes(app: Hono, deps: DecisionRouteDeps): void {
       );
     }
     const body = parsed.data;
+    const schemaIssues = decisionTestIssues(body);
+    if (schemaIssues.length > 0) {
+      return c.json(
+        errorBody("E_VALIDATION", "Decision test body is invalid.", { issues: schemaIssues }),
+        400,
+      );
+    }
     const preset = DECISION_PRESETS[body.provider];
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), preset.timeoutMs);
@@ -148,7 +217,12 @@ export function mountDecisionRoutes(app: Hono, deps: DecisionRouteDeps): void {
         controller.signal,
       );
       if (!result.ok) {
-        // The client redacts key material; only the safe message reaches the wire.
+        // Client-side validation failures are the caller's fault (400);
+        // provider and transport failures stay 502. The client redacts key
+        // material; only the safe message reaches the wire.
+        if (result.error.code === "E_VALIDATION") {
+          return c.json(errorBody("E_VALIDATION", result.error.message), 400);
+        }
         return c.json(errorBody("E_INTERNAL", result.error.message), 502);
       }
       const response: DecisionTestResult = {

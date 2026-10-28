@@ -233,7 +233,8 @@ function numberMap(value: unknown): Record<string, number> | undefined {
  * The deterministic node output downstream expressions and templates read.
  * It carries the routed branch plus the full normalized answer, so scope
  * entries like `<nodeId>.value` and `<nodeId>.confidence` resolve. A null
- * confidence is stored as null (JSONata comparisons against null are false).
+ * confidence is stored as null (the engine exposes it as 0 in expression
+ * scope; the evaluator itself fails closed on null).
  */
 function decisionPersistedOutput(output: DecisionOutput, branch: string): Record<string, unknown> {
   const record = output as unknown as Record<string, unknown>;

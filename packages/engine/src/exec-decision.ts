@@ -114,22 +114,39 @@ function interrupt(
 }
 
 /**
- * Fail the node when it routes to `uncertain` with no wired uncertain edge.
- * The plan's outgoing edges are the single source of which handles are wired;
- * falling through silently would run the wrong branch, like gate `branch: null`.
+ * Whether the plan wires the `uncertain` handle. The outgoing edges are the
+ * single source of which handles are wired; falling through silently would run
+ * the wrong branch, like gate `branch: null`. Wiring is decided BEFORE
+ * committing (F5), never after.
  */
-function requireUncertainWired(plan: WorkflowPlan, node: PlanNode, branch: string): void {
-  if (branch !== DECISION_UNCERTAIN_HANDLE) return;
-  const wired = (plan.outgoing.get(node.id) ?? []).some(
+function uncertainWired(plan: WorkflowPlan, node: PlanNode): boolean {
+  return (plan.outgoing.get(node.id) ?? []).some(
     (edge) => edge.sourceBranch === DECISION_UNCERTAIN_HANDLE,
   );
-  if (!wired) {
-    throw new RelayError(
-      "E_WORKFLOW_INVALID",
-      `Decision '${node.id}' routed to 'uncertain' but no edge leaves '${node.id}.uncertain'; wire an uncertain edge or narrow the mode thresholds`,
-      { details: { nodeId: node.id, branch } },
-    );
-  }
+}
+
+function unwiredUncertainError(node: PlanNode): RelayError {
+  return new RelayError(
+    "E_WORKFLOW_INVALID",
+    `Decision '${node.id}' routed to 'uncertain' but no edge leaves '${node.id}.uncertain'; wire an uncertain edge or narrow the mode thresholds`,
+    { details: { nodeId: node.id, branch: DECISION_UNCERTAIN_HANDLE } },
+  );
+}
+
+/**
+ * Configuration errors (missing/malformed secrets, local validation) always
+ * fail the node, even when `onError` is "uncertain": a misconfigured node
+ * must fail loudly instead of silently routing uncertain (F7c). Only
+ * provider/transport failures after the client's retries route uncertain.
+ * The client reports missing secrets as E_PROVIDER with this prefix; local
+ * limit violations surface as E_VALIDATION.
+ */
+function isDecisionConfigError(error: RelayError): boolean {
+  if (error.code === "E_VALIDATION") return true;
+  return (
+    error.code === "E_PROVIDER" &&
+    error.message.startsWith("Missing or invalid decision secret(s):")
+  );
 }
 
 export async function executeDecision(
@@ -154,6 +171,10 @@ export async function executeDecision(
   if (execution.status === "succeeded") return;
   const configHash = await ctx.configHash(node);
   if (active.abort.signal.aborted) throw new StopSignal(active.reason ?? "user");
+  // Read the persisted answer BEFORE beginInvocation: starting a new
+  // generation resets the per-generation projection (decision: null), so a
+  // later read would never see the answer a resume must reuse (F5).
+  const prior = ctx.store.view.get(run.id).executions[node.id]?.decision;
   const identity = ctx.store.executions.beginInvocation({
     runId: run.id,
     path: node.id as Path,
@@ -163,9 +184,11 @@ export async function executeDecision(
   });
   try {
     // Recovery: an already-persisted answer is reused without calling the
-    // provider again. `recordDecision` is idempotent for the same answer, so
-    // re-committing also heals a crash between answer and completion.
-    const prior = ctx.store.view.get(run.id).executions[node.id]?.decision;
+    // provider again (a resume never re-asks and pays again). The wiring
+    // decision is re-derived and, when uncertain is unwired, the same clear
+    // E_WORKFLOW_INVALID is reproduced with no provider call (F5).
+    // `recordDecision` is idempotent for the same answer, so re-committing
+    // also heals a crash between answer and completion.
     if (prior !== null && prior !== undefined) {
       const routing = routeDecision(config.mode, prior.output);
       if (routing.branch === null) {
@@ -175,6 +198,9 @@ export async function executeDecision(
           { details: { nodeId: node.id } },
         );
       }
+      if (routing.branch === DECISION_UNCERTAIN_HANDLE && !uncertainWired(plan, node)) {
+        throw unwiredUncertainError(node);
+      }
       ctx.store.routing.recordDecision({
         identity,
         provider: config.provider,
@@ -183,7 +209,6 @@ export async function executeDecision(
         output: prior.output,
         routing,
       });
-      requireUncertainWired(plan, node, routing.branch);
       return;
     }
 
@@ -223,8 +248,10 @@ export async function executeDecision(
     } finally {
       active.abort.signal.removeEventListener("abort", onAbort);
     }
-    if (active.abort.signal.aborted) throw interrupt(ctx, identity, active);
 
+    // The call returned, so persist the answer before handling the interrupt:
+    // an abort that lands here interrupts the run but a resume reuses the
+    // stored answer instead of asking (and paying) again (F7a).
     const routing = routeDecision(config.mode, response.output);
     if (routing.branch === null) {
       throw new RelayError(
@@ -233,29 +260,42 @@ export async function executeDecision(
         { details: { nodeId: node.id } },
       );
     }
+    // Unwired `uncertain` is decided BEFORE committing: persist the answer
+    // with a failed routing (branch null, like a gate failure, keeping the
+    // original reason) and fail with a clear error. A crash between the
+    // commit and the throw resumes into the same error with no re-ask (F5).
+    const unwiredUncertain =
+      routing.branch === DECISION_UNCERTAIN_HANDLE && !uncertainWired(plan, node);
     ctx.store.routing.recordDecision({
       identity,
       provider: config.provider,
       model: response.output.model,
       questionIds: ["q0"],
       output: response.output,
-      routing,
+      routing: unwiredUncertain ? { branch: null, reason: routing.reason } : routing,
       ...(response.usage === undefined ? {} : { usage: response.usage }),
     });
-    requireUncertainWired(plan, node, routing.branch);
+    if (unwiredUncertain) {
+      const invalid = unwiredUncertainError(node);
+      ctx.failExecution(run, node, identity, invalid);
+      throw invalid;
+    }
+    if (active.abort.signal.aborted) throw interrupt(ctx, identity, active);
   } catch (error) {
     if (error instanceof StopSignal) throw error;
-    // An abort that lands anywhere — including inside the provider call —
-    // interrupts instead of failing, exactly like the other executors. The
-    // provider call is read-only, so a resume simply asks again.
+    // An abort that lands before the provider answered interrupts instead of
+    // failing, exactly like the other executors. The provider call is
+    // read-only, so a resume simply asks again.
     if (active.abort.signal.aborted) throw interrupt(ctx, identity, active);
     const relay = toRelayError(error);
     // A provider failure after the client's retries routes to `uncertain`
-    // with a refusal-style output when the node opts into it. The client
-    // already redacted key material from the message, so it is safe to store.
+    // with a refusal-style output when the node opts into it. Configuration
+    // errors always fail the node instead (F7c). The client already redacted
+    // key material from the message, so it is safe to store.
     if (
       config.onError === "uncertain" &&
-      (relay.code === "E_PROVIDER" || relay.code === "E_PROVIDER_REFUSED")
+      (relay.code === "E_PROVIDER" || relay.code === "E_PROVIDER_REFUSED") &&
+      !isDecisionConfigError(relay)
     ) {
       const output: DecisionOutput = {
         kind: config.mode.kind,
@@ -266,15 +306,25 @@ export async function executeDecision(
         model: fallbackModel(config),
       };
       try {
+        // Same wiring-first rule as the answered path: an unwired uncertain
+        // persists the error answer with a failed (branch null) routing and
+        // fails with the clear error, so a resume never re-asks (F5).
+        const unwired = !uncertainWired(plan, node);
         ctx.store.routing.recordDecision({
           identity,
           provider: config.provider,
           model: output.model,
           questionIds: ["q0"],
           output,
-          routing: { branch: DECISION_UNCERTAIN_HANDLE, reason: "error" },
+          routing: unwired
+            ? { branch: null, reason: "error" }
+            : { branch: DECISION_UNCERTAIN_HANDLE, reason: "error" },
         });
-        requireUncertainWired(plan, node, DECISION_UNCERTAIN_HANDLE);
+        if (unwired) {
+          const invalid = unwiredUncertainError(node);
+          ctx.failExecution(run, node, identity, invalid);
+          throw invalid;
+        }
         return;
       } catch (nested) {
         if (nested instanceof StopSignal) throw nested;

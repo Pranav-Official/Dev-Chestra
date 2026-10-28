@@ -105,7 +105,11 @@ export function buildDecisionBody(req: DecisionRequest, preset: DecisionPreset):
     };
   }
   if (q.kind === "choice") {
-    const criteria: Record<string, string> = {};
+    // Null-prototype so an option value like `__proto__` becomes an own
+    // property instead of mutating the object prototype (and vanishing from
+    // the serialized JSON). Validation rejects reserved names (F9); the
+    // client never silently drops what the caller declared.
+    const criteria: Record<string, string> = Object.create(null);
     for (const option of q.options) {
       criteria[option.value] = option.description ?? option.value;
     }
@@ -184,14 +188,27 @@ function firstRecord(
   return undefined;
 }
 
-function readProbabilities(answer: Record<string, unknown>): Record<string, number> | undefined {
+/**
+ * Read the provider probability map, keeping only entries the caller declared
+ * (choice option values; score level indices or labels) with finite values in
+ * [0,1]. Anything else is provider noise: drop it rather than persisting or
+ * rendering it (F6). Null-prototype so keys like `__proto__` or `constructor`
+ * are inert data, never inherited members (F9).
+ */
+function readProbabilities(
+  answer: Record<string, unknown>,
+  allowedKeys: ReadonlySet<string> | undefined,
+): Record<string, number> | undefined {
   const map = firstRecord(answer, PROBABILITY_MAP_KEYS);
   if (map === undefined) {
     return undefined;
   }
-  const out: Record<string, number> = {};
+  const out: Record<string, number> = Object.create(null);
   for (const [key, value] of Object.entries(map)) {
-    if (typeof value === "number" && Number.isFinite(value)) {
+    if (allowedKeys !== undefined && !allowedKeys.has(key)) {
+      continue;
+    }
+    if (typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1) {
       out[key] = value;
     }
   }
@@ -206,8 +223,23 @@ function maxProbability(probs: Record<string, number> | undefined): number | und
   return values.length === 0 ? undefined : Math.max(...values);
 }
 
+/**
+ * Provider confidence is only honored inside [0,1]; anything else (or
+ * non-finite) is treated as absent so derived confidence or null applies (F6).
+ */
 function providerConfidence(answer: Record<string, unknown>): number | undefined {
-  return firstFiniteNumber(answer, CONFIDENCE_KEYS);
+  const confidence = firstFiniteNumber(answer, CONFIDENCE_KEYS);
+  if (confidence === undefined || confidence < 0 || confidence > 1) {
+    return undefined;
+  }
+  return confidence;
+}
+
+/** Bound for provider-controlled strings surfaced in refusal reasons (F6). */
+export const MAX_REASON_CHARS = 500;
+
+function truncateReason(reason: string): string {
+  return reason.length > MAX_REASON_CHARS ? reason.slice(0, MAX_REASON_CHARS) : reason;
 }
 
 function clamp01(p: number): number {
@@ -229,6 +261,45 @@ export interface ParseDecisionPayloadArgs {
   payload: unknown;
   question: DecisionQuestion;
   modelFallback: string;
+}
+
+/**
+ * A Cloudflare envelope reporting failure is a provider error, not a refusal:
+ * `success === false`, or a non-empty `errors` array with no `result`, hides
+ * no answer — it reports one (F8). The caller (client) redacts secret material
+ * from the thrown message before it leaves the package.
+ */
+function readEnvelopeError(top: Record<string, unknown>): string | undefined {
+  const hasResult = isRecord(top.result);
+  const errors = Array.isArray(top.errors) ? top.errors : undefined;
+  const failed = top.success === false || (errors !== undefined && errors.length > 0 && !hasResult);
+  if (!failed) {
+    return undefined;
+  }
+  const parts: string[] = [];
+  if (errors !== undefined) {
+    for (const entry of errors) {
+      if (typeof entry === "string" && entry !== "") {
+        parts.push(entry);
+      } else if (isRecord(entry) && typeof entry.message === "string" && entry.message !== "") {
+        parts.push(entry.message);
+      }
+    }
+  }
+  return parts.join("; ") === "" ? "provider reported failure" : parts.join("; ");
+}
+
+function firstNonEmptyString(
+  record: Record<string, unknown>,
+  keys: readonly string[],
+): string | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value !== "") {
+      return value;
+    }
+  }
+  return undefined;
 }
 
 export interface ParsedDecisionPayload {
@@ -264,9 +335,22 @@ function readUsage(inner: Record<string, unknown>): DecisionUsage | undefined {
 export function parseDecisionPayload(args: ParseDecisionPayloadArgs): ParsedDecisionPayload {
   const { question, modelFallback } = args;
   const top = isRecord(args.payload) ? args.payload : {};
+  const envelopeMessage = readEnvelopeError(top);
+  if (envelopeMessage !== undefined) {
+    throw new RelayError(
+      "E_PROVIDER",
+      `Decision provider failed: ${truncateReason(envelopeMessage)}`,
+      {
+        retryable: false,
+      },
+    );
+  }
   const inner =
     isRecord(top.result) && top.result !== top ? (top.result as Record<string, unknown>) : top;
-  const model = firstString(inner, MODEL_KEYS) ?? firstString(top, MODEL_KEYS) ?? modelFallback;
+  // An empty or missing model falls back to the preset's model name (F6): a
+  // valid paid answer must not be discarded for a blank model string.
+  const model =
+    firstNonEmptyString(inner, MODEL_KEYS) ?? firstNonEmptyString(top, MODEL_KEYS) ?? modelFallback;
   const usage = readUsage(inner) ?? readUsage(top);
 
   const container = firstRecord(inner, ANSWER_CONTAINER_KEYS);
@@ -298,7 +382,13 @@ export function parseDecisionPayload(args: ParseDecisionPayloadArgs): ParsedDeci
     if ((declaredType !== undefined && declaredType !== "choice") || choice === undefined) {
       return withUsage(refusal("choice", model, "wrong answer type for choice question"), usage);
     }
-    const probs = readProbabilities(answer);
+    const declared = new Set(question.options.map((option) => option.value));
+    // A choice outside the declared options answers a question nobody asked:
+    // treat it as a refusal, not a routable value (F6).
+    if (!declared.has(choice)) {
+      return withUsage(refusal("choice", model, truncateReason(`unknown option ${choice}`)), usage);
+    }
+    const probs = readProbabilities(answer, declared);
     const fromProvider = providerConfidence(answer);
     const fromDerived = maxProbability(probs);
     const output: DecisionOutput = {
@@ -309,7 +399,7 @@ export function parseDecisionPayload(args: ParseDecisionPayloadArgs): ParsedDeci
         fromProvider !== undefined ? "provider" : fromDerived !== undefined ? "derived" : null,
       model,
     };
-    if (probs !== undefined) {
+    if (probs !== undefined && Object.keys(probs).length > 0) {
       output.probabilities = probs;
     }
     return withUsage(output, usage);
@@ -320,12 +410,20 @@ export function parseDecisionPayload(args: ParseDecisionPayloadArgs): ParsedDeci
   }
   const labels = question.levels.map((level) => level.label);
   const index = Math.min(labels.length - 1, Math.max(0, Math.round(score)));
-  const rawProbs = readProbabilities(answer);
+  const allowed = new Set<string>();
+  labels.forEach((label, i) => {
+    allowed.add(String(i));
+    allowed.add(label);
+  });
+  const rawProbs = readProbabilities(answer, allowed);
   let probabilities: Record<string, number> | undefined;
   if (rawProbs !== undefined) {
-    probabilities = {};
+    // Null-prototype, own keys only: a level labelled `constructor` reads its
+    // probabilities, never Object.prototype's (F9).
+    probabilities = Object.create(null);
     labels.forEach((label, i) => {
-      const p = rawProbs[String(i)] ?? rawProbs[label];
+      const ownIndex = Object.hasOwn(rawProbs, String(i)) ? rawProbs[String(i)] : undefined;
+      const p = ownIndex ?? (Object.hasOwn(rawProbs, label) ? rawProbs[label] : undefined);
       if (p !== undefined) {
         (probabilities as Record<string, number>)[label] = p;
       }
@@ -342,7 +440,7 @@ export function parseDecisionPayload(args: ParseDecisionPayloadArgs): ParsedDeci
       fromProvider !== undefined ? "provider" : fromDerived !== undefined ? "derived" : null,
     model,
   };
-  if (probabilities !== undefined) {
+  if (probabilities !== undefined && Object.keys(probabilities).length > 0) {
     output.probabilities = probabilities;
   }
   return withUsage(output, usage);

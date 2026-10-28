@@ -19,6 +19,7 @@ import { createEngine } from "../src/engine.js";
 import { executeDecision } from "../src/exec-decision.js";
 import { executeDeterministic } from "../src/exec-deterministic.js";
 import { analyzeWorkflowPlan, type WorkflowPlan } from "../src/graph-plan.js";
+import { StopSignal } from "../src/stop.js";
 import type { EngineDeps } from "../src/types.js";
 
 const FAKE_ENV = {
@@ -312,9 +313,12 @@ describe("engine decision executor", () => {
   });
 
   it("fails with an actionable error when uncertain is reached but unwired", async () => {
+    // F5: wiring is decided before committing, so the answer persists with a
+    // failed (branch null) routing and the node fails instead of succeeding
+    // with routing.branch = "uncertain" and no error on it.
     const standin = await startStandin();
     trackStandin(standin);
-    const { deps } = setup(standin);
+    const { store, deps } = setup(standin);
     const engine = createEngine(deps);
     const snap = snapshot(
       [
@@ -332,6 +336,203 @@ describe("engine decision executor", () => {
     expect(result.value.status).toBe("failed");
     expect(result.value.error?.code).toBe("E_WORKFLOW_INVALID");
     expect(result.value.error?.message).toContain("d.uncertain");
+    const answered = events(store, result.value.runId, "decision.answered");
+    expect(answered).toHaveLength(1);
+    expect((answered[0] as { payload: { routing: unknown } }).payload.routing).toEqual({
+      branch: null,
+      reason: "low_confidence",
+    });
+    expect(store.view.get(result.value.runId as never).executions.d?.status).toBe("failed");
+    await engine.stop();
+  });
+
+  it("reproduces the unwired-uncertain error on redrive without calling the provider again", async () => {
+    // F5: a crash between the branch-null commit and the throw leaves the
+    // answer persisted with the execution still running; the redrive must hit
+    // the same clear E_WORKFLOW_INVALID with no provider call (no re-ask).
+    const standin = await startStandin();
+    trackStandin(standin);
+    const { store, deps } = setup(standin);
+    const snap = snapshot(
+      [
+        start(),
+        decision("d", { mode: { kind: "boolean", trueAt: 0.9, falseAt: 0.5 } }),
+        end("et", '"sure"'),
+      ],
+      [
+        ["start", "d"],
+        ["d.true", "et"],
+      ],
+    );
+    const created = store.runs.create({
+      projectId: "p1",
+      workflowId: "dec",
+      workflowHash: "hash",
+      snapshot: snap,
+      snapshotRaw: JSON.stringify(snap),
+      params: {},
+    });
+    const planResult = analyzeWorkflowPlan(snap);
+    if (!planResult.ok) throw planResult.error;
+    const ctx = new EngineContext(deps);
+    const run = store.runs.get(created.runId) as RunRecord;
+    await executeDeterministic(
+      ctx,
+      run,
+      planResult.value,
+      planResult.value.byId.get("start") as never,
+      activeState(),
+    );
+    const nodeD = planResult.value.byId.get("d") as never;
+    // The branch-null commit as executeDecision performs it, then a crash
+    // before the throw: the answer survives, the execution never failed.
+    const ensured = store.executions.ensure({
+      runId: created.runId as never,
+      path: "d" as never,
+      nodeId: "d",
+      kind: "decision",
+      requireSubmission: false,
+    });
+    const started = store.executions.beginInvocation({
+      runId: created.runId as never,
+      path: "d" as never,
+      attempt: ensured.attempt,
+      resolvedConfigHash: "cfg",
+    });
+    store.routing.recordDecision({
+      identity: started,
+      provider: "typesafe-jev",
+      model: "jev-latest",
+      questionIds: ["q0"],
+      output: {
+        kind: "boolean",
+        value: true,
+        probability: 0.75,
+        confidence: 0.75,
+        confidenceSource: "derived",
+        model: "jev-latest",
+      },
+      routing: { branch: null, reason: "low_confidence" },
+    });
+    // Boot recovery parks a running execution as interrupted before redrive.
+    store.events.append(created.runId as never, [
+      {
+        runId: created.runId as never,
+        path: "d" as never,
+        type: "node.state" as never,
+        actor: "engine" as never,
+        payload: {
+          from: "running",
+          to: "interrupted",
+          attempt: started.attempt,
+          generation: started.generation,
+        },
+      } as never,
+    ]);
+    await expect(
+      executeDecision(ctx, run, planResult.value, nodeD, activeState()),
+    ).rejects.toMatchObject({ code: "E_WORKFLOW_INVALID", message: /d\.uncertain/ });
+    expect(standin.requests()).toHaveLength(0);
+    expect(events(store, created.runId, "decision.answered")).toHaveLength(1);
+  });
+
+  it("persists the answer when abort lands after the provider responded, then resumes without re-asking", async () => {
+    // F7a: an interrupt after the answer arrived must not discard it.
+    const standin = await startStandin();
+    trackStandin(standin);
+    const { store, deps } = setup(standin);
+    const service = deps.decisions;
+    if (service === undefined) throw new Error("decisions service missing");
+    const interrupted = activeState();
+    const wrapped: typeof service = {
+      client: (provider) => {
+        const inner = service.client(provider);
+        return {
+          ...inner,
+          ask: async (request, signal) => {
+            const result = await inner.ask(request, signal);
+            if (result.ok) {
+              // The provider answered; the interrupt lands before the
+              // executor persists.
+              interrupted.abort.abort();
+            }
+            return result;
+          },
+        };
+      },
+    };
+    const snap = snapshot(
+      [start(), decision("d"), end("done", '"ok"')],
+      [
+        ["start", "d"],
+        ["d.true", "done"],
+      ],
+    );
+    const created = store.runs.create({
+      projectId: "p1",
+      workflowId: "dec",
+      workflowHash: "hash",
+      snapshot: snap,
+      snapshotRaw: JSON.stringify(snap),
+      params: {},
+    });
+    const planResult = analyzeWorkflowPlan(snap);
+    if (!planResult.ok) throw planResult.error;
+    const ctx = new EngineContext({ ...deps, decisions: wrapped });
+    const run = store.runs.get(created.runId) as RunRecord;
+    await executeDeterministic(
+      ctx,
+      run,
+      planResult.value,
+      planResult.value.byId.get("start") as never,
+      activeState(),
+    );
+    const nodeD = planResult.value.byId.get("d") as never;
+    let stopped: unknown;
+    try {
+      await executeDecision(ctx, run, planResult.value, nodeD, interrupted);
+    } catch (error) {
+      stopped = error;
+    }
+    expect(stopped).toBeInstanceOf(StopSignal);
+    expect(standin.requests()).toHaveLength(1);
+    expect(events(store, created.runId, "decision.answered")).toHaveLength(1);
+    expect(store.view.get(created.runId as never).executions.d?.status).toBe("succeeded");
+    // Resume reuses the stored answer: no second provider call.
+    const ctx2 = new EngineContext(deps);
+    await executeDecision(ctx2, run, planResult.value, nodeD, activeState());
+    expect(standin.requests()).toHaveLength(1);
+    expect(events(store, created.runId, "decision.answered")).toHaveLength(1);
+  });
+
+  it("always fails the node on missing secrets even with onError uncertain", async () => {
+    // F7c: configuration errors never route uncertain; only provider or
+    // transport failures after retries do.
+    const standin = await startStandin();
+    trackStandin(standin);
+    const { store, deps } = setup(standin);
+    const engine = createEngine({
+      ...deps,
+      decisions: createDecisionService({
+        env: {},
+        dotenvPath: null,
+        baseUrlOverride: standin.origin,
+      }),
+    });
+    const snap = snapshot(
+      [start(), decision("d", { onError: "uncertain" }), end("eu", '"unsure"')],
+      [
+        ["start", "d"],
+        ["d.uncertain", "eu"],
+      ],
+    );
+    const result = await engine.run(launchInput(snap));
+    if (!result.ok) throw result.error;
+    expect(result.value.status).toBe("failed");
+    expect(result.value.error?.code).toBe("E_PROVIDER");
+    expect(result.value.error?.message).toContain("TYPESAFE_API_KEY");
+    expect(store.view.get(result.value.runId as never).executions.d?.decision).toBeNull();
+    expect(standin.requests()).toHaveLength(0);
     await engine.stop();
   });
 
@@ -471,10 +672,13 @@ describe("engine decision executor", () => {
   });
 
   it("treats a null confidence as false in downstream expressions", async () => {
+    // F3: the worker retry is gone; the engine exposes a refused decision's
+    // null confidence as 0 in expression scope, so >= 0.8 reads false here
+    // while the persisted output keeps null.
     const standin = await startStandin();
     trackStandin(standin);
     standin.setNext(["refusal-missing"]);
-    const { deps } = setup(standin);
+    const { store, deps } = setup(standin);
     const engine = createEngine(deps);
     const snap = snapshot(
       [
@@ -500,6 +704,46 @@ describe("engine decision executor", () => {
     if (!result.ok) throw result.error;
     expect(result.value.status).toBe("succeeded");
     expect(result.value.result).toBe("unsure");
+    expect(
+      store.outputs.get({ runId: result.value.runId as never, path: "d" as never, attempt: 1 })
+        ?.json,
+    ).toMatchObject({ confidence: null, confidenceSource: null });
+    await engine.stop();
+  });
+
+  it("reads a refused decision in a gate with unknown confidence as 0, never high", async () => {
+    // F3: unknown confidence is never mistaken for high confidence, but
+    // low-side comparisons see it: < 0.5 is true while confidenceSource
+    // stays null so authors can still detect "unknown".
+    const standin = await startStandin();
+    trackStandin(standin);
+    standin.setNext(["refusal-missing"]);
+    const { deps } = setup(standin);
+    const engine = createEngine(deps);
+    const snap = snapshot(
+      [
+        start(),
+        decision("d"),
+        node("g", "gate", {
+          branches: [
+            { id: "low", when: "d.confidence < 0.5" },
+            { id: "high", otherwise: true },
+          ],
+        }),
+        end("el", '{ "conf": d.confidence, "src": d.confidenceSource }'),
+        end("eh", '"high"'),
+      ],
+      [
+        ["start", "d"],
+        ["d.uncertain", "g"],
+        ["g.low", "el"],
+        ["g.high", "eh"],
+      ],
+    );
+    const result = await engine.run(launchInput(snap));
+    if (!result.ok) throw result.error;
+    expect(result.value.status).toBe("succeeded");
+    expect(result.value.result).toEqual({ conf: 0, src: null });
     await engine.stop();
   });
 

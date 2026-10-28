@@ -353,11 +353,105 @@ describe("decision client ask", () => {
     });
     const result = await client.ask(BOOLEAN_REQ, new AbortController().signal);
     expect(result.ok).toBe(false);
-    expect(calls).toHaveLength(3);
+    // F7b: a client-side timeout is never retried (each attempt may bill again).
+    expect(calls).toHaveLength(1);
     if (!result.ok) {
       expect(result.error.code).toBe("E_PROVIDER");
       expect(result.error.message).toMatch(/timed out/);
     }
+  });
+
+  it("fails fast on a Retry-After above the 10 s cap without sleeping", async () => {
+    const sleeps: number[] = [];
+    const { calls, fetchImpl } = stubFetch(
+      async () => new Response("slow down", { status: 429, headers: { "retry-after": "86400" } }),
+    );
+    const client = createDecisionClient("typesafe-jev", {
+      env: ENV,
+      dotenvPath: null,
+      fetchImpl,
+      jitterRatio: 0,
+      sleep: async (ms: number) => {
+        sleeps.push(ms);
+      },
+    });
+    const result = await client.ask(BOOLEAN_REQ, new AbortController().signal);
+    expect(result.ok).toBe(false);
+    expect(calls).toHaveLength(1);
+    expect(sleeps).toEqual([]);
+    if (!result.ok) {
+      expect(result.error.code).toBe("E_PROVIDER");
+      expect(result.error.message).toContain("typesafe-jev");
+      expect(result.error.message).toContain("86400000");
+    }
+  });
+
+  it("cuts a retry sleep short on abort", async () => {
+    // Retry-After 5 s is under the 10 s cap, so the client really sleeps.
+    const { calls, fetchImpl } = stubFetch(
+      async () => new Response("slow down", { status: 429, headers: { "retry-after": "5" } }),
+    );
+    const client = createDecisionClient("typesafe-jev", {
+      env: ENV,
+      dotenvPath: null,
+      fetchImpl,
+      jitterRatio: 0,
+      sleep: () => new Promise<void>(() => undefined),
+    });
+    const controller = new AbortController();
+    const pending = client.ask(BOOLEAN_REQ, controller.signal);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    controller.abort();
+    const result = await pending;
+    expect(result.ok).toBe(false);
+    expect(calls).toHaveLength(1);
+    if (!result.ok) {
+      expect(result.error.code).toBe("E_CANCELLED");
+    }
+  });
+
+  it("rejects queued waiters on abort without breaking the slot queue", async () => {
+    resetDecisionSemaphores();
+    const releaseAll: Array<() => void> = [];
+    const { fetchImpl } = stubFetch(
+      () =>
+        new Promise<Response>((resolve) => {
+          releaseAll.push(() => resolve(jsonResponse(okPayload())));
+        }),
+    );
+    const askWith = (signal: AbortSignal) =>
+      createDecisionClient("typesafe-jev", {
+        env: ENV,
+        dotenvPath: null,
+        fetchImpl,
+        jitterRatio: 0,
+      }).ask(BOOLEAN_REQ, signal);
+    const holders = Array.from({ length: 8 }, () => askWith(new AbortController().signal));
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    // An already-aborted signal never enters the queue.
+    const preAborted = new AbortController();
+    preAborted.abort();
+    const refused = await askWith(preAborted.signal);
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) {
+      expect(refused.error.code).toBe("E_CANCELLED");
+    }
+    // An abort while queued rejects promptly and removes the waiter.
+    const midWait = new AbortController();
+    const queued = askWith(midWait.signal);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    midWait.abort();
+    const queuedResult = await queued;
+    expect(queuedResult.ok).toBe(false);
+    if (!queuedResult.ok) {
+      expect(queuedResult.error.code).toBe("E_CANCELLED");
+    }
+    while (releaseAll.length > 0) {
+      (releaseAll.shift() as () => void)();
+    }
+    const results = await Promise.all(holders);
+    expect(results.every((r) => r.ok)).toBe(true);
+    resetDecisionSemaphores();
   });
 
   it("enforces the response size cap and JSON-only bodies", async () => {

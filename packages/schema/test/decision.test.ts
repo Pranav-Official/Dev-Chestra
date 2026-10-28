@@ -201,6 +201,61 @@ describe("decision schema", () => {
     ).toBe(true);
   });
 
+  it("rejects reserved __proto__/constructor/prototype names", () => {
+    // F9: these collide with Object.prototype members in plain-object maps.
+    for (const reserved of ["__proto__", "constructor", "prototype"]) {
+      const option = chainWithDecision((r) => {
+        decisionOf(r).mode = {
+          kind: "choice",
+          options: [{ value: "a" }, { value: reserved }],
+          branches: [
+            { id: "x", values: ["a"] },
+            { id: "y", values: [reserved] },
+          ],
+        };
+      });
+      expect(
+        validateWorkflow(parseOk(option)).errors.some((e) => e.code === "E_DECISION_OPTIONS"),
+      ).toBe(true);
+      const level = chainWithDecision((r) => {
+        decisionOf(r).mode = {
+          kind: "score",
+          levels: [{ label: "low" }, { label: reserved }],
+          bands: [
+            { id: "top", atLeast: 1 },
+            { id: "floor", atLeast: null },
+          ],
+        };
+      });
+      expect(
+        validateWorkflow(parseOk(level)).errors.some((e) => e.code === "E_DECISION_LEVELS"),
+      ).toBe(true);
+      const branch = chainWithDecision((r) => {
+        decisionOf(r).mode = {
+          kind: "choice",
+          options: [{ value: "a" }],
+          branches: [{ id: reserved, values: ["a"] }],
+        };
+      });
+      expect(
+        validateWorkflow(parseOk(branch)).errors.some((e) => e.code === "E_DECISION_BRANCH_ID"),
+      ).toBe(true);
+      const band = chainWithDecision((r) => {
+        decisionOf(r).mode = {
+          kind: "score",
+          levels: [{ label: "low" }, { label: "high" }],
+          bands: [
+            { id: reserved, atLeast: 1 },
+            { id: "floor", atLeast: null },
+          ],
+        };
+      });
+      expect(
+        validateWorkflow(parseOk(band)).errors.some((e) => e.code === "E_DECISION_BRANCH_ID"),
+      ).toBe(true);
+    }
+  });
+
   it("rejects uncertain as a branch id", () => {
     const raw = chainWithDecision((r) => {
       decisionOf(r).mode = {

@@ -4,7 +4,7 @@
 // section 1 of the decision-node contract: bearer auth checks, bare (Jev)
 // and Cloudflare-wrapped (`{ result }`) responses, plus failure scenarios
 // (429 with Retry-After, 5xx, 4xx, malformed JSON, oversized body, refusals,
-// slow responses, redirects). It records every decision request it receives
+// slow responses, stalls after headers, drips, redirects). It records every decision request it receives
 // so tests can assert the exact wire body.
 //
 // Fake credentials only. Never point this at a real provider, and never put
@@ -128,6 +128,7 @@ export async function startStandin(options = {}) {
   let active = 0;
   let peak = 0;
 
+  const sockets = new Set();
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
 
@@ -255,6 +256,47 @@ export async function startStandin(options = {}) {
           await new Promise((resolve) => setTimeout(resolve, params.delayMs ?? 300));
           respondAuto();
           break;
+        case "stall":
+          // Send headers, then never send the body: proves the client timeout
+          // and abort stay active mid-body and the slot is released. The
+          // handler ends when the client goes away (timeout, abort, or
+          // stand-in close destroying the socket), unblocking drain().
+          if (alive()) {
+            res.writeHead(200, { "content-type": "application/json" });
+            await new Promise((resolve) => res.on("close", resolve));
+          }
+          break;
+        case "drip":
+          // Send headers plus one byte, then one byte per delayMs: proves an
+          // abort cuts a slow body short instead of hanging until drained.
+          if (alive()) {
+            res.writeHead(200, { "content-type": "application/json" });
+            try {
+              res.write("{");
+            } catch {
+              break;
+            }
+            await new Promise((resolve) => {
+              const timer = setInterval(() => {
+                if (!alive()) {
+                  clearInterval(timer);
+                  resolve();
+                  return;
+                }
+                try {
+                  res.write(" ");
+                } catch {
+                  clearInterval(timer);
+                  resolve();
+                }
+              }, params.delayMs ?? 50);
+              res.on("close", () => {
+                clearInterval(timer);
+                resolve();
+              });
+            });
+          }
+          break;
         case "ratelimit":
           send(429, { error: { message: "rate limited" } }, { "retry-after": params.retryAfter ?? "0" });
           break;
@@ -296,6 +338,13 @@ export async function startStandin(options = {}) {
     }
   });
 
+  // Stall/drip handlers hold their socket open until the client goes away;
+  // track sockets so close() never hangs on an abandoned response.
+  server.on("connection", (socket) => {
+    sockets.add(socket);
+    socket.on("close", () => sockets.delete(socket));
+  });
+
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   if (typeof address !== "object" || address === null) {
@@ -331,6 +380,15 @@ export async function startStandin(options = {}) {
     },
     close: () =>
       new Promise((resolve, reject) => {
+        // Destroy open sockets first: a stalled response would otherwise keep
+        // server.close() waiting, and the handler's res 'close' unblocks it.
+        for (const socket of sockets) {
+          try {
+            socket.destroy();
+          } catch {
+            // Already gone; nothing to do.
+          }
+        }
         server.close((error) => (error ? reject(error) : resolve()));
       }),
   };
