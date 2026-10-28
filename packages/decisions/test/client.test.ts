@@ -49,8 +49,10 @@ function stubFetch(handler: (call: Call, calls: Call[]) => Promise<Response>): {
   return { calls, fetchImpl };
 }
 
-function jsonResponse(payload: unknown, status = 200, headers?: HeadersInit): Response {
-  return new Response(JSON.stringify(payload), { status, headers });
+function jsonResponse(payload: unknown, status = 200, headers?: Record<string, string>): Response {
+  return headers === undefined
+    ? new Response(JSON.stringify(payload), { status })
+    : new Response(JSON.stringify(payload), { status, headers });
 }
 
 function okPayload() {
@@ -311,7 +313,8 @@ describe("decision client ask", () => {
 
   it("treats redirect rejections and 3xx as refused without retry", async () => {
     const { calls, fetchImpl } = stubFetch(async () => {
-      throw new TypeError("fetch failed: redirect mode is set to error");
+      // Same shape undici produces for `redirect: "error"`.
+      throw new TypeError("fetch failed", { cause: new Error("unexpected redirect") });
     });
     const client = createDecisionClient("typesafe-jev", {
       env: ENV,

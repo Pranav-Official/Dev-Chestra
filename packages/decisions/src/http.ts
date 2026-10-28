@@ -29,6 +29,18 @@ function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** A `redirect: "error"` refusal surfaces as a TypeError whose message or cause names the redirect. */
+function isRedirectError(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 3 && current instanceof Error; depth += 1) {
+    if (/redirect/i.test(current.message)) {
+      return true;
+    }
+    current = current.cause;
+  }
+  return false;
+}
+
 function providerError(secrets: SecretMap, message: string, retryable: boolean): RelayError {
   return new RelayError("E_PROVIDER", redactSecrets(message, secrets), { retryable });
 }
@@ -138,7 +150,7 @@ async function fetchOnce(
     if (timedOut) {
       return { timeout: true };
     }
-    if (error instanceof TypeError && /redirect/i.test(String(error.message))) {
+    if (isRedirectError(error)) {
       return { redirect: true };
     }
     return { networkError: error };

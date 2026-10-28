@@ -53,7 +53,9 @@ function semaphoreFor(provider: DecisionProviderId): Semaphore {
 
 async function withSlot<T>(provider: DecisionProviderId, fn: () => Promise<T>): Promise<T> {
   const sem = semaphoreFor(provider);
-  if (sem.active >= MAX_CONCURRENT_PER_PROVIDER) {
+  // Recheck after every wake-up: several released waiters may resume in the
+  // same microtask drain, and only the first may take the freed slot.
+  while (sem.active >= MAX_CONCURRENT_PER_PROVIDER) {
     await new Promise<void>((resolve) => {
       sem.waiting.push(resolve);
     });
