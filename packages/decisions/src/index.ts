@@ -37,6 +37,7 @@ export type {
   DecisionResponse,
   DecisionService,
   DecisionUsage,
+  ResponseShapeSummary,
   TestReport,
 } from "./types.js";
 export type {
@@ -50,10 +51,13 @@ export {
   isValidModelOverride,
   MAX_CHOICE_OPTIONS,
   MAX_SCORE_LEVELS,
+  MAX_SHAPE_KEY_CHARS,
+  MAX_SHAPE_KEYS,
   MAX_STATE_BYTES,
   MIN_CHOICE_OPTIONS,
   MIN_SCORE_LEVELS,
   MODEL_OVERRIDE_PATTERN,
   parseDecisionPayload,
   resolveBodyModel,
+  summarizeResponseShape,
 } from "./wire.js";
