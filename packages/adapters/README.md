@@ -172,7 +172,10 @@ even when declared. `TERM=dumb` and `CI=1` are forced.
   ambiguity. The isolated `PI_CODING_AGENT_DIR` carries relay `mcp.json` plus
   symlinks to the canonical `auth.json`/`models.json`/`settings.json` when
   present (refresh writes persist back); provider API-key variables also pass
-  the child-env allowlist. Catalog is `pi --list-models [search]`.
+  the child-env allowlist. Symlinks share the file but not Pi's lock
+  (proper-lockfile `realpath:false` locks beside the supplied path), so the
+  engine holds `auth.json.relay-lock` in the canonical dir across Pi runs
+  sharing it. Catalog is `pi --list-models [search]`.
   Each completed message's usage is counted once from `message_end`;
   streaming deltas and the `turn_end` echo are not counted.
   `enforcesPermissions: advisory`.
@@ -181,8 +184,10 @@ even when declared. `TERM=dumb` and `CI=1` are forced.
 
 ## Usage baseline seam
 
-Within one process the parsers subtract cumulative totals and emit `usage`
-events as deltas. On a resumed invocation the CLI may report session-cumulative
+Within one process the Claude/Codex parsers subtract cumulative totals and
+emit `usage` events as deltas; Opencode emits per-step deltas directly and Pi
+emits each completed message's own totals directly. On a resumed invocation
+the CLI may report session-cumulative
 cost (Claude `total_cost_usd`) or cumulative tokens (Codex), but the generic
 adapter interface has no prior-attempt baseline. The first result after resume
 is therefore a delta from zero for that process. Budget accounting in the

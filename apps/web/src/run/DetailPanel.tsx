@@ -11,6 +11,20 @@ import { ApprovalPanel } from "./ApprovalPanel.js";
 import { type DerivedAttempt, deriveDetail } from "./deriveDetail.js";
 import type { WorkflowSnapshot } from "./RunCanvas.js";
 
+/** Redacted CLI stderr saved on the node error (engine bounds it to 2 KiB). */
+function errorDiagnostic(details: unknown): string | null {
+  if (details !== null && typeof details === "object") {
+    const stderr = (details as Record<string, unknown>).stderr;
+    if (typeof stderr === "string") {
+      const trimmed = stderr.trim();
+      if (trimmed !== "") {
+        return trimmed.length <= 2000 ? trimmed : `${trimmed.slice(0, 2000)}…[truncated]`;
+      }
+    }
+  }
+  return null;
+}
+
 function execFor(view: RunView, path: string): RunView["executions"][string] | undefined {
   const direct = view.executions[path];
   if (direct !== undefined) return direct;
@@ -353,14 +367,31 @@ export function RunSummaryPanel({
         <>
           <h3 style={{ margin: "14px 0 6px" }}>Errors</h3>
           <div className="col">
-            {view.errors.slice(-5).map((error) => (
-              <div key={error.eventId} className="note red">
-                <span className="mono">#{error.eventId}</span>
-                <span>
-                  {error.code}: {error.message}
-                </span>
-              </div>
-            ))}
+            {view.errors.slice(-5).map((error) => {
+              const diagnostic = errorDiagnostic(error.details);
+              return (
+                <div key={error.eventId} className="note red">
+                  <span className="mono">#{error.eventId}</span>
+                  <span>
+                    {error.code}: {error.message}
+                  </span>
+                  {diagnostic === null ? null : (
+                    <pre
+                      className="mono"
+                      data-testid="run-error-stderr"
+                      style={{
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                        margin: "4px 0 0",
+                        fontSize: 12,
+                      }}
+                    >
+                      {diagnostic}
+                    </pre>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </>
       ) : null}

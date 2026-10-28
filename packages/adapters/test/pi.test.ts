@@ -1,4 +1,13 @@
-import { chmod, copyFile, mkdir, mkdtemp, readFile, readlink, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readlink,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,6 +21,7 @@ import {
   materializeInvocation,
   type PiModelDiscoveryRequest,
   piConfigIdentity,
+  piCredentialScope,
   providerIds,
 } from "../src/index.js";
 import { request, TOKEN } from "./helpers.js";
@@ -352,6 +362,21 @@ describe("pi discovery", () => {
     expect(await readFile(join(canonical, "auth.json"), "utf8")).toBe('{"refreshed":true}\n');
   });
 
+  it("scopes the credential lock to the canonical store only when it exists", async () => {
+    const base = await mkdtemp(join(tmpdir(), "relay-pi-scope-"));
+    temps.push(base);
+    const home = join(base, "home");
+    expect(piCredentialScope({ PATH: "/usr/bin", HOME: home }, base)).toBeNull();
+    const canonical = join(home, ".pi", "agent");
+    await mkdir(canonical, { recursive: true });
+    expect(piCredentialScope({ PATH: "/usr/bin", HOME: home }, base)).toBeNull();
+    await writeFile(join(canonical, "auth.json"), "{}\n");
+    expect(piCredentialScope({ PATH: "/usr/bin", HOME: home }, base)).toBe(canonical);
+    expect(
+      piCredentialScope({ PATH: "/usr/bin", HOME: home, PI_CODING_AGENT_DIR: canonical }, base),
+    ).toBe(canonical);
+  });
+
   it("keeps the isolated home self-contained when no canonical store exists", async () => {
     const adapter = createAdapter("pi", { piBin: "/bin/pi" });
     const result = adapter.plan(request({ model: "opencode-go/kimi-k3" }));
@@ -408,11 +433,7 @@ describe("pi wiring", () => {
     expect(providerIds()).toContain("pi");
     const provider = getProvider("pi");
     expect(provider.modelArg).toBe("--model");
-    expect(provider.contextIdentity.configFiles).toEqual([
-      "mcp.json",
-      "models.json",
-      "auth.json",
-    ]);
+    expect(provider.contextIdentity.configFiles).toEqual(["mcp.json", "models.json", "auth.json"]);
     const adapter = createAdapter("pi", { piBin: "/bin/pi" });
     expect(adapter.id).toBe("pi");
     expect(adapter.toolRef("submit_result")).toBe("mcp__relay__submit_result");

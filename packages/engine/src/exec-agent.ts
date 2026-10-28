@@ -2,10 +2,13 @@ import { chmodSync, existsSync, mkdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import {
   type AdapterEvent,
+  acquireFileLock,
   type CliId,
   type FailureClass,
   getProvider,
   killOrphan,
+  piCredentialScope,
+  type ReleaseFileLock,
   runAgent,
 } from "@relay/adapters";
 import { type ExecutionIdentity, fsSlug, hashJson, type Path, RelayError } from "@relay/core";
@@ -124,6 +127,28 @@ export async function executeAgent(
   );
   ctx.appendWorkspaceCreated(identity, workspace);
 
+  // Pi runs that share a canonical credential store serialize here, for the
+  // whole attempt sequence: Pi's auth.json lock is per supplied path
+  // (proper-lockfile realpath:false), so per-run symlinks alone cannot
+  // exclude each other and concurrent OAuth refreshes lose updates. The
+  // scope matches plan()'s symlink predicate over the same base env, so a
+  // null scope means this run touches no shared store and skips the lock.
+  const agentCli = node.raw.cli as CliId;
+  const agentAdapter = ctx.deps.adapters.get(getProvider(agentCli).id);
+  const credentialScope =
+    agentAdapter.id === "pi" ? piCredentialScope(ctx.baseEnv(agentCli), workspace.dir) : null;
+  let releaseCredentialLock: ReleaseFileLock | undefined;
+  if (credentialScope !== null) {
+    try {
+      releaseCredentialLock = await acquireFileLock(join(credentialScope, "auth.json.relay-lock"), {
+        signal: active.abort.signal,
+      });
+    } catch (error) {
+      if (active.abort.signal.aborted) throw new StopSignal(active.reason ?? "user");
+      throw toRelayError(error);
+    }
+  }
+
   try {
     await runAttempts(ctx, run, source, node, active, workspace, {
       identity,
@@ -134,6 +159,7 @@ export async function executeAgent(
     });
   } finally {
     ctx.release(workspace);
+    if (releaseCredentialLock !== undefined) await releaseCredentialLock().catch(() => undefined);
   }
 }
 
@@ -190,6 +216,8 @@ async function runAttempts(
       ctx.transition(identity, "interrupted", reason);
     }
   };
+
+  const baseEnv = ctx.baseEnv(adapter.id);
 
   for (;;) {
     if (active.abort.signal.aborted) throw new StopSignal(active.reason ?? "user");
@@ -384,7 +412,7 @@ async function runAttempts(
           },
         },
         execDir,
-        env: ctx.baseEnv(adapter.id),
+        env: baseEnv,
         ...(fakeCheckpoint === undefined ? {} : { cliOptions: { checkpoint: fakeCheckpoint } }),
       };
       const planned = adapter.plan(request);

@@ -7,6 +7,12 @@ export { discoverClaudeModels } from "./claude-model-discovery.js";
 export { runCommand } from "./command.js";
 export { buildChildEnv } from "./env.js";
 export {
+  acquireFileLock,
+  type FileLockOptions,
+  type ReleaseFileLock,
+  withFileLock,
+} from "./file-lock.js";
+export {
   isGroupAlive,
   killOrphan,
   killTree,
@@ -16,6 +22,7 @@ export {
 export { materializeInvocation } from "./invocation.js";
 export { discoverCodexModels } from "./model-catalog.js";
 export { discoverOpencodeModels, opencodeConfigIdentity } from "./opencode-discovery.js";
+export { piCredentialScope } from "./pi.js";
 export { discoverPiModels, piConfigIdentity } from "./pi-discovery.js";
 export { classifyExit } from "./plan.js";
 export { runAgent } from "./process.js";

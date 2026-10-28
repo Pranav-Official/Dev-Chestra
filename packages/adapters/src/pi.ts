@@ -280,6 +280,28 @@ class PiParser extends NdjsonParser {
   }
 }
 
+/**
+ * Canonical agent dir shared by every Pi run on this host, or null when no
+ * canonical credential store is in play (then plan() links nothing and runs
+ * stay isolated). The engine serializes Pi runs on this scope: Pi's
+ * auth.json lock is per supplied path (proper-lockfile realpath:false), so
+ * per-run symlinks would otherwise lock different paths and lose concurrent
+ * credential updates. Conservative by design: it matches symlink creation
+ * except a pathological canonical==piHome overlap, which only over-locks.
+ */
+export function piCredentialScope(env: Record<string, string>, cwd: string): string | null {
+  const dir = canonicalAgentDir(env, cwd);
+  if (dir === null) return null;
+  for (const name of ["auth.json", "models.json", "settings.json"] as const) {
+    try {
+      if (statSync(join(dir, name)).isFile()) return dir;
+    } catch {
+      // Absent: keep looking.
+    }
+  }
+  return null;
+}
+
 function splitModel(model: string): { provider?: string; id: string } {
   const slash = model.indexOf("/");
   if (slash <= 0 || slash === model.length - 1) return { id: model };
@@ -443,6 +465,7 @@ export function createPiAdapter(options: AdapterOptions = {}): CliAdapter {
         "argv from pi 1.4.0 --help plus docs/json.md, docs/message-types.md, docs/cli.md, docs/mcp.md; no live tool-call run captured",
         "--session-id creates the id when absent (pi warns); resume of a foreign id starts a new session",
         "isolated PI_CODING_AGENT_DIR carries relay mcp.json plus symlinks to the canonical auth.json/models.json/settings.json when present; API-key providers also pass through documented env vars",
+        "symlinks alone cannot serialize Pi's per-path auth.json lock (proper-lockfile realpath:false): the engine holds auth.json.relay-lock in the canonical dir across Pi runs sharing it",
         "toolResult ok comes from ToolResultMessage.isError; turn_end error comes from stopReason/errorMessage",
         "permission mapping (--exclude-tools) and direct MCP exposure are UNVERIFIED against a live run",
       ],
