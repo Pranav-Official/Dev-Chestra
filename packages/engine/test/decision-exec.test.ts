@@ -471,10 +471,13 @@ describe("engine decision executor", () => {
   });
 
   it("treats a null confidence as false in downstream expressions", async () => {
+    // F3: the worker retry is gone; the engine exposes a refused decision's
+    // null confidence as 0 in expression scope, so >= 0.8 reads false here
+    // while the persisted output keeps null.
     const standin = await startStandin();
     trackStandin(standin);
     standin.setNext(["refusal-missing"]);
-    const { deps } = setup(standin);
+    const { store, deps } = setup(standin);
     const engine = createEngine(deps);
     const snap = snapshot(
       [
@@ -500,6 +503,46 @@ describe("engine decision executor", () => {
     if (!result.ok) throw result.error;
     expect(result.value.status).toBe("succeeded");
     expect(result.value.result).toBe("unsure");
+    expect(
+      store.outputs.get({ runId: result.value.runId as never, path: "d" as never, attempt: 1 })
+        ?.json,
+    ).toMatchObject({ confidence: null, confidenceSource: null });
+    await engine.stop();
+  });
+
+  it("reads a refused decision in a gate with unknown confidence as 0, never high", async () => {
+    // F3: unknown confidence is never mistaken for high confidence, but
+    // low-side comparisons see it: < 0.5 is true while confidenceSource
+    // stays null so authors can still detect "unknown".
+    const standin = await startStandin();
+    trackStandin(standin);
+    standin.setNext(["refusal-missing"]);
+    const { deps } = setup(standin);
+    const engine = createEngine(deps);
+    const snap = snapshot(
+      [
+        start(),
+        decision("d"),
+        node("g", "gate", {
+          branches: [
+            { id: "low", when: "d.confidence < 0.5" },
+            { id: "high", otherwise: true },
+          ],
+        }),
+        end("el", '{ "conf": d.confidence, "src": d.confidenceSource }'),
+        end("eh", '"high"'),
+      ],
+      [
+        ["start", "d"],
+        ["d.uncertain", "g"],
+        ["g.low", "el"],
+        ["g.high", "eh"],
+      ],
+    );
+    const result = await engine.run(launchInput(snap));
+    if (!result.ok) throw result.error;
+    expect(result.value.status).toBe("succeeded");
+    expect(result.value.result).toEqual({ conf: 0, src: null });
     await engine.stop();
   });
 
