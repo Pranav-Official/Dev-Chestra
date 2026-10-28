@@ -214,6 +214,48 @@ function checkedDecisionRouting(value: { branch: string | null; reason: string }
   };
 }
 
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function numberMap(value: unknown): Record<string, number> | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  const out: Record<string, number> = {};
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    const n = finiteNumber(entry);
+    if (n === undefined) return undefined;
+    out[key] = n;
+  }
+  return out;
+}
+
+/**
+ * The deterministic node output downstream expressions and templates read.
+ * It carries the routed branch plus the full normalized answer, so scope
+ * entries like `<nodeId>.value` and `<nodeId>.confidence` resolve. A null
+ * confidence is stored as null (JSONata comparisons against null are false).
+ */
+function decisionPersistedOutput(
+  output: DecisionOutput,
+  branch: string,
+): Record<string, unknown> {
+  const record = output as unknown as Record<string, unknown>;
+  const persisted: Record<string, unknown> = {
+    branch,
+    value: output.value,
+    confidence: output.confidence,
+    confidenceSource: output.confidenceSource,
+    model: output.model,
+  };
+  const probability = finiteNumber(record.probability);
+  if (probability !== undefined) persisted.probability = probability;
+  const score = finiteNumber(record.score);
+  if (score !== undefined) persisted.score = score;
+  const probabilities = numberMap(record.probabilities);
+  if (probabilities !== undefined) persisted.probabilities = probabilities;
+  return persisted;
+}
+
 /**
  * Durable decision commit: appends decision.requested + decision.answered with
  * the attempt/generation fence, records the routed branch as the deterministic
@@ -312,7 +354,7 @@ export function recordDecision(runtime: Runtime, input: RecordDecisionInput): Ro
   }
   const recorded = recordDeterministic(runtime, {
     identity: input.identity,
-    output: { branch: routing.branch },
+    output: decisionPersistedOutput(output, routing.branch),
   });
   const completed = completeExecution(runtime, { identity: input.identity });
   return {
