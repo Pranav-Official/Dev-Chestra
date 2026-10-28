@@ -28,6 +28,31 @@ export function isProdCliId(value: unknown): value is ProdCliId {
   return typeof value === "string" && prodCliIds.includes(value);
 }
 
+/** Decision-model providers for `decision` nodes. Jev (TypeSafe AI) and Clef
+ * (Cloudflare) share the System One request shape; each id is a fixed host
+ * preset in `@relay/decisions`. This is the only declaration of the set. */
+export const DECISION_PROVIDERS = [
+  "typesafe-jev",
+  "cloudflare-clef",
+  "cloudflare-clef-flash",
+] as const;
+
+export type DecisionProviderId = (typeof DECISION_PROVIDERS)[number];
+
+/** Display labels, keyed by {@link DecisionProviderId}. */
+export const DECISION_PROVIDER_LABELS: Record<DecisionProviderId, string> = {
+  "typesafe-jev": "Jev (TypeSafe AI)",
+  "cloudflare-clef": "Clef (Cloudflare)",
+  "cloudflare-clef-flash": "Clef-flash (Cloudflare)",
+};
+
+const decisionProviderIds: readonly string[] = DECISION_PROVIDERS;
+
+/** Type guard for {@link DecisionProviderId}. */
+export function isDecisionProviderId(value: unknown): value is DecisionProviderId {
+  return typeof value === "string" && decisionProviderIds.includes(value);
+}
+
 export type SuperviseMode = "default" | "checkpoint" | "notify" | "skip";
 
 export type JsonPrimitive = string | number | boolean | null;
