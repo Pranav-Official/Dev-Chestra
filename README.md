@@ -1,6 +1,6 @@
 # Relay / DevChestra
 
-Local, single-user workflow orchestrator for headless coding agents. Relay runs workflows of `start`, `agent`, `shell`, `gate`, `join`, `approval` and `end` nodes against the Claude Code, Codex, Opencode and Pi CLIs through a real MCP shim, a SQLite event store and a loopback web server. Use the browser editor to register a project, build and save a workflow with conflict-safe ETags, then run it into the live viewer (events, transcripts and event-based replay) without editing JSON. Each run picks one workspace at Start: the project root (dirty files included), an existing Git worktree, or a new per-run worktree. Gates branch in order with a mandatory `otherwise`, joins resolve with `first` or `all`, and approvals pause the run until a person approves or rejects. Decisions, maps, loops, artifact capture, budgets, context banks and release packaging are not built yet. See [docs/build-status.md](docs/build-status.md) for current gate results and open work, and [docs/p4-routing-plan.md](docs/p4-routing-plan.md) for the routing increment.
+Local, single-user workflow orchestrator for headless coding agents. Relay runs workflows of `start`, `agent`, `shell`, `gate`, `join`, `approval` and `end` nodes against the Claude Code, Codex, Opencode and Pi CLIs through a real MCP shim, a SQLite event store and a loopback web server. Use the browser editor to register a project, build and save a workflow with conflict-safe ETags, then run it into the live viewer (events, transcripts and event-based replay) without editing JSON. Each run picks one workspace at Start: the project root (dirty files included), an existing Git worktree, or a new per-run worktree. Gates branch in order with a mandatory `otherwise`, joins resolve with `first` or `all`, and approvals pause the run until a person approves or rejects. Decisions, maps, loops, artifact capture, budgets, context banks and release packaging are not built yet.
 
 The product name is provisional (`Relay` internally). Do not create durable user-facing paths or publish under a final name until that decision is recorded.
 
@@ -60,7 +60,7 @@ Fresh `relay run` defaults to the registered project root; the starter example o
 
 For a real Claude Code/Codex/Opencode/Pi run, pass `--allow-experimental-adapters` again on resume as well as on run.
 
-Claude Code and Codex adapter contracts are implemented. Basic live fresh + resume was smoke-tested separately, but OS sandbox/permission enforcement, real-CLI crash handling and live mid-run recovery remain unverified; see [docs/build-status.md](docs/build-status.md).
+Claude Code and Codex adapter contracts are implemented. Basic live fresh + resume was smoke-tested separately, but OS sandbox/permission enforcement, real-CLI crash handling and live mid-run recovery remain unverified.
 
 ### P2 loopback API and read-only viewer
 
@@ -188,7 +188,6 @@ packages/*        @relay/core, schema, api, store, workspaces, adapters, engine,
 apps/web          React 19 + Vite workflow editor and run viewer
 tools/*           test-only fake agent (RELAY_ALLOW_FAKE=1), fixtures and browser e2e and acceptance harnesses (p2-smoke, p3-smoke)
 examples/*        portable linear workflow examples
-docs/             build plan, status, ADRs and spike reports
 ```
 
 Conventions:
@@ -201,17 +200,6 @@ Conventions:
 
 ## CI
 
-`.github/workflows/ci.yml` runs check, test and build on Linux and macOS with Node 22 and 24, plus a Chromium-backed P2/P3 browser e2e job. These workflows are configured but have not been confirmed on GitHub; see [docs/build-status.md](docs/build-status.md) for the current local results and known flaky browser scenarios. `.github/workflows/sqlite-canary.yml` verifies the bundled prebuild and FTS5 on Linux/macOS with Node 22, 24 and 26 without a source compile.
+`.github/workflows/ci.yml` runs check, test and build on Linux and macOS with Node 22 and 24, plus a Chromium-backed P2/P3 browser e2e job. These workflows are configured but have not been confirmed on GitHub; the P4 routing browser scenario is quarantined behind `RELAY_E2E_P4=1` and the P3.5 approval browser scenario is intermittent. `.github/workflows/sqlite-canary.yml` verifies the bundled prebuild and FTS5 on Linux/macOS with Node 22, 24 and 26 without a source compile.
 
 The browser jobs install Chromium into the runner cache and export `RELAY_CHROMIUM_PATH`; they do not use a developer browser profile. If web/CLI dist, SQLite or Chromium is missing, the browser acceptance fails instead of skipping.
-
-## Documentation
-
-- [Build status](docs/build-status.md): current gate results, then historical evidence
-- [Implementation spec](docs/relay-implementation-spec.md)
-- [High-level design](docs/agent-workflow-orchestrator-design.md)
-- [P4 routing delivery plan](docs/p4-routing-plan.md) and [acceptance](docs/p4-routing-acceptance.md) (P4 is still open)
-- [Architecture decision records](docs/adr)
-- [Research spikes](docs/spikes)
-- [Archive](docs/archive/README.md): completed per-phase and per-feature plans and acceptance notes
-- [UI mock](docs/relay-ui-mock.html) (reference only, not production code)

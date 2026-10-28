@@ -66,7 +66,7 @@ pnpm exec biome check packages/core
 ## Limits
 
 - No persistence, transport, filesystem, process execution, credential handling or OS sandbox.
-  Relay is not a sandbox; see `docs/adr/0003`.
+  Relay is not a sandbox.
 - No exactly-once promise for shell commands or arbitrary agent side effects.
 - `workspace.created`/`workspace.committed`, `node.process.spawned`, and
   `node.output.recorded` require `attempt` and `generation`; late events from an older

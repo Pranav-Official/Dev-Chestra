@@ -11,8 +11,7 @@
       "!**/test-data",
       "!**/fixtures",
       "!**/test-results",
-      "!**/playwright-report",
-      "!**/relay-ui-mock.html"
+      "!**/playwright-report"
     ]
   },
   "formatter": {
