@@ -73,6 +73,8 @@ export interface RunRequest {
   mcp: McpConfig;
   /** Servers the node switched on. Everything else the CLI knows about must stay off. */
   extraMcp?: ResolvedMcpServer[];
+  /** Every server the CLI knows for this project (names only), so adapters can switch the unselected ones off. */
+  knownMcp?: { name: string; scope: "global" | "project" | "connector"; connectorId?: string }[];
   cliOptions?: Record<string, unknown>;
   execDir: string;
   env: Record<string, string>;
