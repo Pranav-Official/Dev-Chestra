@@ -8,7 +8,7 @@ import {
   decisionHandles,
   HANDLE_ID_PATTERN,
 } from "@devchestra/schema";
-import { Plus, Trash2 } from "lucide-react";
+import { AlertCircle, Plus, Trash2 } from "lucide-react";
 import {
   addDecisionBranch,
   addDecisionLevel,
@@ -68,14 +68,18 @@ function ProviderReadiness({ node }: { node: DecisionNode }) {
   }
   return (
     <p className="inspector-error" role="alert" data-testid="decision-provider-missing">
-      {entry.label} is not ready.
-      {entry.missing.length === 0 ? null : (
-        <span>
-          {" "}
-          Missing: <span className="mono">{entry.missing.join(", ")}</span>. Set{" "}
-          {entry.missing.length === 1 ? "it" : "them"} in <span className="mono">.env</span>.
-        </span>
-      )}
+      <AlertCircle size={12} aria-hidden="true" />
+      <span>
+        {entry.label} is not ready.
+        {entry.missing.length === 0 ? null : (
+          <>
+            {" "}
+            Missing: <span className="mono">{entry.missing.join(", ")}</span>. Set{" "}
+            {entry.missing.length === 1 ? "it" : "them"} in the environment or in{" "}
+            <span className="mono">~/.config/devchestra/.env</span>.
+          </>
+        )}
+      </span>
     </p>
   );
 }

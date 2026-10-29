@@ -24,6 +24,8 @@ export { DECISION_PRESETS, DEFAULT_DECISION_TIMEOUT_MS, resolvePresetUrl } from 
 export type { DecisionSecretName, EnvLike, LoadSecretsOptions } from "./secrets.js";
 export {
   DECISION_SECRET_NAMES,
+  DOTENV_LOOKUP_HINT,
+  defaultDotenvPaths,
   isDecisionSecretName,
   loadDecisionSecrets,
   missingSecretNames,

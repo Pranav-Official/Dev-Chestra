@@ -1,7 +1,7 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { loadDecisionSecrets, missingSecretNames, redactSecrets } from "../src/secrets.js";
 
 function tempDotenv(content: string): string {
@@ -106,5 +106,84 @@ describe("account id format", () => {
         missingSecretNames({ CLOUDFLARE_ACCOUNT_ID: id, CLOUDFLARE_AUTH_TOKEN: "t" }, required),
       ).toEqual(["CLOUDFLARE_ACCOUNT_ID"]);
     }
+  });
+
+  describe("default .env lookup (globally installed command)", () => {
+    const cwdSaved = process.cwd();
+    afterEach(() => process.chdir(cwdSaved));
+
+    function setup() {
+      const root = mkdtempSync(join(tmpdir(), "devchestra-envlookup-"));
+      const cwd = join(root, "somewhere-else");
+      const config = join(root, "config");
+      mkdirSync(cwd);
+      mkdirSync(config);
+      return { root, cwd, config };
+    }
+
+    it("finds keys in the per-user config dir when started from an unrelated folder", () => {
+      const { cwd, config } = setup();
+      writeFileSync(join(config, ".env"), "TYPESAFE_API_KEY=from-config\n");
+      process.chdir(cwd);
+      expect(loadDecisionSecrets({ env: { DEVCHESTRA_CONFIG_DIR: config } })).toEqual({
+        TYPESAFE_API_KEY: "from-config",
+      });
+    });
+
+    it("honours XDG_CONFIG_HOME and DEVCHESTRA_ENV_FILE", () => {
+      const { root, cwd } = setup();
+      mkdirSync(join(root, "xdg", "devchestra"), { recursive: true });
+      writeFileSync(join(root, "xdg", "devchestra", ".env"), "TYPESAFE_API_KEY=from-xdg\n");
+      writeFileSync(join(root, "explicit.env"), "TYPESAFE_API_KEY=from-explicit\n");
+      process.chdir(cwd);
+      expect(loadDecisionSecrets({ env: { XDG_CONFIG_HOME: join(root, "xdg") } })).toEqual({
+        TYPESAFE_API_KEY: "from-xdg",
+      });
+      expect(
+        loadDecisionSecrets({
+          env: {
+            XDG_CONFIG_HOME: join(root, "xdg"),
+            DEVCHESTRA_ENV_FILE: join(root, "explicit.env"),
+          },
+        }),
+      ).toEqual({ TYPESAFE_API_KEY: "from-explicit" });
+    });
+
+    it("takes each key from the first source that has it, cwd before config", () => {
+      const { cwd, config } = setup();
+      writeFileSync(join(cwd, ".env"), "TYPESAFE_API_KEY=from-cwd\n");
+      writeFileSync(
+        join(config, ".env"),
+        "TYPESAFE_API_KEY=from-config\nCLOUDFLARE_AUTH_TOKEN=token-from-config\n",
+      );
+      process.chdir(cwd);
+      expect(loadDecisionSecrets({ env: { DEVCHESTRA_CONFIG_DIR: config } })).toEqual({
+        TYPESAFE_API_KEY: "from-cwd",
+        CLOUDFLARE_AUTH_TOKEN: "token-from-config",
+      });
+    });
+
+    it("lets real environment variables win over every file", () => {
+      const { cwd, config } = setup();
+      writeFileSync(join(config, ".env"), "TYPESAFE_API_KEY=from-config\n");
+      process.chdir(cwd);
+      expect(
+        loadDecisionSecrets({
+          env: { DEVCHESTRA_CONFIG_DIR: config, TYPESAFE_API_KEY: "from-env" },
+        }),
+      ).toEqual({ TYPESAFE_API_KEY: "from-env" });
+    });
+
+    it("does not read other files when an explicit dotenvPath is given", () => {
+      const { cwd, config } = setup();
+      writeFileSync(join(config, ".env"), "TYPESAFE_API_KEY=from-config\n");
+      process.chdir(cwd);
+      expect(
+        loadDecisionSecrets({
+          env: { DEVCHESTRA_CONFIG_DIR: config },
+          dotenvPath: join(cwd, "nope.env"),
+        }),
+      ).toEqual({});
+    });
   });
 });

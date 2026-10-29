@@ -6,7 +6,12 @@ import type { SecretMap } from "./http.js";
 import { parseJsonBody, postDecisionJson } from "./http.js";
 import { DECISION_PRESETS, resolvePresetUrl } from "./presets.js";
 import type { EnvLike } from "./secrets.js";
-import { loadDecisionSecrets, missingSecretNames, redactSecrets } from "./secrets.js";
+import {
+  DOTENV_LOOKUP_HINT,
+  loadDecisionSecrets,
+  missingSecretNames,
+  redactSecrets,
+} from "./secrets.js";
 import type {
   DecisionClient,
   DecisionRequest,
@@ -208,7 +213,7 @@ export function createDecisionClient(
       return err(
         new DevChestraError(
           "E_PROVIDER",
-          `Missing or invalid decision secret(s): ${missing.join(", ")}. Set them in the environment or .env.`,
+          `Missing or invalid decision secret(s): ${missing.join(", ")}. Set them in ${DOTENV_LOOKUP_HINT}.`,
         ),
       );
     }
