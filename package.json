@@ -27,6 +27,7 @@
     "devchestra:run": "tsx packages/cli/src/main.ts run",
     "devchestra:resume": "tsx packages/cli/src/main.ts resume",
     "devchestra:doctor": "tsx packages/cli/src/main.ts doctor",
+    "setup:global": "node scripts/setup-global.mjs",
     "lint": "biome lint .",
     "format": "biome format --write .",
     "format:check": "biome format .",

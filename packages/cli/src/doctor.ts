@@ -122,7 +122,7 @@ function checkDecisionProviders(service: DecisionService): DoctorCheck[] {
       name: `decision-${id}`,
       status: "warn" as const,
       message: `${DECISION_PROVIDER_LABELS[id]} is not configured: missing ${availability.missing.join(", ")}`,
-      fix: "Set the named variables in the environment or a `.env` file next to where `devchestra` is run (see `.env.example`).",
+      fix: "Set the named variables in the environment, in a `.env` in the folder you run `devchestra` from, or in `~/.config/devchestra/.env` (see `.env.example`).",
     };
   });
 }

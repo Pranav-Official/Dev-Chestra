@@ -97,7 +97,7 @@ describe("DecisionForm provider", () => {
       const missing = await screen.findByTestId("decision-provider-missing");
       expect(missing).toHaveTextContent("CLOUDFLARE_ACCOUNT_ID");
       expect(missing).toHaveTextContent("CLOUDFLARE_AUTH_TOKEN");
-      expect(missing).toHaveTextContent(".env");
+      expect(missing).toHaveTextContent("devchestra/.env");
       expect(missing.textContent ?? "").not.toMatch(/sk-|token-[A-Za-z0-9]/);
     } finally {
       vi.restoreAllMocks();

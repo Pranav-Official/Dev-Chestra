@@ -13,16 +13,23 @@ The product name is provisional (`DevChestra` internally). Do not create durable
 
 ## Install
 
+One command sets everything up on your machine and is safe to run again any time (after pulling, or when something looks off):
+
 ```sh
-pnpm install
+pnpm setup:global            # add --dry-run to see what it would do, --no-env / --no-restart to skip a step
 ```
 
-The lockfile is present in the workspace. CI installs with `pnpm install --frozen-lockfile`.
+It installs and builds, links the global `devchestra` command, copies the decision API keys (`TYPESAFE_API_KEY`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_AUTH_TOKEN`; nothing else) from the repo's `.env` to `~/.config/devchestra/.env` with mode 600 without overwriting values already there, tightens a world-readable repo `.env`, and restarts a running server if it has no active runs. If pnpm has no global bin directory yet it tells you to run `pnpm setup` once.
+
+Then start it from anywhere with `devchestra start`. Keys are looked up in the environment, `$DEVCHESTRA_ENV_FILE`, a `.env` in the folder you start from, then `~/.config/devchestra/.env`.
+
+Manual route: `pnpm install` (CI uses `--frozen-lockfile`), `pnpm build`, then `pnpm devchestra ...` from the repo.
 
 ## Commands
 
 | Command | What it does |
 |---|---|
+| `pnpm setup:global` | Install, build, link the global `devchestra` command, set up API keys, restart an idle server (see Install) |
 | `pnpm build` | Runs `build` in every workspace package that defines it |
 | `pnpm test` | Builds the workspace first, then runs `test` in every package that defines it |
 | `pnpm typecheck` | Builds workspace packages (so cross-package types resolve), then runs `typecheck` in every package that defines it |
