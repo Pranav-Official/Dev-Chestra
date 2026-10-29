@@ -66,6 +66,11 @@ const FIELD_PATHS = [
   "/minConfidence",
   "/trueAt",
   "/falseAt",
+  "/maxIterations",
+  "/initialState",
+  "/nextState",
+  "/until",
+  "/body",
 ];
 
 function isShownByAField(issue: Issue): boolean {

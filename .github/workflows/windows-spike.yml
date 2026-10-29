@@ -1,7 +1,7 @@
 name: Windows native spike
 on:
   push:
-    branches: [spike/windows-native]
+    branches: [spike/windows-native, feature/bounded-loops]
   pull_request:
 permissions:
   contents: read
@@ -24,3 +24,5 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test:windows
+      - run: pnpm --filter @devchestra/engine exec vitest run test/loops.test.ts test/loops-integration.test.ts
+      - run: pnpm --filter @devchestra/cli exec vitest run test/loops-workflow.test.ts

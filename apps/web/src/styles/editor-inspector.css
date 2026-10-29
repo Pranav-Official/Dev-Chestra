@@ -977,3 +977,24 @@ textarea.inspector-input:read-only {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+.loop-body-layout {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.loop-body-layout .editor-palette {
+  width: auto;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+@media (max-width: 640px) {
+  .loop-body-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .loop-body-layout .editor-palette {
+    max-height: 160px;
+  }
+}

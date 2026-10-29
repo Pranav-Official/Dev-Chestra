@@ -118,7 +118,7 @@ export interface EngineDeps {
   readonly extraEnvNames?: readonly string[];
   /** Caller-owned tightening for tests/ops; never raises the workflow timeout. */
   readonly maxNodeTimeoutMs?: number;
-  /** Join output validation; required (fail closed) only when a join declares output. */
+  /** Required for loops and joins that declare output schemas. */
   readonly validateOutput?: (schema: Record<string, unknown>, value: unknown) => OutputValidation;
   /**
    * Decision-model service for `decision` nodes. Composition roots pass a

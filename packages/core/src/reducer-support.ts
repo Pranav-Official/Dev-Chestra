@@ -133,6 +133,7 @@ export function newNodeExec(
     approvalRequest: null,
     approvalDecision: null,
     decision: null,
+    loop: null,
     requiresAcceptedResult:
       init === undefined ? false : init.requireSubmission || init.kind === "agent",
     acceptedResult: null,

@@ -10,6 +10,7 @@ export const SUPPORTED_NODE_TYPES: readonly string[] = [
   "join",
   "approval",
   "decision",
+  "loop",
   "end",
 ] as const;
 
@@ -163,6 +164,34 @@ export function createDefaultNode(
         instructions: "Decide yes or no from the state.",
         mode: defaultDecisionMode("boolean"),
         onError: "fail",
+        ui,
+      } as unknown as WorkflowNode;
+    case "loop":
+      return {
+        id,
+        type: "loop",
+        name,
+        mode: "repeatUntil",
+        maxIterations: 5,
+        initialState: "{}",
+        nextState: "loop.state",
+        result: "{}",
+        until: "false",
+        output: defaultAgentOutput(),
+        body: {
+          nodes: [
+            { id: "start", type: "start", name: "Start round", params: [], ui: { x: 32, y: 32 } },
+            {
+              id: "done",
+              type: "end",
+              name: "Finish round",
+              status: "success",
+              result: "{}",
+              ui: { x: 288, y: 32 },
+            },
+          ],
+          edges: [{ id: "body-edge", from: "start", to: "done" }],
+        },
         ui,
       } as unknown as WorkflowNode;
     case "end":

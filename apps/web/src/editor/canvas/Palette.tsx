@@ -5,6 +5,7 @@ import {
   GitBranch,
   GitMerge,
   Play,
+  Repeat,
   Scale,
   ShieldCheck,
   TerminalSquare,
@@ -26,6 +27,7 @@ const ITEMS: readonly PaletteItem[] = [
   { type: "join", label: "Join", description: "Merge branches.", icon: GitMerge },
   { type: "approval", label: "Approval", description: "Pause for a person.", icon: ShieldCheck },
   { type: "decision", label: "Decision", description: "Ask a decision model.", icon: Scale },
+  { type: "loop", label: "Loop", description: "Repeat until condition.", icon: Repeat },
   { type: "end", label: "End", description: "Finish the run.", icon: Flag },
 ];
 
@@ -33,11 +35,15 @@ export interface NodePaletteProps {
   file: WorkflowFile;
   onAdd(type: string, position?: Position): void;
   disabled?: boolean;
+  hiddenTypes?: readonly string[];
 }
 
-export function NodePalette({ file, onAdd, disabled = false }: NodePaletteProps) {
+export function NodePalette({ file, onAdd, disabled = false, hiddenTypes = [] }: NodePaletteProps) {
   const present = new Set(file.graph.nodes.map((node) => node.type));
-  const items = ITEMS.filter((item) => item.type !== "start" || !present.has(item.type));
+  const hidden = new Set(hiddenTypes);
+  const items = ITEMS.filter(
+    (item) => !hidden.has(item.type) && (item.type !== "start" || !present.has(item.type)),
+  );
   return (
     <aside className="editor-palette" aria-label="Add a node">
       <div className="editor-palette-title">Add a node</div>

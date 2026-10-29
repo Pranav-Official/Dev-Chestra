@@ -12,6 +12,7 @@ import {
 import {
   epochMsSchema,
   execStatusSchema,
+  jsonObjectSchema,
   jsonValueSchema,
   nodeKindSchema,
   pathSchema,
@@ -82,6 +83,23 @@ const execErrorViewSchema = strict({
   message: z.string(),
 });
 
+const loopViewSchema = strict({
+  iteration: z.number().int().positive(),
+  parent: jsonObjectSchema,
+  state: jsonObjectSchema,
+  rounds: z
+    .array(
+      strict({
+        iteration: z.number().int().positive(),
+        result: jsonValueSchema,
+        done: z.boolean(),
+        nextState: jsonObjectSchema.nullable(),
+        eventId: z.number().int().nonnegative(),
+      }),
+    )
+    .max(1000),
+});
+
 export const execViewSchema = strict({
   path: pathSchema,
   nodeId: z.string(),
@@ -89,6 +107,7 @@ export const execViewSchema = strict({
   attempt: z.number().int().positive(),
   generation: z.number().int().positive(),
   kind: nodeKindSchema.nullable(),
+  loop: loopViewSchema.nullable().optional(),
   requiresAcceptedResult: z.boolean(),
   acceptedResult: acceptedResultRefSchema.nullable(),
   recordedOutput: recordedOutputRefSchema.nullable(),
@@ -355,7 +374,7 @@ const normalizedDecisionNodeSchema = strict({
   onError: z.enum(["fail", "uncertain"]),
 });
 
-export const normalizedNodeSchema = z.discriminatedUnion("type", [
+const normalizedBodyNodeSchema = z.discriminatedUnion("type", [
   normalizedStartNodeSchema,
   normalizedAgentNodeSchema,
   normalizedShellNodeSchema,
@@ -365,6 +384,24 @@ export const normalizedNodeSchema = z.discriminatedUnion("type", [
   normalizedDecisionNodeSchema,
   normalizedEndNodeSchema,
 ]);
+
+const normalizedLoopNodeSchema = strict({
+  ...normalizedNodeBase,
+  type: z.literal("loop"),
+  mode: z.literal("repeatUntil"),
+  maxIterations: z.number().int().min(1).max(1000),
+  initialState: z.string(),
+  nextState: z.string(),
+  result: z.string(),
+  until: z.string(),
+  output: z.record(z.string(), z.unknown()),
+  body: strict({
+    nodes: z.array(normalizedBodyNodeSchema),
+    edges: z.array(strict({ id: z.string(), from: z.string(), to: z.string() })),
+  }),
+});
+
+export const normalizedNodeSchema = z.union([normalizedBodyNodeSchema, normalizedLoopNodeSchema]);
 
 export const normalizedWorkflowSchema = strict({
   schemaVersion: z.literal(1),

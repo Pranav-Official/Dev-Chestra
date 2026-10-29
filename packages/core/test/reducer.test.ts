@@ -216,6 +216,7 @@ function execWithStatus(status: ExecStatus): ExecView {
     approvalRequest: null,
     approvalDecision: null,
     decision: null,
+    loop: null,
     requiresAcceptedResult: false,
     acceptedResult: null,
     recordedOutput: null,

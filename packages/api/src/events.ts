@@ -26,6 +26,22 @@ import { z } from "./zod.js";
 const strict = z.strictObject;
 const optionalString = z.string().optional();
 
+export const loopStartedPayloadSchema = strict({
+  iteration: z.literal(1),
+  parent: jsonObjectSchema,
+  state: jsonObjectSchema,
+  attempt: z.number().int().positive().optional(),
+  generation: z.number().int().positive().optional(),
+});
+export const loopIterationDecidedPayloadSchema = strict({
+  iteration: z.number().int().min(1).max(1000),
+  result: jsonValueSchema,
+  done: z.boolean(),
+  nextState: jsonObjectSchema.optional(),
+  attempt: z.number().int().positive().optional(),
+  generation: z.number().int().positive().optional(),
+});
+
 export const processStopReasonSchema = z.enum(["exited", "killed", "grace_timeout", "crash"]);
 
 export const validationIssueSchema = strict({
@@ -441,6 +457,8 @@ export const eventPayloadSchemas = {
   "loop.round.started": loopRoundStartedPayloadSchema,
   "loop.round.completed": loopRoundCompletedPayloadSchema,
   "loop.exited": loopExitedPayloadSchema,
+  "loop.started": loopStartedPayloadSchema,
+  "loop.iteration.decided": loopIterationDecidedPayloadSchema,
   "join.resolved": joinResolvedPayloadSchema,
   "quota.blocked": quotaBlockedPayloadSchema,
   "quota.released": quotaReleasedPayloadSchema,

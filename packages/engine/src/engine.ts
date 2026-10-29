@@ -26,10 +26,12 @@ import { executeAgent } from "./exec-agent.js";
 import { executeApproval } from "./exec-approval.js";
 import { executeDecision } from "./exec-decision.js";
 import { executeDeterministic } from "./exec-deterministic.js";
+import { executeLoop } from "./exec-loop.js";
 import { executeGate, executeJoin, skipNode } from "./exec-routing.js";
 import { executeShell } from "./exec-shell.js";
 import { analyzeWorkflowPlan, type PlanNode, type WorkflowPlan } from "./graph-plan.js";
 import { derivePlanRouting, joinRoutingFor } from "./graph-run.js";
+import { assertLoopWorkspaceAvailable } from "./loop-workspace.js";
 import { recoverAll } from "./recovery.js";
 import { validateRunOptions } from "./sequence.js";
 import { StopSignal } from "./stop.js";
@@ -154,7 +156,16 @@ export class LinearEngine implements Engine {
         workspace: { selection, projectRoot: project.path },
         ...(input.idempotency === undefined ? {} : { idempotency: input.idempotency }),
       };
-      const created: CreateRunResult = this.#ctx.store.runs.create(createInput);
+      const created: CreateRunResult = this.#ctx.store.tx(() => {
+        const created = this.#ctx.store.runs.create(createInput);
+        if (!created.duplicate) {
+          assertLoopWorkspaceAvailable(
+            this.#ctx.run(created.runId),
+            this.#ctx.store.runs.listActive(),
+          );
+        }
+        return created;
+      });
       const duplicate = created.duplicate;
       const completion = duplicate
         ? this.#duplicateCompletion(created.runId)
@@ -360,6 +371,14 @@ export class LinearEngine implements Engine {
 
   #assertAdapters(plan: WorkflowPlan): void {
     for (const node of plan.nodes) {
+      if (node.type === "loop") {
+        if (!this.#ctx.deps.validateOutput) {
+          throw new DevChestraError("E_WORKFLOW_INVALID", "Loops require an output validator");
+        }
+        const body = analyzeWorkflowPlan({ graph: node.raw.body });
+        if (!body.ok) throw body.error;
+        this.#assertAdapters(body.value);
+      }
       if (node.type !== "agent") continue;
       const cli: unknown = node.raw.cli;
       if (!isCliId(cli) || !this.#ctx.deps.adapters.has(cli)) {
@@ -537,7 +556,13 @@ export class LinearEngine implements Engine {
         }
         continue;
       }
-      const ready = plan.nodes.filter((node) => routing.ready.includes(node.id));
+      // A controller stays running while a body approval parks the drive.
+      // Resume its state machine without changing the node's durable status.
+      const ready = plan.nodes.filter(
+        (node) =>
+          routing.ready.includes(node.id) ||
+          (node.type === "loop" && view.executions[node.id]?.status === "running"),
+      );
       const readyNonEnd = ready.filter((node) => node.type !== "end");
       if (readyNonEnd.length > 0) {
         const node = readyNonEnd[0] as PlanNode;
@@ -606,6 +631,12 @@ export class LinearEngine implements Engine {
     active: ActiveRunState,
     routing: RoutingView,
   ): Promise<void> {
+    if (node.type === "loop") {
+      await executeLoop(this.#ctx, run, plan, node, active, (body, child, routing) =>
+        this.#execute(this.#ctx.run(run.id), body, child, active, routing),
+      );
+      return;
+    }
     if (node.type === "start" || node.type === "end") {
       await executeDeterministic(this.#ctx, run, plan, node, active);
       return;

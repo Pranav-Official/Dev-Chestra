@@ -11,31 +11,42 @@ const STATUSES: readonly { value: EndNode["status"]; label: string }[] = [
   { value: "rejected", label: "Rejected" },
 ];
 
-export function EndForm({ node, issues, onPatch }: FormProps<EndNode>) {
+export function EndForm({
+  node,
+  issues,
+  onPatch,
+  bodyMode = false,
+}: FormProps<EndNode> & { bodyMode?: boolean }) {
   const statusIssue = fieldIssue(issues, "/status");
   const resultIssue = fieldIssue(issues, "/result");
   return (
     <InspectorSection sectionKey="end:outcome" title="Outcome">
       <div className="inspector-stack">
-        <Field id="inspector-end-status" label="Status" required error={statusIssue}>
-          <select
-            id="inspector-end-status"
-            className="inspector-input"
-            data-testid="inspector-end-status"
-            value={node.status}
-            aria-invalid={statusIssue ? true : undefined}
-            aria-describedby={describedBy("inspector-end-status", undefined, statusIssue)}
-            onChange={(event) =>
-              onPatch({ status: event.currentTarget.value as EndNode["status"] })
-            }
-          >
-            {STATUSES.map((status) => (
-              <option key={status.value} value={status.value}>
-                {status.label}
-              </option>
-            ))}
-          </select>
-        </Field>
+        {bodyMode ? (
+          <p className="inspector-help" data-testid="inspector-end-body-note">
+            Body End must stay success; failure ends the run, not the round.
+          </p>
+        ) : (
+          <Field id="inspector-end-status" label="Status" required error={statusIssue}>
+            <select
+              id="inspector-end-status"
+              className="inspector-input"
+              data-testid="inspector-end-status"
+              value={node.status}
+              aria-invalid={statusIssue ? true : undefined}
+              aria-describedby={describedBy("inspector-end-status", undefined, statusIssue)}
+              onChange={(event) =>
+                onPatch({ status: event.currentTarget.value as EndNode["status"] })
+              }
+            >
+              {STATUSES.map((status) => (
+                <option key={status.value} value={status.value}>
+                  {status.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
         <Field
           id="inspector-end-result"
           label="Result expression (JSONata)"

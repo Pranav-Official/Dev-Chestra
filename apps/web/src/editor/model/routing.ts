@@ -33,6 +33,7 @@ const SUPPORTED_TYPES: ReadonlySet<string> = new Set<string>([
   "join",
   "approval",
   "decision",
+  "loop",
   "end",
 ]);
 
@@ -519,7 +520,7 @@ export function checkConnection(file: WorkflowFile, request: ConnectRequest): Co
     return {
       ok: false,
       message:
-        "This editor can only connect Start, Agent, Shell, Gate, Join, Approval, Decision and End nodes.",
+        "This editor can only connect Start, Agent, Shell, Gate, Join, Approval, Decision, Loop and End nodes.",
     };
   }
   if (source.id === target.id) {

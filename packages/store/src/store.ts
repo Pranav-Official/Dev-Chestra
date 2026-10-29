@@ -32,6 +32,7 @@ import {
   getExecution,
   listExecutions,
 } from "./executions.js";
+import { decideLoop, startLoop } from "./loops.js";
 import { applyMigrations } from "./migrate.js";
 import { getOutput, recordDeterministic } from "./outputs.js";
 import {
@@ -82,6 +83,8 @@ import type {
   CompleteExecutionResult,
   CreateRunInput,
   CreateRunResult,
+  DecideLoopInput,
+  DecideLoopResult,
   EnsureExecutionInput,
   EnsureProjectInput,
   EventPage,
@@ -115,6 +118,8 @@ import type {
   RunRecord,
   RunSnapshot,
   RunSummary,
+  StartLoopInput,
+  StartLoopResult,
   SubmitInput,
   SubmitOutcome,
 } from "./types.js";
@@ -195,6 +200,11 @@ export interface RoutingApi {
   recordJoinResolution(input: RecordJoinResolutionInput): RoutingCommitResult;
 }
 
+export interface LoopsApi {
+  start(input: StartLoopInput): StartLoopResult;
+  decide(input: DecideLoopInput): DecideLoopResult;
+}
+
 export interface ApprovalsApi {
   request(input: RequestApprovalInput): RequestApprovalResult;
   resolve(input: ResolveApprovalInput): ResolveApprovalResult;
@@ -226,6 +236,7 @@ export class Store {
   readonly view: ViewApi;
   readonly recovery: RecoveryApi;
   readonly routing: RoutingApi;
+  readonly loops: LoopsApi;
   readonly approvals: ApprovalsApi;
   readonly security: SecurityApi;
 
@@ -326,6 +337,10 @@ export class Store {
       recordGateDecision: (input) => this.tx(() => recordGateDecision(this.#runtime, input)),
       recordDecision: (input) => this.tx(() => recordDecision(this.#runtime, input)),
       recordJoinResolution: (input) => this.tx(() => recordJoinResolution(this.#runtime, input)),
+    };
+    this.loops = {
+      start: (input) => this.tx(() => startLoop(this.#runtime, input)),
+      decide: (input) => this.tx(() => decideLoop(this.#runtime, input)),
     };
     this.approvals = {
       request: (input) => this.tx(() => requestApproval(this.#runtime, input)),

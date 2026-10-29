@@ -340,6 +340,7 @@ function RunPage({ rid }: { rid: string }) {
                 events={session.events}
                 isReplay={isReplay}
                 snapshot={detail?.snapshot ?? null}
+                onSelectPath={(next) => update({ path: next, tab: "detail" })}
               />
             ) : tab === "events" ? (
               <EventsPanel

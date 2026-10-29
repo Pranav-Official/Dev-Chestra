@@ -1,5 +1,6 @@
 import { DevChestraError } from "./error.js";
 import type { EventEnvelope, KnownEventType } from "./events.js";
+import { canonicalJson } from "./hash.js";
 import {
   assertIdentity,
   assertRunCompletionLegal,
@@ -11,7 +12,25 @@ import {
   withEventId,
 } from "./reducer-support.js";
 import type { RunView } from "./reducer-types.js";
+import { type LoopView, MAX_LOOP_HISTORY } from "./reducer-types.js";
 import { assertRunTransition, type RunStatus } from "./transitions.js";
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function checkLoopIteration(iteration: unknown): number {
+  if (!Number.isSafeInteger(iteration) || (iteration as number) < 1) {
+    throw internal("Loop iteration must be a positive integer", { iteration });
+  }
+  const n = iteration as number;
+  if (n > MAX_LOOP_HISTORY) {
+    throw internal(`Loop iteration exceeds the ${MAX_LOOP_HISTORY} history bound`, {
+      iteration: n,
+    });
+  }
+  return n;
+}
 
 function fenceOptionalIdentity(
   exec: { attempt: number; generation: number },
@@ -459,6 +478,123 @@ export function reduceLifecycleEvent(view: RunView, envelope: EventEnvelope): Ru
           eventId: envelope.id,
         },
       }));
+    }
+
+    case "loop.started": {
+      const payload = (envelope as EventEnvelope<"loop.started">).payload;
+      const exec = view.executions[key];
+      if (exec === undefined) return withEventId(view, envelope);
+      fenceOptionalIdentity(exec, type, payload);
+      const iteration = checkLoopIteration(payload.iteration);
+      if (iteration !== 1) {
+        throw internal("Loop start iteration must be 1", { path, iteration });
+      }
+      if (!isPlainObject(payload.parent) || !isPlainObject(payload.state)) {
+        throw internal("Loop parent and state must be JSON objects", { path });
+      }
+      if (exec.loop !== null) {
+        const cur = exec.loop;
+        const same =
+          cur.iteration === 1 &&
+          canonicalJson(cur.parent) === canonicalJson(payload.parent) &&
+          canonicalJson(cur.state) === canonicalJson(payload.state) &&
+          cur.rounds.length === 0;
+        // Idempotent replay: identical start after run terminal must not change status.
+        if (same) return withEventId(view, envelope);
+        throw new DevChestraError("E_CONFLICT", "Loop controller is immutable once started", {
+          details: { path, existing: cur, received: payload },
+        });
+      }
+      if (exec.status !== "running" && exec.status !== "validating") {
+        throw internal("Loop start arrived in an unexpected status", {
+          path,
+          status: exec.status,
+        });
+      }
+      const loop: LoopView = {
+        iteration: 1,
+        parent: { ...(payload.parent as Record<string, unknown>) } as LoopView["parent"],
+        state: { ...(payload.state as Record<string, unknown>) } as LoopView["state"],
+        rounds: [],
+      };
+      return withEventId(
+        updateExec(view, key, (current) => ({ ...current, loop })),
+        envelope,
+      );
+    }
+
+    case "loop.iteration.decided": {
+      const payload = (envelope as EventEnvelope<"loop.iteration.decided">).payload;
+      const exec = view.executions[key];
+      if (exec === undefined) return withEventId(view, envelope);
+      fenceOptionalIdentity(exec, type, payload);
+      const iteration = checkLoopIteration(payload.iteration);
+      if (typeof payload.done !== "boolean") {
+        throw internal("Loop decision done must be boolean", { path });
+      }
+      if (payload.nextState !== undefined && !isPlainObject(payload.nextState)) {
+        throw internal("Loop nextState must be a JSON object when present", { path });
+      }
+      if (payload.done && payload.nextState !== undefined) {
+        throw internal("Loop done decision must not carry nextState", { path });
+      }
+      if (exec.loop === null) {
+        throw internal("Loop decision arrived before loop.started", { path });
+      }
+      const existing = exec.loop.rounds.find((round) => round.iteration === iteration);
+      if (existing !== undefined) {
+        const same =
+          canonicalJson(existing.result) === canonicalJson(payload.result) &&
+          existing.done === payload.done &&
+          canonicalJson(existing.nextState ?? null) === canonicalJson(payload.nextState ?? null);
+        // Idempotent replay even after run terminal — do not change status again.
+        if (same) return withEventId(view, envelope);
+        throw new DevChestraError("E_CONFLICT", "Loop round decision is immutable", {
+          details: { path, existing, received: payload },
+        });
+      }
+      if (exec.loop.rounds.some((round) => round.done)) {
+        throw new DevChestraError("E_CONFLICT", "Loop is already finished; no further decisions", {
+          details: { path, iteration },
+        });
+      }
+      if (iteration !== exec.loop.iteration) {
+        throw new DevChestraError("E_CONFLICT", "Stale or future loop iteration", {
+          details: { path, expected: exec.loop.iteration, received: iteration },
+        });
+      }
+      if (exec.status !== "running" && exec.status !== "validating") {
+        throw internal("Loop decision arrived in an unexpected status", {
+          path,
+          status: exec.status,
+        });
+      }
+      const round = {
+        iteration,
+        result: payload.result,
+        done: payload.done,
+        nextState:
+          payload.nextState === undefined
+            ? null
+            : ({ ...(payload.nextState as Record<string, unknown>) } as LoopView["state"]),
+        eventId: envelope.id,
+      };
+      const rounds = [...exec.loop.rounds, round].slice(-MAX_LOOP_HISTORY);
+      const loop: LoopView = payload.done
+        ? { ...exec.loop, rounds }
+        : {
+            iteration: iteration + 1,
+            parent: exec.loop.parent,
+            state:
+              payload.nextState === undefined
+                ? exec.loop.state
+                : ({ ...(payload.nextState as Record<string, unknown>) } as LoopView["state"]),
+            rounds,
+          };
+      return withEventId(
+        updateExec(view, key, (current) => ({ ...current, loop })),
+        envelope,
+      );
     }
 
     // Reserved catalog events have no RunView effect in the P0 slice. Their

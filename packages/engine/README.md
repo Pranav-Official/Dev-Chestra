@@ -1,18 +1,19 @@
 # @devchestra/engine
 
-Durable linear workflow engine for the P1 headless runner. It executes
-`start -> agent -> shell -> end` chains against real temp SQLite, scratch
-workspaces and a caller-provided loopback gateway. It is not the full §12
-scheduler.
+Durable graph workflow engine backed by SQLite and a caller-provided loopback
+gateway. It supports conditional routing, approvals, decisions, and bounded
+[Repeat until loops](../../docs/loops.md), with separate execution paths for
+each round. The public `LinearEngine` name remains for API compatibility.
 
 ## Scope
 
 Implemented:
 
-- one linear chain with exactly one `start` and one `end`;
+- acyclic graphs with one `start`, explicit routing/joins, and exclusive ends;
+- bounded loop bodies with durable carried state and per-round decisions;
 - `agent` nodes through the real MCP stdio shim and gateway `submit_result`;
 - `shell` nodes with a structured `{ exitCode, signal, stdout, stderr, durationMs }` output;
-- scratch workspaces only, acquired per generation and never the project directory;
+- one run-selected workspace reused across nodes and loop rounds;
 - immutable run snapshot and normalized workflow hash (UI stripped);
 - durable accepted results, persistent validation budgets, bounded no-submit fallback;
 - process generations, persistent crash budget, finish-grace kill after acceptance;
@@ -22,12 +23,13 @@ Implemented:
 - explicit one-shot override for an uncertain shell (`resume(..., { allowUncertainSideEffectRetry: true })`);
 - SIGINT/SIGTERM style `stop()` leaves a resumable paused run, not a user cancellation.
 
-Rejected before a run is created: unsupported node types, non-scratch workspaces,
-project writes, context banks, artifacts, `promptFile`, `cliOptions`, budgets and
+Rejected before a run is created: unsupported node types, per-node worktree modes
+inside loops, explicit project write permissions, context banks, artifacts,
+uninlined `promptFile`, `cliOptions`, budgets and
 `baseSha`. There is no silent drop.
 
-Deferred: gate/join/decision/approval/map/loop/supervisor nodes, containers,
-worktrees, project mode, artifacts, context banks, retry-from-node, terminal
+Deferred: map/supervisor nodes, nested and unrestricted loops, containers,
+artifacts, context banks, retry-from-node, terminal
 retry, multi-run fairness, quotas, UI and the full scheduler.
 
 ## API

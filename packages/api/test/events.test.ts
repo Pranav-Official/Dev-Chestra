@@ -224,6 +224,8 @@ const samples = {
   "loop.round.started": { round: 1, carryHash: "hash" },
   "loop.round.completed": { round: 1, exitMatched: true, stalled: false },
   "loop.exited": { reason: "condition", rounds: 1 },
+  "loop.started": { iteration: 1, parent: {}, state: {} },
+  "loop.iteration.decided": { iteration: 1, result: {}, done: true },
   "join.resolved": { mode: "all", active: ["a"], skipped: ["b"] },
   "quota.blocked": {
     provider: "p",

@@ -9,6 +9,7 @@ import {
   parseWorkflowJson,
   validateWorkflow,
   type WorkflowFile,
+  workflowNodes,
 } from "@devchestra/schema";
 import { pathSafety, realRoot } from "@devchestra/workspaces";
 import { validateWorkspaceSelection } from "./workspace-service.js";
@@ -54,7 +55,7 @@ async function readInsideFile(root: string, rel: string): Promise<string> {
 
 async function loadPrompts(root: string, file: WorkflowFile): Promise<Record<string, string>> {
   const prompts: Record<string, string> = {};
-  for (const node of file.graph.nodes) {
+  for (const node of workflowNodes(file.graph)) {
     if (node.type !== "agent" || node.promptFile === undefined) continue;
     const prefix = `${file.id}.prompts/`;
     const candidates = node.promptFile.startsWith(prefix)
@@ -147,13 +148,13 @@ export async function resolveRunWorkspace(
 }
 
 export function workflowRequiresRealAdapter(workflow: NormalizedWorkflow): boolean {
-  return workflow.graph.nodes.some(
+  return [...workflowNodes(workflow.graph)].some(
     (node) => node.type === "agent" && (node.cli as string) !== "fake",
   );
 }
 
 export function requireFakeScriptForFakeNodes(workflow: NormalizedWorkflow): boolean {
-  return workflow.graph.nodes.some(
+  return [...workflowNodes(workflow.graph)].some(
     (node) => node.type === "agent" && (node.cli as string) === "fake",
   );
 }

@@ -13,6 +13,7 @@ import {
   GitBranch,
   GitMerge,
   Play,
+  Repeat,
   Scale,
   ShieldCheck,
   TerminalSquare,
@@ -41,6 +42,7 @@ function Icon({ type }: { type: NodeType }) {
   if (type === "join") return <GitMerge size={13} aria-hidden="true" />;
   if (type === "approval") return <ShieldCheck size={13} aria-hidden="true" />;
   if (type === "decision") return <Scale size={13} aria-hidden="true" />;
+  if (type === "loop") return <Repeat size={13} aria-hidden="true" />;
   if (type === "end") return <Flag size={13} aria-hidden="true" />;
   return <AlertTriangle size={13} aria-hidden="true" />;
 }
@@ -64,6 +66,7 @@ export function handleSignature(node: WorkflowNode): string | null {
     case "start":
     case "agent":
     case "shell":
+    case "loop":
     case "end":
       return null;
     default: {
@@ -94,6 +97,8 @@ export function subtitle(node: WorkflowNode): string {
       const short = (node.instructions ?? "").trim().slice(0, 32);
       return short === "" ? `Asks ${node.provider}` : `${node.provider} · ${short}`;
     }
+    case "loop":
+      return `repeat ≤${node.maxIterations} · ${node.body.nodes.length} body nodes`;
     case "end":
       return `Ends as ${node.status}`;
     default: {

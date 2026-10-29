@@ -11,7 +11,21 @@ function nextName(params: readonly WorkflowParam[]): string {
   return `param${index}`;
 }
 
-export function StartForm({ node, issues, onPatch }: FormProps<StartNode>) {
+export function StartForm({
+  node,
+  issues,
+  onPatch,
+  bodyMode = false,
+}: FormProps<StartNode> & { bodyMode?: boolean }) {
+  if (bodyMode) {
+    return (
+      <InspectorSection sectionKey="start:parameters" title="Parameters" badge="0">
+        <p className="inspector-help" data-testid="inspector-start-body-note">
+          Body Start takes no parameters; parent inputs arrive via loop.parent.
+        </p>
+      </InspectorSection>
+    );
+  }
   const addParam = (): void => {
     onPatch({
       params: [...node.params, { name: nextName(node.params), type: "string", required: false }],

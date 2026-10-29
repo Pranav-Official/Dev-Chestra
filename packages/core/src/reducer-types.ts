@@ -3,6 +3,9 @@ import type {
   DecisionAnsweredPayload,
   GateDecidedPayload,
   JoinResolvedPayload,
+  JsonObject,
+  JsonValue,
+  LoopIterationDecidedPayload,
   NodeKind,
   RunPauseReason,
   ValidationIssue,
@@ -97,6 +100,44 @@ export interface DecisionRef {
   eventId: number;
 }
 
+/** Durable per-round loop decision; round != retry attempt. */
+export interface LoopRoundView {
+  iteration: number;
+  result: JsonValue;
+  done: boolean;
+  nextState: JsonObject | null;
+  eventId: number;
+}
+
+/**
+ * Durable loop controller state. `iteration` is the current round to execute;
+ * a `done=false` decision advances it synchronously, a `done=true` decision
+ * leaves it in place so the engine can publish the final output idempotently
+ * after restart. `parent` is the immutable scope captured at start.
+ */
+export interface LoopView {
+  iteration: number;
+  parent: JsonObject;
+  state: JsonObject;
+  rounds: LoopRoundView[];
+}
+
+/** Hard bound so loop history never grows without limit. */
+export const MAX_LOOP_HISTORY = 1000;
+
+export function loopRoundFromPayload(
+  payload: LoopIterationDecidedPayload,
+  eventId: number,
+): LoopRoundView {
+  return {
+    iteration: payload.iteration,
+    result: payload.result,
+    done: payload.done,
+    nextState: payload.nextState ?? null,
+    eventId,
+  };
+}
+
 export interface ExecView {
   path: Path;
   nodeId: string;
@@ -110,6 +151,8 @@ export interface ExecView {
   approvalDecision: ApprovalDecisionRef | null;
   /** Durable decision answer; null until decision.answered. */
   decision: DecisionRef | null;
+  /** Durable loop controller; null until loop.started. */
+  loop: LoopView | null;
   requiresAcceptedResult: boolean;
   acceptedResult: AcceptedResultRef | null;
   recordedOutput: RecordedOutputRef | null;
@@ -252,6 +295,20 @@ export function isDurablyComplete(exec: ExecView): boolean {
       finalized.attempt === accepted.attempt &&
       finalized.generation === accepted.generation
     );
+  }
+  if (exec.kind === "loop") {
+    if (exec.loop === null) return false;
+    const last = exec.loop.rounds.at(-1);
+    if (!last?.done) return false;
+    const recorded = exec.recordedOutput;
+    if (
+      recorded === null ||
+      recorded.attempt !== exec.attempt ||
+      recorded.generation !== exec.generation
+    ) {
+      return false;
+    }
+    return true;
   }
   if (exec.kind === "shell" || exec.kind === "start" || exec.kind === "end") {
     const recorded = exec.recordedOutput;

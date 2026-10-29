@@ -1,8 +1,13 @@
 import { DevChestraError, err, isRecord, ok, type Result } from "@devchestra/core";
-import { analyzeGraph, type GateBranch, validateWorkflow } from "@devchestra/schema";
+import {
+  analyzeGraph,
+  type GateBranch,
+  validateLoopNode,
+  validateWorkflow,
+} from "@devchestra/schema";
 import { type LinearNodeKind, validateBaseNodeConfig } from "./sequence.js";
 
-export type PlanNodeKind = LinearNodeKind | "gate" | "join" | "approval" | "decision";
+export type PlanNodeKind = LinearNodeKind | "gate" | "join" | "approval" | "decision" | "loop";
 
 export interface PlanNode {
   readonly id: string;
@@ -19,6 +24,9 @@ export interface PlanEdge {
 }
 
 export interface WorkflowPlan {
+  /** A body plan uses execution paths as ids while retaining local ids in raw. */
+  readonly scope?: Readonly<Record<string, unknown>>;
+  readonly body?: boolean;
   readonly nodes: readonly PlanNode[];
   readonly edges: readonly PlanEdge[];
   readonly start: PlanNode;
@@ -74,7 +82,10 @@ function readPlanNode(value: unknown, index: number): PlanNode {
   if (typeof id !== "string" || !NODE_ID_RE.test(id)) {
     throw invalid("Node id is missing or invalid", { id, index });
   }
-  if (typeof type !== "string" || (!BASE_TYPES.has(type) && type !== "gate" && type !== "join")) {
+  if (
+    typeof type !== "string" ||
+    (!BASE_TYPES.has(type) && type !== "gate" && type !== "join" && type !== "loop")
+  ) {
     throw new DevChestraError(
       "E_WORKFLOW_INVALID",
       `Node type '${String(type)}' is not supported in this increment`,
@@ -296,6 +307,14 @@ export function analyzeWorkflowPlan(snapshot: unknown): Result<WorkflowPlan, Dev
       cache.set(nodeId, found);
       return found;
     };
+
+    for (const node of nodes) {
+      if (node.type !== "loop") continue;
+      const issue = validateLoopNode(node.raw, {
+        parentAllowed: new Set(["start", ...ancestorsOf(node.id)]),
+      }).find((issue) => issue.severity === "error");
+      if (issue) throw invalid(issue.message, { nodeId: node.id, pointer: issue.pointer });
+    }
 
     return ok({
       nodes,

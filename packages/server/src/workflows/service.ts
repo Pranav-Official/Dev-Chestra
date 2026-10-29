@@ -9,6 +9,7 @@ import {
   validateParams,
   validateWorkflow,
   type WorkflowFile,
+  workflowNodes,
 } from "@devchestra/schema";
 import { assertProjectPathAllowed } from "../browser/workflow.js";
 import { DevChestraError } from "../errors.js";
@@ -331,7 +332,7 @@ export class ManagedWorkflowService {
         expected: id,
       });
     }
-    const prompts = workflow.graph.nodes.filter(
+    const prompts = [...workflowNodes(workflow.graph)].filter(
       (node) => node.type === "agent" && node.promptFile !== undefined,
     );
     if (prompts.length > 0) {

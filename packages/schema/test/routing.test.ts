@@ -64,6 +64,7 @@ describe("gate and join schema", () => {
       "join",
       "approval",
       "decision",
+      "loop",
       "end",
     ]);
   });

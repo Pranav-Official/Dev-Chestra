@@ -22,6 +22,7 @@ export type ErrorCode =
   | "E_IRREVERSIBLE"
   | "E_JOIN_CONFLICT"
   | "E_CANCELLED"
+  | "E_LOOP_LIMIT"
   | "E_INTERNAL";
 
 export interface DevChestraErrorOptions {

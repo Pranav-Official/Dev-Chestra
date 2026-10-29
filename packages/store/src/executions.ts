@@ -370,6 +370,22 @@ export function completeExecution(
     fail("E_CONFLICT", "This execution requires an accepted result before success");
   } else {
     const kind = execution.kind;
+    if (kind === "loop") {
+      const loop = execution.loop;
+      const last = loop?.rounds.at(-1);
+      if (!loop || !last?.done) {
+        fail("E_CONFLICT", "Loop controller requires a finished done decision before success");
+      }
+      const recorded = execution.recordedOutput;
+      if (
+        !hasRecordedOutput(runtime, input.identity) ||
+        recorded === null ||
+        recorded.attempt !== input.identity.attempt ||
+        recorded.generation !== input.identity.generation
+      ) {
+        fail("E_CONFLICT", "Loop controller requires a recorded output before success");
+      }
+    }
     if (kind === "shell" || kind === "start" || kind === "end") {
       if (!hasRecordedOutput(runtime, input.identity)) {
         fail("E_CONFLICT", `This ${kind} execution requires a recorded output before success`);

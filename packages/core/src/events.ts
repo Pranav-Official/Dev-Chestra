@@ -318,6 +318,32 @@ export interface LoopExitedPayload {
   rounds: number;
 }
 
+export interface LoopStartedPayload {
+  /** Always 1; the controller starts iteration 1 once, idempotently. */
+  iteration: number;
+  /** Immutable parent scope captured once when the loop starts. */
+  parent: JsonObject;
+  /** Initial carried state for iteration 1. */
+  state: JsonObject;
+  /** Engine-emitted invocation fence; optional for older events. */
+  attempt?: number;
+  generation?: number;
+}
+
+export interface LoopIterationDecidedPayload {
+  /** 1-based round this decision belongs to; round != retry attempt. */
+  iteration: number;
+  /** Validated body result for the round. */
+  result: JsonValue;
+  /** True when the stop condition matched; false to continue. */
+  done: boolean;
+  /** Carried state for the next round; absent retains current state. */
+  nextState?: JsonObject;
+  /** Engine-emitted invocation fence; optional for older events. */
+  attempt?: number;
+  generation?: number;
+}
+
 export interface JoinResolvedPayload {
   mode: string;
   /** Resolved input names that were active. */
@@ -462,6 +488,8 @@ export const EVENT_TYPES = [
   "loop.round.started",
   "loop.round.completed",
   "loop.exited",
+  "loop.started",
+  "loop.iteration.decided",
   "join.resolved",
   "quota.blocked",
   "quota.released",
@@ -516,6 +544,8 @@ export interface EventPayloads {
   "loop.round.started": LoopRoundStartedPayload;
   "loop.round.completed": LoopRoundCompletedPayload;
   "loop.exited": LoopExitedPayload;
+  "loop.started": LoopStartedPayload;
+  "loop.iteration.decided": LoopIterationDecidedPayload;
   "join.resolved": JoinResolvedPayload;
   "quota.blocked": QuotaBlockedPayload;
   "quota.released": QuotaReleasedPayload;

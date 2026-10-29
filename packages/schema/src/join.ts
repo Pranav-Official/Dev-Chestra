@@ -1,5 +1,6 @@
 import { canonicalJson, type DevChestraError, type Result } from "@devchestra/core";
 import { analyzeGraph } from "./graph.js";
+import { loopEnvelopeSchema } from "./loop-envelope.js";
 import { normalizeOutputSchema } from "./output-schema.js";
 import type { Graph, Issue, JoinNode, JsonSchemaObject, WorkflowNode } from "./types.js";
 
@@ -58,6 +59,11 @@ function outputSchema(node: WorkflowNode | undefined): JsonSchemaObject | null {
       return null;
     case "decision":
       return null;
+    case "loop": {
+      const inner = normalize(node.output);
+      if (inner === null) return null;
+      return loopEnvelopeSchema(inner);
+    }
     case "start":
       return OPAQUE_OBJECT;
     case "end":

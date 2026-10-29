@@ -381,7 +381,9 @@ describe("connection rules", () => {
     });
     expect(rejected.ok).toBe(false);
     if (!rejected.ok)
-      expect(rejected.error).toMatch(/Start, Agent, Shell, Gate, Join, Approval, Decision and End/);
+      expect(rejected.error).toMatch(
+        /Start, Agent, Shell, Gate, Join, Approval, Decision, Loop and End/,
+      );
   });
 
   it("does not reject a valid edge because another draft field is invalid", () => {

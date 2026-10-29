@@ -135,11 +135,15 @@ export function normalizeCachedView(view: RunView): RunView {
       joinResolution?: ExecView["joinResolution"];
       approvalRequest?: ExecView["approvalRequest"];
       approvalDecision?: ExecView["approvalDecision"];
+      decision?: ExecView["decision"];
+      loop?: ExecView["loop"];
     };
     if (legacy.gateDecision === undefined) legacy.gateDecision = null;
     if (legacy.joinResolution === undefined) legacy.joinResolution = null;
     if (legacy.approvalRequest === undefined) legacy.approvalRequest = null;
     if (legacy.approvalDecision === undefined) legacy.approvalDecision = null;
+    if (legacy.decision === undefined) legacy.decision = null;
+    if (legacy.loop === undefined) legacy.loop = null;
   }
   return view;
 }

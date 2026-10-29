@@ -1,6 +1,6 @@
-import type { Issue, WorkflowNode } from "@devchestra/schema";
+import type { Edge, Issue, WorkflowNode } from "@devchestra/schema";
 import { AlertTriangle, Info, Pickaxe } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "../../styles/editor-inspector.css";
 import { AgentForm } from "./AgentForm.js";
 import { ApprovalForm } from "./ApprovalForm.js";
@@ -11,6 +11,7 @@ import { EndForm } from "./EndForm.js";
 import { GateForm } from "./GateForm.js";
 import { issuesForNode, summaryIssues } from "./issues.js";
 import { JoinForm } from "./JoinForm.js";
+import { LoopForm } from "./LoopForm.js";
 import { NodeHeader } from "./NodeHeader.js";
 import { InspectorSection } from "./Section.js";
 import { ShellForm } from "./ShellForm.js";
@@ -43,6 +44,102 @@ function NodeIssues({ issues }: { issues: readonly Issue[] }) {
       </ul>
     </InspectorSection>
   );
+}
+
+function renderBodyNode(
+  bodyNode: WorkflowNode,
+  bodyIssues: readonly Issue[],
+  onBodyPatch: (patch: Partial<WorkflowNode>) => void,
+  bodyEdges: readonly Edge[],
+  onBodyRouting: (patch: Partial<WorkflowNode>, removeEdgeIds?: readonly string[]) => void,
+  projectId?: string,
+): ReactNode {
+  // Each wrapper converts the form's narrow patch to the union patch with the
+  // same unknown hop Inspector.emit uses (PatchOf permits explicit undefined for
+  // field removal; Partial under exactOptionalPropertyTypes does not).
+  switch (bodyNode.type) {
+    case "start":
+      return (
+        <StartForm
+          node={bodyNode}
+          issues={bodyIssues}
+          onPatch={(p) => onBodyPatch(p as unknown as Partial<WorkflowNode>)}
+          bodyMode
+        />
+      );
+    case "agent":
+      return (
+        <AgentForm
+          node={bodyNode}
+          issues={bodyIssues}
+          projectId={projectId}
+          onPatch={(p) => onBodyPatch(p as unknown as Partial<WorkflowNode>)}
+        />
+      );
+    case "shell":
+      return (
+        <ShellForm
+          node={bodyNode}
+          issues={bodyIssues}
+          onPatch={(p) => onBodyPatch(p as unknown as Partial<WorkflowNode>)}
+        />
+      );
+    case "gate":
+      return (
+        <GateForm
+          node={bodyNode}
+          issues={bodyIssues}
+          projectId={projectId}
+          edges={bodyEdges}
+          onPatch={(p) => onBodyPatch(p as unknown as Partial<WorkflowNode>)}
+          onRoutingChange={(p, r) => onBodyRouting(p as unknown as Partial<WorkflowNode>, r)}
+        />
+      );
+    case "join":
+      return (
+        <JoinForm
+          node={bodyNode}
+          issues={bodyIssues}
+          edges={bodyEdges}
+          onPatch={(p) => onBodyPatch(p as unknown as Partial<WorkflowNode>)}
+          onRoutingChange={(p, r) => onBodyRouting(p as unknown as Partial<WorkflowNode>, r)}
+        />
+      );
+    case "approval":
+      return (
+        <ApprovalForm
+          node={bodyNode}
+          issues={bodyIssues}
+          onPatch={(p) => onBodyPatch(p as unknown as Partial<WorkflowNode>)}
+        />
+      );
+    case "decision":
+      return (
+        <DecisionForm
+          node={bodyNode}
+          issues={bodyIssues}
+          projectId={projectId}
+          edges={bodyEdges}
+          onPatch={(p) => onBodyPatch(p as unknown as Partial<WorkflowNode>)}
+          onRoutingChange={(p, r) => onBodyRouting(p as unknown as Partial<WorkflowNode>, r)}
+        />
+      );
+    case "end":
+      return (
+        <EndForm
+          node={bodyNode}
+          issues={bodyIssues}
+          onPatch={(p) => onBodyPatch(p as unknown as Partial<WorkflowNode>)}
+          bodyMode
+        />
+      );
+    case "loop":
+      return null;
+    default: {
+      const _exhaustive: never = bodyNode;
+      return _exhaustive;
+    }
+  }
 }
 
 export function Inspector({
@@ -150,64 +247,74 @@ export function Inspector({
           <p>Select a node to edit its settings.</p>
         </div>
       ) : (
-        <>
-          <div className="inspector-body" key={session}>
-            <BufferContext.Provider value={registry}>
-              <NodeHeader node={node} issues={nodeIssues} onPatch={emit} />
-              <div className="inspector-content">
-                {node.type === "start" ? (
-                  <StartForm node={node} issues={nodeIssues} onPatch={emit} />
-                ) : null}
-                {node.type === "agent" ? (
-                  <AgentForm node={node} issues={nodeIssues} projectId={projectId} onPatch={emit} />
-                ) : null}
-                {node.type === "shell" ? (
-                  <ShellForm node={node} issues={nodeIssues} onPatch={emit} />
-                ) : null}
-                {node.type === "gate" ? (
-                  <GateForm
-                    node={node}
-                    issues={nodeIssues}
-                    projectId={projectId}
-                    edges={edges ?? []}
-                    onPatch={emit}
-                    onRoutingChange={emitRouting}
-                  />
-                ) : null}
-                {node.type === "join" ? (
-                  <JoinForm
-                    node={node}
-                    issues={nodeIssues}
-                    edges={edges ?? []}
-                    onPatch={emit}
-                    onRoutingChange={emitRouting}
-                  />
-                ) : null}
-                {(node as { type: string }).type === "approval" ? (
-                  <ApprovalForm
-                    node={node as unknown as never}
-                    issues={nodeIssues}
-                    onPatch={emit as unknown as never}
-                  />
-                ) : null}
-                {node.type === "decision" ? (
-                  <DecisionForm
-                    node={node}
-                    issues={nodeIssues}
-                    projectId={projectId}
-                    edges={edges ?? []}
-                    onPatch={emit}
-                    onRoutingChange={emitRouting}
-                  />
-                ) : null}
-                {node.type === "end" ? (
-                  <EndForm node={node} issues={nodeIssues} onPatch={emit} />
-                ) : null}
-                <NodeIssues issues={summary} />
-              </div>
-            </BufferContext.Provider>
-          </div>
-        </>
+        <div className="inspector-body" key={session}>
+          <BufferContext.Provider value={registry}>
+            <NodeHeader node={node} issues={nodeIssues} onPatch={emit} />
+            <div className="inspector-content">
+              {node.type === "start" ? (
+                <StartForm node={node} issues={nodeIssues} onPatch={emit} />
+              ) : null}
+              {node.type === "agent" ? (
+                <AgentForm node={node} issues={nodeIssues} projectId={projectId} onPatch={emit} />
+              ) : null}
+              {node.type === "shell" ? (
+                <ShellForm node={node} issues={nodeIssues} onPatch={emit} />
+              ) : null}
+              {node.type === "gate" ? (
+                <GateForm
+                  node={node}
+                  issues={nodeIssues}
+                  projectId={projectId}
+                  edges={edges ?? []}
+                  onPatch={emit}
+                  onRoutingChange={emitRouting}
+                />
+              ) : null}
+              {node.type === "join" ? (
+                <JoinForm
+                  node={node}
+                  issues={nodeIssues}
+                  edges={edges ?? []}
+                  onPatch={emit}
+                  onRoutingChange={emitRouting}
+                />
+              ) : null}
+              {node.type === "approval" ? (
+                <ApprovalForm node={node} issues={nodeIssues} onPatch={emit} />
+              ) : null}
+              {node.type === "decision" ? (
+                <DecisionForm
+                  node={node}
+                  issues={nodeIssues}
+                  projectId={projectId}
+                  edges={edges ?? []}
+                  onPatch={emit}
+                  onRoutingChange={emitRouting}
+                />
+              ) : null}
+              {node.type === "end" ? (
+                <EndForm node={node} issues={nodeIssues} onPatch={emit} />
+              ) : null}
+              {node.type === "loop" ? (
+                <LoopForm
+                  node={node}
+                  issues={nodeIssues}
+                  onPatch={emit}
+                  renderBodyInspector={(
+                    bodyNode,
+                    _bodyIssues,
+                    onBodyPatch,
+                    bodyEdges,
+                    onBodyRouting,
+                  ) =>
+                    renderBodyNode(bodyNode, [], onBodyPatch, bodyEdges, onBodyRouting, projectId)
+                  }
+                />
+              ) : null}
+              <NodeIssues issues={summary} />
+            </div>
+          </BufferContext.Provider>
+        </div>
       )}
     </aside>
   );

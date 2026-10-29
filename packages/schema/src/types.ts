@@ -228,6 +228,33 @@ export interface JoinNode extends NodeBase {
   output?: JsonSchemaObject;
 }
 
+export const LOOP_MODE = "repeatUntil" as const;
+export type LoopMode = typeof LOOP_MODE;
+
+/** Bounds for bounded Repeat-until loops. Runtime also bounds state bytes. */
+export const LOOP_MAX_ITERATIONS = 1000;
+export const LOOP_MIN_ITERATIONS = 1;
+/** Per-value JSON cap for loop state/result (16 KiB; store event cap is 64 KiB). */
+export const LOOP_STATE_MAX_BYTES = 16 * 1024;
+/** Body node ids reserved for loop scope roots. */
+export const LOOP_RESERVED_BODY_IDS: readonly string[] = ["loop", "result"];
+
+export interface LoopNode extends NodeBase {
+  type: "loop";
+  mode: LoopMode;
+  maxIterations: number;
+  /** Expression evaluated once in parent scope. Defaults to '{}'. */
+  initialState?: string;
+  /** Expression evaluated when continuing. Defaults to 'loop.state'. */
+  nextState?: string;
+  /** Boolean expression over the current result. */
+  until: string;
+  /** Expression over body outputs (end ancestors, not end output). */
+  result: string;
+  output: JsonSchemaObject;
+  body: Graph;
+}
+
 export type WorkflowNode =
   | StartNode
   | AgentNode
@@ -236,6 +263,7 @@ export type WorkflowNode =
   | JoinNode
   | ApprovalNode
   | DecisionNode
+  | LoopNode
   | EndNode;
 export type NodeType = WorkflowNode["type"];
 
@@ -332,6 +360,26 @@ export interface NormalizedDecisionNode extends NormalizedNodeBase {
   onError: "fail" | "uncertain";
 }
 
+export interface NormalizedLoopBody {
+  nodes: NormalizedNode[];
+  edges: NormalizedEdge[];
+}
+
+export interface NormalizedLoopNode extends NormalizedNodeBase {
+  type: "loop";
+  mode: LoopMode;
+  maxIterations: number;
+  initialState: string;
+  nextState: string;
+  until: string;
+  result: string;
+  output: JsonSchemaObject;
+  body: NormalizedLoopBody;
+}
+
+/** Body children exclude nested loops by validation (type allows, validator rejects). */
+export type NormalizedBodyNode = Exclude<NormalizedNode, NormalizedLoopNode>;
+
 export type NormalizedNode =
   | NormalizedStartNode
   | NormalizedAgentNode
@@ -340,6 +388,7 @@ export type NormalizedNode =
   | NormalizedJoinNode
   | NormalizedApprovalNode
   | NormalizedDecisionNode
+  | NormalizedLoopNode
   | NormalizedEndNode;
 
 export interface NormalizedEdge {
@@ -420,13 +469,13 @@ export interface Capabilities {
 
 export const SCHEMA_CAPABILITIES: Capabilities = {
   schemaVersion: 1,
-  nodeTypes: ["start", "agent", "shell", "gate", "join", "approval", "decision", "end"],
+  nodeTypes: ["start", "agent", "shell", "gate", "join", "approval", "decision", "loop", "end"],
   clis: [...PROD_CLIS],
   workspaces: ["scratch", "worktree"],
   runWorkspaces: ["project", "existing-worktree", "new-worktree"],
   defaultRunWorkspace: "project",
   unsupported: [
-    "node types other than start/agent/shell/gate/join/approval/decision/end",
+    "node types other than start/agent/shell/gate/join/approval/decision/loop/end",
     "cli fake (test-only, behind DEVCHESTRA_ALLOW_FAKE)",
     "per-node workspace selection (legacy metadata is ignored on fresh runs)",
     "per-node worktree base/setup/from options",

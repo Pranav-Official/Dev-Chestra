@@ -8,12 +8,14 @@ import type {
   GateNode,
   JoinNode,
   JsonSchemaObject,
+  LoopNode,
   NormalizedAgentNode,
   NormalizedApprovalNode,
   NormalizedDecisionNode,
   NormalizedEndNode,
   NormalizedGateNode,
   NormalizedJoinNode,
+  NormalizedLoopNode,
   NormalizedNode,
   NormalizedShellNode,
   NormalizedStartNode,
@@ -220,6 +222,49 @@ function normalizeDecision(node: DecisionNode): NormalizedDecisionNode {
   return out;
 }
 
+function normalizeLoopBody(
+  file: WorkflowFile,
+  node: LoopNode,
+  options: NormalizeOptions,
+): NormalizedLoopNode["body"] {
+  const nodes = node.body.nodes
+    .map((child) => {
+      if (child.type === "loop") {
+        throw new DevChestraError("E_WORKFLOW_INVALID", "Nested loops are not supported.");
+      }
+      return normalizeNode(file, child, options);
+    })
+    .sort((left, right) => left.id.localeCompare(right.id));
+  const edges = node.body.edges
+    .map((edge) => ({ id: edge.id, from: edge.from, to: edge.to }))
+    .sort((left, right) => left.id.localeCompare(right.id));
+  return { nodes, edges };
+}
+
+function normalizeLoop(
+  file: WorkflowFile,
+  node: LoopNode,
+  options: NormalizeOptions,
+): NormalizedLoopNode {
+  const output = normalizeOutputSchema(node.output);
+  if (!output.ok) throw output.error;
+  return {
+    id: node.id,
+    type: "loop",
+    name: node.name,
+    supervise: "default",
+    env: [],
+    mode: "repeatUntil",
+    maxIterations: node.maxIterations,
+    initialState: node.initialState ?? "{}",
+    nextState: node.nextState ?? "loop.state",
+    until: node.until,
+    result: node.result,
+    output: output.value,
+    body: normalizeLoopBody(file, node, options),
+  };
+}
+
 function normalizeNode(
   file: WorkflowFile,
   node: WorkflowNode,
@@ -240,6 +285,8 @@ function normalizeNode(
       return normalizeApproval(node as ApprovalNode);
     case "decision":
       return normalizeDecision(node as DecisionNode);
+    case "loop":
+      return normalizeLoop(file, node, options);
     case "end":
       return normalizeEnd(node);
   }

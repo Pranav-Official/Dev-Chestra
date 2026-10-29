@@ -294,6 +294,38 @@ export interface RoutingCommitResult {
   duplicate: boolean;
 }
 
+export interface StartLoopInput {
+  identity: ExecutionIdentity;
+  /** Immutable parent scope captured once; each value <=16 KiB JSON. */
+  parent: JsonObject;
+  /** Initial carried state for iteration 1; <=16 KiB JSON, secret-free. */
+  state: JsonObject;
+}
+
+export interface StartLoopResult {
+  loop: import("@devchestra/core").LoopView;
+  eventId: number | null;
+  duplicate: boolean;
+}
+
+export interface DecideLoopInput {
+  identity: ExecutionIdentity;
+  /** 1-based round; must equal the controller's current iteration for new decisions. */
+  iteration: number;
+  /** Validated body result; <=16 KiB JSON, secret-free. Absence of nextState retains state. */
+  result: unknown;
+  /** True publishes the final round; false advances iteration synchronously. */
+  done: boolean;
+  /** Carried state for the next round; omit to retain current state. Forbidden when done. */
+  nextState?: JsonObject;
+}
+
+export interface DecideLoopResult {
+  loop: import("@devchestra/core").LoopView;
+  eventId: number | null;
+  duplicate: boolean;
+}
+
 export interface RunRecord {
   archivedAt?: number | null;
   id: RunId;

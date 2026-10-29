@@ -4,6 +4,8 @@ export * from "./gate.js";
 export * from "./graph.js";
 export * from "./ids.js";
 export * from "./join.js";
+export * from "./loop.js";
+export * from "./loop-envelope.js";
 export * from "./normalize.js";
 export * from "./output-schema.js";
 export * from "./params.js";

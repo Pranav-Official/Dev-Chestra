@@ -42,7 +42,7 @@ export async function executeDeterministic(
   try {
     let output: unknown;
     if (node.type === "start") {
-      output = { ...run.params };
+      output = "body" in source && source.body ? {} : { ...run.params };
     } else {
       const ancestors = await ctx.chainOutputs(run, source, node.id);
       const scope = buildScopeData(run.params, ancestors);
@@ -51,7 +51,7 @@ export async function executeDeterministic(
     if (active.abort.signal.aborted) {
       stopDeterministic(ctx, identity, active);
     }
-    if (node.type === "end") {
+    if (node.type === "end" && !("body" in source && source.body)) {
       const status =
         node.raw.status === "failed"
           ? "failed"

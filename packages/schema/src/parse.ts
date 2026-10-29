@@ -272,6 +272,35 @@ const edgeSchema = z.strictObject({
   ui: uiSchema.optional(),
 });
 
+const bodyNodeUnion = z.discriminatedUnion("type", [
+  startNodeSchema,
+  agentNodeSchema,
+  shellNodeSchema,
+  gateNodeSchema,
+  joinNodeSchema,
+  approvalNodeSchema,
+  decisionNodeSchema,
+  endNodeSchema,
+]);
+
+const bodySchema = z.strictObject({
+  nodes: z.array(bodyNodeUnion),
+  edges: z.array(edgeSchema),
+});
+
+const loopNodeSchema = z.strictObject({
+  ...nodeBase,
+  type: z.literal("loop"),
+  mode: z.literal("repeatUntil"),
+  maxIterations: z.number(),
+  initialState: z.string().optional(),
+  nextState: z.string().optional(),
+  until: z.string(),
+  result: z.string(),
+  output: z.record(z.string(), z.unknown()),
+  body: bodySchema,
+});
+
 const workflowSchema = z.strictObject({
   schemaVersion: z.literal(1),
   id: z.string(),
@@ -289,6 +318,7 @@ const workflowSchema = z.strictObject({
         joinNodeSchema,
         approvalNodeSchema,
         decisionNodeSchema,
+        loopNodeSchema,
         endNodeSchema,
       ]),
     ),
@@ -304,6 +334,7 @@ const SUPPORTED_NODE_TYPES = new Set([
   "join",
   "approval",
   "decision",
+  "loop",
   "end",
 ]);
 const SUPPORTED_CLIS = new Set<string>([...PROD_CLIS]);
@@ -352,9 +383,34 @@ function precheck(raw: unknown): DevChestraError | undefined {
       if (typeof type === "string" && !SUPPORTED_NODE_TYPES.has(type)) {
         return new DevChestraError(
           "E_WORKFLOW_INVALID",
-          `Unsupported node type '${type}' at graph.nodes[${i}]. P1 supports: start, agent, shell, gate, join, approval, decision, end.`,
+          `Unsupported node type '${type}' at graph.nodes[${i}]. P1 supports: start, agent, shell, gate, join, approval, decision, loop, end.`,
           { details: { pointer: `/graph/nodes/${i}/type` } },
         );
+      }
+      if (type === "loop") {
+        const body = record(node.body);
+        const bodyNodes = body !== undefined ? body.nodes : undefined;
+        if (Array.isArray(bodyNodes)) {
+          for (let j = 0; j < bodyNodes.length; j += 1) {
+            const child = record(bodyNodes[j]);
+            if (child === undefined) continue;
+            const childType = child.type;
+            if (childType === "loop") {
+              return new DevChestraError(
+                "E_WORKFLOW_INVALID",
+                `Nested loops are not supported (loop body node '${String(child.id ?? j)}' at graph.nodes[${i}].body.nodes[${j}] has type 'loop').`,
+                { details: { pointer: `/graph/nodes/${i}/body/nodes/${j}/type` } },
+              );
+            }
+            if (typeof childType === "string" && !SUPPORTED_NODE_TYPES.has(childType)) {
+              return new DevChestraError(
+                "E_WORKFLOW_INVALID",
+                `Unsupported node type '${childType}' at graph.nodes[${i}].body.nodes[${j}].`,
+                { details: { pointer: `/graph/nodes/${i}/body/nodes/${j}/type` } },
+              );
+            }
+          }
+        }
       }
       if (type === "agent") {
         const cli = node.cli;

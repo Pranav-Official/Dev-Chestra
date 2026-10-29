@@ -37,6 +37,9 @@ export function recover(runtime: Runtime, runId: RunId): RecoveryReport {
   const view = rebuildProjection(runtime, runId);
   const executions: RecoveryReport["executions"] = [];
   let pausedForUncertain = view.status === "paused" && view.pauseReason === "uncertain_side_effect";
+  const childWaitingApproval = Object.values(view.executions).some(
+    (entry) => entry.status === "waiting_approval",
+  );
 
   for (const execution of Object.values(view.executions)) {
     const base = {
@@ -45,6 +48,16 @@ export function recover(runtime: Runtime, runId: RunId): RecoveryReport {
       from: execution.status,
       to: execution.status,
     };
+    if (
+      execution.kind === "loop" &&
+      (execution.status === "running" || execution.status === "validating") &&
+      (childWaitingApproval || view.status === "waiting_approval")
+    ) {
+      // Parked while a body child waits on approval: leave the controller running
+      // so wake checks still see the approval. Interrupting here would suppress them.
+      executions.push({ ...base, decision: "leave", applied: false });
+      continue;
+    }
     if (execution.acceptedResult !== null) {
       if (!isDurablyComplete(execution)) {
         // Keep the original accepted identity. The engine records the real

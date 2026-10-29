@@ -14,6 +14,7 @@ const SUPPORTED_TYPES = new Set([
   "join",
   "approval",
   "decision",
+  "loop",
   "end",
 ]);
 
@@ -263,7 +264,7 @@ export function analyzeGraph(graph: Graph): { analysis: GraphAnalysis; issues: I
       issues.push(
         issue(
           "E_NODE_TYPE",
-          `Unsupported node type '${node.type}'; P1 routing supports start, agent, shell, gate, join, approval, decision, end.`,
+          `Unsupported node type '${node.type}'; P1 routing supports start, agent, shell, gate, join, approval, decision, loop, end.`,
           `${pointer}/type`,
           node.id,
         ),

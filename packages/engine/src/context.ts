@@ -8,6 +8,7 @@ import {
   isRecord,
   isRunWorkspaceBinding,
   type Path,
+  parsePath,
   type Result,
   type RunId,
   type RunStatus,
@@ -44,10 +45,16 @@ export interface ActiveRunState {
 function workspaceModeFor(run: RunRecord, path: string): "scratch" | "worktree" {
   const snapshot = run.snapshot;
   const graph = isRecord(snapshot) ? snapshot.graph : undefined;
-  const nodes = isRecord(graph) ? graph.nodes : undefined;
-  const node = Array.isArray(nodes)
-    ? nodes.find((candidate) => isRecord(candidate) && candidate.id === path)
-    : undefined;
+  let nodes: unknown = isRecord(graph) ? graph.nodes : undefined;
+  let node: unknown;
+  const parsed = parsePath(path);
+  if (!parsed.ok) throw parsed.error;
+  for (const segment of parsed.value) {
+    node = Array.isArray(nodes)
+      ? nodes.find((candidate) => isRecord(candidate) && candidate.id === segment.node)
+      : undefined;
+    nodes = isRecord(node) && isRecord(node.body) ? node.body.nodes : undefined;
+  }
   const workspace = isRecord(node) ? node.workspace : undefined;
   if (!isRecord(workspace)) {
     throw new DevChestraError(
@@ -179,8 +186,17 @@ export class EngineContext {
   ): Promise<Array<{ nodeId: string; output: unknown }>> {
     const outputs: Array<{ nodeId: string; output: unknown }> = [];
     if ("ancestorsOf" in source) {
+      // Body Start has no parameters, even when its node id is not "start".
+      if (source.body) outputs.push({ nodeId: "start", output: {} });
+      for (const [nodeId, output] of Object.entries(source.scope ?? {})) {
+        outputs.push({ nodeId, output });
+      }
       for (const id of (source as WorkflowPlan).ancestorsOf(nodeId)) {
-        outputs.push({ nodeId: id, output: this.ancestorValue(run, id) });
+        const localId = source.byId.get(id)?.raw.id;
+        outputs.push({
+          nodeId: source.body ? String(localId) : id,
+          output: this.ancestorValue(run, id),
+        });
       }
       return outputs;
     }

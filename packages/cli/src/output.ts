@@ -93,7 +93,8 @@ export function exitCodeForError(error: unknown): ExitCode {
     code === "E_WORKSPACE" ||
     code === "E_EXPR" ||
     code === "E_LOCKED" ||
-    code === "E_JOIN_CONFLICT"
+    code === "E_JOIN_CONFLICT" ||
+    code === "E_LOOP_LIMIT"
   ) {
     return 4;
   }

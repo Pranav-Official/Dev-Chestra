@@ -18,6 +18,7 @@ import {
   validateParams,
   validateWorkflow,
   type WorkflowFile,
+  workflowNodes,
 } from "@devchestra/schema";
 import { DevChestraError } from "../errors.js";
 
@@ -145,7 +146,7 @@ function workflowRelative(root: string, arg: string): string {
 
 function loadPrompts(root: string, file: WorkflowFile): Record<string, string> {
   const prompts: Record<string, string> = {};
-  for (const node of file.graph.nodes) {
+  for (const node of workflowNodes(file.graph)) {
     if (node.type !== "agent" || node.promptFile === undefined) continue;
     const prefix = `${file.id}.prompts/`;
     const candidates = node.promptFile.startsWith(prefix)

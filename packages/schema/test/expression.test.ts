@@ -215,8 +215,11 @@ describe("templates and shell quoting", () => {
       if (!rendered.ok) continue;
       const command = rendered.value.text;
       expect(command).toBe(`printf '%s' ${quote(value)}`);
-      const output = execFileSync("/bin/sh", ["-c", command], { encoding: "utf8" });
-      expect(output).toBe(value);
+      // Rendering is platform-independent; execute the POSIX command only on POSIX.
+      if (process.platform !== "win32") {
+        const output = execFileSync("/bin/sh", ["-c", command], { encoding: "utf8" });
+        expect(output).toBe(value);
+      }
       expect(existsSync(marker)).toBe(false);
     }
   });
@@ -227,9 +230,11 @@ describe("templates and shell quoting", () => {
 
     // Control: the pre-fix rendering (substitution inside a comment) really does
     // execute the second line, so this canary is meaningful.
-    execFileSync("/bin/sh", ["-c", `echo # ${quote(value)}\n`]);
-    expect(existsSync(marker)).toBe(true);
-    rmSync(marker, { force: true });
+    if (process.platform !== "win32") {
+      execFileSync("/bin/sh", ["-c", `echo # ${quote(value)}\n`]);
+      expect(existsSync(marker)).toBe(true);
+      rmSync(marker, { force: true });
+    }
 
     const template = "echo # {{ agent.answer }}\n";
     expect(compileTemplate(template, { shell: true }).ok).toBe(false);
@@ -247,9 +252,11 @@ describe("templates and shell quoting", () => {
     const marker = path.join(temp, "slash-pwn");
     const value = `ok\ntouch ${marker} #`;
 
-    execFileSync("/bin/sh", ["-c", `printf '%s' \\${quote(value)}'`]);
-    expect(existsSync(marker)).toBe(true);
-    rmSync(marker, { force: true });
+    if (process.platform !== "win32") {
+      execFileSync("/bin/sh", ["-c", `printf '%s' \\${quote(value)}'`]);
+      expect(existsSync(marker)).toBe(true);
+      rmSync(marker, { force: true });
+    }
 
     const expression = compileExpression("agent.answer");
     if (!expression.ok) throw expression.error;

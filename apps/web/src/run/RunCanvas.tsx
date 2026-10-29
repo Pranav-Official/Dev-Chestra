@@ -27,6 +27,7 @@ import {
   OctagonX,
   PauseCircle,
   Play,
+  Repeat,
   ShieldCheck,
   TerminalSquare,
   TriangleAlert,
@@ -46,10 +47,12 @@ interface SnapshotNode {
   command?: string;
   status?: string;
   branches?: { id: string; when?: string; otherwise?: true }[];
-  mode?: "first" | "all" | DecisionMode;
+  mode?: "first" | "all" | "repeatUntil" | DecisionMode;
   inputs?: string[];
   provider?: string;
   instructions?: string;
+  maxIterations?: number;
+  body?: { nodes: SnapshotNode[]; edges: { id: string; from: string; to: string }[] };
 }
 
 export interface WorkflowSnapshot {
@@ -139,6 +142,7 @@ function NodeIcon({ kind }: { kind: string }) {
   if (kind === "gate") return <GitBranch size={12} aria-hidden="true" />;
   if (kind === "join") return <GitMerge size={12} aria-hidden="true" />;
   if (kind === "approval") return <ShieldCheck size={12} aria-hidden="true" />;
+  if (kind === "loop") return <Repeat size={12} aria-hidden="true" />;
   return <Flag size={12} aria-hidden="true" />;
 }
 
@@ -378,6 +382,10 @@ function subtitle(node: SnapshotNode): string {
   if (node.provider) {
     const short = (node.instructions ?? "").trim().slice(0, 32);
     return short === "" ? node.provider : `${node.provider} · ${short}`;
+  }
+  if (node.type === "loop") {
+    const max = typeof node.maxIterations === "number" ? node.maxIterations : null;
+    return max === null ? "repeat until" : `repeat ≤${max}`;
   }
   return "";
 }
