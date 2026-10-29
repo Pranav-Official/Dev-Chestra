@@ -144,6 +144,16 @@ export function normalizeCachedView(view: RunView): RunView {
     if (legacy.approvalDecision === undefined) legacy.approvalDecision = null;
     if (legacy.decision === undefined) legacy.decision = null;
     if (legacy.loop === undefined) legacy.loop = null;
+    if (legacy.loop !== null && legacy.loop !== undefined) {
+      const loop = legacy.loop as unknown as Record<string, unknown>;
+      if (loop.parentRef === undefined) loop.parentRef = null;
+      if (Array.isArray(loop.rounds)) {
+        for (const round of loop.rounds as Record<string, unknown>[]) {
+          if (round.outcome === undefined)
+            round.outcome = round.done === true ? "condition_met" : null;
+        }
+      }
+    }
   }
   return view;
 }

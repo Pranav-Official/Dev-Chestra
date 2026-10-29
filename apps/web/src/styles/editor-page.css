@@ -93,6 +93,7 @@
   min-width: 0;
 }
 .editor-canvas-host {
+  position: relative;
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -264,15 +265,6 @@ dialog.editor-dialog::backdrop {
 @media (max-width: 760px) {
   .editor-workspace {
     flex-direction: column;
-  }
-  .editor-workspace .editor-palette {
-    width: 100%;
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-  }
-  .editor-workspace .editor-palette-list {
-    flex-direction: row;
-    overflow-x: auto;
   }
   .editor-workspace .inspector {
     width: 100%;

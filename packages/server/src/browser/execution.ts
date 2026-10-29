@@ -47,6 +47,18 @@ export function previewFromOutput(output: AcceptedOutput): OutputPreview {
   };
 }
 
+/** Truncation metadata from stored bytes alone; never hydrates or parses the value. */
+export function truncatedPreview(meta: { id: string; hash: string; bytes: number }): OutputPreview {
+  return {
+    id: meta.id,
+    hash: meta.hash,
+    bytes: meta.bytes,
+    truncated: true,
+    data: null,
+    contentType: "json",
+  };
+}
+
 function previewFromInput(event: EventEnvelope): OutputPreview | null {
   const payload = event.payload as {
     inputsHash?: unknown;

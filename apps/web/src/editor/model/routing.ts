@@ -9,7 +9,12 @@ import type {
   WorkflowFile,
   WorkflowNode,
 } from "@devchestra/schema";
-import { DECISION_UNCERTAIN_HANDLE, decisionHandles, HANDLE_ID_PATTERN } from "@devchestra/schema";
+import {
+  DECISION_UNCERTAIN_HANDLE,
+  decisionHandles,
+  HANDLE_ID_PATTERN,
+  LOOP_EXHAUSTED_HANDLE,
+} from "@devchestra/schema";
 import type { ConnectRequest } from "./types.js";
 
 export interface ParsedEndpoint {
@@ -559,6 +564,17 @@ export function checkConnection(file: WorkflowFile, request: ConnectRequest): Co
       };
     }
     from = `${source.id}.${sourceEndpoint.handle}`;
+  } else if (source.type === "loop") {
+    if (sourceEndpoint.handle !== null && sourceEndpoint.handle !== LOOP_EXHAUSTED_HANDLE) {
+      return {
+        ok: false,
+        message: "Loop has only success (plain) and exhausted outputs.",
+      };
+    }
+    from =
+      sourceEndpoint.handle === LOOP_EXHAUSTED_HANDLE
+        ? `${source.id}.${LOOP_EXHAUSTED_HANDLE}`
+        : source.id;
   } else if (sourceEndpoint.handle !== null && sourceEndpoint.handle !== "out") {
     return { ok: false, message: "That node has no such output handle." };
   }

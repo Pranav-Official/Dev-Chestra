@@ -16,6 +16,7 @@ import { NodeHeader } from "./NodeHeader.js";
 import { InspectorSection } from "./Section.js";
 import { ShellForm } from "./ShellForm.js";
 import { StartForm } from "./StartForm.js";
+import { PickerScopeContext } from "./fields/VariablePicker.js";
 import type { BufferValidity, InspectorProps, PatchOf } from "./types.js";
 
 function NodeIssues({ issues }: { issues: readonly Issue[] }) {
@@ -147,6 +148,7 @@ export function Inspector({
   projectId,
   issues,
   onPatch,
+  graph,
   edges,
   onRoutingChange,
   onBufferValidityChange,
@@ -242,6 +244,9 @@ export function Inspector({
   const summary = node === null ? [] : summaryIssues(issues, node.id);
 
   return (
+    <PickerScopeContext.Provider
+      value={graph === undefined ? {} : { parentGraph: graph as unknown as import("@devchestra/schema").Graph }}
+    >
     <aside className="inspector" aria-label="Node inspector" data-testid="inspector">
       {node === null ? (
         <div className="inspector-empty" data-testid="inspector-empty">
@@ -321,5 +326,6 @@ export function Inspector({
         </div>
       )}
     </aside>
+    </PickerScopeContext.Provider>
   );
 }

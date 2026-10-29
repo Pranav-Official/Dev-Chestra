@@ -1,9 +1,10 @@
+import { LOOP_EXHAUSTED_HANDLE } from "@devchestra/core";
 import { decisionHandles } from "./decision-route.js";
 import { HANDLE_ID_PATTERN, NODE_ID_PATTERN } from "./ids.js";
 import { validateGate, validateJoin } from "./routing.js";
 import type { Edge, GateBranch, Graph, Issue, JoinNode, WorkflowNode } from "./types.js";
 
-export { HANDLE_ID_PATTERN, NODE_ID_PATTERN };
+export { HANDLE_ID_PATTERN, LOOP_EXHAUSTED_HANDLE, NODE_ID_PATTERN };
 
 const EDGE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const SUPPORTED_TYPES = new Set([
@@ -139,9 +140,19 @@ function validateEndpoint(
         }
         return undefined;
       }
+      if (node.type === "loop") {
+        if (endpoint.handle !== LOOP_EXHAUSTED_HANDLE) {
+          return endpointIssue(
+            "E_EDGE_HANDLE",
+            `Loop source handle must be '${LOOP_EXHAUSTED_HANDLE}' ('${node.id}.${LOOP_EXHAUSTED_HANDLE}'); got '${endpoint.handle}'.`,
+            pointer,
+          );
+        }
+        return undefined;
+      }
       return endpointIssue(
         "E_EDGE_HANDLE",
-        `Edge source '${endpoint.raw}' names a handle, but '${node.id}' is not a gate, approval or decision.`,
+        `Edge source '${endpoint.raw}' names a handle, but '${node.id}' is not a gate, approval, decision or loop.`,
         pointer,
       );
     }

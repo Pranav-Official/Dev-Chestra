@@ -1,6 +1,7 @@
 import type { Issue } from "@devchestra/schema";
 import { Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { useBufferFlag } from "./BufferContext.js";
+import { ExpandableTextarea } from "./fields/ExpandableTextarea.js";
 import { CheckboxField, describedBy, Field } from "./fields/fields.js";
 import { useBufferedText } from "./fields/useBufferedText.js";
 import { fieldIssue } from "./issues.js";
@@ -30,13 +31,14 @@ export function ApprovalForm({
   const irreversible = node.irreversible ?? false;
   const criteria = node.criteria ?? [];
 
+  const validateMessage = (next: string): string | null => {
+    if (next.trim() === "") return "Message is required.";
+    if (next.length > 4096) return "Message must be 4096 characters or fewer.";
+    return null;
+  };
   const message = useBufferedText(
     node.message ?? "",
-    (next) => {
-      if (next.trim() === "") return "Message is required.";
-      if (next.length > 4096) return "Message must be 4096 characters or fewer.";
-      return null;
-    },
+    validateMessage,
     (next) => onPatch({ message: next } as Partial<ApprovalNodeLike>),
     `approval.${node.id}.message`,
   );
@@ -54,23 +56,27 @@ export function ApprovalForm({
             help="Human-readable request shown frozen at runtime. Supports {{ start.param }} and ancestor output templates."
             error={message.localError ?? messageIssue}
           >
-            <textarea
+            <ExpandableTextarea
               id="inspector-approval-message"
-              className="inspector-input inspector-textarea"
-              data-testid="inspector-approval-message"
-              rows={4}
+              label="Message for the reviewer"
               value={message.text}
+              onCommit={message.onChange}
+              validate={validateMessage}
+              mode="template"
+              nodeId={node.id}
+              field="message"
+              pickerTestId="inspector-approval-message-variables"
+              textareaTestId="inspector-approval-message"
+              rows={4}
               maxLength={4096}
-              aria-invalid={(message.localError ?? messageIssue) ? true : undefined}
-              aria-describedby={describedBy(
+              error={message.localError ?? messageIssue}
+              help="Human-readable request shown frozen at runtime. Supports {{ start.param }} and ancestor output templates."
+              bufferKey={`approval.${node.id}.message`}
+              describedBy={describedBy(
                 "inspector-approval-message",
                 undefined,
                 message.localError ?? messageIssue,
               )}
-              onChange={(event) => message.onChange(event.currentTarget.value)}
-              onBlur={() => {
-                // useBufferedText commits on valid change already.
-              }}
             />
           </Field>
           <CheckboxField

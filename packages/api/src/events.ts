@@ -26,18 +26,32 @@ import { z } from "./zod.js";
 const strict = z.strictObject;
 const optionalString = z.string().optional();
 
-export const loopStartedPayloadSchema = strict({
-  iteration: z.literal(1),
-  parent: jsonObjectSchema,
-  state: jsonObjectSchema,
-  attempt: z.number().int().positive().optional(),
-  generation: z.number().int().positive().optional(),
+const executionContextRefSchema = strict({
+  kind: z.literal("devchestra.execution-context/v1"),
+  captureId: z.string().min(1).max(256),
 });
+
+export const loopStartedPayloadSchema = z
+  .strictObject({
+    iteration: z.literal(1),
+    parent: jsonObjectSchema.optional(),
+    parentRef: executionContextRefSchema.optional(),
+    state: jsonObjectSchema,
+    attempt: z.number().int().positive().optional(),
+    generation: z.number().int().positive().optional(),
+  })
+  .refine(
+    (value) => (value.parent !== undefined ? 1 : 0) + (value.parentRef !== undefined ? 1 : 0) === 1,
+    {
+      message: "Loop start must carry exactly one of parent or parentRef",
+    },
+  );
 export const loopIterationDecidedPayloadSchema = strict({
   iteration: z.number().int().min(1).max(1000),
   result: jsonValueSchema,
   done: z.boolean(),
   nextState: jsonObjectSchema.optional(),
+  outcome: z.enum(["condition_met", "iteration_limit"]).optional(),
   attempt: z.number().int().positive().optional(),
   generation: z.number().int().positive().optional(),
 });

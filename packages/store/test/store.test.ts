@@ -322,7 +322,7 @@ describe("migrations", () => {
     store.close();
 
     const upgraded = new Database(file, { readonly: true });
-    expect(upgraded.pragma("user_version", { simple: true })).toBe(5);
+    expect(upgraded.pragma("user_version", { simple: true })).toBe(6);
     const generationColumns = (
       upgraded.pragma("table_info(process_generations)") as { name: string }[]
     ).map((column) => column.name);

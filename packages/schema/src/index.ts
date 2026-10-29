@@ -1,4 +1,5 @@
 export * from "./decision-route.js";
+export * from "./discovery.js";
 export * from "./expression.js";
 export * from "./gate.js";
 export * from "./graph.js";

@@ -86,6 +86,13 @@ const execErrorViewSchema = strict({
 const loopViewSchema = strict({
   iteration: z.number().int().positive(),
   parent: jsonObjectSchema,
+  parentRef: z
+    .strictObject({
+      kind: z.literal("devchestra.execution-context/v1"),
+      captureId: z.string(),
+    })
+    .nullable()
+    .optional(),
   state: jsonObjectSchema,
   rounds: z
     .array(
@@ -94,6 +101,8 @@ const loopViewSchema = strict({
         result: jsonValueSchema,
         done: z.boolean(),
         nextState: jsonObjectSchema.nullable(),
+        // Absent on views cached before explicit loop outcomes.
+        outcome: z.enum(["condition_met", "iteration_limit"]).nullable().optional(),
         eventId: z.number().int().nonnegative(),
       }),
     )

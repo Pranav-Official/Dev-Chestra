@@ -1,4 +1,11 @@
-import { DevChestraError, err, isRecord, ok, type Result } from "@devchestra/core";
+import {
+  DevChestraError,
+  err,
+  isRecord,
+  LOOP_EXHAUSTED_HANDLE,
+  ok,
+  type Result,
+} from "@devchestra/core";
 import {
   analyzeGraph,
   type GateBranch,
@@ -153,9 +160,15 @@ function resolveEndpoints(
       if (fromParts.handle === undefined) {
         throw invalid(`Edge from decision '${source.id}' must use 'decisionId.handleId'`);
       }
+    } else if (source.type === "loop") {
+      if (fromParts.handle !== undefined && fromParts.handle !== LOOP_EXHAUSTED_HANDLE) {
+        throw invalid(
+          `Edge from loop '${source.id}' must be '${source.id}' or '${source.id}.${LOOP_EXHAUSTED_HANDLE}'`,
+        );
+      }
     } else if (fromParts.handle !== undefined) {
       throw invalid(
-        `Edge source '${value.from}' uses a handle on a non-gate/non-approval/non-decision node`,
+        `Edge source '${value.from}' uses a handle on a non-gate/non-approval/non-decision/non-loop node`,
       );
     }
     if (target.type === "join") {

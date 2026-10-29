@@ -10,6 +10,13 @@ export interface DialogProps {
   testId?: string;
   wide?: boolean;
   workspace?: boolean;
+  /**
+   * Escape guard consulted only by the native `cancel` (Escape) path, never
+   * by the X button. Return true to keep the dialog open — used when an
+   * inner popover (e.g. the variable picker) handles Escape itself and must
+   * close first.
+   */
+  cancelGuard?: () => boolean;
 }
 
 /**
@@ -27,6 +34,7 @@ export function Dialog({
   testId,
   wide = false,
   workspace = false,
+  cancelGuard,
 }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -53,6 +61,7 @@ export function Dialog({
       {...(testId === undefined ? {} : { "data-testid": testId })}
       onCancel={(event) => {
         event.preventDefault();
+        if (cancelGuard?.() === true) return;
         if (open) onClose();
       }}
       onClose={() => {

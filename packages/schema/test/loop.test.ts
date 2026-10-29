@@ -5,6 +5,7 @@ import {
   nodeAtPath,
   normalizeWorkflow,
   parseWorkflow,
+  parseWorkflowJson,
   serializeWorkflow,
   validateLoopNode,
   validateWorkflow,
@@ -396,8 +397,12 @@ describe("bounded repeat-until loops", () => {
     });
     expect(envelope).toMatchObject({
       type: "object",
-      required: ["iterations", "result"],
+      required: ["iterations", "outcome", "result"],
       additionalProperties: false,
+    });
+    expect((envelope.properties as Record<string, unknown>).outcome).toEqual({
+      type: "string",
+      enum: ["condition_met", "iteration_limit"],
     });
     // parent join over loop + agent with different shapes requires output
     const raw = loopWorkflow();
@@ -542,5 +547,61 @@ describe("bounded repeat-until loops", () => {
       ) as Record<string, unknown>
     ).type = "map";
     expect(parseWorkflow(bodyRaw).ok).toBe(false);
+  });
+
+  describe("alternate exhausted output", () => {
+    function withExhausted(from = "refine.exhausted"): Record<string, unknown> {
+      const raw = loopWorkflow();
+      const graph = raw.graph as {
+        nodes: Record<string, unknown>[];
+        edges: Record<string, unknown>[];
+      };
+      graph.nodes.push({
+        id: "spent",
+        type: "end",
+        name: "Spent",
+        status: "failed",
+        result: "refine",
+      });
+      graph.edges.push({ id: "e3", from, to: "spent" });
+      return raw;
+    }
+
+    it("accepts a plain success edge plus a refine.exhausted edge", () => {
+      expect(errorCodes(withExhausted())).toEqual([]);
+    });
+
+    it("keeps legacy plain-edge workflows valid and byte-stable", () => {
+      const raw = loopWorkflow();
+      expect(errorCodes(raw)).toEqual([]);
+      const text = serializeWorkflow(parseOk(raw));
+      if (!text.ok) throw text.error;
+      expect(text.value).toContain('"from": "refine"');
+      expect(text.value).not.toContain("exhausted");
+    });
+
+    it("round-trips the exhausted handle through serialize and parse", () => {
+      const text = serializeWorkflow(parseOk(withExhausted()));
+      if (!text.ok) throw text.error;
+      expect(text.value).toContain('"from": "refine.exhausted"');
+      const again = parseWorkflowJson(text.value);
+      if (!again.ok) throw again.error;
+      expect(again.value.graph.edges.find((e) => e.id === "e3")?.from).toBe("refine.exhausted");
+      expect(serializeWorkflow(again.value)).toEqual(text);
+    });
+
+    it.each(["refine.success", "refine.rejected", "refine.other", "refine.out"])(
+      "rejects the arbitrary loop handle %s",
+      (from) => {
+        expect(errorCodes(withExhausted(from))).toContain("E_EDGE_HANDLE");
+      },
+    );
+
+    it("rejects a second inbound edge into the same node from both outputs", () => {
+      const raw = withExhausted();
+      const graph = raw.graph as { edges: Record<string, unknown>[] };
+      (graph.edges.find((e) => e.id === "e3") as Record<string, unknown>).to = "end";
+      expect(errorCodes(raw)).toContain("E_CHAIN_IN");
+    });
   });
 });

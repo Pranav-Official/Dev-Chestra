@@ -321,14 +321,29 @@ export interface LoopExitedPayload {
 export interface LoopStartedPayload {
   /** Always 1; the controller starts iteration 1 once, idempotently. */
   iteration: number;
-  /** Immutable parent scope captured once when the loop starts. */
-  parent: JsonObject;
+  /** Legacy inline parent scope (events written before reference-backed captures). */
+  parent?: JsonObject;
+  /**
+   * Reference-backed parent capture (new events). Tagged and versioned; the
+   * manifest lives in context_captures, never in the event payload.
+   * Exactly one of `parent` / `parentRef` is present on valid events.
+   */
+  parentRef?: { kind: "devchestra.execution-context/v1"; captureId: string };
   /** Initial carried state for iteration 1. */
   state: JsonObject;
   /** Engine-emitted invocation fence; optional for older events. */
   attempt?: number;
   generation?: number;
 }
+
+/**
+ * Why a loop reached its terminal round. `done` keeps meaning "the stop
+ * condition matched"; `iteration_limit` is a budget-exhausted terminal round
+ * (`done=false`) that routes downstream instead of failing the run.
+ */
+export type LoopOutcome = "condition_met" | "iteration_limit";
+
+export const LOOP_OUTCOMES: readonly LoopOutcome[] = ["condition_met", "iteration_limit"];
 
 export interface LoopIterationDecidedPayload {
   /** 1-based round this decision belongs to; round != retry attempt. */
@@ -339,6 +354,13 @@ export interface LoopIterationDecidedPayload {
   done: boolean;
   /** Carried state for the next round; absent retains current state. */
   nextState?: JsonObject;
+  /**
+   * Explicit terminal outcome. `condition_met` requires `done=true`;
+   * `iteration_limit` requires `done=false` and no `nextState`. Absent on
+   * continuing rounds and on legacy events (`done=true` then implies
+   * `condition_met`).
+   */
+  outcome?: LoopOutcome;
   /** Engine-emitted invocation fence; optional for older events. */
   attempt?: number;
   generation?: number;

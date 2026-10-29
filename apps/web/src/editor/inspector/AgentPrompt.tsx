@@ -1,5 +1,6 @@
 import type { AgentNode, Issue } from "@devchestra/schema";
 import { FileText } from "lucide-react";
+import { ExpandableTextarea } from "./fields/ExpandableTextarea.js";
 import { describedBy, Field } from "./fields/fields.js";
 import { fieldIssue } from "./issues.js";
 import type { PatchOf } from "./types.js";
@@ -55,15 +56,20 @@ export function AgentPrompt({
         help="Workflow parameters and connected earlier outputs are automatically included with every run. Optional {{ … }} templates remain for custom formatting."
         error={promptError}
       >
-        <textarea
+        <ExpandableTextarea
           id={id}
-          className="inspector-input inspector-textarea"
-          data-testid={id}
-          rows={6}
+          label="Prompt"
           value={node.prompt ?? ""}
-          aria-invalid={promptError ? true : undefined}
-          aria-describedby={describedBy(id, undefined, promptError)}
-          onChange={(event) => onPatch({ prompt: event.currentTarget.value })}
+          onCommit={(next) => onPatch({ prompt: next })}
+          mode="template"
+          nodeId={node.id}
+          field="prompt"
+          pickerTestId="inspector-agent-prompt-variables"
+          textareaTestId={id}
+          rows={6}
+          error={promptError}
+          help="Workflow parameters and connected earlier outputs are automatically included with every run. Optional {{ … }} templates remain for custom formatting."
+          describedBy={describedBy(id, undefined, promptError)}
         />
       </Field>
       {both ? (

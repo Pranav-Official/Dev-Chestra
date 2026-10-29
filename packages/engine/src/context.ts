@@ -23,6 +23,7 @@ import {
   renderTemplate,
 } from "@devchestra/schema";
 import { createNodeExpressionExecutor } from "@devchestra/schema/node";
+import { ExecutionContextCache } from "./execution-context.js";
 import type { AcceptedOutput, ExecutionRow, RunRecord, Store } from "@devchestra/store";
 import type { ScratchWorkspace } from "@devchestra/workspaces";
 import type { PlanNode, ScopeSource, WorkflowPlan } from "./graph-plan.js";
@@ -88,7 +89,7 @@ export function toDevChestraError(
  * `confidenceSource` stays null so "unknown" is still detectable. The
  * persisted output, events, API and UI keep null.
  */
-function decisionScopeValue(output: unknown): unknown {
+export function decisionScopeValue(output: unknown): unknown {
   if (!isRecord(output)) return output;
   if (output.confidence !== null || output.confidenceSource !== null) return output;
   if (typeof output.branch !== "string") return output;
@@ -112,6 +113,8 @@ export class EngineContext {
   readonly store: Store;
   readonly clock: Clock;
   readonly #executor = createNodeExpressionExecutor();
+  /** Immutable capture scopes resolved once per engine (per run lifetime). */
+  readonly contextCache = new ExecutionContextCache();
 
   constructor(deps: EngineDeps) {
     this.deps = deps;
@@ -504,6 +507,12 @@ export class EngineContext {
     });
   }
 
+  /** Release cached capture scopes for a run. Called on terminal transitions;
+   * paused/resumable runs keep theirs so resume resolves the same outputs. */
+  releaseRunContext(runId: string): void {
+    this.contextCache.evictRun(runId);
+  }
+
   completeRun(
     runId: string,
     status: "success" | "failed" | "rejected",
@@ -517,12 +526,16 @@ export class EngineContext {
       ...(result === undefined ? {} : { result }),
       ...(error === undefined ? {} : { error: serializeError(error) }),
     });
+    this.releaseRunContext(runId);
   }
 
   failRun(runId: string, error: DevChestraError): void {
     try {
       const run = this.run(runId);
-      if (isTerminal(run.status as RunStatus)) return;
+      if (isTerminal(run.status as RunStatus)) {
+        this.releaseRunContext(runId);
+        return;
+      }
     } catch {
       return;
     }
@@ -546,6 +559,7 @@ export class EngineContext {
     } catch {
       // The run may already be terminal from a racing cancel.
     }
+    this.releaseRunContext(runId);
   }
 
   outcome(runId: string): import("./types.js").RunOutcome {

@@ -10,7 +10,7 @@ import {
 import { createDecisionService } from "@devchestra/decisions";
 import { createEngine, type Engine, type RunOutcome, type WorkspacePort } from "@devchestra/engine";
 import { PROD_CLIS, validateParams } from "@devchestra/schema";
-import { OutputValidator } from "@devchestra/server";
+import { ensureProjectSkill, OutputValidator } from "@devchestra/server";
 import { openStore, type Store } from "@devchestra/store";
 import {
   acquireScratch,
@@ -167,6 +167,8 @@ export async function executeRun(options: CliOptions, dataDir: string): Promise<
   process.once("SIGTERM", onSignal);
 
   try {
+    // The CLI registers the project implicitly, bypassing the HTTP route.
+    ensureProjectSkill(loaded.projectRoot);
     store.projects.ensure({
       id: loaded.projectId,
       name: loaded.projectName,

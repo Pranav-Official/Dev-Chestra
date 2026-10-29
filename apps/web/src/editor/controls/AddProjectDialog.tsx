@@ -42,7 +42,7 @@ export function AddProjectDialog({
     <Dialog
       open={open}
       title="Add project"
-      description="Register an existing folder. DevChestra stores its own data elsewhere; it does not create or modify project files here."
+      description="Register an existing folder. DevChestra stores its own data elsewhere. Registering adds an agent guide at .devchestra/skill.md only if that file does not exist yet; existing files are never changed."
       onClose={onClose}
       testId="add-project-dialog"
       footer={

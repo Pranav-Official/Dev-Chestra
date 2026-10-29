@@ -12,7 +12,12 @@ import {
   withEventId,
 } from "./reducer-support.js";
 import type { RunView } from "./reducer-types.js";
-import { type LoopView, MAX_LOOP_HISTORY } from "./reducer-types.js";
+import {
+  type LoopView,
+  loopDecisionProblem,
+  loopRoundOutcome,
+  MAX_LOOP_HISTORY,
+} from "./reducer-types.js";
 import { assertRunTransition, type RunStatus } from "./transitions.js";
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -489,14 +494,39 @@ export function reduceLifecycleEvent(view: RunView, envelope: EventEnvelope): Ru
       if (iteration !== 1) {
         throw internal("Loop start iteration must be 1", { path, iteration });
       }
-      if (!isPlainObject(payload.parent) || !isPlainObject(payload.state)) {
-        throw internal("Loop parent and state must be JSON objects", { path });
+      const hasParent = payload.parent !== undefined;
+      const hasParentRef = payload.parentRef !== undefined;
+      if ((hasParent ? 1 : 0) + (hasParentRef ? 1 : 0) !== 1) {
+        throw internal("Loop start must carry exactly one of parent or parentRef", { path });
+      }
+      if (hasParentRef) {
+        const ref = payload.parentRef as { kind?: unknown; captureId?: unknown };
+        if (
+          ref.kind !== "devchestra.execution-context/v1" ||
+          typeof ref.captureId !== "string" ||
+          ref.captureId.length === 0
+        ) {
+          throw internal("Loop parentRef must be a tagged execution-context reference", { path });
+        }
+      }
+      if (hasParent && !isPlainObject(payload.parent)) {
+        throw internal("Loop parent must be a JSON object", { path });
+      }
+      if (!isPlainObject(payload.state)) {
+        throw internal("Loop state must be a JSON object", { path });
       }
       if (exec.loop !== null) {
         const cur = exec.loop;
+        const sameRef =
+          (cur.parentRef?.captureId ?? null) ===
+          (hasParentRef ? (payload.parentRef as { captureId: string }).captureId : null);
+        const sameParent =
+          hasParentRef || cur.parentRef !== null
+            ? sameRef
+            : canonicalJson(cur.parent) === canonicalJson(payload.parent);
         const same =
           cur.iteration === 1 &&
-          canonicalJson(cur.parent) === canonicalJson(payload.parent) &&
+          sameParent &&
           canonicalJson(cur.state) === canonicalJson(payload.state) &&
           cur.rounds.length === 0;
         // Idempotent replay: identical start after run terminal must not change status.
@@ -513,7 +543,15 @@ export function reduceLifecycleEvent(view: RunView, envelope: EventEnvelope): Ru
       }
       const loop: LoopView = {
         iteration: 1,
-        parent: { ...(payload.parent as Record<string, unknown>) } as LoopView["parent"],
+        parent: hasParentRef
+          ? {}
+          : ({ ...(payload.parent as Record<string, unknown>) } as LoopView["parent"]),
+        parentRef: hasParentRef
+          ? {
+              kind: "devchestra.execution-context/v1",
+              captureId: (payload.parentRef as { captureId: string }).captureId,
+            }
+          : null,
         state: { ...(payload.state as Record<string, unknown>) } as LoopView["state"],
         rounds: [],
       };
@@ -535,17 +573,18 @@ export function reduceLifecycleEvent(view: RunView, envelope: EventEnvelope): Ru
       if (payload.nextState !== undefined && !isPlainObject(payload.nextState)) {
         throw internal("Loop nextState must be a JSON object when present", { path });
       }
-      if (payload.done && payload.nextState !== undefined) {
-        throw internal("Loop done decision must not carry nextState", { path });
-      }
+      const problem = loopDecisionProblem(payload);
+      if (problem !== null) throw internal(problem, { path });
       if (exec.loop === null) {
         throw internal("Loop decision arrived before loop.started", { path });
       }
+      const outcome = loopRoundOutcome(payload);
       const existing = exec.loop.rounds.find((round) => round.iteration === iteration);
       if (existing !== undefined) {
         const same =
           canonicalJson(existing.result) === canonicalJson(payload.result) &&
           existing.done === payload.done &&
+          loopRoundOutcome(existing) === outcome &&
           canonicalJson(existing.nextState ?? null) === canonicalJson(payload.nextState ?? null);
         // Idempotent replay even after run terminal — do not change status again.
         if (same) return withEventId(view, envelope);
@@ -553,7 +592,7 @@ export function reduceLifecycleEvent(view: RunView, envelope: EventEnvelope): Ru
           details: { path, existing, received: payload },
         });
       }
-      if (exec.loop.rounds.some((round) => round.done)) {
+      if (exec.loop.rounds.some((round) => loopRoundOutcome(round) !== null)) {
         throw new DevChestraError("E_CONFLICT", "Loop is already finished; no further decisions", {
           details: { path, iteration },
         });
@@ -577,20 +616,25 @@ export function reduceLifecycleEvent(view: RunView, envelope: EventEnvelope): Ru
           payload.nextState === undefined
             ? null
             : ({ ...(payload.nextState as Record<string, unknown>) } as LoopView["state"]),
+        outcome,
         eventId: envelope.id,
       };
       const rounds = [...exec.loop.rounds, round].slice(-MAX_LOOP_HISTORY);
-      const loop: LoopView = payload.done
-        ? { ...exec.loop, rounds }
-        : {
-            iteration: iteration + 1,
-            parent: exec.loop.parent,
-            state:
-              payload.nextState === undefined
-                ? exec.loop.state
-                : ({ ...(payload.nextState as Record<string, unknown>) } as LoopView["state"]),
-            rounds,
-          };
+      // Terminal rounds (condition met or iteration budget exhausted) leave the
+      // controller's iteration in place for idempotent publication.
+      const loop: LoopView =
+        outcome !== null
+          ? { ...exec.loop, rounds }
+          : {
+              iteration: iteration + 1,
+              parent: exec.loop.parent,
+              parentRef: exec.loop.parentRef,
+              state:
+                payload.nextState === undefined
+                  ? exec.loop.state
+                  : ({ ...(payload.nextState as Record<string, unknown>) } as LoopView["state"]),
+              rounds,
+            };
       return withEventId(
         updateExec(view, key, (current) => ({ ...current, loop })),
         envelope,

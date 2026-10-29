@@ -294,10 +294,30 @@ export interface RoutingCommitResult {
   duplicate: boolean;
 }
 
+export interface ContextCaptureRecord {
+  id: string;
+  runId: RunId;
+  path: Path;
+  attempt: number;
+  generation: number;
+  bytes: number;
+  manifest: import("@devchestra/core").ExecutionContextManifest;
+  createdAt: number;
+}
+
+export interface CreateContextCaptureInput {
+  runId: RunId;
+  path: Path;
+  identity: ExecutionIdentity;
+  entries: import("@devchestra/core").CaptureEntry[];
+}
+
 export interface StartLoopInput {
   identity: ExecutionIdentity;
-  /** Immutable parent scope captured once; each value <=16 KiB JSON. */
-  parent: JsonObject;
+  /** Legacy inline parent scope; each value <=16 KiB JSON. Mutually exclusive with parentRef. */
+  parent?: JsonObject;
+  /** Reference-backed parent capture; the manifest lives in context_captures. */
+  parentRef?: import("@devchestra/core").ExecutionContextRef;
   /** Initial carried state for iteration 1; <=16 KiB JSON, secret-free. */
   state: JsonObject;
 }
@@ -314,10 +334,16 @@ export interface DecideLoopInput {
   iteration: number;
   /** Validated body result; <=16 KiB JSON, secret-free. Absence of nextState retains state. */
   result: unknown;
-  /** True publishes the final round; false advances iteration synchronously. */
+  /** True only when the stop condition matched; false continues unless outcome is terminal. */
   done: boolean;
-  /** Carried state for the next round; omit to retain current state. Forbidden when done. */
+  /** Carried state for the next round; omit to retain current state. Forbidden on terminal rounds. */
   nextState?: JsonObject;
+  /**
+   * Terminal outcome. `condition_met` needs done=true; `iteration_limit` needs
+   * done=false (budget exhausted, routed downstream). Omit for continuing rounds;
+   * done=true without an outcome is recorded as `condition_met`.
+   */
+  outcome?: import("@devchestra/core").LoopOutcome;
 }
 
 export interface DecideLoopResult {
@@ -445,6 +471,23 @@ export interface OutputProvenanceQuery {
   kind?: OutputKind | readonly OutputKind[];
   cursor?: string;
   limit?: number;
+}
+
+export interface OutputMetadata {
+  id: string;
+  runId: RunId;
+  path: Path;
+  attempt: number;
+  generation: number;
+  kind: OutputKind;
+  hash: string;
+  bytes: number;
+  createdAt: number;
+}
+
+export interface OutputMetadataPage {
+  items: OutputMetadata[];
+  nextCursor: string | null;
 }
 
 export interface OutputProvenancePage {

@@ -13,7 +13,13 @@ import {
 } from "@xyflow/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "@xyflow/react/dist/style.css";
-import { deriveRouting, isTerminalRunStatus, type RunView } from "@devchestra/core";
+import {
+  deriveRouting,
+  isTerminalRunStatus,
+  LOOP_EXHAUSTED_HANDLE,
+  loopTerminalOutcome,
+  type RunView,
+} from "@devchestra/core";
 import { type DecisionMode, type DecisionNode, decisionHandles } from "@devchestra/schema";
 import {
   Bot,
@@ -110,6 +116,8 @@ interface NodeData extends Record<string, unknown> {
   approvalRequestId: string | null;
   approvalAttempt: number | null;
   approvalGeneration: number | null;
+  /** Terminal loop outcome from the durable controller; null while running or legacy-unknown. */
+  loopOutcome: "condition_met" | "iteration_limit" | null;
 }
 
 const NODE_W = 184;
@@ -309,6 +317,13 @@ function WorkflowNode({ data }: NodeProps<Node<NodeData>>) {
                 .join(" ")}`}
         </div>
       ) : null}
+      {data.kind === "loop" && data.loopOutcome !== null ? (
+        <div className="flow-node-route" data-testid={`run-loop-outcome-${String(data.id)}`}>
+          {data.loopOutcome === "iteration_limit"
+            ? "exhausted · iteration limit reached"
+            : "success · condition met"}
+        </div>
+      ) : null}
       {data.kind === "approval" && data.approvalCanAct ? <ApprovalNodeActions data={data} /> : null}
       <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
     </div>
@@ -499,6 +514,7 @@ export function RunCanvas({
           decisionBranch: exec?.decision?.routing.branch ?? null,
           decisionReason: exec?.decision?.routing.reason ?? null,
           decisionHandles: node.type === "decision" ? decisionHandlesFor(node) : [],
+          loopOutcome: node.type === "loop" ? loopTerminalOutcome(exec?.loop) : null,
           runId,
           approvalCanAct: canAct,
           approvalRequestId:
@@ -530,11 +546,19 @@ export function RunCanvas({
       const className = edgeClass(state, targetStatus);
       const animated = className === "live" && !isTerminalRunStatus(view.status);
       const dead = state === "dead";
+      const sourceNode = snapshot.graph.nodes.find((node) => node.id === source);
+      const loopLabel =
+        sourceNode?.type === "loop"
+          ? edge.from === `${source}.${LOOP_EXHAUSTED_HANDLE}`
+            ? "exhausted"
+            : "success"
+          : undefined;
       return {
         id: edge.id,
         source,
         target,
         type: "smoothstep",
+        ...(loopLabel === undefined ? {} : { label: loopLabel }),
         animated,
         className,
         ariaLabel: `${edge.id} ${state}`,

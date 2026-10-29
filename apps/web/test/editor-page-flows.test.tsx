@@ -156,6 +156,18 @@ describe("WorkflowsPage", () => {
 });
 
 describe("AddProjectDialog", () => {
+  it("tells the user registration may add the agent guide but never changes existing files", () => {
+    render(
+      <QueryClientProvider client={client()}>
+        <AddProjectDialog open onClose={() => undefined} onRegistered={() => undefined} />
+      </QueryClientProvider>,
+    );
+    const copy = screen.getByTestId("add-project-dialog").textContent ?? "";
+    expect(copy).toContain(".devchestra/skill.md");
+    expect(copy).toContain("existing files are never changed");
+    expect(copy).not.toContain("does not create or modify");
+  });
+
   it("registers an explicit absolute path and reports success", async () => {
     const register = vi.spyOn(api, "registerProject").mockResolvedValue({
       ...PROJECT,

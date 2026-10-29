@@ -7,6 +7,7 @@ export type { SecretFinding } from "./secrets.js";
 export { redactJson, SecretRegistry } from "./secrets.js";
 export type {
   ApprovalsApi,
+  ContextCapturesApi,
   EventsApi,
   ExecutionsApi,
   LoopsApi,
@@ -77,6 +78,10 @@ export type {
   RunRecord,
   RunSnapshot,
   RunSummary,
+  ContextCaptureRecord,
+  CreateContextCaptureInput,
+  OutputMetadata,
+  OutputMetadataPage,
   StartLoopInput,
   StartLoopResult,
   SubmitInput,

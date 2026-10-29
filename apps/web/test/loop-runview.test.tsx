@@ -107,7 +107,8 @@ describe("loop run viewer", () => {
           kind: "loop" as const,
           loop: {
             iteration: 2,
-            parent: { start: { topic: "captured" } },
+            parentRef: null,
+        parent: { start: { topic: "captured" } },
             state: { n: 1 },
             rounds: [
               {
@@ -139,6 +140,7 @@ describe("loop run viewer", () => {
       ),
     );
     expect(screen.getByTestId("detail-loop")).toBeDefined();
+    expect(screen.getByTestId("detail-loop")).toHaveClass("loop-detail");
     expect(screen.getByTestId("detail-loop-iteration")).toHaveTextContent("iteration 2");
     expect(screen.getByTestId("detail-loop-round-1")).toBeDefined();
     const child = screen.getByTestId("detail-loop-child-1-start");
@@ -159,7 +161,7 @@ describe("loop run viewer", () => {
           attempt: 1,
           generation: 1,
           kind: "loop" as const,
-          loop: { iteration: 1, parent: {}, state: { n: 0 }, rounds: [] },
+          loop: { iteration: 1, parent: {}, parentRef: null, state: { n: 0 }, rounds: [] },
         },
         "refine#1/start": {
           ...execution("refine#1/start", "start"),
@@ -229,6 +231,7 @@ describe("loop run viewer", () => {
           loop: {
             iteration: 3,
             parent: {},
+            parentRef: null,
             state: { n: 2 },
             rounds: [
               {

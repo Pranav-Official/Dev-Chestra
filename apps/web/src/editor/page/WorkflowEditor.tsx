@@ -339,8 +339,8 @@ export function WorkflowEditor({
       )}
 
       <div className="editor-workspace">
-        <NodePalette file={file} onAdd={(type) => commit(model.getState().addNode(type))} />
         <div className="editor-canvas-host">
+          <NodePalette file={file} onAdd={(type) => commit(model.getState().addNode(type))} />
           <EditorCanvas
             onLoopOpen={setLoopBodyOpenRequest}
             file={file}
@@ -369,6 +369,7 @@ export function WorkflowEditor({
           node={node}
           projectId={pid}
           issues={issues}
+          graph={file.graph}
           edges={file.graph.edges}
           onPatch={(nodeId, patch) => commit(model.getState().updateNode(nodeId, patch))}
           onRoutingChange={changeRouting}

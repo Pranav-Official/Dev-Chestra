@@ -100,6 +100,29 @@ export interface RelinkProjectCommand {
   kind: ProjectKind;
 }
 
+export interface RunContextEntry {
+  path: string;
+  nodeId: string;
+  kind: string | null;
+  status: string;
+  attempt: number;
+  generation: number;
+  loopRound: number | null;
+  output: {
+    id: string;
+    hash: string;
+    bytes: number;
+  } | null;
+  captureId: string | null;
+}
+
+export interface RunContextQuery {
+  pathPrefix?: string;
+  status?: string;
+  limit: number;
+  cursor?: string;
+}
+
 export interface BrowserQueryPort {
   removeProject?(projectId: string): void | Promise<void>;
   setRunArchived?(runId: string, archived: boolean): void | Promise<void>;
@@ -120,6 +143,20 @@ export interface BrowserQueryPort {
     path: string,
     attempt: number,
   ): Promise<AcceptedOutput | null> | AcceptedOutput | null;
+  listOutputMetadata?(
+    runId: string,
+    input: { path?: string; limit: number; cursor?: string },
+  ): Promise<{ items: Array<{ id: string; path: string; attempt: number; generation: number; kind: string; hash: string; bytes: number; createdAt: number }>; nextCursor: string | null }> | { items: Array<{ id: string; path: string; attempt: number; generation: number; kind: string; hash: string; bytes: number; createdAt: number }>; nextCursor: string | null };
+  getOutputMetadataById?(
+    outputId: string,
+  ): Promise<{ id: string; runId: string; path: string; attempt: number; generation: number; hash: string; bytes: number } | null> | { id: string; runId: string; path: string; attempt: number; generation: number; hash: string; bytes: number } | null;
+  getOutputById?(
+    outputId: string,
+  ): Promise<AcceptedOutput | null> | AcceptedOutput | null;
+  runContext?(
+    runId: string,
+    query: RunContextQuery,
+  ): Promise<{ entries: RunContextEntry[]; nextCursor: string | null }> | { entries: RunContextEntry[]; nextCursor: string | null };
   counts():
     | Promise<{ runs: number; activeRuns: number; inbox: number }>
     | {

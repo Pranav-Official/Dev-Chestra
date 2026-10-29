@@ -5,6 +5,8 @@ import {
   isRecord,
   type JsonObject,
   type JsonValue,
+  LOOP_EXHAUSTED_HANDLE,
+  loopTerminalOutcome,
   type Path,
   type RoutingView,
 } from "@devchestra/core";
@@ -12,6 +14,7 @@ import { LOOP_STATE_MAX_BYTES } from "@devchestra/schema";
 import type { RunRecord } from "@devchestra/store";
 import { type ActiveRunState, type EngineContext, toDevChestraError } from "./context.js";
 import { skipNode } from "./exec-routing.js";
+import { collectParentContext, resolveLoopParent } from "./execution-context.js";
 import { analyzeWorkflowPlan, type PlanNode, type WorkflowPlan } from "./graph-plan.js";
 import { derivePlanRouting } from "./graph-run.js";
 import { buildScopeData } from "./scope.js";
@@ -109,26 +112,46 @@ export async function executeLoop(
     if (!body.ok) throw body.error;
     let controller = ctx.store.view.get(run.id).executions[path]?.loop;
     if (!controller) {
-      const ancestors = await ctx.chainOutputs(run, parentPlan, node.id);
-      const parent = stateObject(buildScopeData(run.params, ancestors), "Loop parent inputs");
+      // Single shared ancestor walk: the hydrated scope (for initialState
+      // evaluation) and the reference entries can never diverge. The
+      // loop-start event carries only the capture reference.
+      const { scope: parentScope, entries } = collectParentContext(ctx, run, parentPlan, node.id);
       const state = stateObject(
-        await ctx.evaluate(String(node.raw.initialState ?? "{}"), parent),
+        await ctx.evaluate(String(node.raw.initialState ?? "{}"), parentScope),
         "Initial loop state",
       );
       checkStop(active);
-      ctx.store.loops.start({ identity, parent, state });
+      ctx.store.tx(() => {
+        const capture = ctx.store.contextCaptures.create({
+          runId: run.id,
+          path: path as Path,
+          identity,
+          entries,
+        });
+        ctx.store.loops.start({
+          identity,
+          parentRef: { kind: "devchestra.execution-context/v1", captureId: capture.id },
+          state,
+        });
+      });
     }
+    // Exhaustion only routes downstream when the graph wires `.exhausted`;
+    // otherwise the historical E_LOOP_LIMIT failure is preserved.
+    const exhaustedWired = (parentPlan.outgoing.get(node.id) ?? []).some(
+      (edge) => edge.sourceBranch === LOOP_EXHAUSTED_HANDLE,
+    );
     for (;;) {
       checkStop(active);
       if (!canDrive(ctx, run, active)) return;
       controller = ctx.store.view.get(run.id).executions[path]?.loop;
       if (!controller) throw new DevChestraError("E_INTERNAL", "Loop controller state is missing");
       const last = controller.rounds.at(-1);
-      if (last?.done) {
+      const outcome = loopTerminalOutcome(controller);
+      if (last && outcome !== null) {
         ctx.store.tx(() => {
           ctx.store.outputs.recordDeterministic({
             identity,
-            output: { result: last.result, iterations: last.iteration },
+            output: { result: last.result, iterations: last.iteration, outcome },
           });
           ctx.store.executions.complete({ identity });
         });
@@ -139,16 +162,20 @@ export async function executeLoop(
         controller.iteration > maxIterations ||
         (last && !last.done && last.iteration >= maxIterations)
       ) {
+        // Legacy/unwired exhaustion already persisted its false round.
         throw new DevChestraError(
           "E_LOOP_LIMIT",
           `Loop '${node.id}' did not satisfy its condition within ${maxIterations} rounds`,
         );
       }
+      // Resolve the immutable parent capture at the consumer boundary.
+      // Projections carry only the reference; hydration never happens in reducers.
+      const parent = resolveLoopParent(ctx.store, run, controller, ctx.contextCache);
       const loop = {
         iteration: controller.iteration,
         maxIterations,
         state: controller.state,
-        parent: controller.parent,
+        parent,
       };
       const plan = instantiateBody(body.value, node.id, controller.iteration, { loop });
       const completed = await driveBody(ctx, run, plan, active, dispatch);
@@ -172,8 +199,9 @@ export async function executeLoop(
       const done = await ctx.evaluate(String(node.raw.until), decisionScope);
       if (typeof done !== "boolean")
         throw new DevChestraError("E_EXPR", "Loop stop condition must evaluate to a boolean");
+      const exhausted = !done && controller.iteration >= maxIterations;
       const nextState =
-        !done && controller.iteration < maxIterations
+        !done && !exhausted
           ? stateObject(
               await ctx.evaluate(String(node.raw.nextState ?? "loop.state"), decisionScope),
               "Next loop state",
@@ -186,6 +214,13 @@ export async function executeLoop(
         result,
         done,
         ...(nextState === undefined ? {} : { nextState }),
+        // Wired exhaustion is a durable terminal outcome; unwired keeps the
+        // plain false round and fails on the next pass.
+        ...(done
+          ? { outcome: "condition_met" as const }
+          : exhausted && exhaustedWired
+            ? { outcome: "iteration_limit" as const }
+            : {}),
       });
     }
   } catch (error) {

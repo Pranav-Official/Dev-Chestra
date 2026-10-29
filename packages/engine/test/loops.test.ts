@@ -119,6 +119,7 @@ describe("bounded loops", () => {
     expect(output?.json).toEqual({
       result: { round: rounds, previous: rounds - 1 },
       iterations: rounds,
+      outcome: "condition_met",
     });
     for (let i = 1; i <= rounds; i++)
       expect(view.executions[`refine#${i}/done`]?.status).toBe("succeeded");
@@ -336,7 +337,11 @@ describe("bounded loops", () => {
       path: "refine" as Path,
       attempt: 1,
     });
-    expect(output?.json).toEqual({ result: { topic: "captured", bodyInputs: {} }, iterations: 1 });
+    expect(output?.json).toEqual({
+      result: { topic: "captured", bodyInputs: {} },
+      iterations: 1,
+      outcome: "condition_met",
+    });
   });
 
   it("cancels a running native shell before any next round is created", async () => {

@@ -311,3 +311,188 @@ describe("durable loop controller", () => {
     expect(resumed.generation).toBeGreaterThan(identity.generation);
   });
 });
+
+describe("durable terminal loop outcomes", () => {
+  function started(nextState: { n: number } = { n: 0 }) {
+    const h = harness();
+    const identity = beginLoop(h);
+    h.store.loops.start({ identity, parent: {}, state: nextState });
+    return { h, identity };
+  }
+
+  it("records iteration_limit as a terminal round that does not advance or fake done", () => {
+    const { h, identity } = started();
+    h.store.loops.decide({ identity, iteration: 1, result: 1, done: false, nextState: { n: 1 } });
+    const decided = h.store.loops.decide({
+      identity,
+      iteration: 2,
+      result: { last: true },
+      done: false,
+      outcome: "iteration_limit",
+    });
+    expect(decided.duplicate).toBe(false);
+    expect(decided.loop.iteration).toBe(2);
+    expect(decided.loop.state).toEqual({ n: 1 });
+    expect(decided.loop.rounds.at(-1)).toMatchObject({
+      iteration: 2,
+      done: false,
+      outcome: "iteration_limit",
+      nextState: null,
+    });
+    const payload = h.store.events.list(h.runId, { types: ["loop.iteration.decided"] }).at(-1)
+      ?.payload as Record<string, unknown>;
+    expect(payload).toMatchObject({ done: false, outcome: "iteration_limit" });
+  });
+
+  it("normalizes done=true to a condition_met round", () => {
+    const { h, identity } = started();
+    const decided = h.store.loops.decide({ identity, iteration: 1, result: 1, done: true });
+    expect(decided.loop.rounds[0]).toMatchObject({ done: true, outcome: "condition_met" });
+    const explicit = h.store.loops.decide({
+      identity,
+      iteration: 1,
+      result: 1,
+      done: true,
+      outcome: "condition_met",
+    });
+    expect(explicit.duplicate).toBe(true);
+  });
+
+  it("rejects invalid done/outcome/nextState combinations without appending events", () => {
+    const { h, identity } = started();
+    const before = h.store.events.list(h.runId).length;
+    const bad = [
+      { done: true, outcome: "iteration_limit" },
+      { done: false, outcome: "condition_met" },
+      { done: false, outcome: "iteration_limit", nextState: { n: 1 } },
+      { done: true, outcome: "condition_met", nextState: { n: 1 } },
+      { done: true, nextState: { n: 1 } },
+      { done: false, outcome: "bogus" },
+    ] as const;
+    for (const input of bad) {
+      expectCode(
+        () =>
+          h.store.loops.decide({
+            identity,
+            iteration: 1,
+            result: 1,
+            ...(input as Record<string, unknown>),
+          } as never),
+        "E_VALIDATION",
+      );
+    }
+    expect(h.store.events.list(h.runId).length).toBe(before);
+    expect(h.store.view.get(h.runId).executions.refine?.loop?.rounds).toEqual([]);
+  });
+
+  it("is idempotent for the same terminal decision and immutable for any change", () => {
+    const { h, identity } = started();
+    const input = {
+      identity,
+      iteration: 1,
+      result: { r: 1 },
+      done: false,
+      outcome: "iteration_limit",
+    } as const;
+    h.store.loops.decide(input);
+    const before = h.store.events.list(h.runId).length;
+    expect(h.store.loops.decide(input).duplicate).toBe(true);
+    expect(h.store.events.list(h.runId).length).toBe(before);
+    // Same iteration, different outcome shape.
+    expectCode(
+      () => h.store.loops.decide({ identity, iteration: 1, result: { r: 1 }, done: false }),
+      "E_CONFLICT",
+    );
+    expectCode(
+      () => h.store.loops.decide({ identity, iteration: 1, result: { r: 1 }, done: true }),
+      "E_CONFLICT",
+    );
+    expectCode(() => h.store.loops.decide({ ...input, result: { r: 2 } }), "E_CONFLICT");
+  });
+
+  it("rejects every later decision after a terminal outcome", () => {
+    const { h, identity } = started();
+    h.store.loops.decide({
+      identity,
+      iteration: 1,
+      result: 1,
+      done: false,
+      outcome: "iteration_limit",
+    });
+    expectCode(
+      () => h.store.loops.decide({ identity, iteration: 2, result: 1, done: false }),
+      "E_CONFLICT",
+    );
+    expectCode(
+      () => h.store.loops.decide({ identity, iteration: 2, result: 1, done: true }),
+      "E_CONFLICT",
+    );
+    expectCode(
+      () =>
+        h.store.loops.decide({
+          identity,
+          iteration: 1,
+          result: 1,
+          done: false,
+          nextState: { n: 9 },
+        }),
+      "E_CONFLICT",
+    );
+  });
+
+  it("completes an exhausted controller only with a recorded output, idempotently", () => {
+    const { h, identity } = started();
+    h.store.loops.decide({ identity, iteration: 1, result: 1, done: false });
+    expectCode(() => h.store.executions.complete({ identity }), "E_CONFLICT");
+    h.store.loops.decide({
+      identity,
+      iteration: 2,
+      result: 2,
+      done: false,
+      outcome: "iteration_limit",
+    });
+    expectCode(() => h.store.executions.complete({ identity }), "E_CONFLICT");
+    h.store.outputs.recordDeterministic({
+      identity,
+      output: { result: 2, iterations: 2, outcome: "iteration_limit" },
+    });
+    const done = h.store.executions.complete({ identity });
+    expect(done.status).toBe("succeeded");
+    expect(h.store.executions.complete({ identity }).status).toBe("succeeded");
+    // The terminal decision still replays after completion.
+    expect(
+      h.store.loops.decide({
+        identity,
+        iteration: 2,
+        result: 2,
+        done: false,
+        outcome: "iteration_limit",
+      }).duplicate,
+    ).toBe(true);
+    const view = h.store.view.get(h.runId).executions.refine;
+    expect(view?.status).toBe("succeeded");
+    expect(view?.loop?.rounds.at(-1)?.outcome).toBe("iteration_limit");
+  });
+
+  it("does not treat a plain false round as terminal for completion", () => {
+    const { h, identity } = started();
+    h.store.loops.decide({ identity, iteration: 1, result: 1, done: false });
+    h.store.outputs.recordDeterministic({ identity, output: { result: 1, iterations: 1 } });
+    expectCode(() => h.store.executions.complete({ identity }), "E_CONFLICT");
+  });
+
+  it("rebuilds the same terminal projection from the event log", () => {
+    const { h, identity } = started();
+    h.store.loops.decide({
+      identity,
+      iteration: 1,
+      result: 1,
+      done: false,
+      outcome: "iteration_limit",
+    });
+    const cached = h.store.view.get(h.runId).executions.refine?.loop;
+    const rebuilt = h.store.view.rebuild(h.runId).executions.refine?.loop;
+    expect(rebuilt).toEqual(cached);
+    expect(rebuilt?.rounds[0]?.outcome).toBe("iteration_limit");
+  });
+});

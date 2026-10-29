@@ -15,6 +15,8 @@ describe("Loop body dialog", () => {
     expect(dialog).toHaveClass("workspace");
     expect(onLoopBodyOpenHandled).toHaveBeenCalledTimes(1);
     rerender(<Inspector {...props} loopBodyOpenRequested={false} />);
+    fireEvent.click(screen.getByTestId("palette-toggle"));
+    expect(screen.queryByTestId("palette-add-loop")).toBeNull();
     fireEvent.click(screen.getByTestId("palette-add-shell"));
     expect(screen.getByTestId("loop-body-dirty")).toHaveTextContent("Unapplied changes");
     expect(screen.getByTestId("loop-body-inspector")).toHaveTextContent("Shell");

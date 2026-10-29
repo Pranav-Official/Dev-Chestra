@@ -1,5 +1,6 @@
 import type { Issue, ShellNode } from "@devchestra/schema";
 import { TriangleAlert } from "lucide-react";
+import { ExpandableTextarea } from "./fields/ExpandableTextarea.js";
 import { CheckboxField, describedBy, Field } from "./fields/fields.js";
 import { useBufferedNumber } from "./fields/useBufferedNumber.js";
 import { fieldIssue } from "./issues.js";
@@ -62,16 +63,22 @@ export function ShellForm({ node, issues, onPatch }: FormProps<ShellNode>) {
             help="Plain multi-line shell text. Nothing runs while you edit."
             error={commandIssue}
           >
-            <textarea
+            <ExpandableTextarea
               id="inspector-shell-command"
-              className="inspector-input inspector-textarea inspector-code-input"
-              data-testid="inspector-shell-command"
-              rows={7}
-              spellCheck={false}
+              label="Command"
               value={node.command}
-              aria-invalid={commandIssue ? true : undefined}
-              aria-describedby={describedBy("inspector-shell-command", undefined, commandIssue)}
-              onChange={(event) => onPatch({ command: event.currentTarget.value })}
+              onCommit={(next) => onPatch({ command: next })}
+              mode="template"
+              nodeId={node.id}
+              field="command"
+              pickerTestId="inspector-shell-command-variables"
+              textareaTestId="inspector-shell-command"
+              rows={7}
+              className="inspector-input inspector-textarea inspector-code-input"
+              spellCheck={false}
+              error={commandIssue}
+              help="Plain multi-line shell text. Nothing runs while you edit."
+              describedBy={describedBy("inspector-shell-command", undefined, commandIssue)}
             />
           </Field>
           <p className="inspector-footnote" data-testid="inspector-shell-effects-note" role="note">

@@ -10,6 +10,8 @@ export interface InspectorProps {
   projectId?: string | undefined;
   issues: readonly Issue[];
   onPatch: (nodeId: string, patch: Partial<WorkflowNode>) => void;
+  /** Full workflow graph, used by the variable picker catalogue (not just selected node/edges). */
+  graph?: { nodes: WorkflowNode[]; edges: Edge[] } | undefined;
   /** Current edges, used by Gate/Join handle editors and connection warnings. */
   edges?: readonly Edge[];
   /** Atomic node patch + connected-edge removal for handle identity edits. */

@@ -4,6 +4,7 @@ import { normalizeOutputSchema } from "@devchestra/schema";
 import { AlertCircle, Braces, Code, Plus, Trash2 } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useBufferFlag } from "../BufferContext.js";
+import { ExpandableTextarea } from "../fields/ExpandableTextarea.js";
 import { CheckboxField, describedBy, Field } from "../fields/fields.js";
 import { useBufferedNumber } from "../fields/useBufferedNumber.js";
 import { useBufferedText } from "../fields/useBufferedText.js";
@@ -488,20 +489,30 @@ export function SchemaEditor({
                 help="Applied only while the text parses to a JSON object. Invalid JSON blocks Save and Run."
                 error={advancedError}
               >
-                <textarea
+                <ExpandableTextarea
                   id="inspector-output-advanced-json"
-                  className="inspector-input inspector-textarea inspector-code-input"
-                  data-testid="inspector-output-advanced-json"
-                  rows={14}
-                  spellCheck={false}
+                  label="Output JSON Schema"
                   value={advancedText}
-                  aria-invalid={advancedError ? true : undefined}
-                  aria-describedby={describedBy(
+                  onCommit={applyAdvanced}
+                  validate={(next) => {
+                    const parsed = parseSchemaJson(next);
+                    return parsed.ok ? null : parsed.reason;
+                  }}
+                  mode="none"
+                  nodeId="output-schema"
+                  field="output"
+                  textareaTestId="inspector-output-advanced-json"
+                  rows={14}
+                  className="inspector-input inspector-textarea inspector-code-input"
+                  spellCheck={false}
+                  error={advancedError}
+                  help="Applied only while the text parses to a JSON object. Invalid JSON blocks Save and Run."
+                  bufferKey="output.advanced"
+                  describedBy={describedBy(
                     "inspector-output-advanced-json",
                     undefined,
                     advancedError,
                   )}
-                  onChange={(event) => applyAdvanced(event.currentTarget.value)}
                 />
               </Field>
               <div className="inspector-inline">

@@ -22,10 +22,25 @@ Body nodes can use `loop.iteration`, `loop.maxIterations`, `loop.state`, and `lo
 After completion, a downstream node sees this envelope under the loop's node ID:
 
 ```json
-{"result": {"passed": true}, "iterations": 3}
+{"result": {"passed": true}, "iterations": 3, "outcome": "condition_met"}
 ```
 
-A condition that remains false on the final permitted round fails with `E_LOOP_LIMIT`. A true condition on that round succeeds. Expression errors, invalid output, and body failures fail the loop. They do not automatically request another round. Retries belong to the same round.
+`outcome` is `condition_met` when `until` matched within `maxIterations`, or `iteration_limit` when the iteration budget was exhausted (see below). `result` is always the last round's mapped result. Expression errors, invalid output, and body failures fail the loop. They do not automatically request another round. Retries belong to the same round.
+
+## Success and exhausted outputs
+
+A loop has two outputs:
+
+| Edge `from` | Taken when |
+| --- | --- |
+| `refine` (plain, the success output) | `until` matched on any round up to `maxIterations`, including the last one |
+| `refine.exhausted` | `until` was still false after round `maxIterations` |
+
+Exactly one branch is activated; the other is skipped, so a downstream join sees it as a skipped input. No round beyond `maxIterations` ever runs. Any other handle name (for example `refine.success`) is rejected by validation. In the editor the loop node shows labeled **success** and **exhausted** handles.
+
+Exhaustion routes only when `refine.exhausted` is wired. With no exhausted edge, a condition that is false on the final permitted round still fails the run with `E_LOOP_LIMIT`, exactly as before, so existing workflows never silently succeed on a spent budget. Real errors (expression errors, invalid output, body node failures) always fail the run, even when the exhausted output is wired; only an honestly exhausted budget is routed.
+
+Durably, each terminal round records an explicit `outcome` on its `loop.iteration.decided` event. `done` keeps meaning "the stop condition matched": an exhausted round is `done: false, outcome: "iteration_limit"` and carries no `nextState`. A terminal round (either outcome) rejects any later decision and is idempotent on replay, so a restart after the final decision publishes the recorded outcome instead of running another round. Events and runs recorded before this field existed stay valid: `done: true` is read as `condition_met`, and a legacy exhausted `false` round is not terminal, so it still fails with `E_LOOP_LIMIT`.
 
 ## Example
 
@@ -64,6 +79,8 @@ This complete workflow needs no agent credentials and finishes on round 3:
   }
 }
 ```
+
+To branch on exhaustion, add a second edge such as `{"id": "spent", "from": "refine.exhausted", "to": "give-up"}`; the plain `exit` edge keeps its meaning as the success output.
 
 For an agent refinement workflow, replace the body with Implement -> Test -> Review -> End. Return a structured review result, use it in `result`, and set `until` to `result.passed = true`. Existing gates and joins can route alternative paths inside a round.
 

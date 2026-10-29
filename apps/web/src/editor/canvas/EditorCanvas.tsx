@@ -1,4 +1,9 @@
-import { DECISION_UNCERTAIN_HANDLE, type Issue, type WorkflowFile } from "@devchestra/schema";
+import {
+  DECISION_UNCERTAIN_HANDLE,
+  type Issue,
+  LOOP_EXHAUSTED_HANDLE,
+  type WorkflowFile,
+} from "@devchestra/schema";
 import {
   applyNodeChanges,
   Background,
@@ -112,7 +117,7 @@ function buildNodes(
   });
 }
 
-function buildEdges(file: WorkflowFile, selection: EditorSelection): EditorFlowEdge[] {
+export function buildEdges(file: WorkflowFile, selection: EditorSelection): EditorFlowEdge[] {
   const byId = new Map(file.graph.nodes.map((node) => [node.id, node]));
   const edges: EditorFlowEdge[] = [];
   for (const edge of file.graph.edges) {
@@ -136,7 +141,10 @@ function buildEdges(file: WorkflowFile, selection: EditorSelection): EditorFlowE
           : (sourceNode as { type: string }).type === "approval" &&
               sourceEndpoint.handle === "rejected"
             ? "out:rejected"
-            : "out",
+            : (sourceNode as { type: string }).type === "loop" &&
+                sourceEndpoint.handle === LOOP_EXHAUSTED_HANDLE
+              ? `out:${LOOP_EXHAUSTED_HANDLE}`
+              : "out",
       targetHandle:
         (targetNode as { type: string }).type === "join" && targetEndpoint.handle !== null
           ? `in:${targetEndpoint.handle}`
@@ -146,7 +154,7 @@ function buildEdges(file: WorkflowFile, selection: EditorSelection): EditorFlowE
   return edges;
 }
 
-function connectionEndpoints(
+export function connectionEndpoints(
   file: WorkflowFile,
   connection: Connection,
 ): { source: string; target: string } | null {
@@ -168,6 +176,12 @@ function connectionEndpoints(
     const handle = connection.sourceHandle;
     if (handle === null || handle === undefined || !handle.startsWith("out:")) return null;
     source = `${sourceNode.id}.${handle.slice(4)}`;
+  } else if ((sourceNode as { type: string }).type === "loop") {
+    const handle = connection.sourceHandle;
+    if (handle === `out:${LOOP_EXHAUSTED_HANDLE}`)
+      source = `${sourceNode.id}.${LOOP_EXHAUSTED_HANDLE}`;
+    else if (handle === "out" || handle === null || handle === undefined) source = sourceNode.id;
+    else return null;
   }
   let target = targetNode.id;
   if (targetNode.type === "join") {
@@ -560,7 +574,7 @@ export function EditorCanvas({
         </ReactFlow>
         {nodes.length === 0 ? (
           <div className="editor-canvas-empty">
-            <p>Add a node from the palette, or drag one here.</p>
+            <p>Use Add node to choose a step, or drag one here from its menu.</p>
           </div>
         ) : null}
       </div>

@@ -3,6 +3,7 @@ import {
   type ExecutionIdentity,
   type ExecView,
   isCurrentInvocation,
+  loopTerminalOutcome,
   type Path,
   type RunId,
 } from "@devchestra/core";
@@ -372,9 +373,8 @@ export function completeExecution(
     const kind = execution.kind;
     if (kind === "loop") {
       const loop = execution.loop;
-      const last = loop?.rounds.at(-1);
-      if (!loop || !last?.done) {
-        fail("E_CONFLICT", "Loop controller requires a finished done decision before success");
+      if (!loop || loopTerminalOutcome(loop) === null) {
+        fail("E_CONFLICT", "Loop controller requires a terminal decision before success");
       }
       const recorded = execution.recordedOutput;
       if (

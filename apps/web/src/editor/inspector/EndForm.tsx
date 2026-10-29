@@ -1,5 +1,6 @@
 import type { EndNode } from "@devchestra/schema";
 import { Info } from "lucide-react";
+import { ExpandableTextarea } from "./fields/ExpandableTextarea.js";
 import { describedBy, Field } from "./fields/fields.js";
 import { fieldIssue } from "./issues.js";
 import { InspectorSection } from "./Section.js";
@@ -54,16 +55,22 @@ export function EndForm({
           help="A JSONata expression over start parameters and ancestor outputs."
           error={resultIssue}
         >
-          <textarea
+          <ExpandableTextarea
             id="inspector-end-result"
-            className="inspector-input inspector-textarea inspector-code-input"
-            data-testid="inspector-end-result"
-            rows={3}
-            spellCheck={false}
+            label="Result expression (JSONata)"
             value={node.result}
-            aria-invalid={resultIssue ? true : undefined}
-            aria-describedby={describedBy("inspector-end-result", undefined, resultIssue)}
-            onChange={(event) => onPatch({ result: event.currentTarget.value })}
+            onCommit={(next) => onPatch({ result: next })}
+            mode="expression"
+            nodeId={node.id}
+            field="result"
+            pickerTestId="inspector-end-result-variables"
+            textareaTestId="inspector-end-result"
+            rows={3}
+            className="inspector-input inspector-textarea inspector-code-input"
+            spellCheck={false}
+            error={resultIssue}
+            help="A JSONata expression over start parameters and ancestor outputs."
+            describedBy={describedBy("inspector-end-result", undefined, resultIssue)}
           />
         </Field>
         <p className="inspector-note" data-testid="inspector-end-scope-hint" role="note">

@@ -7,9 +7,11 @@ import { Dialog } from "../controls/Dialog.js";
 import { createDefaultNode } from "../model/graph.js";
 import type { EditorSelection } from "../model/types.js";
 import { useBufferFlag } from "./BufferContext.js";
+import { ExpandableTextarea } from "./fields/ExpandableTextarea.js";
 import { describedBy, Field } from "./fields/fields.js";
 import { useBufferedNumber } from "./fields/useBufferedNumber.js";
 import { useBufferedText } from "./fields/useBufferedText.js";
+import { PickerScopeContext, usePickerScope } from "./fields/VariablePicker.js";
 import { containingIssue, fieldIssue } from "./issues.js";
 import { InspectorSection } from "./Section.js";
 import { SchemaEditor } from "./schema/SchemaEditor.js";
@@ -107,7 +109,7 @@ export function LoopForm({
             id="inspector-loop-max"
             label="Max iterations"
             required
-            help="Required integer from 1 to 1000."
+            help="Required integer from 1 to 1000. Connect the exhausted output to route when the budget runs out; if it is unconnected, exhaustion fails the run with E_LOOP_LIMIT."
             error={max.localError ?? maxIssue}
           >
             <input
@@ -135,15 +137,23 @@ export function LoopForm({
             help="Evaluated once in the parent scope. Defaults to {}."
             error={initialIssue}
           >
-            <textarea
+            <ExpandableTextarea
               id="inspector-loop-initial"
-              className="inspector-input inspector-textarea inspector-code-input"
-              data-testid="inspector-loop-initial"
-              rows={2}
-              spellCheck={false}
+              label="Initial state (JSONata, optional)"
               value={initial.text}
-              aria-describedby={describedBy("inspector-loop-initial", undefined, initialIssue)}
-              onChange={(e) => initial.onChange(e.currentTarget.value)}
+              onCommit={initial.onChange}
+              mode="expression"
+              nodeId={node.id}
+              field="initialState"
+              pickerTestId="inspector-loop-initial-variables"
+              textareaTestId="inspector-loop-initial"
+              rows={2}
+              className="inspector-input inspector-textarea inspector-code-input"
+              spellCheck={false}
+              error={initialIssue}
+              help="Evaluated once in the parent scope. Defaults to {}."
+              bufferKey={`loop.${node.id}.initialState`}
+              describedBy={describedBy("inspector-loop-initial", undefined, initialIssue)}
             />
           </Field>
           <Field
@@ -153,41 +163,59 @@ export function LoopForm({
             help="Evaluated over the current round's ancestors of End."
             error={result.localError ?? resultIssue}
           >
-            <textarea
+            <ExpandableTextarea
               id="inspector-loop-result"
-              className="inspector-input inspector-textarea inspector-code-input"
-              data-testid="inspector-loop-result"
-              rows={3}
-              spellCheck={false}
+              label="Result (JSONata)"
               value={result.text}
-              aria-describedby={describedBy(
+              onCommit={result.onChange}
+              validate={(next) => nonEmpty(next, "Result")}
+              mode="expression"
+              nodeId={node.id}
+              field="result"
+              pickerTestId="inspector-loop-result-variables"
+              textareaTestId="inspector-loop-result"
+              rows={3}
+              className="inspector-input inspector-textarea inspector-code-input"
+              spellCheck={false}
+              error={result.localError ?? resultIssue}
+              help="Evaluated over the current round's ancestors of End."
+              bufferKey={`loop.${node.id}.result`}
+              describedBy={describedBy(
                 "inspector-loop-result",
                 undefined,
                 result.localError ?? resultIssue,
               )}
-              onChange={(e) => result.onChange(e.currentTarget.value)}
             />
           </Field>
           <Field
             id="inspector-loop-until"
             label="Until (JSONata boolean)"
             required
-            help="True completes the loop. False on the final round fails with E_LOOP_LIMIT."
+            help="True completes the loop through the success output. False on the final round takes the exhausted output, or fails with E_LOOP_LIMIT when it is unconnected."
             error={until.localError ?? untilIssue}
           >
-            <textarea
+            <ExpandableTextarea
               id="inspector-loop-until"
-              className="inspector-input inspector-textarea inspector-code-input"
-              data-testid="inspector-loop-until"
-              rows={2}
-              spellCheck={false}
+              label="Until (JSONata boolean)"
               value={until.text}
-              aria-describedby={describedBy(
+              onCommit={until.onChange}
+              validate={(next) => nonEmpty(next, "Until")}
+              mode="expression"
+              nodeId={node.id}
+              field="until"
+              pickerTestId="inspector-loop-until-variables"
+              textareaTestId="inspector-loop-until"
+              rows={2}
+              className="inspector-input inspector-textarea inspector-code-input"
+              spellCheck={false}
+              error={until.localError ?? untilIssue}
+              help="True completes the loop through the success output. False on the final round takes the exhausted output, or fails with E_LOOP_LIMIT when it is unconnected."
+              bufferKey={`loop.${node.id}.until`}
+              describedBy={describedBy(
                 "inspector-loop-until",
                 undefined,
                 until.localError ?? untilIssue,
               )}
-              onChange={(e) => until.onChange(e.currentTarget.value)}
             />
           </Field>
           <Field
@@ -196,15 +224,23 @@ export function LoopForm({
             help="Evaluated when continuing. Defaults to loop.state."
             error={nextIssue}
           >
-            <textarea
+            <ExpandableTextarea
               id="inspector-loop-next"
-              className="inspector-input inspector-textarea inspector-code-input"
-              data-testid="inspector-loop-next"
-              rows={2}
-              spellCheck={false}
+              label="Next state (JSONata, optional)"
               value={next.text}
-              aria-describedby={describedBy("inspector-loop-next", undefined, nextIssue)}
-              onChange={(e) => next.onChange(e.currentTarget.value)}
+              onCommit={next.onChange}
+              mode="expression"
+              nodeId={node.id}
+              field="nextState"
+              pickerTestId="inspector-loop-next-variables"
+              textareaTestId="inspector-loop-next"
+              rows={2}
+              className="inspector-input inspector-textarea inspector-code-input"
+              spellCheck={false}
+              error={nextIssue}
+              help="Evaluated when continuing. Defaults to loop.state."
+              bufferKey={`loop.${node.id}.nextState`}
+              describedBy={describedBy("inspector-loop-next", undefined, nextIssue)}
             />
           </Field>
         </div>
@@ -264,21 +300,50 @@ function toBodyFile(node: LoopNode, draft: Graph): WorkflowFile {
 function BodyNodeInspector({
   selected,
   edges,
+  draft,
+  loopId,
   setDraft,
   renderBodyInspector,
 }: {
   selected: WorkflowNode;
   edges: readonly Edge[];
+  draft: Graph;
+  loopId: string;
   setDraft: React.Dispatch<React.SetStateAction<Graph>>;
   renderBodyInspector: BodyInspectorRender;
 }) {
   if (selected.type === "loop") return <p className="faint">Nested loops are not supported.</p>;
-  return renderBodyInspector(
-    selected,
-    [],
-    (patch) => patchSelected(setDraft, selected.id, patch),
-    edges,
-    (patch, remove) => routeSelected(setDraft, selected.id, patch, remove),
+  return (
+    <BodyScopeProvider draft={draft} loopId={loopId} localNodeId={selected.id}>
+      {renderBodyInspector(
+        selected,
+        [],
+        (patch) => patchSelected(setDraft, selected.id, patch),
+        edges,
+        (patch, remove) => routeSelected(setDraft, selected.id, patch, remove),
+      )}
+    </BodyScopeProvider>
+  );
+}
+
+function BodyScopeProvider({
+  draft,
+  loopId,
+  localNodeId,
+  children,
+}: {
+  draft: Graph;
+  loopId: string;
+  localNodeId: string;
+  children: React.ReactNode;
+}) {
+  const outer = usePickerScope();
+  return (
+    <PickerScopeContext.Provider
+      value={{ parentGraph: outer.parentGraph, draft, loopId, localNodeId }}
+    >
+      {children}
+    </PickerScopeContext.Provider>
   );
 }
 
@@ -422,8 +487,8 @@ function LoopBodyEditor({
         </ul>
       ) : null}
       <div className="loop-body-layout">
-        <NodePalette file={bodyFile} onAdd={addNode} hiddenTypes={["loop"]} />
         <div className="loop-body-canvas" data-testid="loop-body-canvas">
+          <NodePalette file={bodyFile} onAdd={addNode} hiddenTypes={["loop"]} />
           <EditorCanvas
             file={bodyFile}
             selection={selection}
@@ -447,6 +512,8 @@ function LoopBodyEditor({
             <BodyNodeInspector
               selected={selected}
               edges={bodyFile.graph.edges}
+              draft={draft}
+              loopId={node.id}
               setDraft={setDraft}
               renderBodyInspector={renderBodyInspector}
             />

@@ -52,16 +52,54 @@ function Harness({
 }
 
 describe("NodePalette", () => {
+  it("dismisses on outside click and Escape, and supports keyboard navigation", () => {
+    render(<NodePalette file={sample()} onAdd={() => undefined} />);
+    const trigger = screen.getByTestId("palette-toggle");
+    fireEvent.click(trigger);
+    const agent = screen.getByTestId("palette-add-agent");
+    expect(agent).toHaveFocus();
+    fireEvent.keyDown(agent, { key: "ArrowDown" });
+    expect(screen.getByTestId("palette-add-shell")).toHaveFocus();
+    fireEvent.keyDown(document.activeElement as Element, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(trigger).toHaveFocus();
+    fireEvent.click(trigger);
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("preserves drag-to-canvas payloads and closes after dragging", () => {
+    render(<NodePalette file={sample()} onAdd={() => undefined} />);
+    fireEvent.click(screen.getByTestId("palette-toggle"));
+    const setData = vi.fn();
+    const item = screen.getByTestId("palette-add-agent");
+    fireEvent.dragStart(item, { dataTransfer: { setData, effectAllowed: "none" } });
+    expect(setData).toHaveBeenCalledWith("application/devchestra-node", "agent");
+    expect(setData).toHaveBeenCalledWith("text/node", "agent");
+    fireEvent.dragEnd(item);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("cannot open while disabled", () => {
+    render(<NodePalette file={sample()} onAdd={() => undefined} disabled />);
+    expect(screen.getByTestId("palette-toggle")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("palette-toggle"));
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
   it("hides Start while present but keeps End available for exclusive paths", () => {
     const onAdd = vi.fn();
     const file = sample();
     render(<NodePalette file={file} onAdd={onAdd} />);
+    expect(screen.queryByRole("menu")).toBeNull();
+    fireEvent.click(screen.getByTestId("palette-toggle"));
     expect(screen.queryByTestId("palette-add-start")).toBeNull();
     expect(screen.getByTestId("palette-add-end")).toBeInTheDocument();
     expect(screen.getByTestId("palette-add-agent")).toBeInTheDocument();
     expect(screen.getByTestId("palette-add-shell")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("palette-add-agent"));
     expect(onAdd).toHaveBeenCalledWith("agent");
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 
   it("offers Start and End for a blank graph", () => {
@@ -76,6 +114,7 @@ describe("NodePalette", () => {
         onAdd={() => undefined}
       />,
     );
+    fireEvent.click(screen.getByTestId("palette-toggle"));
     expect(screen.getByTestId("palette-add-start")).toBeInTheDocument();
     expect(screen.getByTestId("palette-add-end")).toBeInTheDocument();
   });

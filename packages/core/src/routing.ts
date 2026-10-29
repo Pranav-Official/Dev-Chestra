@@ -1,4 +1,5 @@
-import type { NodeKind } from "./events.js";
+import type { LoopOutcome, NodeKind } from "./events.js";
+import { loopTerminalOutcome } from "./reducer-types.js";
 import type { ExecStatus } from "./transitions.js";
 
 /** Derived edge state from spec 12.4. Edges are never stored. */
@@ -37,7 +38,17 @@ export interface RoutingExecutionState {
   // callers pass run views straight in without mapping.
   approvalDecision?: { decision: "approve" | "reject"; requestId?: string | null } | null;
   decision?: { routing: { branch: string | null } } | null;
+  /**
+   * Durable loop controller (ExecView.loop passes straight in). A succeeded
+   * loop with no controller or no terminal round is a legacy success.
+   */
+  loop?: {
+    rounds: readonly { done: boolean; outcome?: LoopOutcome | null }[];
+  } | null;
 }
+
+/** Source handle of a loop's iteration-budget-exhausted output. */
+export const LOOP_EXHAUSTED_HANDLE = "exhausted";
 
 export interface RoutingView {
   /** Keyed by edge id. */
@@ -95,6 +106,12 @@ function edgeState(
   if (node?.type === "decision") {
     const chosen = execution?.decision?.routing.branch ?? null;
     return chosen !== null && source.handle === chosen ? "active" : "dead";
+  }
+  if (node?.type === "loop") {
+    // Plain endpoint = condition met (and every legacy loop); `.exhausted`
+    // activates only when the durable terminal round hit the iteration limit.
+    const exhausted = loopTerminalOutcome(execution?.loop) === "iteration_limit";
+    return (source.handle === LOOP_EXHAUSTED_HANDLE) === exhausted ? "active" : "dead";
   }
   if (node?.type === "approval") {
     const decision = execution?.approvalDecision?.decision;

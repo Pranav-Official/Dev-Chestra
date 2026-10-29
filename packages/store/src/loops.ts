@@ -1,11 +1,17 @@
 import {
   canonicalJson,
+  type ExecutionContextRef,
   type ExecutionIdentity,
   type ExecView,
+  isExecutionContextRef,
   isRecord,
   type LoopView,
+  loopDecisionProblem,
+  loopRoundOutcome,
+  loopTerminalOutcome,
   MAX_LOOP_HISTORY,
 } from "@devchestra/core";
+import { requireContextCapture } from "./context-captures.js";
 import { appendEvents } from "./events.js";
 import { requireCurrent } from "./executions.js";
 import { assertRunActive, loadView } from "./projection.js";
@@ -70,20 +76,47 @@ function sameJson(left: unknown, right: unknown): boolean {
 }
 
 export function startLoop(runtime: Runtime, input: StartLoopInput): StartLoopResult {
-  const parent = checkedObject(input.parent, "Loop parent");
+  const hasParent = input.parent !== undefined;
+  const hasParentRef = input.parentRef !== undefined;
+  if ((hasParent ? 1 : 0) + (hasParentRef ? 1 : 0) !== 1) {
+    fail("E_VALIDATION", "Loop start must carry exactly one of parent or parentRef");
+  }
+  let parent: Record<string, unknown> | null = null;
+  let parentRef: ExecutionContextRef | null = null;
+  if (hasParentRef) {
+    if (!isExecutionContextRef(input.parentRef)) {
+      fail("E_VALIDATION", "Loop parentRef must be a tagged execution-context reference");
+    }
+    parentRef = input.parentRef as ExecutionContextRef;
+    // Ownership + existence checked here so corrupt/cross-run refs fail fast.
+    // The manifest itself carries the values; the event stays small.
+    requireContextCapture(
+      runtime,
+      parentRef,
+      input.identity.runId as string,
+      input.identity.path as string,
+    );
+  } else {
+    parent = checkedObject(input.parent, "Loop parent");
+    checkedSize(parent, "Loop parent");
+    rejectSecrets(runtime, parent, "Loop parent");
+  }
   const state = checkedObject(input.state, "Loop state");
-  checkedSize(parent, "Loop parent");
   checkedSize(state, "Loop state");
-  rejectSecrets(runtime, parent, "Loop parent");
   rejectSecrets(runtime, state, "Loop state");
 
   const execution = requireLoopController(runtime, input.identity);
   const existing = execution.loop;
   if (existing !== null) {
+    const sameRef = (existing.parentRef?.captureId ?? null) === (parentRef?.captureId ?? null);
+    const sameParent =
+      parentRef !== null || existing.parentRef !== null
+        ? sameRef
+        : sameJson(existing.parent, parent);
     if (
       existing.iteration === 1 &&
       existing.rounds.length === 0 &&
-      sameJson(existing.parent, parent) &&
+      sameParent &&
       sameJson(existing.state, state)
     ) {
       return { loop: existing, eventId: null, duplicate: true };
@@ -99,13 +132,22 @@ export function startLoop(runtime: Runtime, input: StartLoopInput): StartLoopRes
       path: input.identity.path,
       type: "loop.started",
       actor: "engine",
-      payload: {
-        iteration: 1,
-        parent: { ...parent },
-        state: { ...state },
-        attempt: input.identity.attempt,
-        generation: input.identity.generation,
-      },
+      payload:
+        parentRef !== null
+          ? {
+              iteration: 1,
+              parentRef: { kind: parentRef.kind, captureId: parentRef.captureId },
+              state: { ...state },
+              attempt: input.identity.attempt,
+              generation: input.identity.generation,
+            }
+          : {
+              iteration: 1,
+              parent: { ...(parent as Record<string, unknown>) },
+              state: { ...state },
+              attempt: input.identity.attempt,
+              generation: input.identity.generation,
+            },
     } as never,
   ]);
   if (!event) fail("E_INTERNAL", "Loop start event was not appended");
@@ -131,9 +173,13 @@ export function decideLoop(runtime: Runtime, input: DecideLoopInput): DecideLoop
     nextState = checkedObject(input.nextState, "Loop nextState");
     checkedSize(nextState, "Loop nextState");
   }
-  if (input.done && nextState !== undefined) {
-    fail("E_VALIDATION", "Loop done decision must not carry nextState");
-  }
+  const problem = loopDecisionProblem({
+    done: input.done,
+    outcome: input.outcome,
+    nextState,
+  });
+  if (problem !== null) fail("E_VALIDATION", problem);
+  const outcome = loopRoundOutcome({ done: input.done, outcome: input.outcome ?? null });
   rejectSecrets(runtime, input.result, "Loop result");
   if (nextState !== undefined) rejectSecrets(runtime, nextState, "Loop nextState");
 
@@ -150,6 +196,7 @@ export function decideLoop(runtime: Runtime, input: DecideLoopInput): DecideLoop
     const same =
       sameJson(existing.result, input.result) &&
       existing.done === input.done &&
+      loopRoundOutcome(existing) === outcome &&
       sameJson(existing.nextState ?? null, nextState ?? null);
     if (same) {
       return { loop: current, eventId: null, duplicate: true };
@@ -158,7 +205,7 @@ export function decideLoop(runtime: Runtime, input: DecideLoopInput): DecideLoop
       existing,
     });
   }
-  if (current.rounds.some((round) => round.done)) {
+  if (loopTerminalOutcome(current) !== null) {
     fail("E_CONFLICT", "Loop is already finished; no further decisions", {
       path: input.identity.path,
       iteration: input.iteration,
@@ -182,6 +229,7 @@ export function decideLoop(runtime: Runtime, input: DecideLoopInput): DecideLoop
         result: JSON.parse(resultText as string),
         done: input.done,
         ...(nextState === undefined ? {} : { nextState: { ...nextState } }),
+        ...(outcome === null ? {} : { outcome }),
         attempt: input.identity.attempt,
         generation: input.identity.generation,
       },

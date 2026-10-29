@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import type { ApprovalSummary, RunLayout, RunWorkspaceSelection } from "@devchestra/api";
 import {
   type Path,
+  parsePath,
   type RunId,
   type RunStatus,
   DevChestraError as StoreError,
@@ -17,6 +18,7 @@ import type {
   RunSummary as StoreRunSummary,
 } from "@devchestra/store";
 import { DevChestraError } from "../errors.js";
+import { ensureProjectSkill } from "../workflows/skill.js";
 import type {
   BrowserQueryPort,
   EventPage,
@@ -219,6 +221,9 @@ export function createStoreQueryPort(store: Store): BrowserQueryPort {
     },
     getProject,
     registerProject(input: RegisterProjectCommand): ProjectView {
+      // Seed (or backfill) the agent guide before touching the registry, so a path
+      // that cannot hold it is rejected instead of being half-registered.
+      ensureProjectSkill(input.path);
       const existing = store.projects.findByPath(input.path);
       if (existing !== null) {
         store.projects.ensure({
@@ -241,6 +246,7 @@ export function createStoreQueryPort(store: Store): BrowserQueryPort {
       return toProject(record);
     },
     relinkProject(input: RelinkProjectCommand): ProjectView {
+      ensureProjectSkill(input.path);
       const record = store.projects.relink({
         projectId: input.projectId,
         path: input.path,
@@ -308,6 +314,141 @@ export function createStoreQueryPort(store: Store): BrowserQueryPort {
     },
     getOutput(runId: string, path: string, attempt: number) {
       return store.outputs.get({ runId: runId as RunId, path: path as Path, attempt });
+    },
+    getOutputById(outputId: string) {
+      return store.outputs.getById(outputId);
+    },
+    getOutputMetadataById(outputId: string) {
+      const meta = store.outputs.getMetadataById(outputId);
+      if (!meta) return null;
+      return {
+        id: meta.id,
+        runId: meta.runId as string,
+        path: meta.path as string,
+        attempt: meta.attempt,
+        generation: meta.generation,
+        hash: meta.hash,
+        bytes: meta.bytes,
+      };
+    },
+    listOutputMetadata(runId: string, input: { path?: string; limit: number; cursor?: string }) {
+      const page = store.outputs.listMetadata({
+        runId: runId as RunId,
+        ...(input.path === undefined ? {} : { path: input.path as Path }),
+        limit: input.limit,
+        ...(input.cursor === undefined ? {} : { cursor: input.cursor }),
+      });
+      return {
+        items: page.items.map((m) => ({
+          id: m.id,
+          path: m.path as string,
+          attempt: m.attempt,
+          generation: m.generation,
+          kind: m.kind,
+          hash: m.hash,
+          bytes: m.bytes,
+          createdAt: m.createdAt,
+        })),
+        nextCursor: page.nextCursor,
+      };
+    },
+    runContext(
+      runId: string,
+      query: { pathPrefix?: string; status?: string; limit: number; cursor?: string },
+    ) {
+      // Metadata-first: executions table rows (no projection hydration) plus a
+      // single bounded outputs-metadata query mapped by output id (no N+1, no
+      // JSON hydration). Schemas resolve via the frozen run snapshot served by
+      // run detail; see docs/execution-context.md.
+      const limit = Math.min(Math.max(query.limit, 1), 500);
+      let rows = store.executions.list(runId as RunId);
+      if (query.pathPrefix !== undefined && query.pathPrefix !== "") {
+        rows = rows.filter((r) => (r.path as string).startsWith(query.pathPrefix as string));
+      }
+      if (query.status !== undefined && query.status !== "") {
+        rows = rows.filter((r) => r.status === query.status);
+      }
+      rows.sort((a, b) =>
+        (a.path as string) < (b.path as string)
+          ? -1
+          : (a.path as string) > (b.path as string)
+            ? 1
+            : 0,
+      );
+      if (query.cursor !== undefined && query.cursor !== "") {
+        rows = rows.filter((r) => (r.path as string) > (query.cursor as string));
+      }
+      const page = rows.slice(0, limit + 1);
+      const hasMore = page.length > limit;
+      const items = page.slice(0, limit);
+      const metaPage = store.outputs.listMetadata({ runId: runId as RunId, limit: 1000 });
+      const metaById = new Map(metaPage.items.map((m) => [m.id, m] as const));
+      // Deterministic outputs are not linked from the executions row, so
+      // index accepted/deterministic rows by path+attempt as well.
+      const metaByPathAttempt = new Map(
+        metaPage.items.map((m) => [`${m.path as string}:${m.attempt}`, m] as const),
+      );
+      const loopEvents = store.events.list(runId as RunId, {
+        types: ["loop.started", "loop.iteration.decided"],
+      });
+      const continuedByPath = new Map<string, number>();
+      const startedPaths = new Set<string>();
+      for (const event of loopEvents) {
+        if (event.path === undefined) continue;
+        if (event.type === "loop.started") startedPaths.add(event.path as string);
+        else if (event.type === "loop.iteration.decided") {
+          const decided = event.payload as { done?: unknown; outcome?: unknown };
+          // A terminal iteration_limit round leaves the controller iteration in place.
+          if (decided.done === false && decided.outcome !== "iteration_limit") {
+            continuedByPath.set(
+              event.path as string,
+              (continuedByPath.get(event.path as string) ?? 0) + 1,
+            );
+          }
+        }
+      }
+      const entries = items.map((exec) => {
+        const outputId = exec.outputId;
+        const meta = outputId
+          ? (metaById.get(outputId) ?? store.outputs.getMetadataById(outputId))
+          : (metaByPathAttempt.get(`${exec.path as string}:${exec.attempt}`) ?? null);
+        const segments = parsePath(exec.path as string);
+        let loopRound: number | null = null;
+        if (segments.ok) {
+          for (let i = segments.value.length - 1; i >= 0; i--) {
+            const round = segments.value[i]?.round;
+            if (round !== undefined) {
+              loopRound = round;
+              break;
+            }
+          }
+        }
+        let captureId: string | null = null;
+        if (exec.kind === "loop" && loopRound === null) {
+          // Controller iteration without loading the full projection.
+          const continued = continuedByPath.get(exec.path as string) ?? 0;
+          loopRound = startedPaths.has(exec.path as string) ? 1 + continued : null;
+          const refEvent = loopEvents.find(
+            (e) => e.path === exec.path && e.type === "loop.started",
+          );
+          const ref = (refEvent?.payload as { parentRef?: { captureId?: string } } | undefined)
+            ?.parentRef;
+          captureId = typeof ref?.captureId === "string" ? ref.captureId : null;
+        }
+        return {
+          path: exec.path as string,
+          nodeId: exec.nodeId,
+          kind: exec.kind,
+          status: exec.status,
+          attempt: exec.attempt,
+          generation: exec.generation,
+          loopRound,
+          output: meta ? { id: meta.id, hash: meta.hash, bytes: meta.bytes } : null,
+          captureId,
+        };
+      });
+      const last = entries[entries.length - 1];
+      return { entries, nextCursor: hasMore && last ? last.path : null };
     },
     counts() {
       let runs = 0;

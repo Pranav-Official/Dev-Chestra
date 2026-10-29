@@ -32,6 +32,7 @@ import {
   getExecution,
   listExecutions,
 } from "./executions.js";
+import { createContextCapture, getContextCapture, resolveCaptureScope } from "./context-captures.js";
 import { decideLoop, startLoop } from "./loops.js";
 import { applyMigrations } from "./migrate.js";
 import { getOutput, recordDeterministic } from "./outputs.js";
@@ -54,7 +55,9 @@ import {
 import {
   executionHistory,
   getOutputById,
+  getOutputMetadataById,
   listOutputsByProvenance,
+  listOutputsMetadata,
   listRuns,
   pageEvents,
   snapshotRun,
@@ -81,6 +84,8 @@ import type {
   CompleteAcceptedAfterRecoveryInput,
   CompleteExecutionInput,
   CompleteExecutionResult,
+  ContextCaptureRecord,
+  CreateContextCaptureInput,
   CreateRunInput,
   CreateRunResult,
   DecideLoopInput,
@@ -92,6 +97,8 @@ import type {
   ExecutionHistory,
   ExecutionRow,
   OpenStoreOptions,
+  OutputMetadata,
+  OutputMetadataPage,
   OutputProvenancePage,
   OutputProvenanceQuery,
   OutputRecord,
@@ -153,6 +160,8 @@ export interface OutputsApi {
   get(identity: Pick<ExecutionIdentity, "runId" | "path" | "attempt">): AcceptedOutput | null;
   getById(id: string): OutputRecord | null;
   listByProvenance(query: OutputProvenanceQuery): OutputProvenancePage;
+  getMetadataById(id: string): OutputMetadata | null;
+  listMetadata(query: OutputProvenanceQuery): OutputMetadataPage;
 }
 
 export interface ExecutionsApi {
@@ -205,6 +214,13 @@ export interface LoopsApi {
   decide(input: DecideLoopInput): DecideLoopResult;
 }
 
+export interface ContextCapturesApi {
+  create(input: CreateContextCaptureInput): ContextCaptureRecord;
+  get(captureId: string): ContextCaptureRecord | null;
+  /** Verified hydration of a capture to its parent scope (fresh object per call). */
+  resolve(runId: RunId, captureId: string): Record<string, unknown>;
+}
+
 export interface ApprovalsApi {
   request(input: RequestApprovalInput): RequestApprovalResult;
   resolve(input: ResolveApprovalInput): ResolveApprovalResult;
@@ -237,6 +253,7 @@ export class Store {
   readonly recovery: RecoveryApi;
   readonly routing: RoutingApi;
   readonly loops: LoopsApi;
+  readonly contextCaptures: ContextCapturesApi;
   readonly approvals: ApprovalsApi;
   readonly security: SecurityApi;
 
@@ -295,6 +312,8 @@ export class Store {
       get: (identity) => getOutput(this.#runtime, identity.runId, identity.path, identity.attempt),
       getById: (id) => getOutputById(this.#runtime, id),
       listByProvenance: (query) => listOutputsByProvenance(this.#runtime, query),
+      getMetadataById: (id) => getOutputMetadataById(this.#runtime, id),
+      listMetadata: (query) => listOutputsMetadata(this.#runtime, query),
     };
     this.executions = {
       ensure: (input) => this.tx(() => ensureExecution(this.#runtime, input)),
@@ -341,6 +360,11 @@ export class Store {
     this.loops = {
       start: (input) => this.tx(() => startLoop(this.#runtime, input)),
       decide: (input) => this.tx(() => decideLoop(this.#runtime, input)),
+    };
+    this.contextCaptures = {
+      create: (input) => this.tx(() => createContextCapture(this.#runtime, input)),
+      get: (captureId) => getContextCapture(this.#runtime, captureId),
+      resolve: (runId, captureId) => resolveCaptureScope(this.#runtime, runId, captureId),
     };
     this.approvals = {
       request: (input) => this.tx(() => requestApproval(this.#runtime, input)),

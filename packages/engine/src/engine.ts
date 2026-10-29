@@ -705,6 +705,7 @@ function executionStates(
       joinResolution: execution.joinResolution,
       approvalDecision: ad ? { decision: ad.decision, requestId: ad.requestId } : null,
       decision: execution.decision,
+      loop: execution.loop,
     };
   }
   return out;

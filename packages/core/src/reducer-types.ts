@@ -6,6 +6,7 @@ import type {
   JsonObject,
   JsonValue,
   LoopIterationDecidedPayload,
+  LoopOutcome,
   NodeKind,
   RunPauseReason,
   ValidationIssue,
@@ -104,20 +105,70 @@ export interface DecisionRef {
 export interface LoopRoundView {
   iteration: number;
   result: JsonValue;
+  /** True only when the stop condition matched. */
   done: boolean;
   nextState: JsonObject | null;
+  /**
+   * Terminal outcome; null for a continuing round. Legacy `done=true` rounds
+   * are normalized to `condition_met` when projected.
+   */
+  outcome?: LoopOutcome | null;
   eventId: number;
+}
+
+/** Normalize a round's terminal outcome (legacy done=true infers condition_met). */
+export function loopRoundOutcome(round: {
+  done: boolean;
+  outcome?: LoopOutcome | null;
+}): LoopOutcome | null {
+  return round.outcome ?? (round.done ? "condition_met" : null);
+}
+
+/** Terminal outcome of the loop's final round, or null while it is still running. */
+export function loopTerminalOutcome(
+  loop: { rounds: readonly { done: boolean; outcome?: LoopOutcome | null }[] } | null | undefined,
+): LoopOutcome | null {
+  const last = loop?.rounds.at(-1);
+  return last === undefined ? null : loopRoundOutcome(last);
+}
+
+/** Validate the done/outcome/nextState combination of a decision; returns a problem or null. */
+export function loopDecisionProblem(input: {
+  done: boolean;
+  outcome?: unknown;
+  nextState?: unknown;
+}): string | null {
+  const { done, outcome, nextState } = input;
+  if (outcome !== undefined && outcome !== "condition_met" && outcome !== "iteration_limit") {
+    return "Loop outcome must be 'condition_met' or 'iteration_limit'";
+  }
+  if (outcome === "condition_met" && !done) {
+    return "Loop outcome 'condition_met' requires done=true";
+  }
+  if (outcome === "iteration_limit" && done) {
+    return "Loop outcome 'iteration_limit' requires done=false";
+  }
+  if ((done || outcome !== undefined) && nextState !== undefined) {
+    return "A terminal loop decision must not carry nextState";
+  }
+  return null;
 }
 
 /**
  * Durable loop controller state. `iteration` is the current round to execute;
- * a `done=false` decision advances it synchronously, a `done=true` decision
- * leaves it in place so the engine can publish the final output idempotently
- * after restart. `parent` is the immutable scope captured at start.
+ * a continuing decision advances it synchronously, a terminal decision
+ * (`done=true` or outcome `iteration_limit`) leaves it in place so the engine
+ * can publish the final output idempotently after restart.
+ *
+ * `parent` is the immutable scope captured at start for legacy events.
+ * New captures store only `parentRef`; `parent` is then an empty placeholder
+ * and MUST NOT be hydrated back into the projection (see execution-context).
  */
 export interface LoopView {
   iteration: number;
   parent: JsonObject;
+  /** Reference-backed capture; null for legacy inline-parent controllers. */
+  parentRef: { kind: "devchestra.execution-context/v1"; captureId: string } | null;
   state: JsonObject;
   rounds: LoopRoundView[];
 }
@@ -134,6 +185,7 @@ export function loopRoundFromPayload(
     result: payload.result,
     done: payload.done,
     nextState: payload.nextState ?? null,
+    outcome: loopRoundOutcome(payload),
     eventId,
   };
 }
@@ -298,8 +350,7 @@ export function isDurablyComplete(exec: ExecView): boolean {
   }
   if (exec.kind === "loop") {
     if (exec.loop === null) return false;
-    const last = exec.loop.rounds.at(-1);
-    if (!last?.done) return false;
+    if (loopTerminalOutcome(exec.loop) === null) return false;
     const recorded = exec.recordedOutput;
     if (
       recorded === null ||

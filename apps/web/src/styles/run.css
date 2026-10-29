@@ -381,3 +381,23 @@ button.event-row:hover {
   stroke-dasharray: 2 5;
   opacity: 0.35;
 }
+
+/* Loop details: .note is a flex row; stack sections full width and keep JSON inside the panel. */
+.note.loop-detail {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+.loop-detail > * {
+  min-width: 0;
+  max-width: 100%;
+}
+.loop-detail pre.code {
+  width: 100%;
+  box-sizing: border-box;
+  max-height: 320px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}

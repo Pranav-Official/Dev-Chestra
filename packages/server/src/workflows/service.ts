@@ -25,6 +25,7 @@ import {
   replaceManagedFile,
 } from "./io.js";
 import { withProjectLock } from "./lock.js";
+import { ensureProjectSkill } from "./skill.js";
 
 export interface WorkflowProject {
   id: string;
@@ -122,6 +123,8 @@ export class ManagedWorkflowService {
     if (paths === null) {
       throw new DevChestraError("E_NOT_FOUND", "The project has no managed workflows yet.");
     }
+    // Backfill for projects registered before the guide existed; no-op when present.
+    if (create) ensureProjectSkill(root);
     return paths;
   }
 

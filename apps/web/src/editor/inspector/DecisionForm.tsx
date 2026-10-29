@@ -29,6 +29,7 @@ import {
   DecisionTester,
   type DecisionTestRunner,
 } from "./DecisionTester.js";
+import { ExpandableTextarea } from "./fields/ExpandableTextarea.js";
 import { describedBy, Field } from "./fields/fields.js";
 import { useBufferedHandle } from "./fields/useBufferedHandle.js";
 import { useBufferedNumber } from "./fields/useBufferedNumber.js";
@@ -754,12 +755,13 @@ export function DecisionForm({
   );
   const modelError = model.localError ?? modelIssue;
 
+  const validateInstructions = (next: string): string | null => {
+    if (next.length < 1 || next.length > 4000) return "Instructions must be 1–4000 characters.";
+    return null;
+  };
   const instructions = useBufferedText(
     node.instructions,
-    (next) => {
-      if (next.length < 1 || next.length > 4000) return "Instructions must be 1–4000 characters.";
-      return null;
-    },
+    validateInstructions,
     (next) => onPatch({ instructions: next }),
     `decision.${node.id}.instructions`,
   );
@@ -832,17 +834,7 @@ export function DecisionForm({
             help="Template over run params and ancestor outputs. Supports {{ start.param }} and ancestor output templates."
             error={stateIssue}
           >
-            <textarea
-              id="decision-state"
-              className="inspector-input inspector-textarea inspector-code-input"
-              data-testid="decision-state"
-              rows={4}
-              spellCheck={false}
-              value={node.state}
-              aria-invalid={stateIssue ? true : undefined}
-              aria-describedby={describedBy("decision-state", undefined, stateIssue)}
-              onChange={(event) => onPatch({ state: event.currentTarget.value })}
-            />
+            <StatePicker node={node} onPatch={onPatch} />
           </Field>
           <Field
             id="decision-instructions"
@@ -851,16 +843,22 @@ export function DecisionForm({
             help="The single question asked of the decision model, 1–4000 characters."
             error={instructionsError}
           >
-            <textarea
+            <ExpandableTextarea
               id="decision-instructions"
-              className="inspector-input inspector-textarea"
-              data-testid="decision-instructions"
-              rows={4}
+              label="Instructions"
               value={instructions.text}
+              onCommit={instructions.onChange}
+              validate={validateInstructions}
+              mode="none"
+              nodeId={node.id}
+              field="instructions"
+              textareaTestId="decision-instructions"
+              rows={4}
               maxLength={4000}
-              aria-invalid={instructionsError ? true : undefined}
-              aria-describedby={describedBy("decision-instructions", undefined, instructionsError)}
-              onChange={(event) => instructions.onChange(event.currentTarget.value)}
+              error={instructionsError}
+              help="The single question asked of the decision model, 1–4000 characters."
+              bufferKey={`decision.${node.id}.instructions`}
+              describedBy={describedBy("decision-instructions", undefined, instructionsError)}
             />
           </Field>
         </div>
@@ -1028,5 +1026,32 @@ function MinConfidenceInput({
         onChange={(event) => buffered.onChange(event.currentTarget.value)}
       />
     </Field>
+  );
+}
+
+function StatePicker({
+  node,
+  onPatch,
+}: {
+  node: { id: string; state: string };
+  onPatch: (p: { state: string }) => void;
+}) {
+  return (
+    <ExpandableTextarea
+      id="decision-state"
+      label="State template"
+      value={node.state}
+      onCommit={(next) => onPatch({ state: next })}
+      mode="template"
+      nodeId={node.id}
+      field="state"
+      pickerTestId="decision-state-variables"
+      textareaTestId="decision-state"
+      rows={4}
+      className="inspector-input inspector-textarea inspector-code-input"
+      spellCheck={false}
+      help="Template over run params and ancestor outputs. Supports {{ start.param }} and ancestor output templates."
+      describedBy="decision-state-help"
+    />
   );
 }

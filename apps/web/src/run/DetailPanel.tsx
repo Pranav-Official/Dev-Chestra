@@ -1,4 +1,10 @@
-import type { DecisionRef, EventEnvelope, RunStatus, RunView } from "@devchestra/core";
+import {
+  type DecisionRef,
+  type EventEnvelope,
+  loopTerminalOutcome,
+  type RunStatus,
+  type RunView,
+} from "@devchestra/core";
 import { nodeAtPath } from "@devchestra/schema";
 import { Info, LockKeyhole, TriangleAlert } from "lucide-react";
 import { classifyError } from "../api/client.js";
@@ -101,7 +107,11 @@ function LoopDetail({
   const completedRounds = loop.rounds.length;
   const shownIteration =
     snapshotMax === null ? loop.iteration : Math.min(loop.iteration, snapshotMax);
-  const atLimit = snapshotMax !== null && loop.iteration > snapshotMax;
+  // Explicit durable outcome: an exhausted loop that routed downstream. The
+  // overflow inference remains only for unwired/legacy limit failures.
+  const terminalOutcome = loopTerminalOutcome(loop);
+  const exhausted = terminalOutcome === "iteration_limit";
+  const atLimit = !exhausted && snapshotMax !== null && loop.iteration > snapshotMax;
   const bodyIds = (() => {
     if (!snapshot) return [];
     const controller = snapshot.graph.nodes.find((n) => n.id === path);
@@ -116,13 +126,23 @@ function LoopDetail({
     .map(([p, e]) => ({ path: p, nodeId: e.nodeId, status: e.status }))
     .sort((a, b) => a.path.localeCompare(b.path));
   return (
-    <div className="note" data-testid="detail-loop">
+    <div className="note loop-detail" data-testid="detail-loop">
       <div className="row wrap" style={{ gap: 6 }}>
         <span className="pill">Loop</span>
         <span className="faint mono" data-testid="detail-loop-iteration">
           iteration {shownIteration}
         </span>
         <span className="faint mono">{completedRounds} rounds</span>
+        {terminalOutcome === "condition_met" ? (
+          <span className="chip green" data-testid="detail-loop-outcome">
+            success · condition met
+          </span>
+        ) : null}
+        {exhausted ? (
+          <span className="chip amber" data-testid="detail-loop-outcome">
+            exhausted · iteration limit reached
+          </span>
+        ) : null}
         {atLimit ? (
           <span className="chip amber" data-testid="detail-loop-limit">
             at iteration limit
@@ -168,8 +188,14 @@ function LoopDetail({
             >
               <div className="row wrap" style={{ gap: 6 }}>
                 <span className="mono">#{round.iteration}</span>
-                <span className={`chip${round.done ? " green" : ""}`}>
-                  {round.done ? "done" : "continue"}
+                <span
+                  className={`chip${round.done ? " green" : round.outcome === "iteration_limit" ? " amber" : ""}`}
+                >
+                  {round.done
+                    ? "done"
+                    : round.outcome === "iteration_limit"
+                      ? "exhausted"
+                      : "continue"}
                 </span>
                 {bodyIds.length > 0 && onSelectPath ? (
                   <span className="row wrap" style={{ gap: 4 }}>

@@ -2,6 +2,7 @@ import {
   DECISION_UNCERTAIN_HANDLE,
   decisionHandles,
   type Issue,
+  LOOP_EXHAUSTED_HANDLE,
   type NodeType,
   type WorkflowNode,
 } from "@devchestra/schema";
@@ -63,10 +64,11 @@ export function handleSignature(node: WorkflowNode): string | null {
       return `approval:${node.id}`;
     case "decision":
       return `decision:${decisionHandles(node).join("|")}`;
+    case "loop":
+      return `loop:${node.id}`;
     case "start":
     case "agent":
     case "shell":
-    case "loop":
     case "end":
       return null;
     default: {
@@ -161,6 +163,7 @@ export function EditorNodeView({ data, selected }: NodeProps<EditorFlowNode>) {
   const join = !unsupported && node.type === "join" ? node : null;
   const approval = !unsupported && node.type === "approval" ? node : null;
   const decision = !unsupported && node.type === "decision" ? node : null;
+  const loop = !unsupported && node.type === "loop" ? node : null;
   return (
     <button
       type="button"
@@ -283,11 +286,32 @@ export function EditorNodeView({ data, selected }: NodeProps<EditorFlowNode>) {
           ))}
         </div>
       )}
+      {loop === null ? null : (
+        <div className="ed-node-handle-list" data-testid={`ed-loop-handles-${node.id}`}>
+          <HandleRow
+            side="out"
+            id="out"
+            label="success"
+            title="Condition met within maxIterations"
+            testId={`ed-handle-${node.id}-out-success`}
+            readOnly={readOnly}
+          />
+          <HandleRow
+            side="out"
+            id={`out:${LOOP_EXHAUSTED_HANDLE}`}
+            label="exhausted"
+            title="Iteration budget exhausted. Unconnected, exhaustion fails the run (E_LOOP_LIMIT)."
+            testId={`ed-handle-${node.id}-out-exhausted`}
+            readOnly={readOnly}
+          />
+        </div>
+      )}
       {!unsupported &&
       node.type !== "end" &&
       gate === null &&
       approval === null &&
-      decision === null ? (
+      decision === null &&
+      loop === null ? (
         <Handle
           type="source"
           position={Position.Right}
