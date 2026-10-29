@@ -150,6 +150,8 @@ export function Inspector({
   edges,
   onRoutingChange,
   onBufferValidityChange,
+  loopBodyOpenRequested,
+  onLoopBodyOpenHandled,
 }: InspectorProps) {
   const callbackRef = useRef(onBufferValidityChange);
   callbackRef.current = onBufferValidityChange;
@@ -297,6 +299,8 @@ export function Inspector({
               ) : null}
               {node.type === "loop" ? (
                 <LoopForm
+                  openRequested={loopBodyOpenRequested}
+                  onOpenHandled={onLoopBodyOpenHandled}
                   node={node}
                   issues={nodeIssues}
                   onPatch={emit}

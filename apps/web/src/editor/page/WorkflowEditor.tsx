@@ -88,6 +88,8 @@ export function WorkflowEditor({
   const [buffer, setBuffer] = useState<BufferValidity>({ valid: true });
   const [notice, setNotice] = useState<string | null>(null);
   const [issuesOpen, setIssuesOpen] = useState(false);
+  const [loopBodyOpenRequest, setLoopBodyOpenRequest] = useState<string | null>(null);
+  const clearLoopBodyOpenRequest = useCallback(() => setLoopBodyOpenRequest(null), []);
   const [runOpen, setRunOpen] = useState(false);
   const [conflictAction, setConflictAction] = useState<ConflictAction | null>(null);
   const [conflictBusy, setConflictBusy] = useState(false);
@@ -340,6 +342,7 @@ export function WorkflowEditor({
         <NodePalette file={file} onAdd={(type) => commit(model.getState().addNode(type))} />
         <div className="editor-canvas-host">
           <EditorCanvas
+            onLoopOpen={setLoopBodyOpenRequest}
             file={file}
             selection={selection}
             issues={issues}
@@ -361,6 +364,8 @@ export function WorkflowEditor({
           />
         </div>
         <Inspector
+          loopBodyOpenRequested={node?.type === "loop" && loopBodyOpenRequest === node.id}
+          onLoopBodyOpenHandled={clearLoopBodyOpenRequest}
           node={node}
           projectId={pid}
           issues={issues}

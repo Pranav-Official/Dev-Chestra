@@ -55,6 +55,7 @@ export interface EditorCanvasProps {
   onConnectionRejected(message: string): void;
   onUndo?(): void;
   onRedo?(): void;
+  onLoopOpen?(nodeId: string): void;
 }
 
 function issuesByNode(issues: readonly Issue[]): Map<string, Issue[]> {
@@ -199,6 +200,7 @@ export function EditorCanvas({
   onConnectionRejected,
   onUndo,
   onRedo,
+  onLoopOpen,
 }: EditorCanvasProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const flowRef = useRef<ReactFlowInstance<EditorFlowNode, EditorFlowEdge> | null>(null);
@@ -500,6 +502,12 @@ export function EditorCanvas({
           onInit={onInit}
           onNodesChange={handleNodesChange}
           onNodeClick={handleNodeClick}
+          onNodeDoubleClick={(event, node) => {
+            if (readOnly || node.data.node.type !== "loop" || !onLoopOpen) return;
+            event.stopPropagation();
+            onSelectionChange({ kind: "node", nodeId: node.id });
+            onLoopOpen(node.id);
+          }}
           onEdgeClick={handleEdgeClick}
           onPaneClick={() => onSelectionChange(null)}
           onNodeDragStop={handleNodeDragStop}

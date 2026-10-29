@@ -19,6 +19,8 @@ export interface InspectorProps {
     removeEdgeIds: readonly string[],
   ) => void;
   onBufferValidityChange?: (state: BufferValidity) => void;
+  loopBodyOpenRequested?: boolean | undefined;
+  onLoopBodyOpenHandled?: (() => void) | undefined;
 }
 
 /** Internal patch shape: optional top-level fields may also be removed. */

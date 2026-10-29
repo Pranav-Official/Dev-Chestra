@@ -9,6 +9,7 @@ export interface DialogProps {
   footer?: ReactNode;
   testId?: string;
   wide?: boolean;
+  workspace?: boolean;
 }
 
 /**
@@ -25,6 +26,7 @@ export function Dialog({
   footer,
   testId,
   wide = false,
+  workspace = false,
 }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -45,7 +47,7 @@ export function Dialog({
   return (
     <dialog
       ref={ref}
-      className={`editor-dialog${wide ? " wide" : ""}`}
+      className={`editor-dialog${wide ? " wide" : ""}${workspace ? " workspace" : ""}`}
       aria-labelledby={titleId}
       {...(description === undefined ? {} : { "aria-describedby": descriptionId })}
       {...(testId === undefined ? {} : { "data-testid": testId })}

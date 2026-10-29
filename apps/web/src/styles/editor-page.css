@@ -119,6 +119,16 @@ dialog.editor-dialog {
 dialog.editor-dialog.wide {
   width: min(760px, calc(100vw - 32px));
 }
+dialog.editor-dialog.workspace {
+  width: calc(100vw - 32px);
+  max-width: none;
+  height: calc(100dvh - 32px);
+  max-height: none;
+}
+dialog.editor-dialog.workspace[open] {
+  display: flex;
+  flex-direction: column;
+}
 dialog.editor-dialog::backdrop {
   background: rgba(15, 23, 42, 0.38);
 }
@@ -154,6 +164,16 @@ dialog.editor-dialog::backdrop {
   padding: 11px 14px;
   border-top: 1px solid var(--border);
   background: var(--bg-subtle);
+}
+.editor-dialog.workspace .editor-dialog-head,
+.editor-dialog.workspace .editor-dialog-description {
+  flex-shrink: 0;
+}
+.editor-dialog.workspace .editor-dialog-body {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overflow: hidden;
 }
 
 /* Forms */

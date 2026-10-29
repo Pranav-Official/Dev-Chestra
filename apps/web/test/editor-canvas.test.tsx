@@ -82,6 +82,30 @@ describe("NodePalette", () => {
 });
 
 describe("EditorCanvas", () => {
+  it("opens loop bodies on double-click, selecting the loop first", async () => {
+    const loop = createDefaultNode("loop", []);
+    const file = { ...sample(), graph: { nodes: [loop], edges: [] } };
+    const onLoopOpen = vi.fn();
+    const onSelectionChange = vi.fn();
+    const props = {
+      file,
+      selection: null,
+      issues: [],
+      onLoopOpen,
+      onSelectionChange,
+      onChange: vi.fn(),
+      onConnectionRejected: vi.fn(),
+    };
+    const { rerender } = render(<EditorCanvas {...props} />);
+    fireEvent.doubleClick(await screen.findByTestId(`ed-node-${loop.id}`));
+    expect(onSelectionChange).toHaveBeenCalledWith({ kind: "node", nodeId: loop.id });
+    expect(onLoopOpen).toHaveBeenCalledWith(loop.id);
+    onLoopOpen.mockClear();
+    rerender(<EditorCanvas {...props} readOnly />);
+    fireEvent.doubleClick(screen.getByTestId(`ed-node-${loop.id}`));
+    expect(onLoopOpen).not.toHaveBeenCalled();
+  });
+
   it("renders node badges from semantic issues without run status", async () => {
     const issue: Issue = {
       severity: "error",

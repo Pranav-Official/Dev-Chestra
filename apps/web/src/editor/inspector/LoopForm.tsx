@@ -25,14 +25,28 @@ export type BodyInspectorRender = (
 
 interface LoopFormProps extends FormProps<LoopNode> {
   renderBodyInspector: BodyInspectorRender;
+  openRequested?: boolean | undefined;
+  onOpenHandled?: (() => void) | undefined;
 }
 
 function nonEmpty(value: string, label: string): string | null {
   return value.trim() === "" ? `${label} is required.` : null;
 }
 
-export function LoopForm({ node, issues, onPatch, renderBodyInspector }: LoopFormProps) {
+export function LoopForm({
+  node,
+  issues,
+  onPatch,
+  renderBodyInspector,
+  openRequested,
+  onOpenHandled,
+}: LoopFormProps) {
   const [bodyOpen, setBodyOpen] = useState(false);
+  useEffect(() => {
+    if (!openRequested) return;
+    setBodyOpen(true);
+    onOpenHandled?.();
+  }, [openRequested, onOpenHandled]);
   const maxIssue = fieldIssue(issues, "/maxIterations");
   const initialIssue = fieldIssue(issues, "/initialState");
   const resultIssue = fieldIssue(issues, "/result");
@@ -224,7 +238,7 @@ export function LoopForm({ node, issues, onPatch, renderBodyInspector }: LoopFor
         <Dialog
           open={bodyOpen}
           title={`Body of ${node.name}`}
-          wide
+          workspace
           testId="loop-body-dialog"
           description="Apply saves the body to the workflow. Cancel or close discards unapplied body changes."
           onClose={() => setBodyOpen(false)}
@@ -409,10 +423,7 @@ function LoopBodyEditor({
       ) : null}
       <div className="loop-body-layout">
         <NodePalette file={bodyFile} onAdd={addNode} hiddenTypes={["loop"]} />
-        <div
-          data-testid="loop-body-canvas"
-          style={{ height: 420, minHeight: 320, width: "100%", position: "relative" }}
-        >
+        <div className="loop-body-canvas" data-testid="loop-body-canvas">
           <EditorCanvas
             file={bodyFile}
             selection={selection}
@@ -422,20 +433,25 @@ function LoopBodyEditor({
             onConnectionRejected={() => {}}
           />
         </div>
-      </div>
-      <div data-testid="loop-body-inspector">
-        {selected === null ? (
-          <p className="faint">
-            Select a body node to edit it. Start takes no parameters; End must stay success.
-          </p>
-        ) : (
-          <BodyNodeInspector
-            selected={selected}
-            edges={bodyFile.graph.edges}
-            setDraft={setDraft}
-            renderBodyInspector={renderBodyInspector}
-          />
-        )}
+        <aside
+          className="loop-body-properties"
+          data-testid="loop-body-inspector"
+          aria-label="Body node properties"
+        >
+          <h3>{selected?.name ?? "Node properties"}</h3>
+          {selected === null ? (
+            <p className="faint">
+              Select a body node to edit it. Start takes no parameters; End must stay success.
+            </p>
+          ) : (
+            <BodyNodeInspector
+              selected={selected}
+              edges={bodyFile.graph.edges}
+              setDraft={setDraft}
+              renderBodyInspector={renderBodyInspector}
+            />
+          )}
+        </aside>
       </div>
     </div>
   );
