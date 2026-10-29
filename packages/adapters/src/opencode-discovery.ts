@@ -7,6 +7,7 @@ import type {
   OpencodeModelDiscoveryRequest,
   OpencodeModelItem,
 } from "./types.js";
+import { findWindowsExecutable } from "./windows.js";
 
 const TOTAL_MS = 15_000;
 const STDOUT_MAX = 1024 * 1024;
@@ -113,6 +114,7 @@ function resolveOpencodeBin(
   cwd: string,
 ): string | null {
   const name = bin ?? "opencode";
+  if (process.platform === "win32") return findWindowsExecutable(name, env, cwd);
   if (name.includes("/") || isAbsolute(name)) {
     const candidate = isAbsolute(name) ? name : resolve(cwd, name);
     try {

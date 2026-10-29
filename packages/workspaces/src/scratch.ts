@@ -68,7 +68,7 @@ function toDevChestraError(e: unknown): DevChestraError {
 }
 function prepareDataDir(raw: string, create: boolean): string {
   const resolved = path.resolve(requireAbsolutePath(raw, "dataDir"));
-  if (resolved === path.resolve("/"))
+  if (resolved === path.parse(resolved).root)
     throw new DevChestraError("E_VALIDATION", "dataDir must not be the filesystem root");
   try {
     fs.lstatSync(resolved);

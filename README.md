@@ -9,7 +9,7 @@ The product name is provisional (`DevChestra` internally). Do not create durable
 - Node.js **22 or newer**. CI runs the test suite on Node 22 and 24; the SQLite canary also covers Node 26.
 - pnpm **10.14.0** (declared in `packageManager`)
 - Git 2.30+ (required only for the existing-worktree and new-worktree run options; the default project root also works for non-Git folders)
-- Linux or macOS; Windows is not supported natively (WSL2 only)
+- Linux or macOS. The `spike/windows-native` branch adds experimental native Windows 10/11 x64 support; see [the Windows spike notes](docs/windows-native-spike.md) for setup, evidence and remaining gaps.
 
 ## Install
 

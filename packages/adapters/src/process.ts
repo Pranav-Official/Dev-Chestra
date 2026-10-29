@@ -1,7 +1,6 @@
-import { spawn } from "node:child_process";
 import { DevChestraError } from "@devchestra/core";
 import { isGroupAlive, killTree, spawnIdentity } from "./identity.js";
-import { materializeInvocation } from "./invocation.js";
+import { finalizeInvocation, materializeInvocation } from "./invocation.js";
 import { boundTail, redacted, spawnFailure, waitSpawn, writeStdin } from "./spawn-util.js";
 import type {
   AdapterEvent,
@@ -11,6 +10,7 @@ import type {
   RunOpts,
   TranscriptEntry,
 } from "./types.js";
+import { spawnOwned } from "./windows.js";
 
 const DEFAULT_GRACE = 5_000;
 const DEFAULT_MAX_LINE = 8 * 1024 * 1024;
@@ -121,6 +121,7 @@ export async function runAgent(
   let sawTurnEnd = false;
   let killedBy: ExitInfo["killedBy"] = null;
   let killStarted = false;
+  let killCompletion: Promise<boolean> | undefined;
   let closed = false;
   let chain: Promise<void> = Promise.resolve();
   let pending: Promise<void> = Promise.resolve();
@@ -128,7 +129,7 @@ export async function runAgent(
   let repeats = 0;
   let silenceTimer: NodeJS.Timeout | undefined;
 
-  const child = spawn(inv.bin, inv.args, {
+  const child = spawnOwned(inv.bin, inv.args, {
     cwd: inv.cwd,
     env: inv.env,
     detached: true,
@@ -150,7 +151,7 @@ export async function runAgent(
     if (killedBy === null) killedBy = reason;
     if (killStarted) return;
     killStarted = true;
-    void killTree(pid, { graceMs });
+    killCompletion = killTree(pid, { graceMs });
   };
 
   const armSilence = (): void => {
@@ -243,10 +244,16 @@ export async function runAgent(
     if (!killStarted) writeStdin(child, inv.stdin);
   } catch (error) {
     kill("cancel");
+    await killCompletion;
+    await closePromise;
+    clearTimeout(armed);
+    if (silenceTimer !== undefined) clearTimeout(silenceTimer);
+    signal.removeEventListener("abort", onAbort);
     throw error;
   }
 
   const { code, signal: closeSignal } = await closePromise;
+  await killCompletion;
   closed = true;
   clearTimeout(armed);
   if (silenceTimer !== undefined) clearTimeout(silenceTimer);
@@ -261,6 +268,7 @@ export async function runAgent(
   }
   if (isGroupAlive(pid)) await killTree(pid, { graceMs: 0 }).catch(() => undefined);
   const groupStopped = !isGroupAlive(pid);
+  if (groupStopped) await finalizeInvocation(inv);
 
   return {
     code,

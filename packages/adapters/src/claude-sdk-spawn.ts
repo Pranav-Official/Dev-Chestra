@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { Transform, Writable } from "node:stream";
 import { StringDecoder } from "node:string_decoder";
 import type { SpawnedProcess, SpawnOptions } from "@anthropic-ai/claude-agent-sdk";
@@ -211,7 +211,7 @@ export function spawnClaudeForDiscovery(
   hooks: ClaudeSpawnHooks,
 ): ClaudeOwnedProcess {
   let missing = false;
-  const child = spawn(options.command, options.args, {
+  const child = spawnOwned(options.command, options.args, {
     ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
     env: options.env as NodeJS.ProcessEnv,
     detached: true,
@@ -352,3 +352,5 @@ export function spawnClaudeForDiscovery(
     },
   };
 }
+
+import { spawnOwned } from "./windows.js";

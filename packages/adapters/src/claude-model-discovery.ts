@@ -20,6 +20,7 @@ import {
 } from "./claude-model-normalizer.js";
 import { type ClaudeOwnedProcess, spawnClaudeForDiscovery } from "./claude-sdk-spawn.js";
 import type { ClaudeModelDiscovery, ClaudeModelDiscoveryRequest } from "./types.js";
+import { findWindowsExecutable } from "./windows.js";
 
 class ClaudeFailure extends Error {
   readonly reason: ClaudeFailureReason;
@@ -98,6 +99,7 @@ function resolveClaudeBin(
   env: Record<string, string>,
   cwd: string,
 ): string | null {
+  if (process.platform === "win32") return findWindowsExecutable(bin ?? "claude", env, cwd);
   const candidates: string[] = [];
   if (bin !== undefined) {
     if (bin.includes("/") || isAbsolute(bin)) {

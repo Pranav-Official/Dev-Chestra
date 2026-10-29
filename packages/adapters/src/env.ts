@@ -4,6 +4,17 @@ import type { BuildEnvOptions, CliId } from "./types.js";
 
 const ALWAYS = [
   "PATH",
+  "PATHEXT",
+  "SystemRoot",
+  "WINDIR",
+  "COMSPEC",
+  "USERPROFILE",
+  "APPDATA",
+  "LOCALAPPDATA",
+  "TEMP",
+  "TMP",
+  "HOMEDRIVE",
+  "HOMEPATH",
   "HOME",
   "USER",
   "LOGNAME",
@@ -59,7 +70,12 @@ export function buildChildEnv(cli: CliId, options: BuildEnvOptions = {}): Record
   const base = options.base ?? process.env;
   const env: Record<string, string> = {};
   const copy = (name: string): void => {
-    const value = base[name];
+    const key =
+      process.platform === "win32"
+        ? (Object.keys(base).find((candidate) => candidate.toUpperCase() === name.toUpperCase()) ??
+          name)
+        : name;
+    const value = base[key];
     if (value !== undefined) env[name] = value;
   };
   const declared = (name: string): void => {
@@ -101,5 +117,8 @@ export function buildChildEnv(cli: CliId, options: BuildEnvOptions = {}): Record
   }
   env.TERM = "dumb";
   env.CI = "1";
+  if (process.platform === "win32" && env.HOME === undefined && env.USERPROFILE !== undefined) {
+    env.HOME = env.USERPROFILE;
+  }
   return env;
 }

@@ -328,6 +328,7 @@ export function resolveHome(home: string | undefined, env: NodeJS.ProcessEnv): s
   if (home !== undefined && home !== "") return home;
   const fromEnv = env.HOME;
   if (typeof fromEnv === "string" && fromEnv !== "") return fromEnv;
+  if (process.platform === "win32") return env.USERPROFILE ?? "";
   return "";
 }
 

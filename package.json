@@ -13,6 +13,7 @@
     "build": "pnpm -r --if-present run build",
     "test": "pnpm build && pnpm -r --if-present run test",
     "test:root": "vitest run",
+    "test:windows": "pnpm build && pnpm --filter @devchestra/cli exec vitest run test/windows-native.test.ts test/server-commands.e2e.test.ts && pnpm --filter @devchestra/adapters exec vitest run test/process.test.ts",
     "typecheck": "pnpm -r --if-present run build && pnpm -r --if-present run typecheck",
     "check": "biome check . && pnpm typecheck && pnpm depcruise && node scripts/check-browser.mjs",
     "depcruise": "depcruise --config .dependency-cruiser.cjs packages tools apps",
@@ -44,7 +45,8 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "esbuild"
+      "esbuild",
+      "better-sqlite3"
     ]
   }
 }

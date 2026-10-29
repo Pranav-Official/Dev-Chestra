@@ -9,6 +9,8 @@ import { join } from "node:path";
 export function defaultDataDir(env: NodeJS.ProcessEnv = process.env): string {
   const explicit = env.DEVCHESTRA_DATA_DIR;
   if (explicit !== undefined && explicit !== "") return explicit;
+  if (process.platform === "win32")
+    return join(env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local"), "devchestra");
   const xdg = env.XDG_DATA_HOME;
   if (xdg !== undefined && xdg !== "") return join(xdg, "devchestra");
   return join(homedir(), ".local", "share", "devchestra");

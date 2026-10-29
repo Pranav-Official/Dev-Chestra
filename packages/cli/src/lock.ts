@@ -13,6 +13,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
+import { protectWindowsDirectory, windowsProcessIdentity } from "@devchestra/adapters";
 import { DevChestraError } from "@devchestra/core";
 
 export interface LockOwner {
@@ -65,6 +66,7 @@ function bootId(): string | null {
 }
 
 export function processIdentity(pid: number): string | null {
+  if (process.platform === "win32") return windowsProcessIdentity(pid)?.pidStart ?? null;
   const boot = bootId();
   if (boot !== null) {
     try {
@@ -309,6 +311,7 @@ export async function acquireDataDirLock(
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
   await mkdir(dataDir, { recursive: true, mode: 0o700 });
+  protectWindowsDirectory(dataDir);
   const lockDir = join(dataDir, LOCK_DIR);
   const selfStart = processIdentity(process.pid);
   if (selfStart === null) {

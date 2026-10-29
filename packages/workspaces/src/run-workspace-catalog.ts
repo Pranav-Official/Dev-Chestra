@@ -58,7 +58,19 @@ function canonicalExisting(raw: string): string {
     if (missing(error)) throw validation("Existing worktree is missing", { path: raw });
     throw error;
   }
-  if (candidate !== real) {
+  let aliasesOnly = false;
+  if (process.platform === "win32" && !candidate.split(/[\\/]/).includes("..")) {
+    let current = candidate;
+    aliasesOnly = true;
+    while (current !== path.dirname(current)) {
+      if (fs.lstatSync(current).isSymbolicLink()) {
+        aliasesOnly = false;
+        break;
+      }
+      current = path.dirname(current);
+    }
+  }
+  if (candidate !== real && !aliasesOnly) {
     throw validation("Existing worktree path must be canonical (no symlink or traversal)", {
       path: raw,
       canonical: real,

@@ -357,7 +357,13 @@ function syncDirectory(directory: string): void {
     fsyncSync(fd);
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
-    if (code !== "EINVAL" && code !== "ENOTSUP" && code !== "EISDIR") throw error;
+    if (
+      code !== "EINVAL" &&
+      code !== "ENOTSUP" &&
+      code !== "EISDIR" &&
+      !(process.platform === "win32" && code === "EPERM")
+    )
+      throw error;
   } finally {
     if (fd !== undefined) closeSync(fd);
   }

@@ -1,8 +1,9 @@
-import { spawn } from "node:child_process";
+import { join } from "node:path";
 import { DevChestraError } from "@devchestra/core";
 import { isGroupAlive, killTree, spawnIdentity } from "./identity.js";
 import { boundTail, redacted, spawnFailure, waitSpawn } from "./spawn-util.js";
 import type { CommandHooks, CommandRequest, CommandResult } from "./types.js";
+import { spawnOwned, windowsCommand } from "./windows.js";
 
 const DEFAULT_GRACE = 5_000;
 const DEFAULT_MAX_LINE = 8 * 1024 * 1024;
@@ -67,10 +68,40 @@ export async function runCommand(
   let stderr = "";
   let killedBy: CommandResult["killedBy"] = null;
   let killStarted = false;
+  let killCompletion: Promise<boolean> | undefined;
   let closed = false;
-  const args = ["-e", WRAPPER, "--", req.shell === true ? "shell" : "argv", req.cmd];
-  if (req.shell !== true) args.push(...(req.args ?? []));
-  const child = spawn(process.execPath, args, {
+  const nativeShell = process.platform === "win32" && req.shell === true;
+  const command = nativeShell
+    ? {
+        bin: join(
+          process.env.SystemRoot ?? "C:\\Windows",
+          "System32/WindowsPowerShell/v1.0/powershell.exe",
+        ),
+        args: [
+          "-NoLogo",
+          "-NoProfile",
+          "-NonInteractive",
+          "-EncodedCommand",
+          Buffer.from(
+            "$ErrorActionPreference = 'Stop'; [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding; " +
+              req.cmd +
+              "\nif (-not $?) { exit 1 }; if ($null -ne $LASTEXITCODE) { exit $LASTEXITCODE }",
+            "utf16le",
+          ).toString("base64"),
+        ],
+      }
+    : process.platform === "win32" && req.shell !== true
+      ? windowsCommand(req.cmd, req.args ?? [], req.env, req.cwd)
+      : { bin: req.cmd, args: req.args ?? [] };
+  const args = [
+    "-e",
+    WRAPPER,
+    "--",
+    req.shell === true && !nativeShell ? "shell" : "argv",
+    command.bin,
+  ];
+  if (req.shell !== true || nativeShell) args.push(...command.args);
+  const child = spawnOwned(process.execPath, args, {
     cwd: req.cwd,
     env: req.env,
     detached: true,
@@ -92,7 +123,7 @@ export async function runCommand(
     if (killedBy === null) killedBy = reason;
     if (killStarted) return;
     killStarted = true;
-    void killTree(pid, { graceMs: DEFAULT_GRACE });
+    killCompletion = killTree(pid, { graceMs: DEFAULT_GRACE });
   };
   const timer = setTimeout(() => kill("timeout"), Math.max(1, req.timeoutMs));
   const onAbort = (): void => kill("cancel");
@@ -135,10 +166,15 @@ export async function runCommand(
     }
   } catch (error) {
     kill("cancel");
+    await killCompletion;
+    await closePromise;
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", onAbort);
     throw error;
   }
 
   const { code, signal: closeSignal } = await closePromise;
+  await killCompletion;
   closed = true;
   clearTimeout(timer);
   signal?.removeEventListener("abort", onAbort);

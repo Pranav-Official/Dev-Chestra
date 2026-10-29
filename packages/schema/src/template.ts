@@ -25,6 +25,7 @@ export interface CompileTemplateOptions {
 export interface RenderOptions extends EvaluateOptions {
   /** Quote every substituted value with POSIX single-quote escaping. */
   shell?: boolean;
+  shellStyle?: "posix" | "powershell";
 }
 
 export interface RenderedTemplate {
@@ -248,6 +249,21 @@ export async function renderTemplate(
 
   let text = "";
   const warnings: Issue[] = [];
+  if (
+    shell &&
+    options.shellStyle === "powershell" &&
+    compiled.parts.some((part) => part.kind === "expression")
+  ) {
+    for (const part of compiled.parts) {
+      if (part.kind === "literal" && /`|<#|#>|@['"]|--%/.test(part.text)) {
+        return err(
+          templateError(
+            "Unsafe PowerShell template: escapes, block comments, here-strings and stop-parsing tokens are unsupported around placeholders.",
+          ),
+        );
+      }
+    }
+  }
   for (const part of compiled.parts) {
     if (part.kind === "literal") {
       text += part.text;
@@ -271,7 +287,11 @@ export async function renderTemplate(
     } else {
       value = canonicalJson(evaluated.value);
     }
-    text += shell ? quotePosix(value) : value;
+    text += shell
+      ? options.shellStyle === "powershell"
+        ? `'${value.replace(/'/g, "''")}'`
+        : quotePosix(value)
+      : value;
   }
   return ok({ text, warnings });
 }

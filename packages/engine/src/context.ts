@@ -161,6 +161,7 @@ export class EngineContext {
     const result = await renderTemplate(template, scope, {
       executor: this.#executor,
       shell,
+      shellStyle: process.platform === "win32" ? "powershell" : "posix",
       ...(shell ? { timeoutMs: 2_000 } : {}),
     });
     if (!result.ok) throw result.error;

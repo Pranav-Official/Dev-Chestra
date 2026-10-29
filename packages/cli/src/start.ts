@@ -48,6 +48,7 @@ import {
   type ServerMetadata,
   writeServerMetadata,
 } from "./server-metadata.js";
+import { listenWindowsControl } from "./windows-control.js";
 import { requireFakeScriptForFakeNodes } from "./workflow.js";
 import { createBrowserWorkspaceService } from "./workspace-service.js";
 
@@ -454,11 +455,17 @@ export async function executeStart(
   let listener: BrowserListener | undefined;
   let metadata: ServerMetadata | undefined;
   let cleaned = false;
+  let closeWindowsControl: (() => Promise<void>) | undefined;
+  const windowsStop = new AbortController();
 
   const cleanup = async (removeMetadata: boolean): Promise<boolean> => {
     if (cleaned) return true;
     cleaned = true;
     let ok = true;
+    if (closeWindowsControl !== undefined)
+      await closeWindowsControl().catch(() => {
+        ok = false;
+      });
     if (modelCatalog !== undefined) {
       try {
         await modelCatalog.close();
@@ -563,6 +570,8 @@ export async function executeStart(
       startedAt: Date.now(),
     };
     await writeServerMetadata(dataDir, metadata);
+    if (process.platform === "win32")
+      closeWindowsControl = await listenWindowsControl(metadata, () => windowsStop.abort());
 
     const ready = {
       type: "devchestra.ready",
@@ -579,7 +588,11 @@ export async function executeStart(
     if (options.printUrl) stdout.write(`devchestra: ${bootstrapUrl(metadata)}\n`);
     if (!options.noOpen) (deps.openBrowser ?? openInBrowser)(bootstrapUrl(metadata));
 
-    await waitForStop(deps.signal, listener);
+    const stopSignal =
+      deps.signal === undefined
+        ? windowsStop.signal
+        : AbortSignal.any([deps.signal, windowsStop.signal]);
+    await waitForStop(stopSignal, listener);
     const ok = await cleanup(true);
     if (!ok) {
       notice("devchestra: shutdown was incomplete; run evidence was retained");
