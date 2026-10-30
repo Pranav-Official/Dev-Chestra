@@ -4,7 +4,7 @@ Conduct your coding agents like an orchestra.
 
 DevChestra is a local workflow builder for headless coding agents. You drag a few boxes on a canvas, hit Run, and watch Claude, Codex, OpenCode, or Pi do the work in order — with branches, loops, and human check-ins where you want them.
 
-![DevChestra workflow editor](docs/images/editor.png)
+![DevChestra workflow editor](assets/images/editor.png)
 
 Above: a real workflow in DevChestra. Start with a parameter, hand it to two agents in sequence, then finish. Runs, transcripts, and replay live in the same window.
 
@@ -18,7 +18,7 @@ DevChestra lets you draw that process once and rerun it whenever you want, witho
 
 Everything starts from the Add node menu. Ten nodes, that's the whole vocabulary:
 
-![Available nodes](docs/images/nodes.png)
+![Available nodes](assets/images/nodes.png)
 
 Agent — run an agent step. Pick your CLI and model, write the prompt, done.
 
