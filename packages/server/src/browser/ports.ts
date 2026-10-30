@@ -26,6 +26,7 @@ import type {
   StartRunResponse,
   TranscriptLine,
   TranscriptPageResponse,
+  UsageSummary,
   WorkspaceView,
 } from "@devchestra/api";
 import type { EventType, JsonObject, RunStatus } from "@devchestra/core";
@@ -59,6 +60,7 @@ export type {
   StartRunResponse,
   TranscriptLine,
   TranscriptPageResponse,
+  UsageSummary,
   WorkspaceView,
 };
 
@@ -121,6 +123,10 @@ export interface RunContextQuery {
   status?: string;
   limit: number;
   cursor?: string;
+}
+
+export interface UsageQuery {
+  projectId?: string;
 }
 
 export interface BrowserQueryPort {
@@ -207,6 +213,7 @@ export interface BrowserQueryPort {
         activeRuns: number;
         inbox: number;
       };
+  usageSummary?(input: UsageQuery): Promise<UsageSummary> | UsageSummary;
   listRunChildren?(
     runId: string,
     input: { cursor?: string; limit: number },

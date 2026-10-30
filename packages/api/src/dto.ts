@@ -621,3 +621,56 @@ export const runContextQuerySchema = strict({
 });
 
 export type RunContextQuery = z.infer<typeof runContextQuerySchema>;
+
+// ---------------------------------------------------------------------------
+// Usage aggregation
+// ---------------------------------------------------------------------------
+
+export interface UsageModelSummary {
+  model: string;
+  usd: number;
+  tokens: number;
+}
+
+export const usageModelSummarySchema = strict({
+  model: z.string().min(1),
+  usd: z.number().nonnegative(),
+  tokens: z.number().int().nonnegative(),
+}) as unknown as z.ZodType<UsageModelSummary>;
+
+export interface UsageProviderSummary {
+  provider: string;
+  usd: number;
+  tokens: number;
+  byModel: UsageModelSummary[];
+}
+
+export const usageProviderSummarySchema = strict({
+  provider: z.string().min(1),
+  usd: z.number().nonnegative(),
+  tokens: z.number().int().nonnegative(),
+  byModel: z.array(usageModelSummarySchema),
+}) as unknown as z.ZodType<UsageProviderSummary>;
+
+export interface UsageSummary {
+  total: { usd: number; tokens: number };
+  byProvider: UsageProviderSummary[];
+}
+
+export const usageSummarySchema = strict({
+  total: strict({
+    usd: z.number().nonnegative(),
+    tokens: z.number().int().nonnegative(),
+  }),
+  byProvider: z.array(usageProviderSummarySchema),
+}) as unknown as z.ZodType<UsageSummary>;
+
+/** Shared response schema registered as UsageSummaryResponse in contracts. */
+export const usageSummaryResponseSchema = usageSummarySchema;
+
+export const usageQuerySchema = strict({
+  scope: z.enum(["global", "project"]).optional(),
+  projectId: projectIdSchema.optional(),
+});
+
+export type UsageQuery = z.infer<typeof usageQuerySchema>;

@@ -4,6 +4,7 @@ import { HomePage } from "./pages/HomePage.js";
 import { NotFoundPage } from "./pages/NotFoundPage.js";
 import { ProjectRunsPage } from "./pages/ProjectRunsPage.js";
 import { RunRoute } from "./pages/RunPage.js";
+import { SettingsPage } from "./pages/SettingsPage.js";
 import { WorkflowsPage } from "./pages/WorkflowsPage.js";
 import { AppShell } from "./shell/AppShell.js";
 
@@ -21,6 +22,8 @@ export const appRoutes: RouteObject[] = [
       { path: "p/:pid/runs", element: <ProjectRunsPage /> },
       { path: "p/:pid/w/:wid", element: <EditorRoute /> },
       { path: "p/:pid/r/:rid", element: <RunRoute /> },
+      { path: "settings/usage", element: <SettingsPage /> },
+      { path: "p/:pid/settings/usage", element: <SettingsPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

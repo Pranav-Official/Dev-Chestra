@@ -23,6 +23,7 @@ export type {
   RunsApi,
   SecurityApi,
   SubmissionsApi,
+  UsageApi,
   ViewApi,
   WorkflowCallsApi,
 } from "./store.js";
@@ -92,5 +93,9 @@ export type {
   SubmitInput,
   SubmitOutcome,
   TranscriptHistory,
+  UsageFilter,
+  UsageModelSummary,
+  UsageProviderSummary,
+  UsageSummary,
   ValidSubmission,
 } from "./types.js";

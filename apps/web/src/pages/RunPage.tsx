@@ -12,7 +12,7 @@ import { StopRunButton } from "../run/StopRunButton.js";
 import { TranscriptPanel } from "../run/TranscriptPanel.js";
 import { Topbar } from "../shell/Topbar.js";
 import { showReconnectBanner } from "../state/runSession.js";
-import { formatCost, formatDuration, formatTime } from "../ui/format.js";
+import { formatCost, formatDuration, formatTime, formatTokens } from "../ui/format.js";
 import {
   AuthState,
   LoadingState,
@@ -295,6 +295,7 @@ function RunPage({ rid }: { rid: string }) {
         <span className="chip">Run #{run?.runNumber ?? view.runNumber}</span>
         <span className="chip">{run?.kind ?? "run"}</span>
         <span className="chip optional">{formatCost(view.budget.usd)}</span>
+        <span className="chip optional">{formatTokens(view.budget.tokens)} tokens</span>
         <span className="chip optional">{formatDuration(view.budget.activeMs)} active</span>
         <span className="chip optional">
           {run?.startedAt ? formatTime(run.startedAt) : "not started"}
