@@ -272,6 +272,7 @@ a:hover {
 .workspace-menu-items {
   position: absolute;
   right: 0;
+  top: calc(100% + 6px);
   z-index: 30;
   width: 190px;
   padding: 4px;
@@ -279,6 +280,11 @@ a:hover {
   border-radius: var(--radius);
   background: var(--bg);
   box-shadow: 0 4px 12px rgb(0 0 0 / 12%);
+}
+/* Footer menus sit at the viewport bottom — open upward so items stay visible. */
+.workspace-menu-up .workspace-menu-items {
+  top: auto;
+  bottom: calc(100% + 6px);
 }
 .workspace-menu-items > button {
   display: block;

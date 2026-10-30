@@ -37,7 +37,33 @@ export const MOCK_USAGE: UsageSummary = {
   ],
 };
 
-const DONUT_COLORS = ["#7c6cf0", "#4cc38a", "#f0a35e"];
+const PALETTE = [
+  "#7c6cf0",
+  "#4cc38a",
+  "#f0a35e",
+  "#5aa9e6",
+  "#e67fb1",
+  "#e5c548",
+  "#3ec6c6",
+  "#e26d6d",
+];
+
+function colorAt(index: number): string {
+  return PALETTE[index % PALETTE.length] ?? "#7c6cf0";
+}
+
+/** Locale-independent grouping — never en-IN style. */
+function formatCount(value: number): string {
+  return value.toLocaleString("en-US");
+}
+
+function shortModel(provider: string, model: string): string {
+  if (provider === "unknown" && model === "unknown") return "unattributed";
+  if (model === "unknown") return provider;
+  // Strip redundant provider prefix ("opencode-go/muse-spark…" → "muse-spark…").
+  const tail = model.split("/").pop() ?? model;
+  return provider === "unknown" ? tail : `${provider} / ${tail}`;
+}
 
 async function fetchUsageSummary(
   projectId: string | undefined,
@@ -51,89 +77,99 @@ async function fetchUsageSummary(
 }
 
 function ProviderBars({ providers }: { providers: UsageByProvider[] }) {
-  const max = Math.max(1, ...providers.map((p) => p.tokens));
-  const width = 320;
-  const height = 140;
-  const barWidth = 28;
-  const gap = (width - barWidth * Math.max(providers.length, 1)) / (Math.max(providers.length, 1) + 1);
+  const rows = [...providers].sort((a, b) => b.tokens - a.tokens);
+  const max = Math.max(1, ...rows.map((p) => p.tokens));
+  if (rows.length === 0) return <p className="faint">No provider data yet.</p>;
   return (
-    <svg
-      width="100%"
-      viewBox={`0 0 ${width} ${height}`}
-      role="img"
-      aria-label="Tokens per provider bar chart"
-    >
-      {providers.map((item, index) => {
-        const barHeight = Math.max(4, Math.round((item.tokens / max) * (height - 32)));
-        const x = gap + index * (barWidth + gap);
-        const y = height - 20 - barHeight;
-        return (
-          <g key={item.provider}>
-            <rect x={x} y={y} width={barWidth} height={barHeight} rx={4} fill="#7c6cf0" />
-            <text x={x + barWidth / 2} y={y - 4} textAnchor="middle" fontSize={10} fill="currentColor">
-              {formatTokens(item.tokens)}
-            </text>
-            <text
-              x={x + barWidth / 2}
-              y={height - 6}
-              textAnchor="middle"
-              fontSize={10}
-              fill="currentColor"
-              opacity={0.7}
-            >
-              {item.provider}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
+    <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 10 }}>
+      {rows.map((item, index) => (
+        <li
+          key={item.provider}
+          style={{ display: "grid", gridTemplateColumns: "140px 1fr auto", gap: 10, alignItems: "center" }}
+        >
+          <span
+            className="mono"
+            style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+            title={item.provider}
+          >
+            {item.provider}
+          </span>
+          <span
+            role="img"
+            aria-label={`${item.provider}: ${formatCount(item.tokens)} tokens`}
+            style={{
+              display: "block",
+              height: 18,
+              borderRadius: 5,
+              background: "var(--bg-muted)",
+              overflow: "hidden",
+            }}
+          >
+            <span
+              style={{
+                display: "block",
+                height: "100%",
+                width: `${Math.max(2, (item.tokens / max) * 100)}%`,
+                borderRadius: 5,
+                background: colorAt(index),
+              }}
+            />
+          </span>
+          <span className="faint mono" style={{ minWidth: 120, textAlign: "right" }}>
+            {formatTokens(item.tokens)} · {formatCost(item.usd)}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
 function CostDonut({ providers }: { providers: UsageByProvider[] }) {
-  const models = providers.flatMap((p) =>
-    p.byModel.map((m) => ({ ...m, label: `${p.provider} / ${m.model}` })),
-  );
+  const models = providers
+    .flatMap((p) => p.byModel.map((m) => ({ ...m, provider: p.provider })))
+    .filter((m) => m.usd > 0 || m.tokens > 0)
+    .sort((a, b) => b.usd - a.usd || b.tokens - a.tokens);
   const total = models.reduce((sum, item) => sum + item.usd, 0);
-  if (total <= 0) return <p className="faint">No cost data yet.</p>;
+  if (models.length === 0 || total <= 0) return <p className="faint">No cost data yet.</p>;
   let cursor = 0;
   const segments = models.map((item, index) => {
     const start = (cursor / total) * 100;
     cursor += item.usd;
     const end = (cursor / total) * 100;
-    const color = DONUT_COLORS[index % DONUT_COLORS.length];
-    return `${color} ${start.toFixed(1)}% ${end.toFixed(1)}%`;
+    return `${colorAt(index)} ${start.toFixed(1)}% ${end.toFixed(1)}%`;
   });
   return (
-    <div className="row wrap" style={{ gap: 16, alignItems: "center" }}>
+    <div className="row wrap" style={{ gap: 20, alignItems: "center" }}>
       <div
         role="img"
         aria-label="Cost by model donut chart"
         style={{
-          width: 140,
-          height: 140,
+          width: 150,
+          height: 150,
           borderRadius: "50%",
           flex: "none",
           background: `conic-gradient(${segments.join(", ")})`,
-          mask: "radial-gradient(circle, transparent 52%, black 53%)",
-          WebkitMask: "radial-gradient(circle, transparent 52%, black 53%)",
+          mask: "radial-gradient(circle, transparent 55%, black 56%)",
+          WebkitMask: "radial-gradient(circle, transparent 55%, black 56%)",
         }}
       />
-      <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
+      <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8, flex: "1 1 220px" }}>
         {models.map((item, index) => (
-          <li key={item.label} className="row" style={{ gap: 8, alignItems: "center" }}>
+          <li key={`${item.provider}/${item.model}`} className="row" style={{ gap: 8, alignItems: "baseline" }}>
             <span
               aria-hidden="true"
               style={{
                 width: 10,
                 height: 10,
                 borderRadius: 3,
-                background: DONUT_COLORS[index % DONUT_COLORS.length],
+                flex: "none",
+                alignSelf: "center",
+                background: colorAt(index),
               }}
             />
-            <span className="mono">{item.label}</span>
-            <span className="faint">
-              {formatCost(item.usd)} · {formatTokens(item.tokens)} tokens
+            <span className="mono">{shortModel(item.provider, item.model)}</span>
+            <span className="faint" style={{ marginLeft: "auto", whiteSpace: "nowrap" }}>
+              {formatCost(item.usd)} · {((item.usd / total) * 100).toFixed(1)}%
             </span>
           </li>
         ))}
@@ -166,7 +202,7 @@ export function UsagePanel() {
       <div className="row wrap" style={{ marginBottom: 16 }}>
         <div className="stat">
           <div className="faint">Total tokens</div>
-          <div className="v">{data.total.tokens.toLocaleString()}</div>
+          <div className="v">{formatCount(data.total.tokens)}</div>
         </div>
         <div className="stat">
           <div className="faint">Total cost</div>

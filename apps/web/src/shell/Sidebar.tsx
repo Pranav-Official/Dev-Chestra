@@ -34,7 +34,7 @@ function SettingsMenu() {
   const active = location.pathname.endsWith("/settings/usage");
   return (
     <details
-      className="workspace-menu"
+      className="workspace-menu workspace-menu-up"
       ref={menu}
       onKeyDown={(event) => {
         if (event.key === "Escape" && menu.current) {
