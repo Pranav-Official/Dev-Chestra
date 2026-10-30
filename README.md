@@ -169,7 +169,7 @@ A missing launch gate now returns the controlled reason instead of a generic req
 
 #### Workflow file API
 
-Project workflow definitions are plain files at `<project>/.devchestra/workflows/<id>.json`. The server exposes bounded CRUD and validation routes for them. Fresh runs choose one run-level `workspace` selection at Start; omitting it defaults to the registered project root. Legacy per-node workspace metadata remains parseable for old documents, but fresh runs ignore it. `GET /api/projects/:pid/workspaces` returns the trusted catalog (`projectRoot`, worktrees, `git`), with the root excluded from the alternatives.
+Project workflow definitions are plain files at `<project>/.devchestra/workflows/<id>.json`. The server exposes bounded CRUD and validation routes for them. Fresh runs choose one run-level `workspace` selection at Start; omitting it defaults to the registered project root. Legacy per-node workspace metadata remains parseable for old documents, but fresh runs ignore it. `GET /api/projects/:pid/workspaces` returns the trusted catalog (`projectRoot`, worktrees, `git`), with the root excluded from the alternatives. The full browser API surface is about 40 routes (projects, runs, approvals, decisions, gates, models, MCP servers, SSE streams, plus 2 internal agent routes) — see `packages/server/src/browser/`; the table below covers the workflow-file routes only.
 
 | Route | Behavior |
 |---|---|
@@ -204,7 +204,7 @@ Live probe (opt-in): `pnpm devchestra:doctor --probe-decisions` (or `devchestra 
 ## Workspace
 
 ```text
-packages/*        @devchestra/core, schema, api, store, workspaces, adapters, engine, mcp, server, cli
+packages/*        @devchestra/core, schema, api, store, workspaces, adapters, decisions, engine, mcp, server, cli
 apps/web          React 19 + Vite workflow editor and run viewer
 tools/*           test-only fake agent (DEVCHESTRA_ALLOW_FAKE=1), fixtures and browser e2e and acceptance harnesses (p2-smoke, p3-smoke)
 examples/*        portable linear workflow examples

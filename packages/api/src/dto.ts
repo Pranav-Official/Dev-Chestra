@@ -112,6 +112,10 @@ export interface HealthResponse {
   version: string;
   uptimeMs: number;
   instanceId: string;
+  /** False when a readiness check fails; absent on older servers. */
+  ready?: boolean;
+  /** Per-check readiness; absent on older servers. */
+  checks?: { store: "ok" | "error" };
 }
 
 export const healthResponseSchema = strict({
@@ -119,6 +123,8 @@ export const healthResponseSchema = strict({
   version: z.string(),
   uptimeMs: z.number().int().nonnegative(),
   instanceId: z.string(),
+  ready: z.boolean().optional(),
+  checks: strict({ store: z.enum(["ok", "error"]) }).optional(),
 }) as unknown as z.ZodType<HealthResponse>;
 
 export interface CliProbeSummary {
@@ -599,7 +605,9 @@ export const runContextEntrySchema = strict({
   attempt: z.number().int().positive(),
   generation: z.number().int().positive(),
   loopRound: z.number().int().positive().nullable(),
-  output: z.strictObject({ id: z.string(), hash: z.string(), bytes: z.number().int().nonnegative() }).nullable(),
+  output: z
+    .strictObject({ id: z.string(), hash: z.string(), bytes: z.number().int().nonnegative() })
+    .nullable(),
   captureId: z.string().nullable(),
 }) as unknown as z.ZodType<RunContextEntry>;
 

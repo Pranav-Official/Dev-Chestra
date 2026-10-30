@@ -167,9 +167,14 @@ describe("decision client ask", () => {
     expect(calls).toHaveLength(0);
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error.code).toBe("E_PROVIDER");
+      expect(result.error.code).toBe("E_DECISION_CONFIG");
       expect(result.error.message).toContain("TYPESAFE_API_KEY");
       expect(result.error.message).not.toContain("test-typesafe-key");
+      expect(result.error.details).toEqual({
+        reason: "missing_secrets",
+        provider: "typesafe-jev",
+        missing: ["TYPESAFE_API_KEY"],
+      });
     }
   });
 
@@ -591,7 +596,7 @@ describe("error codes", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error).toBeInstanceOf(DevChestraError);
-      expect(result.error.code).toBe("E_PROVIDER");
+      expect(result.error.code).toBe("E_DECISION_CONFIG");
     }
   });
 });

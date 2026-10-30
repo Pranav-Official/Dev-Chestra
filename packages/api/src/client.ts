@@ -29,23 +29,23 @@ import {
   executionDetailResponseSchema,
   type HealthResponse,
   healthResponseSchema,
-  type OutputPreview,
-  outputPreviewSchema,
-  type RunContextQuery,
-  type RunContextResponse,
-  runContextResponseSchema,
   type ListProjectsQuery,
   type ListProjectsResponse,
   listProjectsResponseSchema,
+  type OutputPreview,
+  outputPreviewSchema,
   type ProjectView,
   projectViewSchema,
   type RegisterProjectRequest,
   type RelinkProjectRequest,
+  type RunContextQuery,
+  type RunContextResponse,
   type RunDetailResponse,
   type RunListQuery,
   type RunListResponse,
   registerProjectRequestSchema,
   relinkProjectRequestSchema,
+  runContextResponseSchema,
   runDetailResponseSchema,
   runListResponseSchema,
   type StartRunRequest,
@@ -109,6 +109,14 @@ interface RequestConfig {
   mutation: boolean;
   extraHeaders: Record<string, string> | undefined;
 }
+
+/**
+ * Default deadline for unary API calls when the caller passes no `signal`.
+ * Long-lived SSE streams opt out (see `stream`); a caller `signal` always
+ * wins and disables the default. A timeout surfaces as the signal's abort
+ * reason (a `TimeoutError` DOMException), never wrapped in ApiTransportError.
+ */
+export const API_DEFAULT_TIMEOUT_MS = 30_000;
 
 interface StreamConfig {
   query: Record<string, QueryValue> | undefined;
@@ -589,8 +597,11 @@ export class ApiClientBase {
     if (config.extraHeaders !== undefined) {
       for (const [key, value] of Object.entries(config.extraHeaders)) headers.set(key, value);
     }
-    const init: RequestInit = { method, headers, credentials: "same-origin" };
-    if (config.signal !== undefined) init.signal = config.signal;
+    // Unary calls get a default deadline unless the caller takes over with
+    // their own signal. Streams (`stream`) stay caller-driven: they are
+    // long-lived subscriptions a 30s default would kill.
+    const signal = config.signal ?? AbortSignal.timeout(API_DEFAULT_TIMEOUT_MS);
+    const init: RequestInit = { method, headers, credentials: "same-origin", signal };
     let bodyText: string | undefined;
     if (config.body !== undefined) {
       bodyText = JSON.stringify(config.body);
@@ -598,7 +609,7 @@ export class ApiClientBase {
     }
     if (bodyText !== undefined) init.body = bodyText;
 
-    const response = await this.fetchResponse(url, init, config.signal);
+    const response = await this.fetchResponse(url, init, signal);
     this.verifyVersion(response);
     if (!response.ok) throw await this.toApiError(response);
 
@@ -639,9 +650,9 @@ export class ApiClientBase {
     if (config.extraHeaders !== undefined) {
       for (const [key, value] of Object.entries(config.extraHeaders)) headers.set(key, value);
     }
-    const init: RequestInit = { method, headers, credentials: "same-origin" };
-    if (config.signal !== undefined) init.signal = config.signal;
-    const response = await this.fetchResponse(url, init, config.signal);
+    const signal = config.signal ?? AbortSignal.timeout(API_DEFAULT_TIMEOUT_MS);
+    const init: RequestInit = { method, headers, credentials: "same-origin", signal };
+    const response = await this.fetchResponse(url, init, signal);
     this.verifyVersion(response);
     if (!response.ok) throw await this.toApiError(response);
     if (response.body !== null) await response.body.cancel().catch(() => undefined);

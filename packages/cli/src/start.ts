@@ -99,6 +99,12 @@ export interface BrowserListener {
   closed?: Promise<void>;
 }
 
+/** One failed stage of the `executeStart` shutdown sequence. */
+export interface ShutdownFailure {
+  stage: string;
+  error: unknown;
+}
+
 export interface StartDeps {
   signal?: AbortSignal;
   webRoot?: string;
@@ -458,60 +464,44 @@ export async function executeStart(
   let closeWindowsControl: (() => Promise<void>) | undefined;
   const windowsStop = new AbortController();
 
-  const cleanup = async (removeMetadata: boolean): Promise<boolean> => {
-    if (cleaned) return true;
+  // Each shutdown stage reports its own failure instead of collapsing to one
+  // boolean (TD-014). Every failure is logged as it happens (TD-007), so a
+  // partial shutdown names the stage instead of hiding it.
+  const cleanup = async (removeMetadata: boolean): Promise<ShutdownFailure[]> => {
+    if (cleaned) return [];
     cleaned = true;
-    let ok = true;
-    if (closeWindowsControl !== undefined)
-      await closeWindowsControl().catch(() => {
-        ok = false;
-      });
-    if (modelCatalog !== undefined) {
+    const failures: ShutdownFailure[] = [];
+    const runStage = async (stage: string, fn: () => Promise<unknown>): Promise<void> => {
       try {
-        await modelCatalog.close();
-      } catch {
-        ok = false;
+        await fn();
+      } catch (error) {
+        failures.push({ stage, error });
+        notice(
+          `shutdown stage '${stage}' failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
-    }
-    if (listener !== undefined) {
-      try {
-        await listener.close();
-      } catch {
-        ok = false;
-      }
-    }
-    if (engine !== undefined) {
-      try {
-        await engine.stop({ graceMs: 5_000 });
-      } catch {
-        ok = false;
-      }
-    }
-    if (gateway !== undefined) {
-      try {
-        await gateway.close();
-      } catch {
-        ok = false;
-      }
-    }
-    try {
+    };
+    const cwc = closeWindowsControl;
+    if (cwc !== undefined) await runStage("windows-control", () => cwc());
+    const catalog = modelCatalog;
+    if (catalog !== undefined) await runStage("model-catalog", () => catalog.close());
+    const lst = listener;
+    if (lst !== undefined) await runStage("listener", () => lst.close());
+    const eng = engine;
+    if (eng !== undefined) await runStage("engine", () => eng.stop({ graceMs: 5_000 }));
+    const gw = gateway;
+    if (gw !== undefined) await runStage("gateway", () => gw.close());
+    await runStage("store", async () => {
       store.close();
-    } catch {
-      ok = false;
+    });
+    // Preserve the old guard: never remove our own metadata when an earlier
+    // stage failed, so a partial shutdown keeps its evidence on disk.
+    const meta = removeMetadata ? metadata : undefined;
+    if (meta !== undefined && failures.length === 0) {
+      await runStage("server-metadata", () => removeOwnServerMetadata(dataDir, meta));
     }
-    if (removeMetadata && metadata !== undefined && ok) {
-      try {
-        await removeOwnServerMetadata(dataDir, metadata);
-      } catch {
-        ok = false;
-      }
-    }
-    try {
-      await lock.release();
-    } catch {
-      ok = false;
-    }
-    return ok;
+    await runStage("data-dir-lock", () => lock.release());
+    return failures;
   };
 
   try {
@@ -593,9 +583,11 @@ export async function executeStart(
         ? windowsStop.signal
         : AbortSignal.any([deps.signal, windowsStop.signal]);
     await waitForStop(stopSignal, listener);
-    const ok = await cleanup(true);
-    if (!ok) {
-      notice("devchestra: shutdown was incomplete; run evidence was retained");
+    const failures = await cleanup(true);
+    if (failures.length > 0) {
+      notice(
+        `shutdown was incomplete (failed: ${failures.map((failure) => failure.stage).join(", ")}); run evidence was retained`,
+      );
       return 1;
     }
     return 0;

@@ -8,7 +8,11 @@ import { ApprovalForm } from "../src/editor/inspector/ApprovalForm.js";
 import { createDefaultNode } from "../src/editor/model/graph.js";
 import { checkConnection } from "../src/editor/model/routing.js";
 import { ApprovalPanel } from "../src/run/ApprovalPanel.js";
-import { approvalForPath } from "../src/run/approval.js";
+import {
+  approvalForPath,
+  deriveApprovalsFromViews,
+  isApprovalPending,
+} from "../src/run/approval.js";
 
 function withQuery(c: React.ReactNode) {
   return (
@@ -246,6 +250,53 @@ describe("approvalForPath uses view fields", () => {
     const r = approvalForPath(v, "approval");
     expect(r?.pending).toBe(false);
     expect(r?.resolved?.requestId).toBe("req_abc123");
+  });
+});
+
+describe("isApprovalPending unifies detail and inbox", () => {
+  const req = (requestId: string | null) => ({
+    message: "m",
+    irreversible: false,
+    criteria: null,
+    requestId,
+    attempt: 2,
+    generation: 3,
+    eventId: 10,
+  });
+  const dec = (requestId: string | null) => ({
+    decision: "approve" as const,
+    by: "user",
+    note: null,
+    requestId,
+    attempt: 2,
+    generation: 3,
+    eventId: 11,
+  });
+  it("treats a legacy pair with null requestIds on both sides as answered", () => {
+    expect(isApprovalPending(req(null), dec(null), "waiting_approval", "waiting_approval")).toBe(
+      false,
+    );
+  });
+  it("keeps a legacy request with no decision pending while waiting", () => {
+    expect(isApprovalPending(req(null), null, "waiting_approval", "waiting_approval")).toBe(true);
+  });
+  it("treats a stale (mismatched) decision as still pending", () => {
+    expect(
+      isApprovalPending(req("req_new"), dec("req_old"), "waiting_approval", "waiting_approval"),
+    ).toBe(true);
+  });
+  it("detail and inbox agree on the legacy answered pair", () => {
+    const v = fakeView();
+    (v.executions.approval as unknown as { approvalRequest: unknown }).approvalRequest = req(null);
+    (v.executions.approval as unknown as { approvalDecision: unknown }).approvalDecision =
+      dec(null);
+    expect(approvalForPath(v, "approval")?.pending).toBe(false);
+    expect(deriveApprovalsFromViews({ run1: v })).toEqual([]);
+  });
+  it("detail and inbox agree on a pending modern request", () => {
+    const v = fakeView();
+    expect(approvalForPath(v, "approval")?.pending).toBe(true);
+    expect(deriveApprovalsFromViews({ run1: v })).toHaveLength(1);
   });
 });
 

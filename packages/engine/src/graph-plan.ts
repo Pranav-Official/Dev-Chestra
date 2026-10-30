@@ -1,4 +1,5 @@
 import {
+  assertNever,
   DevChestraError,
   err,
   isRecord,
@@ -28,6 +29,35 @@ export interface PlanNode {
   readonly id: string;
   readonly type: PlanNodeKind;
   readonly raw: Readonly<Record<string, unknown>>;
+}
+
+export interface TypedPlanNode<Kind extends PlanNodeKind> {
+  readonly id: string;
+  readonly type: Kind;
+  readonly raw: Readonly<Record<string, unknown>>;
+}
+
+/** Discriminated plan node: narrowing on `type` selects the variant. */
+export type PlannedNode = { [Kind in PlanNodeKind]: TypedPlanNode<Kind> }[PlanNodeKind];
+
+/** Narrow a plan node into the discriminated union (exhaustive over PlanNodeKind). */
+export function toPlannedNode(node: PlanNode): PlannedNode {
+  switch (node.type) {
+    case "start":
+    case "agent":
+    case "shell":
+    case "end":
+    case "gate":
+    case "join":
+    case "approval":
+    case "decision":
+    case "loop":
+    case "workflow":
+    case "foreach":
+      return node as PlannedNode;
+    default:
+      return assertNever(node.type);
+  }
 }
 
 export interface PlanEdge {
@@ -236,50 +266,88 @@ function resolveEndpoints(
     if (source === undefined) throw invalid(`Edge source '${fromParts.node}' does not exist`);
     if (target === undefined) throw invalid(`Edge target '${toParts.node}' does not exist`);
 
-    if (source.type === "gate") {
-      if (fromParts.handle === undefined) {
-        throw invalid(`Edge from gate '${source.id}' must use 'gateId.branchId'`);
+    switch (source.type) {
+      case "gate": {
+        if (fromParts.handle === undefined) {
+          throw invalid(`Edge from gate '${source.id}' must use 'gateId.branchId'`);
+        }
+        const branch = gates.get(source.id)?.find((entry) => entry.id === fromParts.handle);
+        if (branch === undefined) {
+          throw invalid(`Edge source branch '${source.id}.${fromParts.handle}' does not exist`);
+        }
+        break;
       }
-      const branch = gates.get(source.id)?.find((entry) => entry.id === fromParts.handle);
-      if (branch === undefined) {
-        throw invalid(`Edge source branch '${source.id}.${fromParts.handle}' does not exist`);
+      case "approval": {
+        if (fromParts.handle !== undefined && fromParts.handle !== "rejected") {
+          throw invalid(
+            `Edge from approval '${source.id}' must be '${source.id}' or '${source.id}.rejected'`,
+          );
+        }
+        break;
       }
-    } else if (source.type === "approval") {
-      if (fromParts.handle !== undefined && fromParts.handle !== "rejected") {
-        throw invalid(
-          `Edge from approval '${source.id}' must be '${source.id}' or '${source.id}.rejected'`,
-        );
+      case "decision": {
+        if (fromParts.handle === undefined) {
+          throw invalid(`Edge from decision '${source.id}' must use 'decisionId.handleId'`);
+        }
+        break;
       }
-    } else if (source.type === "decision") {
-      if (fromParts.handle === undefined) {
-        throw invalid(`Edge from decision '${source.id}' must use 'decisionId.handleId'`);
+      case "loop": {
+        if (fromParts.handle !== undefined && fromParts.handle !== LOOP_EXHAUSTED_HANDLE) {
+          throw invalid(
+            `Edge from loop '${source.id}' must be '${source.id}' or '${source.id}.${LOOP_EXHAUSTED_HANDLE}'`,
+          );
+        }
+        break;
       }
-    } else if (source.type === "loop") {
-      if (fromParts.handle !== undefined && fromParts.handle !== LOOP_EXHAUSTED_HANDLE) {
-        throw invalid(
-          `Edge from loop '${source.id}' must be '${source.id}' or '${source.id}.${LOOP_EXHAUSTED_HANDLE}'`,
-        );
+      case "workflow": {
+        if (fromParts.handle !== undefined && fromParts.handle !== "failed") {
+          throw invalid(
+            `Edge from workflow '${source.id}' must be '${source.id}' or '${source.id}.failed'`,
+          );
+        }
+        break;
       }
-    } else if (source.type === "workflow") {
-      if (fromParts.handle !== undefined && fromParts.handle !== "failed") {
-        throw invalid(
-          `Edge from workflow '${source.id}' must be '${source.id}' or '${source.id}.failed'`,
-        );
-      }
-    } else if (fromParts.handle !== undefined) {
-      throw invalid(
-        `Edge source '${value.from}' uses a handle on a non-gate/non-approval/non-decision/non-loop/non-workflow node`,
-      );
+      case "start":
+      case "agent":
+      case "shell":
+      case "end":
+      case "join":
+      case "foreach":
+        if (fromParts.handle !== undefined) {
+          throw invalid(
+            `Edge source '${value.from}' uses a handle on a non-gate/non-approval/non-decision/non-loop/non-workflow node`,
+          );
+        }
+        break;
+      default:
+        assertNever(source.type);
     }
-    if (target.type === "join") {
-      if (toParts.handle === undefined) {
-        throw invalid(`Edge to join '${target.id}' must use 'joinId.inputName'`);
+    switch (target.type) {
+      case "join": {
+        if (toParts.handle === undefined) {
+          throw invalid(`Edge to join '${target.id}' must use 'joinId.inputName'`);
+        }
+        if (!(joins.get(target.id) ?? []).includes(toParts.handle)) {
+          throw invalid(`Edge target input '${target.id}.${toParts.handle}' does not exist`);
+        }
+        break;
       }
-      if (!(joins.get(target.id) ?? []).includes(toParts.handle)) {
-        throw invalid(`Edge target input '${target.id}.${toParts.handle}' does not exist`);
-      }
-    } else if (toParts.handle !== undefined) {
-      throw invalid(`Edge target '${value.to}' uses an input handle on a non-join node`);
+      case "start":
+      case "agent":
+      case "shell":
+      case "end":
+      case "gate":
+      case "approval":
+      case "decision":
+      case "loop":
+      case "workflow":
+      case "foreach":
+        if (toParts.handle !== undefined) {
+          throw invalid(`Edge target '${value.to}' uses an input handle on a non-join node`);
+        }
+        break;
+      default:
+        assertNever(target.type);
     }
 
     const edge: PlanEdge = {

@@ -1,48 +1,24 @@
 /** @type {import('dependency-cruiser').IConfiguration} */
 const allowed = [
   { name: "core", path: "(^|/)packages/core/", deps: [] },
-  { name: "config", path: "(^|/)packages/config/", deps: ["core"] },
   { name: "schema", path: "(^|/)packages/schema/", deps: ["core"] },
   { name: "store", path: "(^|/)packages/store/", deps: ["core"] },
   { name: "workspaces", path: "(^|/)packages/workspaces/", deps: ["core"] },
   { name: "decisions", path: "(^|/)packages/decisions/", deps: ["core", "schema"] },
-  { name: "context", path: "(^|/)packages/context/", deps: ["core", "store"] },
-  { name: "adapters", path: "(^|/)packages/adapters/", deps: ["core", "config", "schema"] },
+  { name: "adapters", path: "(^|/)packages/adapters/", deps: ["core", "schema"] },
   { name: "mcp", path: "(^|/)packages/mcp/", deps: ["core", "schema"] },
   {
     name: "engine",
     path: "(^|/)packages/engine/",
-    deps: [
-      "core",
-      "schema",
-      "store",
-      "workspaces",
-      "adapters",
-      "mcp",
-      "decisions",
-      "context",
-      "config",
-    ],
+    deps: ["core", "schema", "store", "workspaces", "adapters", "mcp", "decisions"],
   },
-  { name: "supervisor", path: "(^|/)packages/supervisor/", deps: ["core", "engine"] },
   { name: "api", path: "(^|/)packages/api/", deps: ["core", "schema"] },
   {
     // P0 composition root: the gateway server wires the real store, MCP tool
     // surface and core contracts. Revisit when the engine owns composition.
     name: "server",
     path: "(^|/)packages/server/",
-    deps: [
-      "api",
-      "engine",
-      "supervisor",
-      "config",
-      "core",
-      "schema",
-      "store",
-      "mcp",
-      "adapters",
-      "decisions",
-    ],
+    deps: ["api", "engine", "core", "schema", "store", "mcp", "adapters", "decisions"],
   },
   {
     // P1 embedded CLI composition root: run/resume assemble the slice directly

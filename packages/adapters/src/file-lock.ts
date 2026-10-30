@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { hostname } from "node:os";
 import { join } from "node:path";
 
@@ -73,18 +73,36 @@ export async function acquireFileLock(
     options.signal?.throwIfAborted();
     try {
       await mkdir(lockPath);
-      await writeFile(ownerPath, me, "utf8");
+      try {
+        await writeFile(ownerPath, me, "utf8");
+      } catch (writeError) {
+        // mkdir succeeded but the owner record could not be written
+        // (crash/kill between the two, ENOSPC, ...): remove the bare
+        // dir so the next waiter does not block on a stranded lock
+        // with no owner.json.
+        await rm(lockPath, { recursive: true, force: true }).catch(() => undefined);
+        throw writeError;
+      }
       break;
     } catch (error) {
       if ((error as NodeJS.ErrnoException)?.code !== "EEXIST") throw error;
       try {
-        const [raw, info] = await Promise.all([readFile(ownerPath, "utf8"), stat(lockPath)]);
+        // mtimeMs is wall-clock, so age must use Date.now() (monotonic
+        // clocks cannot be compared against file mtimes).
+        const info = await stat(lockPath);
         const ageMs = Date.now() - info.mtimeMs;
         let owner: { pid?: unknown; host?: unknown } = {};
         try {
-          owner = JSON.parse(raw) as { pid?: unknown; host?: unknown };
+          const raw = await readFile(ownerPath, "utf8");
+          try {
+            owner = JSON.parse(raw) as { pid?: unknown; host?: unknown };
+          } catch {
+            // Half-written owner: treat as gone, staleness decides below.
+          }
         } catch {
-          // Half-written owner: keep waiting for the holder to finish.
+          // Missing/unreadable owner (e.g. killed between mkdir and
+          // writeFile): owner stays {} so `gone` is true and a stale
+          // bare dir becomes stealable instead of stranding waiters.
         }
         const pid = typeof owner.pid === "number" ? owner.pid : -1;
         const host = typeof owner.host === "string" ? owner.host : "";
@@ -94,14 +112,21 @@ export async function acquireFileLock(
           continue;
         }
       } catch {
-        // Owner unreadable mid-handover: keep waiting.
+        // stat/takeover raced mid-handover: keep waiting.
       }
       await sleep(pollMs, options.signal);
     }
   }
 
   const beat = setInterval(() => {
-    writeFile(ownerPath, me).catch(() => undefined);
+    // Refreshing owner.json alone does NOT bump the lock-dir mtime on
+    // POSIX (only entry create/remove does), while liveness is checked
+    // against the dir mtime — so the heartbeat must utimes the dir
+    // itself, otherwise a live holder looks dead after ~3*staleMs.
+    (async () => {
+      await writeFile(ownerPath, me);
+      await utimes(lockPath, new Date(), new Date());
+    })().catch(() => undefined);
   }, heartbeatMs);
   if (typeof (beat as unknown as { unref?: unknown }).unref === "function") {
     (beat as unknown as { unref: () => void }).unref();

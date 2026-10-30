@@ -959,6 +959,53 @@ describe("projection", () => {
     expect(reopened.view.get(h.runId)).toEqual(incremental);
     reopened.close();
   });
+
+  it("rebuilds the full projection beyond the 10k list cap (TD-002)", () => {
+    const h = harness();
+    h.close();
+    const db = new Database(h.file);
+    db.pragma("journal_mode = WAL");
+    const insert = db.prepare(
+      `INSERT INTO events (run_id, ts, path, type, actor, v, payload)
+       VALUES (?, ?, '', 'budget.threshold', 'system', 1, ?)`,
+    );
+    const extra = 10_001;
+    const base = 1_700_000_000_000;
+    const bulk = db.transaction(() => {
+      for (let i = 0; i < extra; i += 1) {
+        // Audit-only event: bumps lastEventId without mutating run status.
+        // (error.logged would not advance lastEventId at run level.)
+        insert.run(h.runId, base + i, JSON.stringify({}));
+      }
+    });
+    bulk();
+    const counts = db
+      .prepare("SELECT COUNT(*) AS count, MAX(id) AS maxId FROM events WHERE run_id = ?")
+      .get(h.runId) as { count: number; maxId: number };
+    expect(counts.count).toBeGreaterThan(10_000);
+    db.close();
+
+    const reopened = h.reopen();
+    try {
+      const rebuilt = reopened.view.rebuild(h.runId);
+      expect(rebuilt.lastEventId).toBe(counts.maxId);
+      // list() stays capped at 10k by design; count via cursor paging instead.
+      let seen = 0;
+      let cursor: string | undefined;
+      for (;;) {
+        const page =
+          cursor === undefined
+            ? reopened.events.page(h.runId, { limit: 500 })
+            : reopened.events.page(h.runId, { cursor, limit: 500 });
+        seen += page.items.length;
+        if (page.nextCursor === null) break;
+        cursor = page.nextCursor;
+      }
+      expect(seen).toBe(counts.count);
+    } finally {
+      reopened.close();
+    }
+  });
 });
 
 describe("P1 read ports and lifecycle", () => {

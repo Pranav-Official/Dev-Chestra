@@ -16,6 +16,7 @@ export type ErrorCode =
   | "E_RATE_LIMIT"
   | "E_PROVIDER"
   | "E_PROVIDER_REFUSED"
+  | "E_DECISION_CONFIG"
   | "E_BUDGET"
   | "E_WORKSPACE"
   | "E_LOCKED"

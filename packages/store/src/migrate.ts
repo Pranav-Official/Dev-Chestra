@@ -16,6 +16,7 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 6, file: "0006_context_captures.sql" },
   { version: 7, file: "0007_workflow_foreach.sql" },
   { version: 8, file: "0008_foreach_parent.sql" },
+  { version: 9, file: "0009_read_indexes.sql" },
 ];
 
 function migrationsDir(): string {
