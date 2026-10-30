@@ -5,6 +5,11 @@ import type { ExecStatus } from "./transitions.js";
 /** Derived edge state from spec 12.4. Edges are never stored. */
 export type RoutingEdgeState = "pending" | "active" | "dead";
 
+/** Exhaustiveness guard: unknown variants fail loudly instead of routing silently. */
+export function assertNever(value: never, message?: string): never {
+  throw new Error(message ?? `Unexpected value: ${JSON.stringify(value)}`);
+}
+
 export interface RoutingGraphEdge {
   id: string;
   /** Full endpoint (`gateId.branchId`) or a plain node id with sourceHandle. */
@@ -17,9 +22,9 @@ export interface RoutingGraphEdge {
 
 export interface RoutingGraphNode {
   id: string;
-  type: NodeKind | string;
+  type: NodeKind;
   branches?: readonly { id: string }[];
-  mode?: "first" | "all" | string;
+  mode?: "first" | "all";
   inputs?: readonly string[];
 }
 
@@ -29,8 +34,8 @@ export interface RoutingGraph {
 }
 
 export interface RoutingExecutionState {
-  status: ExecStatus | string;
-  kind?: string | null;
+  status: ExecStatus;
+  kind?: NodeKind | null;
   gateDecision?: { branch: string | null } | null;
   joinResolution?: unknown;
   // requestId is intentionally unused by routing (only `decision` matters)
@@ -62,7 +67,7 @@ export interface RoutingView {
   conflicts: string[];
 }
 
-const PENDING_STATUSES: ReadonlySet<string> = new Set([
+const PENDING_STATUSES: ReadonlySet<ExecStatus> = new Set([
   "pending",
   "ready",
   "running",
@@ -71,9 +76,14 @@ const PENDING_STATUSES: ReadonlySet<string> = new Set([
   "waiting_quota",
   "interrupted",
 ]);
-const DEAD_STATUSES: ReadonlySet<string> = new Set(["skipped", "cancelled", "failed", "rejected"]);
-const UNSTARTED_STATUSES: ReadonlySet<string> = new Set(["pending", "ready"]);
-const DISPATCHABLE_STATUSES: ReadonlySet<string> = new Set(["pending", "ready", "interrupted"]);
+const DEAD_STATUSES: ReadonlySet<ExecStatus> = new Set([
+  "skipped",
+  "cancelled",
+  "failed",
+  "rejected",
+]);
+const UNSTARTED_STATUSES: ReadonlySet<ExecStatus> = new Set(["pending", "ready"]);
+const DISPATCHABLE_STATUSES: ReadonlySet<ExecStatus> = new Set(["pending", "ready", "interrupted"]);
 
 function endpoint(
   value: string,
@@ -100,46 +110,58 @@ function edgeState(
   // Approval rejected with .rejected edge is succeeded with decision reject, selective.
   if (DEAD_STATUSES.has(status)) return "dead";
   if (status !== "succeeded") return "pending";
-  if (node?.type === "gate") {
-    const chosen = execution?.gateDecision?.branch ?? null;
-    return chosen !== null && source.handle === chosen ? "active" : "dead";
+  const kind = node?.type;
+  switch (kind) {
+    case "gate": {
+      const chosen = execution?.gateDecision?.branch ?? null;
+      return chosen !== null && source.handle === chosen ? "active" : "dead";
+    }
+    case "decision": {
+      const chosen = execution?.decision?.routing.branch ?? null;
+      return chosen !== null && source.handle === chosen ? "active" : "dead";
+    }
+    case "loop": {
+      // Plain endpoint = condition met (and every legacy loop); `.exhausted`
+      // activates only when the durable terminal round hit the iteration limit.
+      const exhausted = loopTerminalOutcome(execution?.loop) === "iteration_limit";
+      return (source.handle === LOOP_EXHAUSTED_HANDLE) === exhausted ? "active" : "dead";
+    }
+    case "approval": {
+      const decision = execution?.approvalDecision?.decision;
+      if (decision !== "approve" && decision !== "reject") return "dead";
+      const isRejected = decision === "reject";
+      if (source.handle === "rejected") return isRejected ? "active" : "dead";
+      return isRejected ? "dead" : "active";
+    }
+    case "workflow": {
+      // Plain endpoint = child succeeded; `.failed` = child failed/rejected.
+      // Cancelled children never route — the parent fails/cancels instead.
+      const workflowStatus = execution?.workflow?.status;
+      if (source.handle === "failed")
+        return workflowStatus === "failed" || workflowStatus === "rejected" ? "active" : "dead";
+      return workflowStatus === "succeeded"
+        ? "active"
+        : workflowStatus === null || workflowStatus === undefined || workflowStatus === "running"
+          ? "pending"
+          : "dead";
+    }
+    case "foreach":
+      // Foreach with onItemFailure=stop fails like a normal node; continue always
+      // succeeds (failures recorded per-item). Routing resolves after success.
+      return "active";
+    case "start":
+    case "agent":
+    case "shell":
+    case "end":
+    case "join":
+    case "map":
+    case "supervisor":
+    case undefined:
+      // Plain nodes (and dangling edges with no node) fan out once succeeded.
+      return "active";
+    default:
+      return assertNever(kind, `Unknown routing node kind ${JSON.stringify(kind)}`);
   }
-  if (node?.type === "decision") {
-    const chosen = execution?.decision?.routing.branch ?? null;
-    return chosen !== null && source.handle === chosen ? "active" : "dead";
-  }
-  if (node?.type === "loop") {
-    // Plain endpoint = condition met (and every legacy loop); `.exhausted`
-    // activates only when the durable terminal round hit the iteration limit.
-    const exhausted = loopTerminalOutcome(execution?.loop) === "iteration_limit";
-    return (source.handle === LOOP_EXHAUSTED_HANDLE) === exhausted ? "active" : "dead";
-  }
-  if (node?.type === "approval") {
-    const decision = execution?.approvalDecision?.decision;
-    if (decision !== "approve" && decision !== "reject") return "dead";
-    const isRejected = decision === "reject";
-    if (source.handle === "rejected") return isRejected ? "active" : "dead";
-    return isRejected ? "dead" : "active";
-  }
-  if (node?.type === "workflow") {
-    // Plain endpoint = child succeeded; `.failed` = child failed/rejected.
-    // Cancelled children never route — the parent fails/cancels instead.
-    const status = (execution as { workflow?: { status?: string | null } | null })?.workflow
-      ?.status;
-    if (source.handle === "failed")
-      return status === "failed" || status === "rejected" ? "active" : "dead";
-    return status === "succeeded"
-      ? "active"
-      : status === null || status === undefined || status === "running"
-        ? "pending"
-        : "dead";
-  }
-  if (node?.type === "foreach") {
-    // Foreach with onItemFailure=stop fails like a normal node; continue always
-    // succeeds (failures recorded per-item). Routing resolves after success.
-    return "active";
-  }
-  return "active";
 }
 
 /**

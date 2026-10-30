@@ -3,6 +3,30 @@ import type { ApprovalDecisionRef, ApprovalRequestRef, RunView } from "@devchest
 export type FrozenApproval = ApprovalRequestRef & { path: string };
 export type ResolvedApproval = ApprovalDecisionRef & { path: string };
 
+/**
+ * Single predicate for "is this approval still awaiting a decision".
+ * Unifies the detail view and the inbox, which previously disagreed on
+ * legacy null-`requestId` pairs (TD-011): a stored decision whose `requestId`
+ * matches the request — including the legacy pair where both sides are null
+ * (replay-safe, never resolvable, but answered) — is not pending. A request
+ * with no decision yet is pending while both the run and the execution are
+ * still `waiting_approval`.
+ */
+export function isApprovalPending(
+  req: ApprovalRequestRef | null,
+  dec: ApprovalDecisionRef | null,
+  runStatus: string | null | undefined,
+  execStatus: string | null | undefined,
+): boolean {
+  if (req === null) return false;
+  if (runStatus !== "waiting_approval" || execStatus !== "waiting_approval") return false;
+  if (dec === null) return true;
+  if (req.requestId === null || dec.requestId === null) {
+    return req.requestId !== dec.requestId;
+  }
+  return dec.requestId !== req.requestId;
+}
+
 function isNonEmptyString(v: unknown): v is string {
   return typeof v === "string" && v.length > 0;
 }
@@ -31,14 +55,7 @@ export function approvalForPath(
   const frozen: FrozenApproval | null = req ? { ...req, path } : null;
   const resolved: ResolvedApproval | null = dec ? { ...dec, path } : null;
   // pending only when exec and run are still waiting_approval and no matching decision
-  const runWaiting = view.status === "waiting_approval";
-  const execWaiting = exec.status === "waiting_approval";
-  const hasMatchingDecision =
-    frozen !== null &&
-    resolved !== null &&
-    frozen.requestId !== null &&
-    resolved.requestId === frozen.requestId;
-  const pending = frozen !== null && !hasMatchingDecision && execWaiting && runWaiting;
+  const pending = isApprovalPending(req, dec, view.status, exec.status);
   return { frozen, resolved, pending };
 }
 
@@ -71,11 +88,10 @@ export function deriveApprovalsFromViews(
     for (const [path, exec] of Object.entries(view.executions)) {
       const req = exec.approvalRequest;
       const dec = exec.approvalDecision;
-      if (req && (!dec || dec.requestId !== req.requestId)) {
-        // inbox shows pending only when run is waiting_approval
-        if (view.status === "waiting_approval" && exec.status === "waiting_approval") {
-          out.push({ runId, path, frozen: { ...req, path } });
-        }
+      // inbox shows pending only when run is waiting_approval (same rule as
+      // the detail view via isApprovalPending, including legacy null IDs)
+      if (req && isApprovalPending(req, dec, view.status, exec.status)) {
+        out.push({ runId, path, frozen: { ...req, path } });
       }
     }
   }

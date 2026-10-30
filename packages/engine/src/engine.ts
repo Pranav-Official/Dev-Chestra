@@ -44,6 +44,9 @@ import type {
   StartRunInput,
 } from "./types.js";
 
+/** Fallback shutdown deadline when neither `stop({ graceMs })` nor `shutdownGraceMs` sets one. */
+const DEFAULT_SHUTDOWN_GRACE_MS = 30_000;
+
 interface ActiveEntry {
   readonly state: ActiveRunState;
   readonly done: Promise<RunOutcome>;
@@ -94,6 +97,14 @@ export class LinearEngine implements Engine {
     this.#started = true;
   }
 
+  /**
+   * Abort every active drive and wait for them to settle, at most `graceMs`.
+   * The abort is delivered first so drives finish fast (StopSignal ->
+   * paused/shutdown outcome); the race only bounds a drive that never
+   * observes the abort (e.g. parked in a poll sleep). After the deadline
+   * `stop` returns anyway and late drives settle in the background — their
+   * `done` promises never reject, so nothing is left unobserved (TD-014).
+   */
   async stop(options: { graceMs?: number } = {}): Promise<void> {
     this.#stopping = true;
     if (this.#busUnsub) {
@@ -107,8 +118,26 @@ export class LinearEngine implements Engine {
       entry.state.tokens.clear();
       entry.state.abort.abort("shutdown");
     }
-    await Promise.all(entries.map((entry) => entry.done.catch(() => undefined)));
-    void options;
+    if (entries.length === 0) return;
+    const graceMs = Math.max(
+      0,
+      options.graceMs ?? this.#ctx.deps.shutdownGraceMs ?? DEFAULT_SHUTDOWN_GRACE_MS,
+    );
+    const settled = Promise.all(entries.map((entry) => entry.done.catch(() => undefined)));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        settled,
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, graceMs);
+        }),
+      ]);
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+    // A timed-out race leaves `settled` pending: keep observing it so a
+    // late drive outcome never surfaces as an unhandled rejection.
+    void settled.catch(() => undefined);
   }
 
   async launch(input: StartRunInput): Promise<Result<LaunchResult, DevChestraError>> {

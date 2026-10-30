@@ -242,6 +242,30 @@ describe("devchestra start lifecycle", () => {
     expect(existsSync(serverMetadataPath(dir))).toBe(false);
   });
 
+  it("names the failed shutdown stage and keeps evidence on disk", async () => {
+    const dir = tempDir();
+    const out = capture();
+    const controller = new AbortController();
+    const running = executeStart(options({ port: 0 }), dir, {
+      webRoot: webRoot(),
+      stdout: out.stream,
+      signal: controller.signal,
+      openBrowser: () => undefined,
+      createEngine: () => ({
+        ...stubEngine([]),
+        stop: async () => {
+          throw new Error("engine boom");
+        },
+      }),
+    });
+
+    await waitFor(() => existsSync(serverMetadataPath(dir)));
+    controller.abort();
+    await expect(running).resolves.toBe(1);
+    // The engine stage failed, so our own metadata is retained as evidence.
+    expect(existsSync(serverMetadataPath(dir))).toBe(true);
+  });
+
   it("returns actionable startup gate errors over HTTP without launching", async () => {
     const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
     const dataDir = tempDir();

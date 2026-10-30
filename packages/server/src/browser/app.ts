@@ -212,12 +212,23 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
     return readJsonObject(c, { maxBytes: MAX_JSON_BYTES });
   };
 
-  app.get("/api/health", (c) => {
+  // Liveness plus a cheap store-readiness probe. Always 200: the `ready`
+  // flag (not the status code) carries readiness, so existing health
+  // consumers and the attach handshake keep working when the store is down.
+  app.get("/api/health", async (c) => {
+    let store: "ok" | "error" = "ok";
+    try {
+      await deps.store.counts();
+    } catch {
+      store = "error";
+    }
     const body = {
       ok: true as const,
       version: deps.version,
       uptimeMs: Math.max(0, now() - startedAt),
       instanceId: deps.instanceId,
+      ready: store === "ok",
+      checks: { store },
     };
     validate("HealthResponse", body);
     return json(c, body);
@@ -451,7 +462,8 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
     const runId = c.req.param("rid");
     const run = await deps.store.getRun(runId);
     if (run === null) return c.json(errorBody("E_NOT_FOUND", "Run not found."), 404);
-    if (!deps.store.runContext) return c.json(errorBody("E_NOT_SUPPORTED", "Context inspection is unavailable."), 501);
+    if (!deps.store.runContext)
+      return c.json(errorBody("E_NOT_SUPPORTED", "Context inspection is unavailable."), 501);
     const query = runContextQuerySchema.safeParse({
       pathPrefix: c.req.query("pathPrefix") || undefined,
       status: c.req.query("status") || undefined,
@@ -465,7 +477,9 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
       ...(query.data.pathPrefix === undefined ? {} : { pathPrefix: query.data.pathPrefix }),
       ...(query.data.status === undefined ? {} : { status: query.data.status }),
       limit: query.data.limit ?? 100,
-      ...(query.data.cursor === undefined || query.data.cursor === null ? {} : { cursor: query.data.cursor }),
+      ...(query.data.cursor === undefined || query.data.cursor === null
+        ? {}
+        : { cursor: query.data.cursor }),
     });
     validate("RunContextResponse", context);
     return json(c, context);

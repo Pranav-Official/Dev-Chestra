@@ -6,6 +6,7 @@ import {
   type ExecStatus,
   emptyRunView,
   type NodeStateInit,
+  type RoutingGraph,
   reduce,
 } from "../src/index.js";
 import { ev, nodePath, RUN_PATH, resetEventIds } from "./helpers.js";
@@ -166,7 +167,7 @@ describe("decision reducer", () => {
 describe("decision routing", () => {
   beforeEach(() => resetEventIds());
 
-  const graph = {
+  const graph: RoutingGraph = {
     nodes: [
       { id: "start", type: "start" },
       { id: "decide", type: "decision" },
@@ -192,7 +193,7 @@ describe("decision routing", () => {
   });
 
   it("marks uncertain active when answered uncertain", () => {
-    const uncertain = {
+    const uncertain: RoutingGraph = {
       nodes: [
         { id: "start", type: "start" },
         { id: "decide", type: "decision" },

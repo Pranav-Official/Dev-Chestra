@@ -316,13 +316,36 @@ function updateRun(runtime: Runtime, runId: RunId, view: RunView): void {
     );
 }
 
+const REBUILD_PAGE_SIZE = 10_000;
+
+/**
+ * TD-002: listEventRows caps at 10k for API bounding. Internal replays must
+ * page past the cap instead of projecting a truncated prefix.
+ */
+function loadAllEventRows(runtime: Runtime, runId: RunId): EventRow[] {
+  const all: EventRow[] = [];
+  let after: number | undefined;
+  for (;;) {
+    const page =
+      after === undefined
+        ? listEventRows(runtime, runId, { limit: REBUILD_PAGE_SIZE })
+        : listEventRows(runtime, runId, { after, limit: REBUILD_PAGE_SIZE });
+    if (page.length === 0) break;
+    all.push(...page);
+    if (page.length < REBUILD_PAGE_SIZE) break;
+    after = page[page.length - 1]?.id;
+    if (after === undefined) break;
+  }
+  return all;
+}
+
 export function getView(runtime: Runtime, runId: RunId): RunView {
   requireRun(runtime, runId);
   const hasView = runtime.db
     .prepare("SELECT 1 AS present FROM run_views WHERE run_id = ?")
     .get(runId) as { present: number } | undefined;
   if (hasView) return loadView(runtime, runId);
-  return project(listEvents(runtime, runId));
+  return project(loadAllEventRows(runtime, runId).map(rowToEnvelope));
 }
 
 export function rebuildProjection(runtime: Runtime, runId: RunId): RunView {
@@ -332,7 +355,7 @@ export function rebuildProjection(runtime: Runtime, runId: RunId): RunView {
     .all(runId) as { path: string; validation_limit: number }[];
 
   runtime.db.prepare("DELETE FROM executions WHERE run_id = ?").run(runId);
-  const view = project(listEventRows(runtime, runId).map(rowToEnvelope));
+  const view = project(loadAllEventRows(runtime, runId).map(rowToEnvelope));
   saveView(runtime, runId, view);
   reconcile(runtime, runId, view);
 

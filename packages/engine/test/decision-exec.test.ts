@@ -578,7 +578,7 @@ describe("engine decision executor", () => {
     const result = await engine.run(launchInput(snap));
     if (!result.ok) throw result.error;
     expect(result.value.status).toBe("failed");
-    expect(result.value.error?.code).toBe("E_PROVIDER");
+    expect(result.value.error?.code).toBe("E_DECISION_CONFIG");
     expect(result.value.error?.message).toContain("TYPESAFE_API_KEY");
     expect(store.view.get(result.value.runId as never).executions.d?.decision).toBeNull();
     expect(standin.requests()).toHaveLength(0);

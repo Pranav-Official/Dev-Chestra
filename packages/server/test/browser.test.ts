@@ -361,13 +361,32 @@ describe("browser app security", () => {
     const h = await harness();
     const res = await h.app.request(url("/api/health"));
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ ok: true, instanceId: "instance-1" });
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      instanceId: "instance-1",
+      ready: true,
+      checks: { store: "ok" },
+    });
     expect(res.headers.get("x-devchestra-api")).toBe("1");
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     expect(res.headers.get("referrer-policy")).toBe("no-referrer");
     expect(res.headers.get("cache-control")).toBe("no-store");
     expect(res.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
     expect(res.headers.get("access-control-allow-origin")).toBeNull();
+  });
+
+  it("reports ready:false when the store is unreachable", async () => {
+    const h = await harness();
+    h.store.counts = () => {
+      throw new Error("boom");
+    };
+    const res = await h.app.request(url("/api/health"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      ready: false,
+      checks: { store: "error" },
+    });
   });
 
   it("rejects wrong Host and foreign Origin", async () => {

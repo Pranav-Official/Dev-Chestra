@@ -212,8 +212,9 @@ export function createDecisionClient(
     if (missing.length > 0) {
       return err(
         new DevChestraError(
-          "E_PROVIDER",
+          "E_DECISION_CONFIG",
           `Missing or invalid decision secret(s): ${missing.join(", ")}. Set them in ${DOTENV_LOOKUP_HINT}.`,
+          { details: { reason: "missing_secrets", provider, missing: [...missing] } },
         ),
       );
     }

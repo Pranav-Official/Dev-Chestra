@@ -2,7 +2,7 @@
 
 Durable graph workflow engine backed by SQLite and a caller-provided loopback
 gateway. It supports conditional routing, approvals, decisions, and bounded
-[Repeat until loops](../../docs/loops.md), with separate execution paths for
+Repeat until loops, with separate execution paths for
 each round. The public `LinearEngine` name remains for API compatibility.
 
 ## Scope

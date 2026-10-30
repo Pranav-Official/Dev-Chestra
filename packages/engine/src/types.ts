@@ -209,6 +209,11 @@ export interface ResumeOptions {
 
 export interface Engine {
   start(): Promise<void>;
+  /**
+   * Abort active drives and wait for them to settle, at most `graceMs`
+   * (else `shutdownGraceMs`, else 30s). Returns after the deadline even if
+   * a drive is still settling; late outcomes resolve in the background.
+   */
   stop(options?: { graceMs?: number }): Promise<void>;
   /** Durable create + async dispatch; resolves before the run completes. */
   launch(input: StartRunInput): Promise<Result<LaunchResult, DevChestraError>>;

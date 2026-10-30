@@ -1,5 +1,5 @@
 import type { DecisionOutput, ExecutionIdentity, Path } from "@devchestra/core";
-import { DevChestraError, hashJson } from "@devchestra/core";
+import { assertNever, DevChestraError, hashJson } from "@devchestra/core";
 import type { DecisionQuestion, DecisionRequest } from "@devchestra/decisions";
 import { DECISION_PRESETS } from "@devchestra/decisions";
 import {
@@ -12,6 +12,7 @@ import {
 import type { RunRecord } from "@devchestra/store";
 import { type ActiveRunState, type EngineContext, toDevChestraError } from "./context.js";
 import type { PlanNode, WorkflowPlan } from "./graph-plan.js";
+import { toPlannedNode } from "./graph-plan.js";
 import { buildScopeData } from "./scope.js";
 import { StopSignal } from "./stop.js";
 
@@ -29,7 +30,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function readConfig(node: PlanNode): DecisionConfig {
-  const raw = node.raw;
+  const planned = toPlannedNode(node);
+  if (planned.type !== "decision") {
+    throw new DevChestraError(
+      "E_WORKFLOW_INVALID",
+      `Decision '${node.id}' expected a decision node but found '${node.type}'`,
+      { details: { nodeId: node.id } },
+    );
+  }
+  const raw = planned.raw;
   if (!isDecisionProviderId(raw.provider)) {
     throw new DevChestraError(
       "E_WORKFLOW_INVALID",
@@ -48,13 +57,16 @@ function readConfig(node: PlanNode): DecisionConfig {
     });
   }
   const mode = raw.mode;
-  if (
-    !isRecord(mode) ||
-    (mode.kind !== "boolean" && mode.kind !== "choice" && mode.kind !== "score")
-  ) {
-    throw new DevChestraError("E_WORKFLOW_INVALID", `Decision '${node.id}' has an unknown mode`, {
-      details: { nodeId: node.id },
-    });
+  const modeKind = isRecord(mode) ? mode.kind : undefined;
+  switch (modeKind) {
+    case "boolean":
+    case "choice":
+    case "score":
+      break;
+    default:
+      throw new DevChestraError("E_WORKFLOW_INVALID", `Decision '${node.id}' has an unknown mode`, {
+        details: { nodeId: node.id },
+      });
   }
   const onError = raw.onError ?? "fail";
   if (onError !== "fail" && onError !== "uncertain") {
@@ -75,25 +87,30 @@ function readConfig(node: PlanNode): DecisionConfig {
 }
 
 function questionFor(mode: DecisionMode, instructions: string): DecisionQuestion {
-  if (mode.kind === "boolean") return { kind: "boolean", instructions };
-  if (mode.kind === "choice") {
-    return {
-      kind: "choice",
-      instructions,
-      options: mode.options.map((option) => ({
-        value: option.value,
-        ...(option.description === undefined ? {} : { description: option.description }),
-      })),
-    };
+  switch (mode.kind) {
+    case "boolean":
+      return { kind: "boolean", instructions };
+    case "choice":
+      return {
+        kind: "choice",
+        instructions,
+        options: mode.options.map((option) => ({
+          value: option.value,
+          ...(option.description === undefined ? {} : { description: option.description }),
+        })),
+      };
+    case "score":
+      return {
+        kind: "score",
+        instructions,
+        levels: mode.levels.map((level) => ({
+          label: level.label,
+          ...(level.description === undefined ? {} : { description: level.description }),
+        })),
+      };
+    default:
+      return assertNever(mode);
   }
-  return {
-    kind: "score",
-    instructions,
-    levels: mode.levels.map((level) => ({
-      label: level.label,
-      ...(level.description === undefined ? {} : { description: level.description }),
-    })),
-  };
 }
 
 function fallbackModel(config: DecisionConfig): string {
@@ -138,15 +155,14 @@ function unwiredUncertainError(node: PlanNode): DevChestraError {
  * fail the node, even when `onError` is "uncertain": a misconfigured node
  * must fail loudly instead of silently routing uncertain (F7c). Only
  * provider/transport failures after the client's retries route uncertain.
- * The client reports missing secrets as E_PROVIDER with this prefix; local
- * limit violations surface as E_VALIDATION.
+ * The client reports missing secrets as E_DECISION_CONFIG with a structured
+ * `{ reason: "missing_secrets", provider, missing }` details payload; local
+ * limit violations surface as E_VALIDATION. Never match on prose: message
+ * text is human-facing and must not change workflow behavior (TD-011).
  */
 function isDecisionConfigError(error: DevChestraError): boolean {
   if (error.code === "E_VALIDATION") return true;
-  return (
-    error.code === "E_PROVIDER" &&
-    error.message.startsWith("Missing or invalid decision secret(s):")
-  );
+  return error.code === "E_DECISION_CONFIG";
 }
 
 export async function executeDecision(

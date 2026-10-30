@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -79,5 +79,52 @@ describe("withFileLock", () => {
     await first();
     const second = await acquireFileLock(lockPath, { staleMs: 60_000, pollMs: 5 });
     await second();
+  });
+
+  it("heartbeat keeps a live holder steal-proof past 3*staleMs (TD-003)", async () => {
+    const dir = await scratch();
+    const lockPath = join(dir, "auth.json.devchestra-lock");
+    const staleMs = 100;
+    const release = await acquireFileLock(lockPath, {
+      staleMs,
+      heartbeatMs: 20,
+      pollMs: 10,
+    });
+    try {
+      // Hold well past the old steal threshold for a live local holder
+      // (age > 3*staleMs with `gone === false`). Heartbeat utimes on the
+      // lock dir must keep its mtime fresh; only rewriting owner.json
+      // does not bump dir mtime on POSIX.
+      await new Promise((resolve) => setTimeout(resolve, 450));
+      const ageMs = Date.now() - (await stat(lockPath)).mtimeMs;
+      expect(ageMs).toBeLessThan(staleMs);
+      // A second waiter must NOT steal the live lock: abort it and
+      // expect an abort error rather than acquisition.
+      const controller = new AbortController();
+      const pending = acquireFileLock(lockPath, {
+        staleMs,
+        pollMs: 10,
+        signal: controller.signal,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      controller.abort(new Error("stop"));
+      await expect(pending).rejects.toThrow("stop");
+    } finally {
+      await release();
+    }
+  });
+
+  it("takes over a stranded bare dir with no owner.json (TD-003)", async () => {
+    const dir = await scratch();
+    const lockPath = join(dir, "auth.json.devchestra-lock");
+    // Simulates kill between mkdir (atomic acquire) and owner.json write:
+    // bare dir, no owner record. Must become stealable once stale,
+    // not strand waiters forever.
+    await mkdir(lockPath);
+    const ancient = new Date(Date.now() - 1_000);
+    await utimes(lockPath, ancient, ancient);
+    const release = await acquireFileLock(lockPath, { staleMs: 50, pollMs: 5 });
+    expect(JSON.parse(await readFile(join(lockPath, "owner.json"), "utf8"))?.pid).toBe(process.pid);
+    await release();
   });
 });

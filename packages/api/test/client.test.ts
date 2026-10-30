@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { ApiClient, ApiError, ApiProtocolError, ApiTransportError } from "../src/index.js";
+import {
+  API_DEFAULT_TIMEOUT_MS,
+  ApiClient,
+  ApiError,
+  ApiProtocolError,
+  ApiTransportError,
+} from "../src/index.js";
 
 const RUN_ID = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
 
@@ -359,5 +365,44 @@ describe("ApiClient", () => {
     expect(messages).toHaveLength(2);
     expect(messages[0]).toMatchObject({ event: "run", id: 7 });
     expect(messages[1]).toEqual({ event: "overflow", data: { lastEventId: 7 } });
+  });
+
+  it("exposes the default unary deadline", () => {
+    expect(API_DEFAULT_TIMEOUT_MS).toBe(30_000);
+  });
+
+  it("applies a default deadline signal when the caller passes none", async () => {
+    const { client, calls } = makeClient(() => response(HEALTH));
+    await client.health();
+    const signal = first(calls).init.signal;
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(signal?.aborted).toBe(false);
+  });
+
+  it("lets a caller signal override the default deadline", async () => {
+    const { client, calls } = makeClient(() => response(HEALTH));
+    const controller = new AbortController();
+    await client.health({ signal: controller.signal });
+    expect(first(calls).init.signal).toBe(controller.signal);
+  });
+
+  it("does not impose the default deadline on event streams", async () => {
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('event: overflow\ndata: {"lastEventId":1}\n\n'));
+        controller.close();
+      },
+    });
+    const { client, calls } = makeClient(
+      () =>
+        new Response(body, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream", "X-DevChestra-Api": "1" },
+        }),
+    );
+    const stream = client.streamGlobalEvents();
+    await stream.next();
+    expect(first(calls).init.signal).toBeUndefined();
   });
 });
