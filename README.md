@@ -4,15 +4,19 @@ Conduct your coding agents like an orchestra.
 
 DevChestra is a local workflow builder for headless coding agents. You drag a few boxes on a canvas, hit Run, and watch Claude, Codex, OpenCode, or Pi do the work in order — with branches, loops, and human check-ins where you want them.
 
+It's not another agent to babysit. It's the stage your agents play on.
+
 ![DevChestra workflow editor](assets/images/editor.png)
 
 Above: a real workflow in DevChestra. Start with a parameter, hand it to two agents in sequence, then finish. Runs, transcripts, and replay live in the same window.
 
 ## Why it's nice
 
-Chatting with agents is great for one-offs. Real work is rarely one step. Research, then rank. Draft, then review. Write code, run tests, fix what broke.
+Pasting the same instructions into chat every time and hoping the agent does it the same way? That's the problem. Chat is vibes: same prompt, different tools, different order, different day.
 
-DevChestra lets you draw that process once and rerun it whenever you want, without babysitting every prompt or pasting output from one chat into the next.
+DevChestra makes the boring parts deterministic. You draw the process once — who runs, what tools and MCPs they get, what they're allowed to touch, what they must hand back, what happens next — and it runs that way every time. The agents still improvise inside their box (they're LLMs, after all), but the orchestration around them doesn't.
+
+Research, then rank. Draft, then review. Write code, run tests, fix what broke. No babysitting prompts, no pasting output from one chat into the next.
 
 ## What you build with
 
@@ -39,8 +43,6 @@ For each — process every item in a list, one at a time.
 Run workflow — call a reusable workflow and wait for it to finish.
 
 End — finish the run.
-
-That's it. Most workflows are just Start → Agent → Agent → End.
 
 ## How a run feels
 
@@ -84,8 +86,10 @@ Works with the CLIs you already signed in to: Claude Code, Codex, OpenCode, and 
 
 Decision nodes are the one exception — they need their own keys. Copy `.env.example` to `.env` and fill in only the provider you use.
 
-## One more thing
+## It lives where you already work
 
-Every registered project gets a `.devchestra/skill.md` file. It's a plain-English guide that tells any coding agent how to write a valid workflow for your project. Point your agent at it and say what you want built.
+Registering a project drops a `.devchestra/skill.md` file into your repo. It's a plain-English guide that teaches *your* agent — whatever lives in your REPL or IDE — how to write valid workflows for your project.
+
+So you don't learn a new tool. You just tell your agent "add a workflow that lints, then asks me before fixing," and it draws the boxes for you. Rerun it, share it, version it like code.
 
 Local-first, single user, your files stay yours. No cloud account, no queue, no sandbox magic — steps run with your normal permissions in the workspace you chose.
