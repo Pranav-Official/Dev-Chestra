@@ -10,7 +10,7 @@ import {
   Settings,
 } from "lucide-react";
 import { useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { api, classifyError } from "../api/client.js";
 import { queryKeys, useBootstrap } from "../api/hooks.js";
 import type { RunSummary } from "../api/types.js";
@@ -27,7 +27,6 @@ interface WorkflowNav {
 
 function SettingsMenu() {
   const menu = useRef<HTMLDetailsElement>(null);
-  const navigate = useNavigate();
   const location = useLocation();
   const match = location.pathname.match(/^\/p\/([^/]+)/);
   const usagePath = match ? `/p/${match[1]}/settings/usage` : "/settings/usage";
@@ -47,16 +46,15 @@ function SettingsMenu() {
         <Settings size={15} aria-hidden="true" />
       </summary>
       <div className="workspace-menu-items">
-        <button
-          type="button"
+        <Link
+          to={usagePath}
           aria-current={active ? "page" : undefined}
           onClick={() => {
             if (menu.current) menu.current.open = false;
-            navigate(usagePath);
           }}
         >
           Usage
-        </button>
+        </Link>
       </div>
     </details>
   );

@@ -286,7 +286,8 @@ a:hover {
   top: auto;
   bottom: calc(100% + 6px);
 }
-.workspace-menu-items > button {
+.workspace-menu-items > button,
+.workspace-menu-items > a {
   display: block;
   width: 100%;
   text-align: left;
@@ -295,8 +296,11 @@ a:hover {
   border: 0;
   color: var(--text);
   cursor: pointer;
+  text-decoration: none;
+  box-sizing: border-box;
 }
-.workspace-menu-items > button:hover {
+.workspace-menu-items > button:hover,
+.workspace-menu-items > a:hover {
   background: var(--bg-muted);
 }
 .workspace-menu-items > button:disabled {

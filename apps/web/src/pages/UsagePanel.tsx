@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
+import { LoadingState } from "../ui/states.js";
 import { formatCost, formatTokens } from "../ui/format.js";
 
 export interface UsageByModel {
@@ -19,23 +20,6 @@ export interface UsageSummary {
   total: { usd: number; tokens: number };
   byProvider: UsageByProvider[];
 }
-
-/** Fallback shown when the live `/api/usage` endpoint is unreachable. */
-export const MOCK_USAGE: UsageSummary = {
-  total: { usd: 18.42, tokens: 4_820_500 },
-  byProvider: [
-    {
-      provider: "claude",
-      usd: 18.42,
-      tokens: 4_820_500,
-      byModel: [
-        { model: "claude-sonnet", usd: 11.2, tokens: 2_910_000 },
-        { model: "claude-opus", usd: 5.9, tokens: 1_420_500 },
-        { model: "claude-haiku", usd: 1.32, tokens: 490_000 },
-      ],
-    },
-  ],
-};
 
 const PALETTE = [
   "#7c6cf0",
@@ -69,9 +53,13 @@ async function fetchUsageSummary(
   projectId: string | undefined,
   { signal }: { signal: AbortSignal },
 ): Promise<UsageSummary> {
-  const url =
-    projectId === undefined ? "/api/usage" : `/api/usage?scope=project&projectId=${projectId}`;
-  const response = await fetch(url, { signal });
+  const params = new URLSearchParams();
+  if (projectId !== undefined) {
+    params.set("scope", "project");
+    params.set("projectId", projectId);
+  }
+  const query = params.size > 0 ? `?${params}` : "";
+  const response = await fetch(`/api/usage${query}`, { signal });
   if (!response.ok) throw new Error(`Usage request failed (${response.status})`);
   return (await response.json()) as UsageSummary;
 }
@@ -328,24 +316,27 @@ export function UsagePanel() {
     queryKey: ["usage", projectId ?? "global"],
     queryFn: ({ signal }) => fetchUsageSummary(projectId, { signal }),
     staleTime: 30_000,
+    refetchInterval: 30_000,
     retry: false,
   });
-  // Fall back to mock totals when the live endpoint is unreachable.
-  const data = usage.data ?? MOCK_USAGE;
-  const mocked = usage.isError || usage.data === undefined;
-  const colorMap = buildColorMap(data.byProvider);
+  if (usage.isPending) return <LoadingState label="Loading usage…" />;
+  if (usage.isError)
+    return (
+      <div>
+        <p role="alert">Couldn't load usage analytics.</p>
+        <button type="button" className="btn sm" onClick={() => void usage.refetch()}>
+          Retry
+        </button>
+      </div>
+    );
+  const data = usage.data;
+  // Zero-activity providers (e.g. decision/loop executions with no tokens or
+  // cost) are hidden so both cards agree.
+  const providers = data.byProvider.filter((p) => p.usd > 0 || p.tokens > 0);
+  const colorMap = buildColorMap(providers);
 
   return (
     <div className="stack" style={{ gap: 16 }}>
-      {mocked ? (
-        <div className="note" role="status">
-          <span>
-            Showing fallback totals — the live <span className="mono">/api/usage</span> endpoint is
-            not reachable.
-          </span>
-        </div>
-      ) : null}
-
       <div
         style={{
           display: "grid",
@@ -374,7 +365,7 @@ export function UsagePanel() {
         <div className="stat" style={{ background: "var(--bg-subtle)" }}>
           <div className="faint">Providers</div>
           <div className="v" style={{ fontVariantNumeric: "tabular-nums" }}>
-            {data.byProvider.length}
+            {providers.length}
           </div>
           <div className="faint mono" style={{ marginTop: 4, fontSize: 11 }}>
             Active harnesses
@@ -390,7 +381,7 @@ export function UsagePanel() {
           </span>
         </div>
         <div className="card-body" style={{ padding: "16px 18px" }}>
-          <ProviderBars providers={data.byProvider} colorMap={colorMap} />
+          <ProviderBars providers={providers} colorMap={colorMap} />
         </div>
       </div>
 
@@ -402,9 +393,12 @@ export function UsagePanel() {
           </span>
         </div>
         <div className="card-body" style={{ padding: "18px" }}>
-          <CostDonut providers={data.byProvider} colorMap={colorMap} />
+          <CostDonut providers={providers} colorMap={colorMap} />
         </div>
       </div>
+      <p className="faint" style={{ margin: 0 }}>
+        Totals are run-level; per-provider breakdown reflects the latest attempt per node.
+      </p>
     </div>
   );
 }
