@@ -1,8 +1,9 @@
 import { emptyRunView, type RunStatus } from "@devchestra/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { api } from "../src/api/client.js";
 import { RunRoute } from "../src/pages/RunPage.js";
 import { createRunSession } from "../src/state/runSession.js";
 
@@ -55,6 +56,60 @@ afterEach(() => {
 });
 
 describe("RunPage stop control wiring", () => {
+  it("can request cancellation even when the initial run snapshot cannot load", async () => {
+    const cancel = vi
+      .spyOn(api, "cancelRun")
+      .mockResolvedValue({ runId: "r1" as never, status: "running" });
+    mockSession.mockReturnValue({
+      session: {
+        ...createRunSession("r1"),
+        phase: "error",
+        errorCode: "E_INTERNAL",
+        error: "Response contract violation for RunDetailResponse",
+      },
+      detail: null,
+      retry: vi.fn(),
+      setReplay: vi.fn(),
+    });
+    renderRunPage();
+    expect(
+      screen.getByText("Response contract violation for RunDetailResponse"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("run-stop")).toHaveTextContent("Request stop");
+    fireEvent.click(screen.getByTestId("run-stop"));
+    await waitFor(() => expect(cancel).toHaveBeenCalledWith("r1"));
+    expect(await screen.findByTestId("run-stop-requested")).toHaveTextContent(
+      "Stop requested. Run status is unavailable.",
+    );
+  });
+
+  it("keeps stopping available when live event parsing fails", () => {
+    mockSession.mockReturnValue({
+      session: {
+        ...sessionWith("running", "running", null),
+        phase: "error",
+        errorCode: "E_PROTOCOL",
+        error: "Invalid 'run' SSE message",
+      },
+      detail: null,
+      retry: vi.fn(),
+      setReplay: vi.fn(),
+    });
+    renderRunPage();
+    expect(screen.getByTestId("run-stop")).toHaveTextContent("Stop run");
+  });
+
+  it.each(["E_AUTH", "E_NOT_FOUND"])("does not offer stop for %s", (code) => {
+    mockSession.mockReturnValue({
+      session: { ...createRunSession("r1"), phase: "error", errorCode: code, error: "Unavailable" },
+      detail: null,
+      retry: vi.fn(),
+      setReplay: vi.fn(),
+    });
+    renderRunPage();
+    expect(screen.queryByTestId("run-stop")).toBeNull();
+  });
+
   it("stops the live run while replaying: labels the live stop from the head, not the replay view", () => {
     mockSession.mockReturnValue({
       session: sessionWith("running", "succeeded", 5),

@@ -23,12 +23,16 @@ import {
   renderTemplate,
 } from "@devchestra/schema";
 import { createNodeExpressionExecutor } from "@devchestra/schema/node";
-import { ExecutionContextCache } from "./execution-context.js";
 import type { AcceptedOutput, ExecutionRow, RunRecord, Store } from "@devchestra/store";
 import type { ScratchWorkspace } from "@devchestra/workspaces";
+import { ExecutionContextCache } from "./execution-context.js";
 import type { PlanNode, ScopeSource, WorkflowPlan } from "./graph-plan.js";
 import { stripUi } from "./hash-config.js";
+import { decisionScopeValue } from "./scope.js";
 import type { LinearChain } from "./sequence.js";
+
+export { decisionScopeValue } from "./scope.js";
+
 import type { EngineDeps } from "./types.js";
 
 export interface ActiveRunState {
@@ -80,20 +84,6 @@ export function toDevChestraError(
   return new DevChestraError(code, error instanceof Error ? error.message : String(error), {
     cause: error,
   });
-}
-
-/**
- * What expressions and templates see for a decision node. An unknown (null)
- * confidence reads as the number 0, so `d.confidence >= 0.8` is false and
- * `d.confidence < 0.5` is true without touching the evaluator (F3).
- * `confidenceSource` stays null so "unknown" is still detectable. The
- * persisted output, events, API and UI keep null.
- */
-export function decisionScopeValue(output: unknown): unknown {
-  if (!isRecord(output)) return output;
-  if (output.confidence !== null || output.confidenceSource !== null) return output;
-  if (typeof output.branch !== "string") return output;
-  return { ...output, confidence: 0 };
 }
 
 export function serializeError(error: DevChestraError): {

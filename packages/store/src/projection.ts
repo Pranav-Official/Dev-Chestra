@@ -144,6 +144,10 @@ export function normalizeCachedView(view: RunView): RunView {
     if (legacy.approvalDecision === undefined) legacy.approvalDecision = null;
     if (legacy.decision === undefined) legacy.decision = null;
     if (legacy.loop === undefined) legacy.loop = null;
+    if ((legacy as { workflow?: unknown }).workflow === undefined)
+      (legacy as { workflow: null }).workflow = null;
+    if ((legacy as { foreach?: unknown }).foreach === undefined)
+      (legacy as { foreach: null }).foreach = null;
     if (legacy.loop !== null && legacy.loop !== undefined) {
       const loop = legacy.loop as unknown as Record<string, unknown>;
       if (loop.parentRef === undefined) loop.parentRef = null;

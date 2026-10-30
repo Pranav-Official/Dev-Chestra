@@ -24,6 +24,8 @@ export interface PickerScope {
   draft?: Graph | undefined;
   /** Enclosing loop id for body fields and controller namespaces. */
   loopId?: string | undefined;
+  /** Enclosing sequential collection controller. */
+  foreachId?: string | undefined;
   /** Local body node id for body fields. */
   localNodeId?: string | undefined;
 }
@@ -36,6 +38,7 @@ export function usePickerScope(explicit?: PickerScope): PickerScope {
     parentGraph: explicit?.parentGraph ?? ctx.parentGraph,
     draft: explicit?.draft ?? ctx.draft,
     loopId: explicit?.loopId ?? ctx.loopId,
+    foreachId: explicit?.foreachId ?? ctx.foreachId,
     localNodeId: explicit?.localNodeId ?? ctx.localNodeId,
   };
 }
@@ -46,11 +49,11 @@ export function useCatalog(scope: PickerScope, nodeId: string, field: string): N
     const parentGraph = scope.parentGraph;
     if (!parentGraph) return [];
     const req: CatalogRequest =
-      scope.draft && scope.loopId
+      scope.draft && (scope.loopId || scope.foreachId)
         ? {
             parentGraph,
             draft: scope.draft,
-            loopId: scope.loopId,
+            ...(scope.foreachId ? { foreachId: scope.foreachId } : { loopId: scope.loopId }),
             nodeId: scope.localNodeId ?? nodeId,
             field,
           }
@@ -60,14 +63,24 @@ export function useCatalog(scope: PickerScope, nodeId: string, field: string): N
             field,
             ...(parentGraph.nodes.some((n) => n.id === nodeId && n.type === "loop")
               ? { loopId: nodeId }
-              : {}),
+              : parentGraph.nodes.some((n) => n.id === nodeId && n.type === "foreach")
+                ? { foreachId: nodeId }
+                : {}),
           };
     try {
       return catalogForField(req);
     } catch {
       return [];
     }
-  }, [scope.parentGraph, scope.draft, scope.loopId, scope.localNodeId, nodeId, field]);
+  }, [
+    scope.parentGraph,
+    scope.draft,
+    scope.loopId,
+    scope.foreachId,
+    scope.localNodeId,
+    nodeId,
+    field,
+  ]);
 }
 
 export const VARIABLE_PICKER_MIME = "application/x-devchestra-variable";

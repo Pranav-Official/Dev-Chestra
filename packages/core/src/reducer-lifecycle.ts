@@ -641,6 +641,176 @@ export function reduceLifecycleEvent(view: RunView, envelope: EventEnvelope): Ru
       );
     }
 
+    case "workflow.linked": {
+      const payload = (envelope as EventEnvelope<"workflow.linked">).payload;
+      const exec = view.executions[key];
+      if (exec === undefined) return withEventId(view, envelope);
+      fenceOptionalIdentity(exec, type, payload);
+      if (typeof payload.childRunId !== "string" || payload.childRunId.length === 0) {
+        throw internal("workflow.linked childRunId must be a non-empty string", { path });
+      }
+      if (typeof payload.workflowId !== "string" || payload.workflowId.length === 0) {
+        throw internal("workflow.linked workflowId must be a non-empty string", { path });
+      }
+      if (exec.workflow !== null) {
+        const cur = exec.workflow;
+        const same = cur.childRunId === payload.childRunId && cur.workflowId === payload.workflowId;
+        if (same) return withEventId(view, envelope);
+        throw new DevChestraError("E_CONFLICT", "Workflow child link is immutable", {
+          details: { path, existing: cur, received: payload },
+        });
+      }
+      if (exec.status !== "running" && exec.status !== "validating") {
+        throw internal("Workflow link arrived in an unexpected status", {
+          path,
+          status: exec.status,
+        });
+      }
+      return updateExec(view, key, (current) => ({
+        ...current,
+        workflow: {
+          childRunId: payload.childRunId,
+          workflowId: payload.workflowId,
+          status: "running",
+          resultRef: null,
+          eventId: envelope.id,
+        },
+      }));
+    }
+
+    case "workflow.completed": {
+      const payload = (envelope as EventEnvelope<"workflow.completed">).payload;
+      const exec = view.executions[key];
+      if (exec === undefined) return withEventId(view, envelope);
+      fenceOptionalIdentity(exec, type, payload);
+      const valid = ["succeeded", "failed", "rejected", "cancelled"];
+      if (!valid.includes(payload.status)) {
+        throw internal("workflow.completed status must be a terminal child status", { path });
+      }
+      if (exec.workflow === null) {
+        throw internal("workflow.completed arrived before workflow.linked", { path });
+      }
+      if (exec.workflow.childRunId !== payload.childRunId) {
+        throw new DevChestraError("E_CONFLICT", "Stale workflow completion for another child", {
+          details: { path, expected: exec.workflow.childRunId, received: payload.childRunId },
+        });
+      }
+      if (exec.workflow.status !== "running") {
+        const same =
+          exec.workflow.status === payload.status &&
+          (exec.workflow.resultRef ?? null) === (payload.resultRef ?? null);
+        if (same) return withEventId(view, envelope);
+        throw new DevChestraError("E_CONFLICT", "Workflow completion is immutable", {
+          details: { path },
+        });
+      }
+      if (exec.status !== "running" && exec.status !== "validating") {
+        throw internal("Workflow completion arrived in an unexpected status", {
+          path,
+          status: exec.status,
+        });
+      }
+      return updateExec(view, key, (current) => ({
+        ...current,
+        workflow: {
+          childRunId: payload.childRunId,
+          workflowId: current.workflow?.workflowId ?? null,
+          status: payload.status,
+          resultRef: payload.resultRef ?? null,
+          eventId: envelope.id,
+        },
+      }));
+    }
+
+    case "foreach.started": {
+      const payload = (envelope as EventEnvelope<"foreach.started">).payload;
+      const exec = view.executions[key];
+      if (exec === undefined) return withEventId(view, envelope);
+      fenceOptionalIdentity(exec, type, payload);
+      if (!Number.isSafeInteger(payload.total) || payload.total < 0) {
+        throw internal("foreach.started total must be a non-negative integer", { path });
+      }
+      if (payload.parentRef !== undefined) {
+        const ref = payload.parentRef as { kind?: unknown; captureId?: unknown };
+        if (
+          ref.kind !== "devchestra.execution-context/v1" ||
+          typeof ref.captureId !== "string" ||
+          ref.captureId.length === 0
+        ) {
+          throw internal("Foreach parentRef must be a tagged execution-context reference", {
+            path,
+          });
+        }
+      }
+      if (exec.foreach !== null) {
+        const cur = exec.foreach;
+        const same = cur.total === payload.total && cur.sourceId === payload.sourceId;
+        if (same) return withEventId(view, envelope);
+        throw new DevChestraError("E_CONFLICT", "Foreach controller is immutable once started", {
+          details: { path },
+        });
+      }
+      if (exec.status !== "running" && exec.status !== "validating") {
+        throw internal("Foreach start arrived in an unexpected status", {
+          path,
+          status: exec.status,
+        });
+      }
+      return updateExec(view, key, (current) => ({
+        ...current,
+        foreach: {
+          total: payload.total,
+          processed: 0,
+          succeeded: 0,
+          failed: 0,
+          rejected: 0,
+          resultsRef: payload.sourceId,
+          sourceId: payload.sourceId,
+          eventId: envelope.id,
+        },
+      }));
+    }
+
+    case "foreach.item.decided": {
+      const payload = (envelope as EventEnvelope<"foreach.item.decided">).payload;
+      const exec = view.executions[key];
+      if (exec === undefined) return withEventId(view, envelope);
+      fenceOptionalIdentity(exec, type, payload);
+      if (!Number.isSafeInteger(payload.index) || payload.index < 0) {
+        throw internal("foreach.item.decided index must be a non-negative integer", { path });
+      }
+      if (exec.foreach === null) {
+        throw internal("foreach.item.decided arrived before foreach.started", { path });
+      }
+      if (payload.index !== exec.foreach.processed) {
+        // Idempotent replay: same index already counted is checked by store;
+        // projection enforces strict ordering.
+        throw new DevChestraError("E_CONFLICT", "Stale or future foreach index", {
+          details: { path, expected: exec.foreach.processed, received: payload.index },
+        });
+      }
+      if (exec.status !== "running" && exec.status !== "validating") {
+        throw internal("Foreach item decision arrived in an unexpected status", {
+          path,
+          status: exec.status,
+        });
+      }
+      return updateExec(view, key, (current) => {
+        const cur = current.foreach;
+        if (cur === null) return current;
+        return {
+          ...current,
+          foreach: {
+            ...cur,
+            processed: cur.processed + 1,
+            succeeded: cur.succeeded + (payload.status === "succeeded" ? 1 : 0),
+            failed: cur.failed + (payload.status === "failed" ? 1 : 0),
+            rejected: cur.rejected + (payload.status === "rejected" ? 1 : 0),
+          },
+        };
+      });
+    }
+
     // Reserved catalog events have no RunView effect in the P0 slice. Their
     // payloads are versioned and replayed safely; later slices add reducers.
     case "map.started":

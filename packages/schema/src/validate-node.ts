@@ -564,6 +564,80 @@ export function validateSingleNode(
     return;
   }
 
+  if (node.type === "workflow") {
+    const ref = node as unknown as {
+      workflowId?: unknown;
+      inputs?: unknown;
+      output?: unknown;
+    };
+    if (typeof ref.workflowId !== "string" || ref.workflowId.trim() === "") {
+      addError(
+        issue(
+          "error",
+          "E_WORKFLOW_NODE_ID",
+          "Workflow node workflowId must be a non-empty string.",
+          `${pointer}/workflowId`,
+          node.id,
+        ),
+      );
+    }
+    if (!isRecord(ref.inputs)) {
+      addError(
+        issue(
+          "error",
+          "E_WORKFLOW_NODE_INPUTS",
+          "Workflow node inputs must be an object.",
+          `${pointer}/inputs`,
+          node.id,
+        ),
+      );
+    } else {
+      for (const [key, expr] of Object.entries(ref.inputs)) {
+        if (typeof expr !== "string" || expr.trim() === "") {
+          addError(
+            issue(
+              "error",
+              "E_WORKFLOW_NODE_INPUTS",
+              `Workflow input '${key}' must be a non-empty JSONata expression.`,
+              `${pointer}/inputs/${key}`,
+              node.id,
+            ),
+          );
+          continue;
+        }
+        const compiled = compileExpression(expr);
+        if (!compiled.ok) {
+          addDevChestra(compiled.error, `${pointer}/inputs/${key}`, node.id);
+        } else {
+          checkRoots(
+            compiled.value.roots,
+            allowed,
+            `${pointer}/inputs/${key}`,
+            node.id,
+            `inputs.${key}: ${expr}`,
+          );
+        }
+      }
+    }
+    if (ref.output !== undefined) {
+      if (!isRecord(ref.output)) {
+        addError(
+          issue(
+            "error",
+            "E_OUTPUT_SCHEMA",
+            "Workflow output must be a JSON schema object.",
+            `${pointer}/output`,
+            node.id,
+          ),
+        );
+      } else {
+        const normalized = normalizeOutputSchema(ref.output);
+        if (!normalized.ok) addDevChestra(normalized.error, `${pointer}/output`, node.id);
+      }
+    }
+    return;
+  }
+
   if (node.type === "end") {
     const end = node as EndNode;
     if (!["success", "failed", "rejected"].includes(end.status)) {

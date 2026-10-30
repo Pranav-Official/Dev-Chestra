@@ -1,4 +1,6 @@
 import type { DevChestraError } from "@devchestra/core";
+import { validateChildWorkflowForWorkflow } from "./child-workflow.js";
+import { validateForEachForWorkflow } from "./foreach.js";
 import { analyzeGraph } from "./graph.js";
 import { WORKFLOW_ID_PATTERN } from "./ids.js";
 import { joinOutputIssues } from "./join.js";
@@ -171,6 +173,19 @@ export function validateWorkflow(
         fileId: file.id,
         ...(ctx.projectKind === undefined ? {} : { projectKind: ctx.projectKind }),
       });
+      continue;
+    }
+    if (node.type === "foreach") {
+      validateForEachForWorkflow(node, pointer, allowed, addError, addWarning, undefined, {
+        fileId: file.id,
+        ...(ctx.projectKind === undefined ? {} : { projectKind: ctx.projectKind }),
+      });
+      continue;
+    }
+    if (node.type === "workflow") {
+      // Input keys validate against target params only when definitions resolve;
+      // run preparation checks static missing-definition/cycle separately.
+      validateChildWorkflowForWorkflow(node, pointer, allowed, addError, undefined);
       continue;
     }
     validateSingleNode(node, pointer, allowed, helpers);

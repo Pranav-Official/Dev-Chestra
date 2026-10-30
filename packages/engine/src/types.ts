@@ -99,6 +99,30 @@ export type OutputValidation =
   | { readonly ok: true }
   | { readonly ok: false; readonly issues: readonly OutputValidationIssue[] };
 
+/**
+ * Single workflow definition resolved by workflowId within one project.
+ * `normalized` is the frozen NormalizedWorkflow snapshot (typed as unknown
+ * here so the engine never depends on schema-package validation timing).
+ */
+export interface ResolvedChildWorkflow {
+  readonly id: string;
+  readonly normalized: unknown;
+  readonly hash: string;
+  readonly text: string;
+}
+
+/**
+ * Project-bound single-id reader. The server/CLI injects the safe loader
+ * (parse+validate+normalize); the engine owns the transitive freeze walker.
+ * Same-project is enforced by the caller passing the parent projectId.
+ */
+export interface WorkflowResolver {
+  resolve(
+    projectId: string,
+    workflowId: string,
+  ): Promise<Result<ResolvedChildWorkflow, DevChestraError>>;
+}
+
 export interface EngineDeps {
   readonly store: Store;
   readonly adapters: AdapterRegistry;
@@ -132,6 +156,8 @@ export interface EngineDeps {
    * configured, the node fails with an actionable error.
    */
   readonly mcpResolver?: McpResolver;
+  /** Project-bound child workflow reader; required when a plan contains workflow/foreach bodies. */
+  readonly workflowResolver?: WorkflowResolver;
 }
 
 export interface RunIdempotency {
@@ -153,6 +179,8 @@ export interface StartRunInput {
   /** One workspace per run; defaults to the registered project root. */
   readonly workspace?: RunWorkspaceSelection;
   readonly idempotency?: RunIdempotency;
+  /** Frozen transitive child workflow snapshots (id -> NormalizedWorkflow). Composed by server/CLI or the engine freeze walker. */
+  readonly workflowDependencies?: Readonly<Record<string, unknown>>;
 }
 
 export interface RunOutcome {

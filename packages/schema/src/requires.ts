@@ -9,7 +9,7 @@ function flattenNodes(nodes: readonly WorkflowNode[]): WorkflowNode[] {
   const visit = (list: readonly WorkflowNode[]): void => {
     for (const node of list) {
       out.push(node);
-      if (node.type === "loop") {
+      if (node.type === "loop" || node.type === "foreach") {
         const body = (node as { body?: { nodes?: unknown } }).body;
         if (
           body !== undefined &&

@@ -1,4 +1,12 @@
-import type { JsonObject } from "@devchestra/core";
+import { isRecord, type JsonObject } from "@devchestra/core";
+
+/** Expression compatibility: unknown decision confidence reads as zero; stored data stays null. */
+export function decisionScopeValue(output: unknown): unknown {
+  if (!isRecord(output)) return output;
+  if (output.confidence !== null || output.confidenceSource !== null) return output;
+  if (typeof output.branch !== "string") return output;
+  return { ...output, confidence: 0 };
+}
 
 export interface ChainOutput {
   readonly nodeId: string;

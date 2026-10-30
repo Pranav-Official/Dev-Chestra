@@ -1,4 +1,4 @@
-import type { RunView } from "@devchestra/core";
+import type { ForeachView, RunView, WorkflowView } from "@devchestra/core";
 import { DECISION_PROVIDERS, type NormalizedWorkflow, PROD_CLIS } from "@devchestra/schema";
 import { coreErrorCodeSchema } from "./errors.js";
 import {
@@ -109,6 +109,25 @@ const loopViewSchema = strict({
     .max(1000),
 });
 
+const workflowViewSchema: z.ZodType<WorkflowView> = strict({
+  childRunId: z.string().nullable(),
+  workflowId: z.string().nullable(),
+  status: z.enum(["running", "succeeded", "failed", "rejected", "cancelled"]).nullable(),
+  resultRef: z.string().nullable(),
+  eventId: z.number().int().nonnegative(),
+});
+
+const foreachViewSchema: z.ZodType<ForeachView> = strict({
+  total: z.number().int().nonnegative(),
+  processed: z.number().int().nonnegative(),
+  succeeded: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  rejected: z.number().int().nonnegative(),
+  resultsRef: z.string().nullable(),
+  sourceId: z.string().nullable(),
+  eventId: z.number().int().nonnegative(),
+});
+
 export const execViewSchema = strict({
   path: pathSchema,
   nodeId: z.string(),
@@ -117,6 +136,8 @@ export const execViewSchema = strict({
   generation: z.number().int().positive(),
   kind: nodeKindSchema.nullable(),
   loop: loopViewSchema.nullable().optional(),
+  workflow: workflowViewSchema.nullable().optional(),
+  foreach: foreachViewSchema.nullable().optional(),
   requiresAcceptedResult: z.boolean(),
   acceptedResult: acceptedResultRefSchema.nullable(),
   recordedOutput: recordedOutputRefSchema.nullable(),
@@ -383,6 +404,14 @@ const normalizedDecisionNodeSchema = strict({
   onError: z.enum(["fail", "uncertain"]),
 });
 
+const normalizedWorkflowRefNodeSchema = strict({
+  ...normalizedNodeBase,
+  type: z.literal("workflow"),
+  workflowId: z.string(),
+  inputs: z.record(z.string(), z.string()),
+  output: jsonSchemaObjectSchema.optional(),
+});
+
 const normalizedBodyNodeSchema = z.discriminatedUnion("type", [
   normalizedStartNodeSchema,
   normalizedAgentNodeSchema,
@@ -391,6 +420,7 @@ const normalizedBodyNodeSchema = z.discriminatedUnion("type", [
   normalizedJoinNodeSchema,
   normalizedApprovalNodeSchema,
   normalizedDecisionNodeSchema,
+  normalizedWorkflowRefNodeSchema,
   normalizedEndNodeSchema,
 ]);
 
@@ -410,7 +440,29 @@ const normalizedLoopNodeSchema = strict({
   }),
 });
 
-export const normalizedNodeSchema = z.union([normalizedBodyNodeSchema, normalizedLoopNodeSchema]);
+const normalizedForEachNodeSchema = strict({
+  ...normalizedNodeBase,
+  type: z.literal("foreach"),
+  source: z.union([
+    strict({ kind: z.literal("expression"), expression: z.string() }),
+    strict({ kind: z.literal("csv"), path: z.string() }),
+  ]),
+  maxItems: z.number().int().min(1).max(1000),
+  onItemFailure: z.enum(["stop", "continue"]),
+  result: z.string(),
+  output: z.record(z.string(), z.unknown()),
+  body: strict({
+    nodes: z.array(normalizedBodyNodeSchema),
+    edges: z.array(strict({ id: z.string(), from: z.string(), to: z.string() })),
+  }),
+});
+
+export const normalizedNodeSchema = z.union([
+  normalizedBodyNodeSchema,
+  normalizedLoopNodeSchema,
+  normalizedForEachNodeSchema,
+  normalizedWorkflowRefNodeSchema,
+]);
 
 export const normalizedWorkflowSchema = strict({
   schemaVersion: z.literal(1),

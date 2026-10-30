@@ -466,6 +466,59 @@ export function createStoreQueryPort(store: Store): BrowserQueryPort {
         inbox,
       };
     },
+    listRunChildren(runId: string, input: { cursor?: string; limit: number }) {
+      const limit = Math.min(Math.max(input.limit, 1), 100);
+      const offset = (() => {
+        if (input.cursor === undefined || input.cursor === "") return 0;
+        const n = Number.parseInt(input.cursor, 10);
+        return Number.isFinite(n) && n >= 0 ? n : 0;
+      })();
+      // Link rows only (childRunId/workflowId/path/status refs); child results
+      // resolve via run detail / outputs endpoints, never hydrated here.
+      const links = store.workflowCalls.listByParent(runId as RunId);
+      const items = links.slice(offset, offset + limit).map((link) => ({
+        childRunId: link.childRunId,
+        workflowId: link.workflowId,
+        path: link.parentPath as string,
+        status: link.status,
+      }));
+      const nextCursor = offset + limit < links.length ? String(offset + items.length) : null;
+      return { items, nextCursor };
+    },
+    listForeachItems(runId: string, sourceId: string, input: { cursor?: string; limit: number }) {
+      // Metadata-only reads: never parse the (up to 8 MiB) source items JSON
+      // and never hydrate result_json. Per-item values resolve via
+      // GET /api/runs/:runId/outputs/:outputId using the returned outputId.
+      const meta = store.foreach.getSourceMeta(sourceId);
+      // Ownership check: a source id from another run (or unknown) is a 404,
+      // not a cross-run oracle. No source rows are ever enumerated.
+      if (meta === null || (meta.runId as string) !== runId) return null;
+      const limit = Math.min(Math.max(input.limit, 1), 100);
+      const offset = (() => {
+        if (input.cursor === undefined || input.cursor === "") return 0;
+        const n = Number.parseInt(input.cursor, 10);
+        return Number.isFinite(n) && n >= 0 ? n : 0;
+      })();
+      const refs = store.foreach.listItemRefs(sourceId, { offset, limit: limit + 1 });
+      const hasMore = refs.length > limit;
+      const page = hasMore ? refs.slice(0, limit) : refs;
+      const items = page.map((ref) => ({
+        index: ref.index,
+        status: ref.status,
+        path: `${meta.path as string}[${ref.index}]`,
+        outputId: ref.outputId,
+      }));
+      return {
+        source: {
+          sourceId: meta.id,
+          kind: meta.kind,
+          path: meta.path as string,
+          total: meta.total,
+        },
+        items,
+        nextCursor: hasMore ? String(offset + page.length) : null,
+      };
+    },
     listApprovals(input: { projectId?: string; runId?: string; cursor?: string; limit: number }) {
       const limit = Math.min(Math.max(input.limit, 1), 500);
       const records = input.runId

@@ -341,6 +341,39 @@ export const joinResolvedPayloadSchema = strict({
   generation: z.number().int().positive().optional(),
 });
 
+export const workflowLinkedPayloadSchema = strict({
+  childRunId: z.string().min(1),
+  workflowId: z.string().min(1),
+  workflowHash: z.string().min(1),
+  attempt: z.number().int().positive().optional(),
+  generation: z.number().int().positive().optional(),
+});
+
+export const workflowCompletedPayloadSchema = strict({
+  childRunId: z.string().min(1),
+  status: z.enum(["succeeded", "failed", "rejected", "cancelled"]),
+  resultRef: z.string().min(1).nullable(),
+  attempt: z.number().int().positive().optional(),
+  generation: z.number().int().positive().optional(),
+});
+
+export const foreachStartedPayloadSchema = strict({
+  total: z.number().int().nonnegative(),
+  maxItems: z.number().int().min(1).max(1000),
+  sourceId: z.string().min(1),
+  sourceHash: z.string().min(1),
+  attempt: z.number().int().positive().optional(),
+  generation: z.number().int().positive().optional(),
+});
+
+export const foreachItemDecidedPayloadSchema = strict({
+  index: z.number().int().nonnegative(),
+  status: z.enum(["succeeded", "failed", "rejected", "skipped"]),
+  resultRef: z.string().min(1).nullable().optional(),
+  attempt: z.number().int().positive().optional(),
+  generation: z.number().int().positive().optional(),
+});
+
 const quotaBlockedPayloadSchema = strict({
   provider: z.string(),
   kind: z.enum(["window", "credits", "auth", "rate_limit"]),
@@ -438,8 +471,17 @@ const errorLoggedPayloadSchema = strict({
   details: z.unknown().optional(),
 });
 
+/** Extra controller payloads landing in core (strict here first for UI/tests). */
+export const extendedEventPayloadSchemas = {
+  "workflow.linked": workflowLinkedPayloadSchema,
+  "workflow.completed": workflowCompletedPayloadSchema,
+  "foreach.started": foreachStartedPayloadSchema,
+  "foreach.item.decided": foreachItemDecidedPayloadSchema,
+} as const;
+
 /** One schema per known `EventEnvelope.type` payload (spec catalog). */
 export const eventPayloadSchemas = {
+  ...extendedEventPayloadSchemas,
   "run.created": runCreatedPayloadSchema,
   "run.started": runStartedPayloadSchema,
   "run.paused": runPausedPayloadSchema,
@@ -510,9 +552,24 @@ const knownEnvelopes = EVENT_TYPES.map((type) =>
   }),
 );
 
-export const knownEventEnvelopeSchema = z.union(
-  knownEnvelopes as [(typeof knownEnvelopes)[number], ...(typeof knownEnvelopes)[number][]],
+const extendedEnvelopes = (
+  Object.keys(extendedEventPayloadSchemas) as (keyof typeof extendedEventPayloadSchemas)[]
+).map((type) =>
+  strict({
+    ...envelopeBaseShape,
+    type: z.literal(type),
+    v: z.literal(1),
+    payload: extendedEventPayloadSchemas[type],
+  }),
 );
+
+export const knownEventEnvelopeSchema = z.union([
+  ...(knownEnvelopes as [(typeof knownEnvelopes)[number], ...(typeof knownEnvelopes)[number][]]),
+  ...(extendedEnvelopes as unknown as [
+    (typeof knownEnvelopes)[number],
+    ...(typeof knownEnvelopes)[number][],
+  ]),
+]);
 
 /**
  * Forward-compatible envelope for a future event type or a newer payload

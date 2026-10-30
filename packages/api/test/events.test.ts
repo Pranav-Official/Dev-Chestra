@@ -275,6 +275,18 @@ const samples = {
   "checkpoint.opened": { reason: "supervise_checkpoint" },
   "checkpoint.closed": { outcome: "proceed" },
   "error.logged": { code: "E_INTERNAL", message: "boom", details: { x: 1 } },
+  "workflow.linked": {
+    childRunId: "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    workflowId: "other",
+    workflowHash: "abc",
+  },
+  "workflow.completed": {
+    childRunId: "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    status: "succeeded",
+    resultRef: null,
+  },
+  "foreach.started": { total: 2, maxItems: 1000, sourceId: "s1", sourceHash: "h" },
+  "foreach.item.decided": { index: 0, status: "succeeded" },
 } satisfies Record<KnownEventType, unknown>;
 
 function envelope(type: KnownEventType, payload: unknown, v = 1) {

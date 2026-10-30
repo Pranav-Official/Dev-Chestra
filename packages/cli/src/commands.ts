@@ -22,7 +22,12 @@ import { type CliOptions, UsageError } from "./args.js";
 import { loadFakeScript, requireFakeScript } from "./fake-script.js";
 import { type RunningGateway, startGateway } from "./gateway.js";
 import { type ExitCode, exitCodeForOutcome, notice, writeEvent, writeSummary } from "./output.js";
-import { loadWorkflow, requireFakeScriptForFakeNodes, resolveRunWorkspace } from "./workflow.js";
+import {
+  createCliWorkflowResolver,
+  loadWorkflow,
+  requireFakeScriptForFakeNodes,
+  resolveRunWorkspace,
+} from "./workflow.js";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const SHIM_ENTRY = join(REPO_ROOT, "packages/mcp/dist/bin/shim.js");
@@ -64,7 +69,7 @@ function summaryFor(
 }
 
 export function createCliEngine(
-  options: CliOptions,
+  _options: CliOptions,
   dataDir: string,
   store: Store,
   gateway: RunningGateway,
@@ -93,7 +98,10 @@ export function createCliEngine(
     // process.env. Never passed to agent CLIs or shell nodes.
     decisions: createDecisionService(),
     mcpResolver: createMcpResolver(),
-  });
+    // Project-bound single-id child reader for the engine's canonical freeze.
+    // The engine owns recursive resolution, cycle detection and depth limits.
+    ...({ workflowResolver: createCliWorkflowResolver(store) } as Record<string, unknown>),
+  } as Parameters<typeof createEngine>[0]);
 }
 
 async function withEngine(

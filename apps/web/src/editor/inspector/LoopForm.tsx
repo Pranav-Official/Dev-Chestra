@@ -1,5 +1,13 @@
-import type { Edge, Graph, Issue, LoopNode, WorkflowFile, WorkflowNode } from "@devchestra/schema";
-import { validateLoopNode } from "@devchestra/schema";
+import type {
+  Edge,
+  ForEachNode,
+  Graph,
+  Issue,
+  LoopNode,
+  WorkflowFile,
+  WorkflowNode,
+} from "@devchestra/schema";
+import { validateForEachNode, validateLoopNode } from "@devchestra/schema";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { EditorCanvas } from "../canvas/EditorCanvas.js";
 import { NodePalette } from "../canvas/Palette.js";
@@ -280,7 +288,7 @@ export function LoopForm({
           onClose={() => setBodyOpen(false)}
         >
           {bodyOpen ? (
-            <LoopBodyEditor
+            <ControllerBodyEditor
               node={node}
               onPatch={onPatch}
               renderBodyInspector={renderBodyInspector}
@@ -293,7 +301,7 @@ export function LoopForm({
   );
 }
 
-function toBodyFile(node: LoopNode, draft: Graph): WorkflowFile {
+function toBodyFile(node: LoopNode | ForEachNode, draft: Graph): WorkflowFile {
   return { schemaVersion: 1, id: "loop-body", name: `Body of ${node.id}`, graph: draft };
 }
 
@@ -301,20 +309,28 @@ function BodyNodeInspector({
   selected,
   edges,
   draft,
-  loopId,
+  controllerId,
+  controllerType,
   setDraft,
   renderBodyInspector,
 }: {
   selected: WorkflowNode;
   edges: readonly Edge[];
   draft: Graph;
-  loopId: string;
+  controllerId: string;
+  controllerType: "loop" | "foreach";
   setDraft: React.Dispatch<React.SetStateAction<Graph>>;
   renderBodyInspector: BodyInspectorRender;
 }) {
-  if (selected.type === "loop") return <p className="faint">Nested loops are not supported.</p>;
+  if (selected.type === "loop" || selected.type === "foreach")
+    return <p className="faint">Use Run workflow to invoke a workflow with its own loop.</p>;
   return (
-    <BodyScopeProvider draft={draft} loopId={loopId} localNodeId={selected.id}>
+    <BodyScopeProvider
+      draft={draft}
+      controllerId={controllerId}
+      controllerType={controllerType}
+      localNodeId={selected.id}
+    >
       {renderBodyInspector(
         selected,
         [],
@@ -328,19 +344,26 @@ function BodyNodeInspector({
 
 function BodyScopeProvider({
   draft,
-  loopId,
+  controllerId,
+  controllerType,
   localNodeId,
   children,
 }: {
   draft: Graph;
-  loopId: string;
+  controllerId: string;
+  controllerType: "loop" | "foreach";
   localNodeId: string;
   children: React.ReactNode;
 }) {
   const outer = usePickerScope();
   return (
     <PickerScopeContext.Provider
-      value={{ parentGraph: outer.parentGraph, draft, loopId, localNodeId }}
+      value={{
+        parentGraph: outer.parentGraph,
+        draft,
+        localNodeId,
+        ...(controllerType === "foreach" ? { foreachId: controllerId } : { loopId: controllerId }),
+      }}
     >
       {children}
     </PickerScopeContext.Provider>
@@ -380,14 +403,14 @@ function routeSelected(
   }));
 }
 
-function LoopBodyEditor({
+export function ControllerBodyEditor({
   node,
   onPatch,
   renderBodyInspector,
   onDone,
 }: {
-  node: LoopNode;
-  onPatch: (patch: Partial<LoopNode>) => void;
+  node: LoopNode | ForEachNode;
+  onPatch: (patch: { body: Graph }) => void;
   renderBodyInspector: BodyInspectorRender;
   onDone: () => void;
 }) {
@@ -407,7 +430,7 @@ function LoopBodyEditor({
   }, [currentKey, lastCommitted, node.body]);
 
   // Block outer autosave/navigation while unapplied body edits exist.
-  useBufferFlag(`loop.${node.id}.body`, dirty ? "Body has unapplied changes." : null);
+  useBufferFlag(`${node.type}.${node.id}.body`, dirty ? "Body has unapplied changes." : null);
 
   const bodyFile = useMemo(() => toBodyFile(node, draft), [node, draft]);
 
@@ -416,10 +439,15 @@ function LoopBodyEditor({
   // here would falsely block Apply for valid outer ancestors (e.g. prepare.config).
   const draftIssues = useMemo(
     () =>
-      validateLoopNode(
-        { ...node, body: draft, initialState: "{}" },
-        { pointer: `/graph/nodes/${node.id}` },
-      ),
+      node.type === "foreach"
+        ? validateForEachNode(
+            { ...node, body: draft, source: { kind: "expression", expression: "[]" } },
+            { pointer: `/graph/nodes/${node.id}` },
+          )
+        : validateLoopNode(
+            { ...node, body: draft, initialState: "{}" },
+            { pointer: `/graph/nodes/${node.id}` },
+          ),
     [node, draft],
   );
   const draftErrors = useMemo(
@@ -441,9 +469,8 @@ function LoopBodyEditor({
   };
 
   const addNode = (type: string): void => {
-    if (type === "loop") return;
+    if (type === "loop" || type === "foreach") return;
     const created = createDefaultNode(type, draft.nodes);
-    if (created.type === "loop") return;
     const next: Graph = { nodes: [...draft.nodes, created], edges: [...draft.edges] };
     setDraft(next);
     setSelection({ kind: "node", nodeId: created.id });
@@ -454,28 +481,34 @@ function LoopBodyEditor({
       ? (draft.nodes.find((n) => n.id === selection.nodeId) ?? null)
       : null;
 
+  const testPrefix = `${node.type}-body`;
   return (
-    <div className="loop-body-editor" data-testid="loop-body-editor">
+    <div className="loop-body-editor" data-testid={`${testPrefix}-editor`}>
       <div className="row" style={{ gap: 8, marginBottom: 8 }}>
-        <span className={`chip${dirty ? " amber" : ""}`} data-testid="loop-body-dirty">
+        <span className={`chip${dirty ? " amber" : ""}`} data-testid={`${testPrefix}-dirty`}>
           {dirty ? "Unapplied changes" : "Body in sync"}
         </span>
         <span className="sp" />
         <button
           type="button"
           className="btn sm"
-          data-testid="loop-body-apply"
+          data-testid={`${testPrefix}-apply`}
           disabled={!canApply}
           onClick={apply}
         >
           Apply body
         </button>
-        <button type="button" className="btn sm" data-testid="loop-body-cancel" onClick={cancel}>
+        <button
+          type="button"
+          className="btn sm"
+          data-testid={`${testPrefix}-cancel`}
+          onClick={cancel}
+        >
           Cancel
         </button>
       </div>
       {draftErrors.length > 0 ? (
-        <ul className="inspector-errors" data-testid="loop-body-errors">
+        <ul className="inspector-errors" data-testid={`${testPrefix}-errors`}>
           {draftErrors.map((issue) => (
             <li
               key={`${issue.code}:${issue.pointer ?? ""}:${issue.message}`}
@@ -487,8 +520,8 @@ function LoopBodyEditor({
         </ul>
       ) : null}
       <div className="loop-body-layout">
-        <div className="loop-body-canvas" data-testid="loop-body-canvas">
-          <NodePalette file={bodyFile} onAdd={addNode} hiddenTypes={["loop"]} />
+        <div className="loop-body-canvas" data-testid={`${testPrefix}-canvas`}>
+          <NodePalette file={bodyFile} onAdd={addNode} hiddenTypes={["loop", "foreach"]} />
           <EditorCanvas
             file={bodyFile}
             selection={selection}
@@ -500,7 +533,7 @@ function LoopBodyEditor({
         </div>
         <aside
           className="loop-body-properties"
-          data-testid="loop-body-inspector"
+          data-testid={`${testPrefix}-inspector`}
           aria-label="Body node properties"
         >
           <h3>{selected?.name ?? "Node properties"}</h3>
@@ -513,7 +546,8 @@ function LoopBodyEditor({
               selected={selected}
               edges={bodyFile.graph.edges}
               draft={draft}
-              loopId={node.id}
+              controllerId={node.id}
+              controllerType={node.type}
               setDraft={setDraft}
               renderBodyInspector={renderBodyInspector}
             />

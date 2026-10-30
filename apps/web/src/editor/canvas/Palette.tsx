@@ -1,9 +1,11 @@
 import type { WorkflowFile } from "@devchestra/schema";
 import {
   Bot,
+  Files,
   Flag,
   GitBranch,
   GitMerge,
+  ListOrdered,
   Play,
   Plus,
   Repeat,
@@ -30,6 +32,18 @@ const ITEMS: readonly PaletteItem[] = [
   { type: "approval", label: "Approval", description: "Pause for a person.", icon: ShieldCheck },
   { type: "decision", label: "Decision", description: "Ask a decision model.", icon: Scale },
   { type: "loop", label: "Loop", description: "Repeat until condition.", icon: Repeat },
+  {
+    type: "foreach",
+    label: "For each",
+    description: "Process every item sequentially.",
+    icon: ListOrdered,
+  },
+  {
+    type: "workflow",
+    label: "Run workflow",
+    description: "Run a reusable workflow and wait.",
+    icon: Files,
+  },
   { type: "end", label: "End", description: "Finish the run.", icon: Flag },
 ];
 

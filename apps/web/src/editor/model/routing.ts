@@ -39,6 +39,8 @@ const SUPPORTED_TYPES: ReadonlySet<string> = new Set<string>([
   "approval",
   "decision",
   "loop",
+  "foreach",
+  "workflow",
   "end",
 ]);
 
@@ -564,6 +566,11 @@ export function checkConnection(file: WorkflowFile, request: ConnectRequest): Co
       };
     }
     from = `${source.id}.${sourceEndpoint.handle}`;
+  } else if (source.type === "workflow") {
+    if (sourceEndpoint.handle !== null && sourceEndpoint.handle !== "failed") {
+      return { ok: false, message: "Run workflow has success (plain) and failed outputs." };
+    }
+    from = sourceEndpoint.handle === "failed" ? `${source.id}.failed` : source.id;
   } else if (source.type === "loop") {
     if (sourceEndpoint.handle !== null && sourceEndpoint.handle !== LOOP_EXHAUSTED_HANDLE) {
       return {

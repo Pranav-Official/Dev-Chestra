@@ -45,6 +45,7 @@ export interface RoutingExecutionState {
   loop?: {
     rounds: readonly { done: boolean; outcome?: LoopOutcome | null }[];
   } | null;
+  workflow?: { status?: string | null } | null;
 }
 
 /** Source handle of a loop's iteration-budget-exhausted output. */
@@ -119,6 +120,24 @@ function edgeState(
     const isRejected = decision === "reject";
     if (source.handle === "rejected") return isRejected ? "active" : "dead";
     return isRejected ? "dead" : "active";
+  }
+  if (node?.type === "workflow") {
+    // Plain endpoint = child succeeded; `.failed` = child failed/rejected.
+    // Cancelled children never route — the parent fails/cancels instead.
+    const status = (execution as { workflow?: { status?: string | null } | null })?.workflow
+      ?.status;
+    if (source.handle === "failed")
+      return status === "failed" || status === "rejected" ? "active" : "dead";
+    return status === "succeeded"
+      ? "active"
+      : status === null || status === undefined || status === "running"
+        ? "pending"
+        : "dead";
+  }
+  if (node?.type === "foreach") {
+    // Foreach with onItemFailure=stop fails like a normal node; continue always
+    // succeeds (failures recorded per-item). Routing resolves after success.
+    return "active";
   }
   return "active";
 }

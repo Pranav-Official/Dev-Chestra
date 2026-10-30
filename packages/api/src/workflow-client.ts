@@ -20,6 +20,10 @@ import { etagSchema, quoteEtag } from "./primitives.js";
 import {
   type CreateWorkflowRequest,
   createWorkflowRequestSchema,
+  type ForeachItemsResponse,
+  foreachItemsResponseSchema,
+  type RunChildrenResponse,
+  runChildrenResponseSchema,
   type SaveWorkflowRequest,
   type StartWorkflowRunRequest,
   saveWorkflowRequestSchema,
@@ -154,6 +158,35 @@ export class ApiClient extends ApiClientBase {
       ["projects", projectId, "workflows", workflowId, "runs"],
       startRunResponseSchema,
       this.req(options, { body: parsed, mutation: true, extraHeaders }),
+    );
+  }
+
+  /** Parent-child provenance (refs only, paginated, no hydration). */
+  listRunChildren(
+    runId: string,
+    query: { cursor?: string; limit?: number } = {},
+    options: ApiRequestOptions = {},
+  ): Promise<RunChildrenResponse> {
+    return this.request(
+      "GET",
+      ["runs", runId, "children"],
+      runChildrenResponseSchema,
+      this.req(options, { query }),
+    );
+  }
+
+  /** Foreach per-item refs (paginated, no hydration). */
+  listForeachItems(
+    runId: string,
+    sourceId: string,
+    query: { cursor?: string; limit?: number } = {},
+    options: ApiRequestOptions = {},
+  ): Promise<ForeachItemsResponse> {
+    return this.request(
+      "GET",
+      ["runs", runId, "foreach", sourceId, "items"],
+      foreachItemsResponseSchema,
+      this.req(options, { query }),
     );
   }
 

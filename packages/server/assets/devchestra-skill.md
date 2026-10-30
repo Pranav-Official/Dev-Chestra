@@ -23,7 +23,7 @@ Rules in this guide were checked against the DevChestra schema, validator and en
 | `schemaVersion` | exactly `1` |
 | Node `id` | `^[a-z][a-z0-9_]{0,47}$` (starts with a letter; letters, digits, underscore; **no hyphens**). Node ids are names in expressions, so avoid JSONata words such as `and`, `or`, `in`, `true`, `false`, `null`. |
 | Node `name` | non-empty, at most 200 characters (shown in the UI) |
-| Reserved node ids | `start` is reserved for the start node. Inside a loop body, `loop` and `result` are also reserved. Node ids must be unique within their graph. |
+| Reserved node ids | `start` is reserved for the start node. Inside a loop body, `loop` and `result` are also reserved; inside a foreach body, `foreach` and `result` are also reserved. Node ids must be unique within their graph. |
 | Edge `id` | `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`, unique |
 | Handle names (gate branch ids, join input names, decision branch/band ids) | `^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$` |
 | Start parameter `name` | `^[A-Za-z_][A-Za-z0-9_]{0,63}$` (no hyphens) |
@@ -112,11 +112,12 @@ Edge endpoints with handles:
 
 | Source node | `from` form | Meaning |
 | --- | --- | --- |
-| `start`, `agent`, `shell`, `join` | `nodeId` | plain output |
+| `start`, `agent`, `shell`, `join`, `foreach` | `nodeId` | plain output |
 | `gate` | `gateId.branchId` (required) | the named branch; a plain `gateId` source is invalid |
 | `decision` | `decisionId.handle` (required) | `true` / `false` (boolean mode) or your branch/band id, plus `uncertain` in every mode |
 | `approval` | `approvalId` or `approvalId.rejected` | approved path / rejected path |
 | `loop` | `loopId` or `loopId.exhausted` | condition met / iteration budget exhausted |
+| `workflow` | `callId` or `callId.failed` | child succeeded / child failed or was rejected; an unwired failure fails the invocation |
 
 | Target node | `to` form | Meaning |
 | --- | --- | --- |
@@ -147,7 +148,9 @@ A node's output is stored under its **node id**; run parameters are under `start
 | `approval` | `{ "decision": "approve" \| "reject", "by": ..., "note"?: ..., "requestId": ... }` |
 | `decision` | the provider answer object, including `value`, `kind` and `confidence` (an unknown confidence reads as `0`) |
 | `loop` | the envelope `{ "result": ..., "iterations": N, "outcome": "condition_met" \| "iteration_limit" }` |
-| `end` | the run result (nothing reads it) |
+| `foreach` | `{ "total", "processed", "succeeded", "failed", "rejected", "resultsRef" }`; item values are stored separately, not returned as an array |
+| `workflow` | `{ "childRunId", "status", "result" }`; `result` is the child's successful End result, or `null` on failure/rejection |
+| `end` | the run result (read by a parent `workflow` call when invoked as a child) |
 
 ### Two syntaxes: templates versus bare expressions
 
@@ -155,8 +158,8 @@ DevChestra uses [JSONata](https://jsonata.org) expressions in two forms:
 
 | Form | Used in | Example |
 | --- | --- | --- |
-| **Template**: free text with `{{ expression }}` placeholders | agent `prompt`, shell `command`, approval `message`, decision `state` | `"Summarize {{ start.topic }} for {{ start.audience }}"` |
-| **Bare expression**: the whole field is one expression | gate branch `when`, end `result`, loop `initialState`, `nextState`, `result`, `until` | `"check.exitCode = 0"` |
+| **Template**: free text with `{{ expression }}` placeholders | agent `prompt`, shell `command`, approval `message`, decision `state`, foreach CSV `source.path` | `"Summarize {{ start.topic }} for {{ start.audience }}"` |
+| **Bare expression**: the whole field is one expression | gate branch `when`, end `result`, loop `initialState`, `nextState`, `result`, `until`, foreach array `source.expression` and `result`, each workflow `inputs` value | `"check.exitCode = 0"` |
 
 - Do **not** put `{{ }}` in a bare-expression field, and do not omit it in a template field.
 - Write a literal `{{` in a template as `\{{`. The raw form `{{{ ... }}}` is rejected.
@@ -430,9 +433,119 @@ Merges parallel or exclusive paths.
 
 ### 7.8 `loop`
 
-See section 11. A loop is a single node in the parent graph that runs an inner acyclic graph repeatedly.
+See section 11. A loop is a single node in the parent graph that runs an inner acyclic graph repeatedly. Loop bodies may contain `workflow` calls but no `foreach`.
 
-### 7.9 `end`
+### 7.9 `foreach`
+
+A `foreach` fans out over an array (or a workspace CSV) and runs its body once per item. Direct loop/foreach nesting is disallowed v1; invoke a separate workflow with a loop when you need both.
+
+| Field | Meaning |
+| --- | --- |
+| `source` | `{ "kind": "expression", "expression": "<bare JSONata over outer scope>" }` or `{ "kind": "csv", "path": "<template relative to workspace>" }`. |
+| `maxItems` | optional 1..1000, defaults to 1000. |
+| `onItemFailure` | optional `"stop"` (default) or `"continue"`. |
+| `body` | graph with exactly one `start` (empty `params`), exactly one `end` with `status: "success"`, ordinary nodes including `workflow` calls, no loop/foreach children. Body ids `foreach` and `result` are reserved. |
+| `result` | required bare per-item result expression over the body's end ancestors plus `foreach`. |
+| `output` | required per-item JSON Schema (section 8). |
+
+Body data refs use `foreach.parent.start.<name>` / `foreach.parent.<nodeId>` (never bare parent ids in bodies). Item scope: `foreach.item`, `foreach.index` (zero-based), `foreach.number` (one-based), `foreach.total`, `foreach.parent`. The parent sees `{ "total", "processed", "succeeded", "failed", "rejected", "resultsRef" }` under the node id; per-item rows stay in the run store (paginated refs, never hydrated arrays). Empty sources finish natively with `total: 0`.
+
+### 7.10 `workflow` (child-workflow call)
+
+| Field | Meaning |
+| --- | --- |
+| `workflowId` | same managed-workflow id rules (`^[a-z0-9-]{1,64}$`). |
+| `inputs` | object mapping each target param name to a bare JSONata expression in the caller's scope. Keys validate against target params only when the target definition resolves. |
+| `output` | optional JSON Schema for the child's successful result (raw fallback is unknown; typed output exposes `result` properties). |
+
+Envelope under the node id: `{ "childRunId", "status": "succeeded" \| "failed" \| "rejected", "result" }`. Plain edge = child succeeded; wire `nodeId.failed` for child failed/rejected. No `.cancelled` handle. Child definitions freeze recursively before side effects (depth <= 8, total <= 32, same project, cycle-checked); missing children fail explicitly.
+
+### 7.10.1 Practical pattern: one complete retry workflow per CSV row
+
+Use **For each + Run workflow**, not a flattened retry state machine. The child workflow may contain its own five-round loop. The parent waits for that entire child to finish before advancing to the next row. Do not copy the child's nodes into the foreach body and do not add unsupported direct nested controllers.
+
+Before using the following example, create a same-project workflow named `single-job-resume` whose Start parameters are `job_description` (string), `candidate_background` (optional string), and `output_directory` (string). Its agents must honor the output-directory input consistently. A CSV named `jobs.csv` needs a `job_description` header; quoted multiline descriptions are supported. Each row is an object whose values are strings. Use `$number(...)` explicitly when mapping a CSV value to a numeric child parameter.
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "batch-job-resumes",
+  "name": "Generate a resume for every job",
+  "graph": {
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "name": "Batch inputs",
+        "params": [
+          { "name": "csv_path", "type": "string", "required": false, "default": "jobs.csv" },
+          { "name": "batch_id", "type": "string", "required": true },
+          { "name": "candidate_background", "type": "string", "required": false, "default": "" }
+        ],
+        "ui": { "x": 40, "y": 160 }
+      },
+      {
+        "id": "jobs",
+        "type": "foreach",
+        "name": "One whole workflow per job",
+        "source": { "kind": "csv", "path": "{{ start.csv_path }}" },
+        "maxItems": 1000,
+        "onItemFailure": "continue",
+        "result": "call.result",
+        "output": { "type": "object", "additionalProperties": true },
+        "body": {
+          "nodes": [
+            { "id": "start", "type": "start", "name": "Start job", "params": [], "ui": { "x": 40, "y": 120 } },
+            {
+              "id": "call",
+              "type": "workflow",
+              "name": "Generate and review this job's resume",
+              "workflowId": "single-job-resume",
+              "inputs": {
+                "job_description": "foreach.item.job_description",
+                "candidate_background": "foreach.parent.start.candidate_background",
+                "output_directory": "'resumes/' & foreach.parent.start.batch_id & '/job-' & $string(foreach.number)"
+              },
+              "ui": { "x": 320, "y": 120 }
+            },
+            { "id": "done", "type": "end", "name": "Job completed", "status": "success", "result": "{}", "ui": { "x": 620, "y": 120 } }
+          ],
+          "edges": [
+            { "id": "b1", "from": "start", "to": "call" },
+            { "id": "b2", "from": "call", "to": "done" }
+          ]
+        },
+        "ui": { "x": 340, "y": 160 }
+      },
+      {
+        "id": "done",
+        "type": "end",
+        "name": "Batch processing finished",
+        "status": "success",
+        "result": "jobs",
+        "ui": { "x": 660, "y": 160 }
+      }
+    ],
+    "edges": [
+      { "id": "e1", "from": "start", "to": "jobs" },
+      { "id": "e2", "from": "jobs", "to": "done" }
+    ]
+  }
+}
+```
+
+Operational rules:
+
+- `batch_id` should be a new safe identifier for each batch (letters, digits, hyphens/underscores, no path separators or `..`). Child file operations must enforce workspace containment; a mapped path is not a sandbox. A company name alone is not unique across job postings. The engine does **not** automatically assign artifact directories.
+- This parent deliberately finishes successfully when collection processing completes, even if individual jobs failed. Check `jobs.failed` and `jobs.rejected`, or add a Gate before End if any unsuccessful item should make the overall batch fail.
+- For `onItemFailure: "continue"`, leave `call.failed` unconnected when a failed/rejected child should count as an unsuccessful item. For-each records the item failure and moves on. If you wire `call.failed` to a recovery path ending successfully, that is a handled failure and the successful body counts as succeeded; classify business outcomes explicitly in the mapped result if needed.
+- A child returning `{"pass": false}` from a successful End is still an execution success. Make the child take a failed End on exhausted review if you want batch failure counts to reflect unapproved resumes. Cancellation is never treated as an item failure to continue past.
+- `result` maps each successful item's result. `output` validates that per-item result, **not** the batch summary envelope. Failed items retain error results. `resultsRef` is an opaque durable collection reference, not a file path or a JSON array; inspect item pages/results in the run UI or through the documented API.
+- Empty collections finish with zero processed items. More rows than `maxItems` cause an explicit failure; no rows are silently dropped. Source snapshots are capped at 8 MiB, each item/result at 64 KiB; array expressions also inherit the expression evaluator's 64 KiB result cap, so use CSV for larger collections.
+- Item input data is frozen once when For-each begins. Child definitions are frozen before the parent run starts; editing either during a run does not change already-captured work. Resume reuses exact child IDs and completed items; it does not duplicate a finished job. External side effects are still not guaranteed exactly-once.
+- An approval or paused child must be resolved in its child run; inspect it using the parent's child-run link. Cancelling the batch cancels active descendants and prevents later items from starting.
+
+### 7.11 `end`
 
 ```json fragment
 {
@@ -824,19 +937,21 @@ Implement, test, review; stop when the tests pass and the reviewer agrees, with 
 | --- | --- | --- |
 | 1 MiB | the workflow file; also the final text sent to an agent CLI (prompt + automatic input block), measured in UTF-8 bytes. Oversize input fails before the CLI starts with `E_VALIDATION`; nothing is truncated silently. | `E_WORKFLOW_INVALID` / `E_VALIDATION` |
 | 16 KiB of JSON each | a loop's `loop.state`, `initialState`/`nextState` values, and a round's mapped `result` | `E_OUTPUT_INVALID` |
+| 8 MiB total / 64 KiB per item | a foreach CSV source snapshot (all rows) / one source item or per-item result | `E_VALIDATION` |
 | by reference, no 16 KiB cap | `loop.parent`: the outer scope is **captured as references to already-stored outputs**, not copied into the loop's state. Captured literals are capped at 16 KiB each and the capture manifest at 1 MiB. Large parent data is fine; large *state or results* are not. | |
 | 4 KiB / 250 ms / 64 KiB | an expression's source / one evaluation (2 s total for a gate) / its result | `E_EXPR` |
 | 64 KiB each | a shell step's retained `stdout` and `stderr` tails | silent tail truncation |
 | 64 KiB | a `decision` node's rendered `state` | provider error |
 | 4096 characters | an `approval` message (after rendering) | `E_VALIDATION` |
 | 64 KiB, 200 properties, depth 8 | a normalized output schema | validation error |
-| 1000 | loop `maxIterations`; gates allow at most 32 branches | validation error |
+| 1000 | loop `maxIterations`, foreach `maxItems`; gates allow at most 32 branches | validation error |
+| 8 / 32 | child-workflow freeze depth / total bundle | validation error |
 
 The 16 KiB loop limits are about *what a loop carries between rounds*; the 1 MiB figure is about *prompt size*; the context-capture figures are about *parent data*. They are independent. Keep loop state to short strings and numbers, store large artifacts as files and pass paths.
 
 ## 13. Not supported (do not use)
 
-Workflow `budget` and `supervisor`; node `supervise` other than `default`; node `env`; non-empty `cliOptions`; agent `context` other than `none`; per-node `workspace` (ignored) and `permissions.write: ["project"]`; `promptFile` for managed runs; `format: "devchestra-artifact"` outputs; raw `{{{ }}}` templates; shell heredocs, comments and placeholders inside quotes or substitutions; nested loops, back edges, zero-round loops and parallel rounds; custom node types; `fake` CLI; MCP server definitions (only selection by name). Maps, spending budgets and artifact capture are not built yet.
+Workflow `budget` and `supervisor`; node `supervise` other than `default`; node `env`; non-empty `cliOptions`; agent `context` other than `none`; per-node `workspace` (ignored) and `permissions.write: ["project"]`; `promptFile` for managed runs; `format: "devchestra-artifact"` outputs; raw `{{{ }}}` templates; shell heredocs, comments and placeholders inside quotes or substitutions; nested loop/foreach controllers, back edges, zero-round loops and parallel rounds; custom node types; `fake` CLI; MCP server definitions (only selection by name). Maps, spending budgets and artifact capture are not built yet. Child `workflow` failure uses `.failed` only (no `.cancelled`).
 
 ## 14. Authoring procedure
 
@@ -872,5 +987,7 @@ devchestra run .devchestra/workflows/<id>.json --project . --workspace new-workt
 - [ ] Every agent has `cli`, an inline `prompt`, an `output` schema in the restricted profile (arrays have `maxItems`), and `permissions`.
 - [ ] Shell placeholders are outside quotes; no heredocs; destructive commands sit behind an approval.
 - [ ] Loops: `maxIterations` set, body has one start (no params) and one success end, `result` and `until` are evidence-based, `.exhausted` is wired to a failed end, state/result stay small.
+- [ ] Foreach: `source` set (expression over outer scope, or relative csv template), `maxItems`/`onItemFailure` defaulted, body has one start (no params) and one success end, `result` over end ancestors plus `foreach`, per-item `output` set.
+- [ ] Child workflows: `workflowId` matches managed id rules, `inputs` are bare expressions over call-site ancestors, plain edge = success and `.failed` wired for failures, no live runs during authoring.
 - [ ] Every node has `ui` coordinates.
 - [ ] The JSON is valid (no comments or trailing commas) and under 1 MiB.

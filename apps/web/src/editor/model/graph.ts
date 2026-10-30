@@ -11,6 +11,8 @@ export const SUPPORTED_NODE_TYPES: readonly string[] = [
   "approval",
   "decision",
   "loop",
+  "foreach",
+  "workflow",
   "end",
 ] as const;
 
@@ -194,6 +196,41 @@ export function createDefaultNode(
         },
         ui,
       } as unknown as WorkflowNode;
+    case "foreach":
+      return {
+        id,
+        type: "foreach",
+        name: "For each",
+        source: { kind: "expression", expression: "[]" },
+        maxItems: 1000,
+        onItemFailure: "stop",
+        result: "{}",
+        output: defaultAgentOutput(),
+        body: {
+          nodes: [
+            { id: "start", type: "start", name: "Start item", params: [], ui: { x: 32, y: 32 } },
+            {
+              id: "done",
+              type: "end",
+              name: "Finish item",
+              status: "success",
+              result: "{}",
+              ui: { x: 320, y: 32 },
+            },
+          ],
+          edges: [{ id: "item-edge", from: "start", to: "done" }],
+        },
+        ui,
+      } as WorkflowNode;
+    case "workflow":
+      return {
+        id,
+        type: "workflow",
+        name: "Run workflow",
+        workflowId: "",
+        inputs: {},
+        ui,
+      } as WorkflowNode;
     case "end":
       return {
         id,

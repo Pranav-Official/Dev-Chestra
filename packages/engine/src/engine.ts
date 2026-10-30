@@ -136,6 +136,35 @@ export class LinearEngine implements Engine {
         );
       }
       this.#assertAdapters(plan);
+      // Freeze the transitive child workflow bundle BEFORE any side effect.
+      // The scan is recursive: workflow refs inside loop/foreach bodies count.
+      const { freezeWorkflowBundle } = await import("./freeze.js");
+      const referencesWorkflow = (nodes: readonly PlanNode[]): boolean =>
+        nodes.some((node) => {
+          if (node.type === "workflow" || node.type === "foreach") return true;
+          if (node.type === "loop") {
+            const body = analyzeWorkflowPlan({ graph: node.raw.body });
+            return body.ok && referencesWorkflow(body.value.nodes);
+          }
+          return false;
+        });
+      const needsBundle = referencesWorkflow(plan.nodes);
+      let bundle: Record<string, unknown> = {};
+      if (needsBundle || input.workflowDependencies !== undefined) {
+        const frozen = await freezeWorkflowBundle({
+          projectId: input.projectId,
+          rootSnapshot: input.snapshot,
+          rootWorkflowId: input.workflowId,
+          ...(input.workflowDependencies === undefined
+            ? {}
+            : { dependencies: input.workflowDependencies }),
+          ...(this.#ctx.deps.workflowResolver === undefined
+            ? {}
+            : { resolver: this.#ctx.deps.workflowResolver }),
+        });
+        bundle = frozen.bundle as Record<string, unknown>;
+        this.#assertBundleAdapters(bundle);
+      }
       const project = this.#ctx.store.projects.get(input.projectId);
       if (project === null) {
         throw new DevChestraError("E_NOT_FOUND", `Project ${input.projectId} does not exist`);
@@ -159,9 +188,13 @@ export class LinearEngine implements Engine {
       const created: CreateRunResult = this.#ctx.store.tx(() => {
         const created = this.#ctx.store.runs.create(createInput);
         if (!created.duplicate) {
+          if (Object.keys(bundle).length > 0) {
+            void this.#ctx.store.workflowCalls.putBundle(created.runId, bundle, workflowHash);
+          }
           assertLoopWorkspaceAvailable(
             this.#ctx.run(created.runId),
             this.#ctx.store.runs.listActive(),
+            (a, b) => this.#lineageRelated(a, b),
           );
         }
         return created;
@@ -250,12 +283,30 @@ export class LinearEngine implements Engine {
         return ok(undefined);
       }
       // Parked cancel (no active drive: waiting_approval / durable park):
-      // fan out durable node.state -> cancelled per non-terminal execution.
+      // cascade to active descendants first (depth-first), then fan out
+      // durable node.state -> cancelled per non-terminal execution.
       // Historical run.cancelled reducer semantics are preserved (no store
       // change); never invent processStopped/workspaceFinalized evidence.
       // A genuinely-alive process is never marked stopped/finalized: pause
       // with an error instead of reporting cancelled with no Stop remedy.
       const aliveBlocked: string[] = [];
+      for (const child of this.#ctx.store.workflowCalls.listByParent(runId as RunId)) {
+        const record = this.#ctx.store.runs.get(child.childRunId as RunId);
+        if (!record || ["succeeded", "failed", "rejected", "cancelled"].includes(record.status)) {
+          continue;
+        }
+        const cancelled = await this.cancel(child.childRunId);
+        if (!cancelled.ok) {
+          this.#ctx.appendError(
+            runId,
+            child.parentPath,
+            new DevChestraError("E_WORKSPACE", "Parked cancel blocked by live child run", {
+              details: { childRunId: child.childRunId },
+            }),
+          );
+          aliveBlocked.push(child.parentPath);
+        }
+      }
       for (const execution of this.#ctx.store.executions.list(runId as RunId)) {
         if (
           execution.status === "succeeded" ||
@@ -371,14 +422,19 @@ export class LinearEngine implements Engine {
 
   #assertAdapters(plan: WorkflowPlan): void {
     for (const node of plan.nodes) {
-      if (node.type === "loop") {
+      if (node.type === "loop" || node.type === "foreach") {
         if (!this.#ctx.deps.validateOutput) {
-          throw new DevChestraError("E_WORKFLOW_INVALID", "Loops require an output validator");
+          throw new DevChestraError(
+            "E_WORKFLOW_INVALID",
+            `${node.type === "loop" ? "Loops" : "Foreach nodes"} require an output validator`,
+          );
         }
         const body = analyzeWorkflowPlan({ graph: node.raw.body });
         if (!body.ok) throw body.error;
         this.#assertAdapters(body.value);
       }
+      // Workflow calls need no live resolver when the frozen bundle covers them:
+      // the launch freeze step resolves uncovered ids and fails fast there.
       if (node.type !== "agent") continue;
       const cli: unknown = node.raw.cli;
       if (!isCliId(cli) || !this.#ctx.deps.adapters.has(cli)) {
@@ -401,6 +457,30 @@ export class LinearEngine implements Engine {
     }
   }
 
+  /** True when either run is an ancestor of the other via durable child links. */
+  #lineageRelated(a: string, b: string): boolean {
+    const walkUp = (from: string, target: string): boolean => {
+      let current: string | null = from;
+      const seen = new Set<string>();
+      while (current) {
+        if (current === target) return true;
+        if (seen.has(current)) return false;
+        seen.add(current);
+        const link = this.#ctx.store.workflowCalls.getParent(current);
+        current = link ? (link.parentRunId as string) : null;
+      }
+      return false;
+    };
+    return walkUp(a, b) || walkUp(b, a);
+  }
+
+  #assertBundleAdapters(bundle: Record<string, unknown>): void {
+    for (const snapshot of Object.values(bundle)) {
+      const plan = analyzeWorkflowPlan(snapshot);
+      if (!plan.ok) throw plan.error;
+      this.#assertAdapters(plan.value);
+    }
+  }
   /**
    * A duplicate id never dispatches. If this process owns the original run,
    * share its completion; otherwise report the durable current outcome without
@@ -558,10 +638,12 @@ export class LinearEngine implements Engine {
       }
       // A controller stays running while a body approval parks the drive.
       // Resume its state machine without changing the node's durable status.
+      // Workflow controllers park event-driven on child activity (no busy loop).
       const ready = plan.nodes.filter(
         (node) =>
           routing.ready.includes(node.id) ||
-          (node.type === "loop" && view.executions[node.id]?.status === "running"),
+          ((node.type === "loop" || node.type === "workflow" || node.type === "foreach") &&
+            view.executions[node.id]?.status === "running"),
       );
       const readyNonEnd = ready.filter((node) => node.type !== "end");
       if (readyNonEnd.length > 0) {
@@ -637,6 +719,21 @@ export class LinearEngine implements Engine {
       );
       return;
     }
+    if (node.type === "workflow") {
+      const { executeWorkflow } = await import("./exec-workflow.js");
+      await executeWorkflow(this.#ctx, run, plan, node, active, {
+        driveChild: (childRunId, opts) => this.#drive(childRunId, {}, opts?.fresh !== true),
+        cancelChild: (childRunId) => this.cancel(childRunId).then(() => undefined),
+      });
+      return;
+    }
+    if (node.type === "foreach") {
+      const { executeForeach } = await import("./exec-foreach.js");
+      await executeForeach(this.#ctx, run, plan, node, active, (body, child, routing) =>
+        this.#execute(this.#ctx.run(run.id), body, child, active, routing),
+      );
+      return;
+    }
     if (node.type === "start" || node.type === "end") {
       await executeDeterministic(this.#ctx, run, plan, node, active);
       return;
@@ -706,6 +803,7 @@ function executionStates(
       approvalDecision: ad ? { decision: ad.decision, requestId: ad.requestId } : null,
       decision: execution.decision,
       loop: execution.loop,
+      workflow: execution.workflow,
     };
   }
   return out;

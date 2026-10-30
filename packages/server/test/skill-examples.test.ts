@@ -67,11 +67,13 @@ describe("skill.md embedded examples", () => {
       "approval",
       "decision",
       "end",
+      "foreach",
       "gate",
       "join",
       "loop",
       "shell",
       "start",
+      "workflow",
     ]);
   });
 

@@ -190,6 +190,29 @@ export function loopRoundFromPayload(
   };
 }
 
+/** Durable workflow-call controller. Linked child run identity is stable per parent run/path/attempt. */
+export interface WorkflowView {
+  childRunId: string | null;
+  workflowId: string | null;
+  status: "running" | "succeeded" | "failed" | "rejected" | "cancelled" | null;
+  /** Durable output id for the child envelope; null until completed. */
+  resultRef: string | null;
+  eventId: number;
+}
+
+/** Durable foreach controller. Per-item results live in foreach_items, referenced by resultsRef. */
+export interface ForeachView {
+  total: number;
+  processed: number;
+  succeeded: number;
+  failed: number;
+  rejected: number;
+  /** Durable foreach_sources row id; doubles as results ref for listItems. */
+  resultsRef: string | null;
+  sourceId: string | null;
+  eventId: number;
+}
+
 export interface ExecView {
   path: Path;
   nodeId: string;
@@ -205,6 +228,10 @@ export interface ExecView {
   decision: DecisionRef | null;
   /** Durable loop controller; null until loop.started. */
   loop: LoopView | null;
+  /** Durable workflow-call controller; null until workflow.linked. */
+  workflow: WorkflowView | null;
+  /** Durable foreach controller; null until foreach.started. */
+  foreach: ForeachView | null;
   requiresAcceptedResult: boolean;
   acceptedResult: AcceptedResultRef | null;
   recordedOutput: RecordedOutputRef | null;
@@ -351,6 +378,32 @@ export function isDurablyComplete(exec: ExecView): boolean {
   if (exec.kind === "loop") {
     if (exec.loop === null) return false;
     if (loopTerminalOutcome(exec.loop) === null) return false;
+    const recorded = exec.recordedOutput;
+    if (
+      recorded === null ||
+      recorded.attempt !== exec.attempt ||
+      recorded.generation !== exec.generation
+    ) {
+      return false;
+    }
+    return true;
+  }
+  if (exec.kind === "workflow") {
+    if (exec.workflow === null) return false;
+    if (exec.workflow.status === null || exec.workflow.status === "running") return false;
+    const recorded = exec.recordedOutput;
+    if (
+      recorded === null ||
+      recorded.attempt !== exec.attempt ||
+      recorded.generation !== exec.generation
+    ) {
+      return false;
+    }
+    return true;
+  }
+  if (exec.kind === "foreach") {
+    if (exec.foreach === null) return false;
+    if (exec.foreach.processed < exec.foreach.total) return false;
     const recorded = exec.recordedOutput;
     if (
       recorded === null ||

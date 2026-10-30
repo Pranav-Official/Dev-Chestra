@@ -364,7 +364,9 @@ export function WorkflowEditor({
           />
         </div>
         <Inspector
-          loopBodyOpenRequested={node?.type === "loop" && loopBodyOpenRequest === node.id}
+          loopBodyOpenRequested={
+            (node?.type === "loop" || node?.type === "foreach") && loopBodyOpenRequest === node.id
+          }
           onLoopBodyOpenHandled={clearLoopBodyOpenRequest}
           node={node}
           projectId={pid}

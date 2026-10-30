@@ -65,6 +65,8 @@ describe("gate and join schema", () => {
       "approval",
       "decision",
       "loop",
+      "foreach",
+      "workflow",
       "end",
     ]);
   });

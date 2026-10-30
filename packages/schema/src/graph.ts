@@ -16,6 +16,8 @@ const SUPPORTED_TYPES = new Set([
   "approval",
   "decision",
   "loop",
+  "foreach",
+  "workflow",
   "end",
 ]);
 
@@ -150,9 +152,19 @@ function validateEndpoint(
         }
         return undefined;
       }
+      if (node.type === "workflow") {
+        if (endpoint.handle !== "failed") {
+          return endpointIssue(
+            "E_EDGE_HANDLE",
+            `Workflow source handle must be 'failed' ('${node.id}.failed'); got '${endpoint.handle}'.`,
+            pointer,
+          );
+        }
+        return undefined;
+      }
       return endpointIssue(
         "E_EDGE_HANDLE",
-        `Edge source '${endpoint.raw}' names a handle, but '${node.id}' is not a gate, approval, decision or loop.`,
+        `Edge source '${endpoint.raw}' names a handle, but '${node.id}' is not a gate, approval, decision, loop or workflow.`,
         pointer,
       );
     }
@@ -275,7 +287,7 @@ export function analyzeGraph(graph: Graph): { analysis: GraphAnalysis; issues: I
       issues.push(
         issue(
           "E_NODE_TYPE",
-          `Unsupported node type '${node.type}'; P1 routing supports start, agent, shell, gate, join, approval, decision, loop, end.`,
+          `Unsupported node type '${node.type}'; P1 routing supports start, agent, shell, gate, join, approval, decision, loop, foreach, workflow, end.`,
           `${pointer}/type`,
           node.id,
         ),

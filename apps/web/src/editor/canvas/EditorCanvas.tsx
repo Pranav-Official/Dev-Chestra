@@ -141,10 +141,12 @@ export function buildEdges(file: WorkflowFile, selection: EditorSelection): Edit
           : (sourceNode as { type: string }).type === "approval" &&
               sourceEndpoint.handle === "rejected"
             ? "out:rejected"
-            : (sourceNode as { type: string }).type === "loop" &&
-                sourceEndpoint.handle === LOOP_EXHAUSTED_HANDLE
-              ? `out:${LOOP_EXHAUSTED_HANDLE}`
-              : "out",
+            : sourceNode.type === "workflow" && sourceEndpoint.handle === "failed"
+              ? "out:failed"
+              : (sourceNode as { type: string }).type === "loop" &&
+                  sourceEndpoint.handle === LOOP_EXHAUSTED_HANDLE
+                ? `out:${LOOP_EXHAUSTED_HANDLE}`
+                : "out",
       targetHandle:
         (targetNode as { type: string }).type === "join" && targetEndpoint.handle !== null
           ? `in:${targetEndpoint.handle}`
@@ -176,6 +178,10 @@ export function connectionEndpoints(
     const handle = connection.sourceHandle;
     if (handle === null || handle === undefined || !handle.startsWith("out:")) return null;
     source = `${sourceNode.id}.${handle.slice(4)}`;
+  } else if (sourceNode.type === "workflow") {
+    const handle = connection.sourceHandle;
+    if (handle === "out:failed") source = `${sourceNode.id}.failed`;
+    else if (handle !== "out" && handle !== null && handle !== undefined) return null;
   } else if ((sourceNode as { type: string }).type === "loop") {
     const handle = connection.sourceHandle;
     if (handle === `out:${LOOP_EXHAUSTED_HANDLE}`)
@@ -517,7 +523,8 @@ export function EditorCanvas({
           onNodesChange={handleNodesChange}
           onNodeClick={handleNodeClick}
           onNodeDoubleClick={(event, node) => {
-            if (readOnly || node.data.node.type !== "loop" || !onLoopOpen) return;
+            if (readOnly || !["loop", "foreach"].includes(node.data.node.type) || !onLoopOpen)
+              return;
             event.stopPropagation();
             onSelectionChange({ kind: "node", nodeId: node.id });
             onLoopOpen(node.id);

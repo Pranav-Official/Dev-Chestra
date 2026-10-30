@@ -197,3 +197,77 @@ export const startWorkflowRunRequestSchema = strict({
   etag: etagSchema,
   workspace: runWorkspaceSelectionSchema.optional(),
 }) as unknown as z.ZodType<StartWorkflowRunRequest>;
+
+export interface RunChildSummary {
+  childRunId: string;
+  workflowId: string;
+  path: string;
+  status: "running" | "succeeded" | "failed" | "rejected" | "cancelled";
+}
+
+export const runChildSummarySchema = strict({
+  childRunId: z.string().min(1),
+  workflowId: z.string().min(1),
+  path: z.string().min(1),
+  status: z.enum(["running", "succeeded", "failed", "rejected", "cancelled"]),
+}) as unknown as z.ZodType<RunChildSummary>;
+
+export interface RunChildrenResponse {
+  items: RunChildSummary[];
+  nextCursor: string | null;
+}
+
+export const runChildrenResponseSchema = strict({
+  items: z.array(runChildSummarySchema).max(500),
+  nextCursor: z.string().nullable(),
+}) as unknown as z.ZodType<RunChildrenResponse>;
+
+export interface ForeachItemSummary {
+  index: number;
+  status: "succeeded" | "failed" | "rejected" | "skipped" | "running";
+  path: string;
+  /**
+   * Reference to the per-item result row. Resolve the value (when present)
+   * via `GET /api/runs/:runId/outputs/:outputId`; null means no recorded
+   * result (e.g. skipped items). Never an inlined value: lists stay small.
+   */
+  outputId: string | null;
+}
+
+export const foreachItemSummarySchema = strict({
+  index: z.number().int().nonnegative(),
+  status: z.enum(["succeeded", "failed", "rejected", "skipped", "running"]),
+  path: z.string().min(1),
+  outputId: z.string().min(1).nullable(),
+}) as unknown as z.ZodType<ForeachItemSummary>;
+
+export interface ForeachSourceSummary {
+  sourceId: string;
+  kind: "expression" | "csv";
+  path: string;
+  total: number;
+}
+
+export const foreachSourceSummarySchema = strict({
+  sourceId: z.string().min(1),
+  kind: z.enum(["expression", "csv"]),
+  path: z.string().min(1),
+  total: z.number().int().nonnegative(),
+}) as unknown as z.ZodType<ForeachSourceSummary>;
+
+export interface ForeachItemsResponse {
+  source: ForeachSourceSummary;
+  items: ForeachItemSummary[];
+  nextCursor: string | null;
+}
+
+export const foreachItemsResponseSchema = strict({
+  source: foreachSourceSummarySchema,
+  items: z.array(foreachItemSummarySchema).max(100),
+  nextCursor: z.string().nullable(),
+}) as unknown as z.ZodType<ForeachItemsResponse>;
+
+export const foreachItemsQuerySchema = strict({
+  cursor: cursorQuerySchema,
+  limit: limitQuerySchema,
+});

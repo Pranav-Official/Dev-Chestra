@@ -146,17 +146,60 @@ export interface BrowserQueryPort {
   listOutputMetadata?(
     runId: string,
     input: { path?: string; limit: number; cursor?: string },
-  ): Promise<{ items: Array<{ id: string; path: string; attempt: number; generation: number; kind: string; hash: string; bytes: number; createdAt: number }>; nextCursor: string | null }> | { items: Array<{ id: string; path: string; attempt: number; generation: number; kind: string; hash: string; bytes: number; createdAt: number }>; nextCursor: string | null };
-  getOutputMetadataById?(
-    outputId: string,
-  ): Promise<{ id: string; runId: string; path: string; attempt: number; generation: number; hash: string; bytes: number } | null> | { id: string; runId: string; path: string; attempt: number; generation: number; hash: string; bytes: number } | null;
-  getOutputById?(
-    outputId: string,
-  ): Promise<AcceptedOutput | null> | AcceptedOutput | null;
+  ):
+    | Promise<{
+        items: Array<{
+          id: string;
+          path: string;
+          attempt: number;
+          generation: number;
+          kind: string;
+          hash: string;
+          bytes: number;
+          createdAt: number;
+        }>;
+        nextCursor: string | null;
+      }>
+    | {
+        items: Array<{
+          id: string;
+          path: string;
+          attempt: number;
+          generation: number;
+          kind: string;
+          hash: string;
+          bytes: number;
+          createdAt: number;
+        }>;
+        nextCursor: string | null;
+      };
+  getOutputMetadataById?(outputId: string):
+    | Promise<{
+        id: string;
+        runId: string;
+        path: string;
+        attempt: number;
+        generation: number;
+        hash: string;
+        bytes: number;
+      } | null>
+    | {
+        id: string;
+        runId: string;
+        path: string;
+        attempt: number;
+        generation: number;
+        hash: string;
+        bytes: number;
+      }
+    | null;
+  getOutputById?(outputId: string): Promise<AcceptedOutput | null> | AcceptedOutput | null;
   runContext?(
     runId: string,
     query: RunContextQuery,
-  ): Promise<{ entries: RunContextEntry[]; nextCursor: string | null }> | { entries: RunContextEntry[]; nextCursor: string | null };
+  ):
+    | Promise<{ entries: RunContextEntry[]; nextCursor: string | null }>
+    | { entries: RunContextEntry[]; nextCursor: string | null };
   counts():
     | Promise<{ runs: number; activeRuns: number; inbox: number }>
     | {
@@ -164,6 +207,34 @@ export interface BrowserQueryPort {
         activeRuns: number;
         inbox: number;
       };
+  listRunChildren?(
+    runId: string,
+    input: { cursor?: string; limit: number },
+  ):
+    | Promise<{
+        items: Array<{ childRunId: string; workflowId: string; path: string; status: string }>;
+        nextCursor: string | null;
+      }>
+    | {
+        items: Array<{ childRunId: string; workflowId: string; path: string; status: string }>;
+        nextCursor: string | null;
+      };
+  listForeachItems?(
+    runId: string,
+    sourceId: string,
+    input: { cursor?: string; limit: number },
+  ):
+    | Promise<{
+        source: { sourceId: string; kind: "expression" | "csv"; path: string; total: number };
+        items: Array<{ index: number; status: string; path: string; outputId: string | null }>;
+        nextCursor: string | null;
+      } | null>
+    | {
+        source: { sourceId: string; kind: "expression" | "csv"; path: string; total: number };
+        items: Array<{ index: number; status: string; path: string; outputId: string | null }>;
+        nextCursor: string | null;
+      }
+    | null;
   listApprovals(input: {
     projectId?: string;
     runId?: string;

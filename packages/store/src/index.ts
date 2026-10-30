@@ -2,7 +2,10 @@ export type { EventListener } from "./bus.js";
 export { EventBus } from "./bus.js";
 export type { SqliteDb, SqliteDriver, SqliteOpenOptions, SqliteStatement } from "./driver.js";
 export { betterSqliteDriver } from "./driver-better-sqlite3.js";
+export type { ForeachItem, ForeachItemRef, ForeachSource, ForeachSourceMeta } from "./foreach.js";
+export { FOREACH_MAX_ITEMS } from "./foreach.js";
 export { hashJsonSync } from "./hash.js";
+export type { ChildLink, RunBundle } from "./run-children.js";
 export type { SecretFinding } from "./secrets.js";
 export { redactJson, SecretRegistry } from "./secrets.js";
 export type {
@@ -10,6 +13,7 @@ export type {
   ContextCapturesApi,
   EventsApi,
   ExecutionsApi,
+  ForeachApi,
   LoopsApi,
   OutputsApi,
   ProcessesApi,
@@ -20,6 +24,7 @@ export type {
   SecurityApi,
   SubmissionsApi,
   ViewApi,
+  WorkflowCallsApi,
 } from "./store.js";
 export { openStore, Store } from "./store.js";
 export type {
@@ -33,6 +38,8 @@ export type {
   CompleteAcceptedAfterRecoveryInput,
   CompleteExecutionInput,
   CompleteExecutionResult,
+  ContextCaptureRecord,
+  CreateContextCaptureInput,
   CreateRunInput,
   CreateRunResult,
   DecideLoopInput,
@@ -49,6 +56,8 @@ export type {
   ListEventsOptions,
   OpenStoreOptions,
   OutputKind,
+  OutputMetadata,
+  OutputMetadataPage,
   OutputProvenancePage,
   OutputProvenanceQuery,
   OutputRecord,
@@ -78,10 +87,6 @@ export type {
   RunRecord,
   RunSnapshot,
   RunSummary,
-  ContextCaptureRecord,
-  CreateContextCaptureInput,
-  OutputMetadata,
-  OutputMetadataPage,
   StartLoopInput,
   StartLoopResult,
   SubmitInput,

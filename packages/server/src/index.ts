@@ -95,9 +95,11 @@ export {
 } from "./workflows/io.js";
 export { mountWorkflowRoutes, type WorkflowRouteDeps } from "./workflows/routes.js";
 export {
+  type ChildWorkflowReader,
   type CreateWorkflowInput,
   ManagedWorkflowService,
   type ManagedWorkflowServiceDeps,
+  type ResolvedChildWorkflow,
   type RunWorkflowInput,
   type RunWorkflowSnapshot,
   type SaveWorkflowInput,

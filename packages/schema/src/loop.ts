@@ -25,6 +25,7 @@ const BODY_SUPPORTED = new Set([
   "join",
   "approval",
   "decision",
+  "workflow",
   "end",
 ]);
 
@@ -89,11 +90,11 @@ function checkExpression(
   rootsIn(compiled.value.roots, allowed, pointer, nodeId, `${label}: ${value}`, addError);
 }
 
-/** All nodes recursively, including loop bodies (no nesting by validation). */
+/** All nodes recursively, including loop/foreach bodies (no nesting by validation). */
 export function* workflowNodes(graph: Graph): Generator<WorkflowNode> {
   for (const node of graph.nodes) {
     yield node;
-    if (node.type === "loop") {
+    if (node.type === "loop" || node.type === "foreach") {
       const body = (node as { body?: Graph }).body;
       if (isRecord(body) && Array.isArray((body as Graph).nodes)) {
         yield* workflowNodes(body as Graph);
@@ -108,7 +109,8 @@ export function allWorkflowNodes(graph: Graph): WorkflowNode[] {
 
 /**
  * Resolve a run path to its snapshot node. Round/index segments address the
- * loop body: `refine` -> controller, `refine#2/done` -> body child `done`.
+ * controller body: `refine` -> controller, `refine#2/done` -> loop body child
+ * `done`, `myforeach[0]/step` -> foreach body child `step` (zero-based).
  */
 export function nodeAtPath(graph: Graph, path: string): WorkflowNode | undefined {
   const parsed = parsePath(path);
@@ -120,7 +122,7 @@ export function nodeAtPath(graph: Graph, path: string): WorkflowNode | undefined
   const top = graph.nodes.find((node) => node.id === first.node);
   if (top === undefined) return undefined;
   if (segments.length === 1) return top;
-  if (top.type !== "loop") return undefined;
+  if (top.type !== "loop" && top.type !== "foreach") return undefined;
   const body = (top as { body?: Graph }).body;
   if (!isRecord(body) || !Array.isArray((body as Graph).nodes)) return undefined;
   if (segments.length !== 2) return undefined;
@@ -377,11 +379,11 @@ function validateLoopTopology(
         ),
       );
     }
-    if (record.type === "loop") {
+    if (record.type === "loop" || record.type === "foreach") {
       addError(
         err(
           "E_LOOP_NESTED",
-          "Nested loops are not supported; loop bodies cannot contain loop nodes.",
+          "Nested controllers are not supported; loop bodies cannot contain loop/foreach nodes. Use a separate workflow with a loop.",
           `${at}/type`,
           loopId,
         ),

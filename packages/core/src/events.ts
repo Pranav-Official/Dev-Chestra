@@ -20,6 +20,8 @@ export type NodeKind =
   | "decision"
   | "map"
   | "loop"
+  | "workflow"
+  | "foreach"
   | "supervisor";
 
 export type RunKind = "run" | "node_test";
@@ -318,6 +320,48 @@ export interface LoopExitedPayload {
   rounds: number;
 }
 
+export type WorkflowChildStatus = "succeeded" | "failed" | "rejected" | "cancelled";
+
+export interface WorkflowLinkedPayload {
+  childRunId: string;
+  workflowId: string;
+  workflowHash: string;
+  attempt: number;
+  generation: number;
+}
+
+export interface WorkflowCompletedPayload {
+  childRunId: string;
+  status: WorkflowChildStatus;
+  /** Durable output id for the child envelope (small ref, never hydrated result). */
+  resultRef: string | null;
+  attempt: number;
+  generation: number;
+}
+
+export interface ForeachStartedPayload {
+  total: number;
+  maxItems: number;
+  /** Durable foreach_sources row id; event never carries items. */
+  sourceId: string;
+  sourceHash: string;
+  /** Optional immutable parent capture ref (resolved from foreach_sources on resume). */
+  parentRef?: { kind: "devchestra.execution-context/v1"; captureId: string };
+  attempt: number;
+  generation: number;
+}
+
+export type ForeachItemStatus = "succeeded" | "failed" | "rejected" | "skipped";
+
+export interface ForeachItemDecidedPayload {
+  index: number;
+  status: ForeachItemStatus;
+  /** Durable foreach_items ref (output id) for the mapped per-item result. */
+  resultRef?: string | null;
+  attempt: number;
+  generation: number;
+}
+
 export interface LoopStartedPayload {
   /** Always 1; the controller starts iteration 1 once, idempotently. */
   iteration: number;
@@ -512,6 +556,10 @@ export const EVENT_TYPES = [
   "loop.exited",
   "loop.started",
   "loop.iteration.decided",
+  "workflow.linked",
+  "workflow.completed",
+  "foreach.started",
+  "foreach.item.decided",
   "join.resolved",
   "quota.blocked",
   "quota.released",
@@ -568,6 +616,10 @@ export interface EventPayloads {
   "loop.exited": LoopExitedPayload;
   "loop.started": LoopStartedPayload;
   "loop.iteration.decided": LoopIterationDecidedPayload;
+  "workflow.linked": WorkflowLinkedPayload;
+  "workflow.completed": WorkflowCompletedPayload;
+  "foreach.started": ForeachStartedPayload;
+  "foreach.item.decided": ForeachItemDecidedPayload;
   "join.resolved": JoinResolvedPayload;
   "quota.blocked": QuotaBlockedPayload;
   "quota.released": QuotaReleasedPayload;

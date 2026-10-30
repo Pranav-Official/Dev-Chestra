@@ -239,6 +239,18 @@ export const LOOP_STATE_MAX_BYTES = 16 * 1024;
 /** Body node ids reserved for loop scope roots. */
 export const LOOP_RESERVED_BODY_IDS: readonly string[] = ["loop", "result"];
 
+/** Bounds for foreach fan-out. */
+export const FOREACH_MAX_ITEMS = 1000;
+export const FOREACH_MIN_ITEMS = 1;
+export const FOREACH_DEFAULT_MAX_ITEMS = 1000;
+/** Body node ids reserved for foreach scope roots (bare `foreach` in bodies). */
+export const FOREACH_RESERVED_BODY_IDS: readonly string[] = ["foreach", "result"];
+/** Source handle of a child-workflow failure output. Plain endpoint = success. */
+export const WORKFLOW_FAILED_HANDLE = "failed";
+/** Max depth/total for transitive child-workflow freeze (engine canonical). */
+export const WORKFLOW_MAX_DEPTH = 8;
+export const WORKFLOW_MAX_DEPENDENCIES = 32;
+
 export interface LoopNode extends NodeBase {
   type: "loop";
   mode: LoopMode;
@@ -255,6 +267,34 @@ export interface LoopNode extends NodeBase {
   body: Graph;
 }
 
+export type ForeachSource =
+  | { kind: "expression"; expression: string }
+  | { kind: "csv"; path: string };
+
+export interface ForEachNode extends NodeBase {
+  type: "foreach";
+  source: ForeachSource;
+  /** 1..1000, defaults to 1000. */
+  maxItems?: number;
+  /** Defaults to "stop". */
+  onItemFailure?: "stop" | "continue";
+  body: Graph;
+  /** Per-item result expression over End ancestors plus foreach scope. */
+  result: string;
+  /** Per-item output schema. */
+  output: JsonSchemaObject;
+}
+
+export interface ChildWorkflowNode extends NodeBase {
+  type: "workflow";
+  /** Same managed-workflow id rules as file stems. */
+  workflowId: string;
+  /** Bare JSONata per target param. */
+  inputs: Record<string, string>;
+  /** Optional successful child-result object schema. */
+  output?: JsonSchemaObject;
+}
+
 export type WorkflowNode =
   | StartNode
   | AgentNode
@@ -264,6 +304,8 @@ export type WorkflowNode =
   | ApprovalNode
   | DecisionNode
   | LoopNode
+  | ForEachNode
+  | ChildWorkflowNode
   | EndNode;
 export type NodeType = WorkflowNode["type"];
 
@@ -377,8 +419,28 @@ export interface NormalizedLoopNode extends NormalizedNodeBase {
   body: NormalizedLoopBody;
 }
 
+export interface NormalizedForEachNode extends NormalizedNodeBase {
+  type: "foreach";
+  source: ForeachSource;
+  maxItems: number;
+  onItemFailure: "stop" | "continue";
+  body: NormalizedLoopBody;
+  result: string;
+  output: JsonSchemaObject;
+}
+
+export interface NormalizedChildWorkflowNode extends NormalizedNodeBase {
+  type: "workflow";
+  workflowId: string;
+  inputs: Record<string, string>;
+  output?: JsonSchemaObject;
+}
+
 /** Body children exclude nested loops by validation (type allows, validator rejects). */
-export type NormalizedBodyNode = Exclude<NormalizedNode, NormalizedLoopNode>;
+export type NormalizedBodyNode = Exclude<
+  NormalizedNode,
+  NormalizedLoopNode | NormalizedForEachNode
+>;
 
 export type NormalizedNode =
   | NormalizedStartNode
@@ -389,6 +451,8 @@ export type NormalizedNode =
   | NormalizedApprovalNode
   | NormalizedDecisionNode
   | NormalizedLoopNode
+  | NormalizedForEachNode
+  | NormalizedChildWorkflowNode
   | NormalizedEndNode;
 
 export interface NormalizedEdge {
@@ -469,13 +533,25 @@ export interface Capabilities {
 
 export const SCHEMA_CAPABILITIES: Capabilities = {
   schemaVersion: 1,
-  nodeTypes: ["start", "agent", "shell", "gate", "join", "approval", "decision", "loop", "end"],
+  nodeTypes: [
+    "start",
+    "agent",
+    "shell",
+    "gate",
+    "join",
+    "approval",
+    "decision",
+    "loop",
+    "foreach",
+    "workflow",
+    "end",
+  ],
   clis: [...PROD_CLIS],
   workspaces: ["scratch", "worktree"],
   runWorkspaces: ["project", "existing-worktree", "new-worktree"],
   defaultRunWorkspace: "project",
   unsupported: [
-    "node types other than start/agent/shell/gate/join/approval/decision/loop/end",
+    "node types other than start/agent/shell/gate/join/approval/decision/loop/foreach/workflow/end",
     "cli fake (test-only, behind DEVCHESTRA_ALLOW_FAKE)",
     "per-node workspace selection (legacy metadata is ignored on fresh runs)",
     "per-node worktree base/setup/from options",

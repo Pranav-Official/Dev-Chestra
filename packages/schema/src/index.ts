@@ -1,6 +1,10 @@
+export * from "./child-workflow.js";
+export * from "./controller-body.js";
 export * from "./decision-route.js";
 export * from "./discovery.js";
 export * from "./expression.js";
+export * from "./foreach.js";
+export * from "./foreach-envelope.js";
 export * from "./gate.js";
 export * from "./graph.js";
 export * from "./ids.js";
@@ -17,3 +21,4 @@ export * from "./template.js";
 export * from "./types.js";
 export * from "./validate.js";
 export * from "./validate-decision.js";
+export * from "./workflow-envelope.js";

@@ -16,6 +16,7 @@ import { JsonView } from "../ui/JsonView.js";
 import { StatusPill, statusLabel } from "../ui/StatusPill.js";
 import { InlineError } from "../ui/states.js";
 import { ApprovalPanel } from "./ApprovalPanel.js";
+import { BatchItemResults } from "./BatchItemResults.js";
 import { type DerivedAttempt, deriveDetail } from "./deriveDetail.js";
 import type { WorkflowSnapshot } from "./RunCanvas.js";
 import { isUnresolvedExecution, unresolvedSummary } from "./staleExecution.js";
@@ -762,6 +763,66 @@ export function DetailPanel({
           tokensIn={exec.tokensIn}
           tokensOut={exec.tokensOut}
         />
+      ) : null}
+      {exec?.workflow ? (
+        <section className="col" data-testid="detail-workflow">
+          <h3>Child workflow</h3>
+          <span className="faint">
+            {exec.workflow.workflowId} · {exec.workflow.status ?? "waiting"}
+          </span>
+          {exec.workflow.childRunId && run ? (
+            <a
+              className="mono"
+              href={`/p/${encodeURIComponent(run.projectId)}/r/${encodeURIComponent(exec.workflow.childRunId)}`}
+            >
+              Open child run
+            </a>
+          ) : null}
+        </section>
+      ) : null}
+      {exec?.foreach ? (
+        <section className="col" data-testid="detail-foreach">
+          <h3>For each · sequential</h3>
+          <p>
+            {exec.foreach.processed} of {exec.foreach.total} items processed
+          </p>
+          <p className="faint">
+            {exec.foreach.succeeded} succeeded · {exec.foreach.failed} failed ·{" "}
+            {exec.foreach.rejected} rejected
+          </p>
+          <progress
+            aria-label="Batch progress"
+            value={exec.foreach.processed}
+            max={Math.max(exec.foreach.total, 1)}
+          />
+          {exec.foreach.resultsRef ? (
+            <p className="faint mono">Results reference: {exec.foreach.resultsRef}</p>
+          ) : null}
+          {exec.foreach.sourceId ? (
+            <BatchItemResults
+              key={`${runId}:${exec.foreach.sourceId}`}
+              runId={runId}
+              sourceId={exec.foreach.sourceId}
+              processed={exec.foreach.processed}
+              isReplay={isReplay}
+            />
+          ) : null}
+          <h4>Recent item steps</h4>
+          {Object.entries(view.executions)
+            .filter(([childPath]) => childPath.startsWith(`${path}[`))
+            .slice(-30)
+            .map(([childPath, child]) => (
+              <button
+                key={childPath}
+                type="button"
+                className="btn ghost sm"
+                onClick={() => onSelectPath?.(childPath)}
+                disabled={!onSelectPath}
+              >
+                <span className="mono">{childPath}</span> · {child.status}
+              </button>
+            ))}
+        </section>
       ) : null}
       {exec?.loop ? (
         <LoopDetail

@@ -386,6 +386,34 @@ export function completeExecution(
         fail("E_CONFLICT", "Loop controller requires a recorded output before success");
       }
     }
+    if (kind === "workflow") {
+      const workflow = execution.workflow;
+      if (!workflow || workflow.status === null || workflow.status === "running") {
+        fail("E_CONFLICT", "Workflow controller requires a terminal child status before success");
+      }
+      if (
+        !hasRecordedOutput(runtime, input.identity) ||
+        execution.recordedOutput === null ||
+        execution.recordedOutput.attempt !== input.identity.attempt ||
+        execution.recordedOutput.generation !== input.identity.generation
+      ) {
+        fail("E_CONFLICT", "Workflow controller requires a recorded output before success");
+      }
+    }
+    if (kind === "foreach") {
+      const foreach = execution.foreach;
+      if (!foreach || foreach.processed < foreach.total) {
+        fail("E_CONFLICT", "Foreach controller requires all items decided before success");
+      }
+      if (
+        !hasRecordedOutput(runtime, input.identity) ||
+        execution.recordedOutput === null ||
+        execution.recordedOutput.attempt !== input.identity.attempt ||
+        execution.recordedOutput.generation !== input.identity.generation
+      ) {
+        fail("E_CONFLICT", "Foreach controller requires a recorded output before success");
+      }
+    }
     if (kind === "shell" || kind === "start" || kind === "end") {
       if (!hasRecordedOutput(runtime, input.identity)) {
         fail("E_CONFLICT", `This ${kind} execution requires a recorded output before success`);

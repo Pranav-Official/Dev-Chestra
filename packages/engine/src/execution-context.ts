@@ -1,14 +1,14 @@
 import {
-  DevChestraError,
   type CaptureEntry,
+  DevChestraError,
   type ExecutionContextRef,
   type LoopView,
   type Path,
   type RunId,
 } from "@devchestra/core";
 import type { RunRecord, Store } from "@devchestra/store";
-import { decisionScopeValue, type EngineContext } from "./context.js";
 import type { WorkflowPlan } from "./graph-plan.js";
+import { decisionScopeValue } from "./scope.js";
 
 /**
  * Runtime use of reference-backed loop-parent captures (Part A).
@@ -54,7 +54,11 @@ export class ExecutionContextCache {
   }
 }
 
-function fail(code: "E_INTERNAL" | "E_NOT_FOUND" | "E_FORBIDDEN_PATH", message: string, details?: unknown): never {
+function fail(
+  code: "E_INTERNAL" | "E_NOT_FOUND" | "E_FORBIDDEN_PATH",
+  message: string,
+  details?: unknown,
+): never {
   throw new DevChestraError(code, message, details === undefined ? {} : { details });
 }
 
@@ -72,7 +76,9 @@ export function resolveCaptureScope(
     scope = store.contextCaptures.resolve(run.id, captureId);
   } catch (error) {
     if (error instanceof DevChestraError) throw error;
-    fail("E_NOT_FOUND", `Execution-context capture ${captureId} is missing or corrupt`, { captureId });
+    fail("E_NOT_FOUND", `Execution-context capture ${captureId} is missing or corrupt`, {
+      captureId,
+    });
   }
   cache?.set(captureId, run.id as string, scope);
   return structuredClone(scope);
@@ -109,7 +115,7 @@ export interface ParentContext {
  * two can never diverge.
  */
 export function collectParentContext(
-  ctx: EngineContext,
+  ctx: { readonly store: Store },
   run: RunRecord,
   parentPlan: WorkflowPlan,
   nodeId: string,
@@ -125,11 +131,17 @@ export function collectParentContext(
       });
     }
     if (id === "start") {
-      scope[id] = execution.status === "succeeded"
-        ? (execution.kind === "decision"
-            ? decisionScopeValue(ctx.output(run.id, id, execution.attempt)?.json)
-            : ctx.output(run.id, id, execution.attempt)?.json)
-        : null;
+      const output = ctx.store.outputs.get({
+        runId: run.id,
+        path: id as Path,
+        attempt: execution.attempt,
+      });
+      scope[id] =
+        execution.status === "succeeded"
+          ? execution.kind === "decision"
+            ? decisionScopeValue(output?.json)
+            : output?.json
+          : null;
       continue;
     }
     if (seen.has(id)) continue;
@@ -140,11 +152,19 @@ export function collectParentContext(
       continue;
     }
     if (execution.status === "succeeded") {
-      const output = ctx.store.outputs.get({ runId: run.id, path: id as Path, attempt: execution.attempt });
+      const output = ctx.store.outputs.get({
+        runId: run.id,
+        path: id as Path,
+        attempt: execution.attempt,
+      });
       if (output === null) {
-        throw new DevChestraError("E_INTERNAL", `Ancestor '${id}' has no output for attempt ${execution.attempt}`, {
-          details: { runId: run.id },
-        });
+        throw new DevChestraError(
+          "E_INTERNAL",
+          `Ancestor '${id}' has no output for attempt ${execution.attempt}`,
+          {
+            details: { runId: run.id },
+          },
+        );
       }
       scope[id] = execution.kind === "decision" ? decisionScopeValue(output.json) : output.json;
       entries.push({
@@ -158,7 +178,11 @@ export function collectParentContext(
       });
       continue;
     }
-    if (execution.status === "failed" || execution.status === "rejected" || execution.status === "cancelled") {
+    if (
+      execution.status === "failed" ||
+      execution.status === "rejected" ||
+      execution.status === "cancelled"
+    ) {
       scope[id] = null;
       entries.push({ name: id, type: "literal", value: null });
       continue;

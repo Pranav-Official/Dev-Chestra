@@ -91,6 +91,8 @@ export function reduceExecutionEvent(view: RunView, envelope: EventEnvelope): Ru
           approvalDecision: null,
           decision: null,
           loop: null,
+          workflow: null,
+          foreach: null,
           requiresAcceptedResult:
             exec.requiresAcceptedResult || (payload.init?.requireSubmission ?? false),
           acceptedResult: null,

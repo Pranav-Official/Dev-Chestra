@@ -26,9 +26,11 @@ import {
   CheckCircle2,
   Circle,
   CircleSlash,
+  Files,
   Flag,
   GitBranch,
   GitMerge,
+  ListOrdered,
   LoaderCircle,
   OctagonX,
   PauseCircle,
@@ -54,10 +56,12 @@ interface SnapshotNode {
   status?: string;
   branches?: { id: string; when?: string; otherwise?: true }[];
   mode?: "first" | "all" | "repeatUntil" | DecisionMode;
-  inputs?: string[];
+  inputs?: string[] | Record<string, string>;
   provider?: string;
   instructions?: string;
   maxIterations?: number;
+  maxItems?: number;
+  workflowId?: string;
   body?: { nodes: SnapshotNode[]; edges: { id: string; from: string; to: string }[] };
 }
 
@@ -90,7 +94,7 @@ export function toRoutingGraph(snapshot: WorkflowSnapshot): {
       type: node.type,
       ...(node.branches === undefined ? {} : { branches: node.branches }),
       ...(typeof node.mode === "string" ? { mode: node.mode } : {}),
-      ...(node.inputs === undefined ? {} : { inputs: node.inputs }),
+      ...(Array.isArray(node.inputs) ? { inputs: node.inputs } : {}),
     })),
     edges: snapshot.graph.edges,
   };
@@ -151,6 +155,8 @@ function NodeIcon({ kind }: { kind: string }) {
   if (kind === "join") return <GitMerge size={12} aria-hidden="true" />;
   if (kind === "approval") return <ShieldCheck size={12} aria-hidden="true" />;
   if (kind === "loop") return <Repeat size={12} aria-hidden="true" />;
+  if (kind === "foreach") return <ListOrdered size={12} aria-hidden="true" />;
+  if (kind === "workflow") return <Files size={12} aria-hidden="true" />;
   return <Flag size={12} aria-hidden="true" />;
 }
 
@@ -398,6 +404,8 @@ function subtitle(node: SnapshotNode): string {
     const short = (node.instructions ?? "").trim().slice(0, 32);
     return short === "" ? node.provider : `${node.provider} · ${short}`;
   }
+  if (node.type === "foreach") return `sequential · max ${node.maxItems ?? 1000} items`;
+  if (node.type === "workflow") return node.workflowId ?? "Run workflow";
   if (node.type === "loop") {
     const max = typeof node.maxIterations === "number" ? node.maxIterations : null;
     return max === null ? "repeat until" : `repeat ≤${max}`;
@@ -502,7 +510,12 @@ export function RunCanvas({
           id: node.id,
           name: node.name,
           kind: node.type,
-          subtitle: subtitle(node),
+          subtitle:
+            node.type === "foreach" && exec?.foreach
+              ? `${exec.foreach.processed}/${exec.foreach.total} items · ${exec.foreach.failed + exec.foreach.rejected} unsuccessful`
+              : node.type === "workflow" && exec?.workflow?.childRunId
+                ? `child · ${exec.workflow.status ?? "running"}`
+                : subtitle(node),
           status,
           runStatus: view.status,
           selected: selectedPath === node.id,

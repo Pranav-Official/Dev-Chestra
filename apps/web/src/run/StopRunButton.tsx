@@ -18,7 +18,7 @@ export function StopRunButton({
   isReplay,
 }: {
   runId: string;
-  headStatus: RunStatus;
+  headStatus: RunStatus | null;
   isReplay: boolean;
 }) {
   const [pending, setPending] = useState(false);
@@ -29,7 +29,9 @@ export function StopRunButton({
   const headRef = useRef(headStatus);
   headRef.current = headStatus;
 
-  const cancellable = !isTerminalRunStatus(headStatus);
+  // A broken viewer must not block cancellation. Null explicitly means that
+  // status is unknown; the backend remains authoritative about this request.
+  const cancellable = headStatus === null || !isTerminalRunStatus(headStatus);
   // A 202 is accepted, not confirmed: the controller reports the early
   // running status while cancellation completes asynchronously, so the
   // control stays busy until live terminal evidence arrives via the stream.
@@ -50,7 +52,13 @@ export function StopRunButton({
 
   if (!cancellable) return null;
 
-  const label = busy ? "Stopping…" : isReplay ? "Stop live run" : "Stop run";
+  const label = busy
+    ? "Stopping…"
+    : headStatus === null
+      ? "Request stop"
+      : isReplay
+        ? "Stop live run"
+        : "Stop run";
 
   const stop = async (): Promise<void> => {
     // Fence both Stop and Retry synchronously, including while an accepted
@@ -65,14 +73,14 @@ export function StopRunButton({
       await api.cancelRun(runId);
       // 202 accepted is not confirmation. Stay in Stopping… until the live
       // head flips to a terminal status; the stream owns "Cancelled".
-      if (!isTerminalRunStatus(headRef.current)) {
+      if (headRef.current === null || !isTerminalRunStatus(headRef.current)) {
         requestedRef.current = true;
         setRequested(true);
       }
     } catch (err) {
       // The run may have finished between click and response — a terminal
       // head means there is nothing left to stop, so swallow the error.
-      if (isTerminalRunStatus(headRef.current)) return;
+      if (headRef.current !== null && isTerminalRunStatus(headRef.current)) return;
       setError(classifyError(err).message);
     } finally {
       pendingRef.current = false;
@@ -101,7 +109,11 @@ export function StopRunButton({
       </button>
       {busy && requested ? (
         <span className="run-stop-note" role="status" data-testid="run-stop-requested">
-          {isReplay ? "Confirming the live run stopped…" : "Confirming the run stopped…"}
+          {headStatus === null
+            ? "Stop requested. Run status is unavailable."
+            : isReplay
+              ? "Confirming the live run stopped…"
+              : "Confirming the run stopped…"}
         </span>
       ) : null}
       {error !== null ? (
