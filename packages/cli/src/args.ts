@@ -8,6 +8,7 @@ export type CommandName =
   | "stop"
   | "status"
   | "doctor"
+  | "context"
   | "version"
   | "help";
 
@@ -37,6 +38,12 @@ export interface CliOptions {
   force?: boolean;
   /** Stop only: seconds to wait for a clean exit (default 15). */
   timeoutSecs?: number;
+  /** Context only: list, set or delete project pool entries. */
+  contextAction?: "list" | "set" | "delete";
+  /** Context only: entry key for set/delete. */
+  contextKey?: string;
+  /** Context only: entry value for set. */
+  contextValue?: string;
   /** Doctor only: probe each ready decision provider with one live request. */
   probeDecisions: boolean;
 }
@@ -254,6 +261,28 @@ export function parseArgs(argv: string[]): CliOptions {
     options.command = "status";
   } else if (command === "doctor") {
     options.command = "doctor";
+  } else if (command === "context") {
+    options.command = "context";
+    const action = positionals.shift();
+    if (action === undefined || action === "list") {
+      options.contextAction = "list";
+    } else if (action === "set" || action === "delete") {
+      options.contextAction = action;
+      const key = positionals.shift();
+      if (key === undefined) {
+        throw new UsageError(`context ${action} requires a key.`);
+      }
+      options.contextKey = key;
+      if (action === "set") {
+        const value = positionals.shift();
+        if (value === undefined) {
+          throw new UsageError("context set requires a value.");
+        }
+        options.contextValue = value;
+      }
+    } else {
+      throw new UsageError(`Unknown context action: ${action} (list, set, delete).`);
+    }
   } else if (command === "version") {
     options.command = "version";
     return options;
@@ -271,7 +300,10 @@ export function parseArgs(argv: string[]): CliOptions {
     throw new UsageError("run requires --project <dir>.");
   }
   options.dataDir ??= defaultDataDir();
-  if (options.project !== undefined && options.command !== "run") {
+  if (options.command === "context" && options.project === undefined) {
+    throw new UsageError("context requires --project <dir>.");
+  }
+  if (options.project !== undefined && options.command !== "run" && options.command !== "context") {
     throw new UsageError("--project is only valid with run.");
   }
   if (Object.keys(options.params).length > 0 && options.command !== "run") {
@@ -327,6 +359,7 @@ Usage:
   devchestra start [--data-dir <dir>] [--port N] [--no-open] [--print-url] [options]
   devchestra run <workflow.json> --project <dir> [--data-dir <dir>] [options]
   devchestra resume <runId> [--data-dir <dir>] [--retry-uncertain-shell] [options]
+  devchestra context (list | set <key> <value> | delete <key>) --project <dir>
   devchestra stop [--data-dir <dir>] [--force] [--timeout <secs>] [--json]
   devchestra status [--data-dir <dir>] [--json]
   devchestra doctor [--data-dir <dir>] [--json] [--probe-decisions]

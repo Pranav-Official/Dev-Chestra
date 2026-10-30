@@ -271,6 +271,7 @@ function controllerFor(
         snapshotRaw: input.snapshotRaw,
         params: input.params as JsonObject,
         workspace,
+        ...(input.projectContext === undefined ? {} : { projectContext: input.projectContext }),
         ...(input.idempotencyKey === undefined
           ? {}
           : {

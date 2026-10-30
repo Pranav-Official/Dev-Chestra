@@ -37,6 +37,7 @@ const submissions = {
 const gatewayApp = createAgentGateway({
   tokens,
   submissions,
+  context: store.contextPool,
   validator: new OutputValidator(),
   port: () => port,
   logger: (line) => process.stderr.write(line + "\n"),
@@ -67,6 +68,7 @@ const engine = createEngine({
         outputSchemaHash: scope.outputSchemaHash,
         validationLimit: scope.validationLimit,
         expiresAt: scope.expiresAt,
+        context: scope.context,
       });
       issuedTokens.push(token);
       return { token, revoke: () => tokens.revoke(token) };

@@ -27,6 +27,7 @@ import {
   getContextCapture,
   resolveCaptureScope,
 } from "./context-captures.js";
+import { getContextEntry, listContextEntries, upsertContextEntry } from "./context-pool.js";
 import type { SqliteDb } from "./driver.js";
 import { betterSqliteDriver } from "./driver-better-sqlite3.js";
 import { appendEvents, type ListEventsOptions } from "./events.js";
@@ -87,7 +88,6 @@ import {
 import { createRun, getRun, listActiveRuns } from "./runs.js";
 import type { Runtime } from "./runtime.js";
 import { type SecretFinding, SecretRegistry } from "./secrets.js";
-import { getUsageSummary } from "./usage.js";
 import {
   countNoSubmit,
   getAcceptedOutput,
@@ -105,6 +105,7 @@ import type {
   CompleteExecutionInput,
   CompleteExecutionResult,
   ContextCaptureRecord,
+  ContextEntryRecord,
   CreateContextCaptureInput,
   CreateRunInput,
   CreateRunResult,
@@ -149,9 +150,11 @@ import type {
   StartLoopResult,
   SubmitInput,
   SubmitOutcome,
+  UpsertContextEntryInput,
   UsageFilter,
   UsageSummary,
 } from "./types.js";
+import { getUsageSummary } from "./usage.js";
 import { fail } from "./util.js";
 import {
   recordForeachItemDecided,
@@ -321,6 +324,12 @@ export interface ContextCapturesApi {
   resolve(runId: RunId, captureId: string): Record<string, unknown>;
 }
 
+export interface ContextPoolApi {
+  upsert(input: UpsertContextEntryInput): ContextEntryRecord;
+  get(runId: RunId, key: string): ContextEntryRecord | null;
+  list(runId: RunId): ContextEntryRecord[];
+}
+
 export interface ApprovalsApi {
   request(input: RequestApprovalInput): RequestApprovalResult;
   resolve(input: ResolveApprovalInput): ResolveApprovalResult;
@@ -357,6 +366,7 @@ export class Store {
   readonly workflowCalls: WorkflowCallsApi;
   readonly foreach: ForeachApi;
   readonly contextCaptures: ContextCapturesApi;
+  readonly contextPool: ContextPoolApi;
   readonly approvals: ApprovalsApi;
   readonly security: SecurityApi;
 
@@ -493,6 +503,11 @@ export class Store {
       create: (input) => this.tx(() => createContextCapture(this.#runtime, input)),
       get: (captureId) => getContextCapture(this.#runtime, captureId),
       resolve: (runId, captureId) => resolveCaptureScope(this.#runtime, runId, captureId),
+    };
+    this.contextPool = {
+      upsert: (input) => this.tx(() => upsertContextEntry(this.#runtime, input)),
+      get: (runId, key) => getContextEntry(this.#runtime, runId, key),
+      list: (runId) => listContextEntries(this.#runtime, runId),
     };
     this.approvals = {
       request: (input) => this.tx(() => requestApproval(this.#runtime, input)),

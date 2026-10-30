@@ -2,6 +2,7 @@
 import { resolve } from "node:path";
 import { type CliOptions, HELP, parseArgs, UsageError } from "./args.js";
 import { executeResume, executeRun } from "./commands.js";
+import { executeContext } from "./context-commands.js";
 import { printDoctor, runDoctor } from "./doctor.js";
 import { acquireDataDirLock, DataDirLockedError, type LockHandle } from "./lock.js";
 import { exitCodeForError, safeError, writeSummary } from "./output.js";
@@ -55,6 +56,9 @@ async function main(): Promise<number> {
     const result = await runDoctor(dataDir, { probeDecisions: options.probeDecisions });
     printDoctor(result, options.json);
     return result.ok ? 0 : 1;
+  }
+  if (options.command === "context") {
+    return await executeContext(options);
   }
 
   if (options.command === "start") {

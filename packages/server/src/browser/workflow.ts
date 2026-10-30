@@ -11,9 +11,11 @@ import {
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { JsonObject } from "@devchestra/core";
 import {
+  type ContextEntry,
   hashWorkflow,
   type NormalizedWorkflow,
   normalizeWorkflow,
+  parseContextEntries,
   parseWorkflowJson,
   validateParams,
   validateWorkflow,
@@ -179,6 +181,27 @@ export interface LoadedBrowserWorkflow {
   snapshotRaw: string;
   workflowHash: string;
   file: WorkflowFile;
+  projectContext: ContextEntry[];
+}
+
+/** Project static context pool (`.devchestra/context.json`); missing file reads as empty. */
+function loadProjectContext(root: string): ContextEntry[] {
+  let raw: string;
+  try {
+    raw = readFileInside(root, ".devchestra/context.json");
+  } catch (error) {
+    if (error instanceof DevChestraError && error.code === "E_NOT_FOUND") return [];
+    throw error;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw invalid("Project context file .devchestra/context.json is not valid JSON.");
+  }
+  const entries = parseContextEntries(parsed);
+  if (!entries.ok) throw invalid(entries.error.message, entries.error.details);
+  return entries.value;
 }
 
 export async function loadBrowserWorkflow(input: {
@@ -219,6 +242,7 @@ export async function loadBrowserWorkflow(input: {
     snapshotRaw: raw,
     workflowHash,
     file: parsed.value,
+    projectContext: loadProjectContext(root),
   };
 }
 

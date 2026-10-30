@@ -449,16 +449,23 @@ export function validateSingleNode(
     }
 
     if (agent.context !== undefined) {
-      if (agent.context.project !== "none" || agent.context.workflow !== "none") {
-        addError(
-          issue(
-            "error",
-            "E_WORKFLOW_INVALID",
-            "Agent context project/workflow access is not implemented in P1; use none for both.",
-            `${pointer}/context`,
-            node.id,
-          ),
-        );
+      for (const [scope, allowed] of [
+        ["project", ["none", "read"]],
+        ["workflow", ["none", "read"]],
+        ["execution", ["none", "read", "readwrite"]],
+      ] as const) {
+        const value = (agent.context as unknown as Record<string, unknown>)[scope];
+        if (value !== undefined && !(allowed as readonly string[]).includes(value as string)) {
+          addError(
+            issue(
+              "error",
+              "E_WORKFLOW_INVALID",
+              `Agent context.${scope} must be one of ${(allowed as readonly string[]).join(", ")}.`,
+              `${pointer}/context/${scope}`,
+              node.id,
+            ),
+          );
+        }
       }
     }
 

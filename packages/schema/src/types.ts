@@ -127,9 +127,21 @@ export interface AgentLimits {
 }
 
 export interface AgentContext {
-  project: "none" | "read" | "readwrite";
-  workflow: "none" | "read" | "readwrite";
+  project?: "none" | "read";
+  workflow?: "none" | "read";
+  execution?: "none" | "read" | "readwrite";
 }
+
+/** One static context-pool note: authored in a workflow file or project file, frozen at launch. */
+export interface ContextEntry {
+  key: string;
+  value: string;
+}
+
+export const CONTEXT_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+export const CONTEXT_MAX_ENTRIES = 64;
+export const CONTEXT_VALUE_MAX_BYTES = 4 * 1024;
+export const CONTEXT_TOTAL_MAX_BYTES = 32 * 1024;
 
 export interface AgentNode extends NodeBase {
   type: "agent";
@@ -328,6 +340,8 @@ export interface WorkflowFile {
   name: string;
   description?: string;
   budget?: WorkflowBudget;
+  /** Static workflow context pool: read-only notes frozen into the run snapshot. */
+  context?: ContextEntry[];
   /** Parsed only so validation can reject it with an actionable message. */
   supervisor?: unknown;
   graph: Graph;
@@ -356,7 +370,7 @@ export interface NormalizedAgentNode extends NormalizedNodeBase {
   mcpServers?: McpSelection[];
   workspace: NormalizedWorkspaceSpec;
   limits: Required<Pick<AgentLimits, "timeoutMin" | "validationRetries" | "crashRetries">>;
-  context: { project: "none"; workflow: "none" };
+  context: AgentContext;
 }
 
 export interface NormalizedShellNode extends NormalizedNodeBase {
@@ -466,6 +480,8 @@ export interface NormalizedWorkflow {
   id: string;
   name: string;
   description?: string;
+  /** Frozen workflow static context pool; absent on snapshots frozen before it existed. */
+  context?: ContextEntry[];
   graph: { nodes: NormalizedNode[]; edges: NormalizedEdge[] };
 }
 
@@ -555,7 +571,6 @@ export const SCHEMA_CAPABILITIES: Capabilities = {
     "cli fake (test-only, behind DEVCHESTRA_ALLOW_FAKE)",
     "per-node workspace selection (legacy metadata is ignored on fresh runs)",
     "per-node worktree base/setup/from options",
-    "agent context reads/writes",
     "supervisor and node supervise modes other than 'default'",
     "workflow budgets",
     "artifact output format",

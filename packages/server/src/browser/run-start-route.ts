@@ -88,6 +88,7 @@ export function mountRunStartRoute(app: Hono, deps: RunStartRouteDeps): void {
       snapshotRaw: loaded.snapshotRaw,
       params,
       workspace,
+      projectContext: loaded.projectContext,
       ...(idempotencyKey === undefined || idempotencyKey === "" ? {} : { idempotencyKey }),
     });
     const response = {

@@ -321,8 +321,10 @@ const normalizedAgentNodeSchema = strict({
     crashRetries: z.number().int().nonnegative(),
   }),
   context: strict({
-    project: z.literal("none"),
-    workflow: z.literal("none"),
+    project: z.enum(["none", "read"]),
+    workflow: z.enum(["none", "read"]),
+    // Optional: snapshots frozen before execution access existed omit it.
+    execution: z.enum(["none", "read", "readwrite"]).optional(),
   }),
 });
 
@@ -464,11 +466,21 @@ export const normalizedNodeSchema = z.union([
   normalizedWorkflowRefNodeSchema,
 ]);
 
+const contextEntrySchema = strict({
+  key: z.string(),
+  value: z.string(),
+});
+
 export const normalizedWorkflowSchema = strict({
   schemaVersion: z.literal(1),
   id: z.string(),
   name: z.string(),
   description: z.string().optional(),
+  context: z.array(contextEntrySchema).optional(),
+  contextPools: strict({
+    project: z.array(contextEntrySchema).optional(),
+    workflow: z.array(contextEntrySchema).optional(),
+  }).optional(),
   graph: strict({
     nodes: z.array(normalizedNodeSchema),
     edges: z.array(

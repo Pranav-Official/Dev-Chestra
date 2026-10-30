@@ -151,7 +151,10 @@ describe("parse and validate the P1 chain", () => {
       [
         "context",
         (raw) => {
-          node(raw, "agent").context = { project: "read", workflow: "none" };
+          raw.context = [
+            { key: "goal", value: "one" },
+            { key: "goal", value: "two" },
+          ];
         },
       ],
       [

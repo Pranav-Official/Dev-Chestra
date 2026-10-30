@@ -103,6 +103,7 @@ function normalizeAgent(
 
   const prompt = resolvePrompt(file, node, options);
   const limits = node.limits ?? {};
+  const context = node.context;
   const out: NormalizedAgentNode = {
     id: node.id,
     type: "agent",
@@ -123,7 +124,11 @@ function normalizeAgent(
       validationRetries: limits.validationRetries ?? AGENT_DEFAULTS.validationRetries,
       crashRetries: limits.crashRetries ?? AGENT_DEFAULTS.crashRetries,
     },
-    context: { project: "none", workflow: "none" },
+    context: {
+      project: context?.project ?? "none",
+      workflow: context?.workflow ?? "none",
+      execution: context?.execution ?? "none",
+    },
   };
   if (node.model !== undefined) out.model = node.model;
   // Absent stays absent: only DevChestra's own server runs for the node.
@@ -392,6 +397,7 @@ export function normalizeWorkflow(
       schemaVersion: 1,
       id: file.id,
       name: file.name,
+      context: (file.context ?? []).map((entry) => ({ key: entry.key, value: entry.value })),
       graph: { nodes, edges },
     };
     if (file.description !== undefined) workflow.description = file.description;

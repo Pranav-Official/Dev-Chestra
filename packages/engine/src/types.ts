@@ -12,7 +12,14 @@ import type {
   SerializedError,
 } from "@devchestra/core";
 import type { DecisionService } from "@devchestra/decisions";
-import type { McpScope, McpSelection, NormalizedWorkflow, ProdCliId } from "@devchestra/schema";
+import type {
+  AgentContext,
+  ContextEntry,
+  McpScope,
+  McpSelection,
+  NormalizedWorkflow,
+  ProdCliId,
+} from "@devchestra/schema";
 import type { Store } from "@devchestra/store";
 import type {
   AcquireScratchRequest,
@@ -31,6 +38,8 @@ export interface GatewayScope {
   readonly outputSchemaHash: string;
   readonly validationLimit: number;
   readonly expiresAt: number;
+  /** Frozen per-node context access; the model can never escalate it. */
+  readonly context: AgentContext;
 }
 
 export interface IssuedToken {
@@ -181,6 +190,8 @@ export interface StartRunInput {
   readonly idempotency?: RunIdempotency;
   /** Frozen transitive child workflow snapshots (id -> NormalizedWorkflow). Composed by server/CLI or the engine freeze walker. */
   readonly workflowDependencies?: Readonly<Record<string, unknown>>;
+  /** Project static context pool, frozen into the snapshot at launch. */
+  readonly projectContext?: readonly ContextEntry[];
 }
 
 export interface RunOutcome {

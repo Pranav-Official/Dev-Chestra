@@ -91,6 +91,34 @@ export function validateWorkflow(
       ),
     );
   }
+  if (file.context !== undefined) {
+    const seen = new Set<string>();
+    let total = 0;
+    file.context.forEach((entry, index) => {
+      total += Buffer.byteLength(entry.value, "utf8");
+      if (seen.has(entry.key)) {
+        addError(
+          issue(
+            "error",
+            "E_WORKFLOW_INVALID",
+            `Duplicate workflow context key '${entry.key}'.`,
+            `/context/${index}`,
+          ),
+        );
+      }
+      seen.add(entry.key);
+    });
+    if (total > 32 * 1024) {
+      addError(
+        issue(
+          "error",
+          "E_WORKFLOW_INVALID",
+          "Workflow context entries exceed 32 KiB in total.",
+          "/context",
+        ),
+      );
+    }
+  }
   if (!Array.isArray(file.graph.nodes) || !Array.isArray(file.graph.edges)) {
     return {
       ok: false,

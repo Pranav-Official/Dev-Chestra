@@ -21,6 +21,7 @@ import type { AcceptedOutput, RunRecord } from "@devchestra/store";
 import { resolveInside, type ScratchWorkspace } from "@devchestra/workspaces";
 import { secretValues } from "./agent-support.js";
 import { type ActiveRunState, type EngineContext, toDevChestraError } from "./context.js";
+import { readContextAccess } from "./context-pool.js";
 import type { PlanNode } from "./graph-plan.js";
 import { assertAgentPromptSize, composeAgentPrompt } from "./prompt.js";
 import { ProcessGroupAliveError, StopSignal } from "./stop.js";
@@ -149,6 +150,7 @@ export interface AttemptPrepared {
   basePrompt: string;
   contract: string;
   inputContext: string;
+  contextBlock: string;
   scope: unknown;
   schemaHash: string;
   baseEnv: Record<string, string>;
@@ -211,7 +213,12 @@ export async function runSingleAttempt(
   );
   const prompt =
     loop.mode === "resume" && loop.noSubmitAttempts > 0
-      ? composeAgentPrompt(NO_SUBMIT_PROMPT, prepared.contract, prepared.inputContext)
+      ? composeAgentPrompt(
+          NO_SUBMIT_PROMPT,
+          prepared.contract,
+          prepared.inputContext,
+          prepared.contextBlock,
+        )
       : prepared.basePrompt;
   assertAgentPromptSize(prompt);
   const selection = readMcpSelection(node);
@@ -234,6 +241,7 @@ export async function runSingleAttempt(
     outputSchemaHash: prepared.schemaHash,
     validationLimit,
     expiresAt: ctx.now() + timeoutMs + 30_000,
+    context: readContextAccess(node.raw),
   });
   const releaseSecret = ctx.store.security.registerSecret(issued.token, "exec-token");
   const revoke = (): void => {

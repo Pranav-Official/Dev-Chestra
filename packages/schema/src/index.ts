@@ -1,4 +1,5 @@
 export * from "./child-workflow.js";
+export * from "./context.js";
 export * from "./controller-body.js";
 export * from "./decision-route.js";
 export * from "./discovery.js";

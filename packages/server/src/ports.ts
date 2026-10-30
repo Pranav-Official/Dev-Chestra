@@ -1,5 +1,6 @@
 import type {
   AcceptedOutput,
+  ContextPoolApi,
   Receipt,
   SubmissionsApi,
   SubmitInput,
@@ -12,6 +13,9 @@ import type {
  * never grows a second copy of the durable submission contract.
  */
 export type SubmissionPort = Pick<SubmissionsApi, "submit" | "accepted" | "validationLeft">;
+
+/** Execution context-pool port: run-scoped blackboard for agent notes. */
+export type ContextPoolPort = Pick<ContextPoolApi, "upsert" | "get" | "list">;
 
 export type SubmissionRequest = {
   name: string;

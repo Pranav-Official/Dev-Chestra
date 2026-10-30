@@ -1,5 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { ExecutionIdentity } from "@devchestra/core";
+import type { AgentContext } from "@devchestra/schema";
 
 export interface ExecScope {
   identity: ExecutionIdentity;
@@ -11,6 +12,8 @@ export interface ExecScope {
   validationLimit: number;
   /** Absolute epoch milliseconds after which the token is invalid. */
   expiresAt: number;
+  /** Frozen per-node context-pool access; the model can never escalate it. */
+  context: AgentContext;
 }
 
 export interface ExecTokenRegistryOptions {
@@ -61,6 +64,7 @@ function cloneScope(scope: ExecScope): ExecScope {
     outputSchemaHash: scope.outputSchemaHash,
     validationLimit: scope.validationLimit,
     expiresAt: scope.expiresAt,
+    context: { ...scope.context },
   });
 }
 
@@ -92,6 +96,17 @@ function validateScope(scope: ExecScope, now: number): void {
   }
   if (!Number.isSafeInteger(scope.validationLimit) || scope.validationLimit < 1) {
     throw new Error("ExecScope validationLimit must be >= 1.");
+  }
+  const context = scope.context as Partial<AgentContext> | undefined;
+  if (
+    context === undefined ||
+    (context.project !== "none" && context.project !== "read") ||
+    (context.workflow !== "none" && context.workflow !== "read") ||
+    (context.execution !== "none" &&
+      context.execution !== "read" &&
+      context.execution !== "readwrite")
+  ) {
+    throw new Error("ExecScope context must be a valid AgentContext.");
   }
   if (!Number.isFinite(scope.expiresAt) || scope.expiresAt <= now) {
     throw new Error("ExecScope expiresAt must be a finite future timestamp.");

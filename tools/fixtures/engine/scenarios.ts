@@ -30,6 +30,7 @@ const server = await startLoopbackServer(
   createAgentGateway({
     tokens,
     submissions,
+    context: store.contextPool,
     validator: new OutputValidator(),
     port: () => port,
     logger: (line) => process.stderr.write(line + "\n"),
@@ -59,6 +60,7 @@ function makeEngine(script: unknown[], extra: { maxNodeTimeoutMs?: number } = {}
           outputSchemaHash: scope.outputSchemaHash,
           validationLimit: scope.validationLimit,
           expiresAt: scope.expiresAt,
+          context: scope.context,
         });
         issued.push(token);
         return { token, revoke: () => tokens.revoke(token) };

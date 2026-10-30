@@ -176,20 +176,16 @@ function validateAgent(node: Record<string, unknown>): void {
   }
   if (node.context !== undefined) {
     if (!isRecord(node.context)) throw invalid("Agent context must be an object", node);
-    if (node.context.project !== undefined && node.context.project !== "none") {
-      throw new DevChestraError(
-        "E_WORKFLOW_INVALID",
-        "Context banks are not supported in the P1 linear runner",
-        { details: { nodeId: node.id, context: node.context } },
-      );
-    }
-    if (node.context.workflow !== undefined && node.context.workflow !== "none") {
-      throw new DevChestraError(
-        "E_WORKFLOW_INVALID",
-        "Context banks are not supported in the P1 linear runner",
-        { details: { nodeId: node.id, context: node.context } },
-      );
-    }
+    const access = node.context as Record<string, unknown>;
+    const check = (scope: string, allowed: readonly string[]): void => {
+      const value = access[scope];
+      if (value !== undefined && (typeof value !== "string" || !allowed.includes(value))) {
+        throw invalid(`Agent context.${scope} must be one of ${allowed.join(", ")}`, node);
+      }
+    };
+    check("project", ["none", "read"]);
+    check("workflow", ["none", "read"]);
+    check("execution", ["none", "read", "readwrite"]);
   }
   validateWorkspace(node, "agent");
   validateLimits(node);

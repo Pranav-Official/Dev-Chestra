@@ -16,7 +16,7 @@ const store = openStore({ file: join(temp, "store.db") });
 const tokens = new ExecTokenRegistry({ registerSecret: (value, name) => store.security.registerSecret(value, name) });
 const validator = new OutputValidator();
 let port = 0;
-const server = await startLoopbackServer(createAgentGateway({ tokens, submissions: store.submissions, validator, port: () => port }));
+const server = await startLoopbackServer(createAgentGateway({ tokens, submissions: store.submissions, context: store.contextPool, validator, port: () => port }));
 port = server.port;
 store.projects.ensure({ id: "p", name: "Loop project", path: temp, kind: "folder" });
 const engine = createEngine({
@@ -24,7 +24,7 @@ const engine = createEngine({
   adapters: createAdapterRegistry({ fakeAgentBin: join(root, "tools/fake-agent/dist/main.js"), fakeScript: [] }),
   workspaces: { prepare: prepareRunWorkspace, acquire: acquireScratch, finalize: finalizeScratch, release: releaseScratch },
   gateway: { url: server.url, issue(scope) {
-    const token = tokens.issue({ identity: scope.identity, toolset: "agent", outputSchema: scope.outputSchema, outputSchemaHash: scope.outputSchemaHash, validationLimit: scope.validationLimit, expiresAt: scope.expiresAt });
+    const token = tokens.issue({ identity: scope.identity, toolset: "agent", outputSchema: scope.outputSchema, outputSchemaHash: scope.outputSchemaHash, validationLimit: scope.validationLimit, expiresAt: scope.expiresAt, context: scope.context });
     return { token, revoke: () => tokens.revoke(token) };
   } },
   nodeBin: process.execPath, mcpShimEntry: join(root, "packages/mcp/dist/bin/shim.js"), env: process.env,

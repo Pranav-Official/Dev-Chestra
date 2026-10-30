@@ -59,6 +59,7 @@ export {
 } from "./node.js";
 export type {
   AcceptedOutputView,
+  ContextPoolPort,
   ReceiptView,
   SubmissionPort,
   SubmissionRequest,

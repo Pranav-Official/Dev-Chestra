@@ -262,7 +262,9 @@ Outputs are capped (see section 12) and every output is stored and scanned. For 
 
 These are tool-level controls on **agent** nodes, not an operating-system sandbox. **Shell nodes are ordinary processes and are not governed by `permissions`.** Least privilege: default to `{"network": false, "write": []}` and add only what the task needs.
 
-**Unsupported (rejected by the validator):** non-empty `cliOptions` (you cannot pass CLI flags such as permission-bypass switches), non-empty `env`, `context` other than `{ "project": "none", "workflow": "none" }` (omit it), `supervise` other than `"default"`, per-node `workspace` (omit it; the workspace is chosen once per run), `limits.maxQuotaWaitHours`, and output format `devchestra-artifact`.
+**Unsupported (rejected by the validator):** non-empty `cliOptions` (you cannot pass CLI flags such as permission-bypass switches), non-empty `env`, `context.project`/`context.workflow` other than `"none"`/`"read"` and `context.execution` other than `"none"`/`"read"`/`"readwrite"` (agents can never write the static pools), `supervise` other than `"default"`, per-node `workspace` (omit it; the workspace is chosen once per run), `limits.maxQuotaWaitHours`, and output format `devchestra-artifact`.
+
+**Context pool.** Agent nodes declare `context: { "project": "none"|"read", "workflow": "none"|"read", "execution": "none"|"read"|"readwrite" }` (all default `"none"`). Static notes live in top-level workflow `context: [{ "key", "value" }]` (max 64 entries, 4 KiB each, 32 KiB total) and in the project's `.devchestra/context.json` (same shape); both freeze into the run snapshot at launch. Agents with `execution: "readwrite"` also get `context_upsert` (upsert/append/delete by key) alongside `submit_result`, and every agent with any context access gets `context_read`; use them for short findings downstream agents need, not for bulk data (pass file paths in results instead).
 
 **MCP servers.** `mcpServers` is an optional list of **names only**: `{ "name": "<server name>", "scope": "global" | "project" | "connector" }`. At most 32 entries, no duplicates of the same `scope:name`, name 1-128 characters with no control characters, and the name `devchestra` is reserved. The workflow can only *select* servers the user already has configured for that CLI; it cannot define a server, command, URL, header or token. The editor discovers the selectable servers from the CLI's own configuration. If you cannot confirm that a server exists and which scope it is in, **leave `mcpServers` out** and tell the user which server to pick in the editor rather than guessing.
 
@@ -951,7 +953,7 @@ The 16 KiB loop limits are about *what a loop carries between rounds*; the 1 MiB
 
 ## 13. Not supported (do not use)
 
-Workflow `budget` and `supervisor`; node `supervise` other than `default`; node `env`; non-empty `cliOptions`; agent `context` other than `none`; per-node `workspace` (ignored) and `permissions.write: ["project"]`; `promptFile` for managed runs; `format: "devchestra-artifact"` outputs; raw `{{{ }}}` templates; shell heredocs, comments and placeholders inside quotes or substitutions; nested loop/foreach controllers, back edges, zero-round loops and parallel rounds; custom node types; `fake` CLI; MCP server definitions (only selection by name). Maps, spending budgets and artifact capture are not built yet. Child `workflow` failure uses `.failed` only (no `.cancelled`).
+Workflow `budget` and `supervisor`; node `supervise` other than `default`; node `env`; non-empty `cliOptions`; agent `context` writes to the static pools (`project`/`workflow` accept only `none`/`read`); per-node `workspace` (ignored) and `permissions.write: ["project"]`; `promptFile` for managed runs; `format: "devchestra-artifact"` outputs; raw `{{{ }}}` templates; shell heredocs, comments and placeholders inside quotes or substitutions; nested loop/foreach controllers, back edges, zero-round loops and parallel rounds; custom node types; `fake` CLI; MCP server definitions (only selection by name). Maps, spending budgets and artifact capture are not built yet. Child `workflow` failure uses `.failed` only (no `.cancelled`).
 
 ## 14. Authoring procedure
 
@@ -977,7 +979,7 @@ devchestra run .devchestra/workflows/<id>.json --project . --workspace new-workt
 ### Pre-flight checklist
 
 - [ ] `schemaVersion` is `1`; `id` matches `^[a-z0-9-]{1,64}$` and the file name; `name` is non-empty.
-- [ ] No unknown keys; no `budget`, `supervisor`, `env`, `cliOptions`, `context`, per-node `workspace`, `promptFile`.
+- [ ] No unknown keys; no `budget`, `supervisor`, `env`, `cliOptions`, per-node `workspace`, `promptFile`.
 - [ ] One `start`, at least one `end`, every node reachable and able to reach an end, no cycles.
 - [ ] Node ids match `^[a-z][a-z0-9_]{0,47}$` and are unique; edge ids are unique.
 - [ ] Every non-join node has at most one inbound edge; every `end` has at most one; joins have exactly one edge per declared input, addressed as `join.input`.

@@ -21,6 +21,7 @@ export async function startGateway(store: Store): Promise<RunningGateway> {
   const app = createAgentGateway({
     tokens,
     submissions: store.submissions,
+    context: store.contextPool,
     validator,
     port: () => port,
   });
@@ -37,6 +38,7 @@ export async function startGateway(store: Store): Promise<RunningGateway> {
           outputSchemaHash: scope.outputSchemaHash,
           validationLimit: scope.validationLimit,
           expiresAt: scope.expiresAt,
+          context: scope.context,
         });
         return {
           token,

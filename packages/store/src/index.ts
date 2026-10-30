@@ -11,6 +11,7 @@ export { redactJson, SecretRegistry } from "./secrets.js";
 export type {
   ApprovalsApi,
   ContextCapturesApi,
+  ContextPoolApi,
   EventsApi,
   ExecutionsApi,
   ForeachApi,
@@ -40,6 +41,7 @@ export type {
   CompleteExecutionInput,
   CompleteExecutionResult,
   ContextCaptureRecord,
+  ContextEntryRecord,
   CreateContextCaptureInput,
   CreateRunInput,
   CreateRunResult,
@@ -93,6 +95,7 @@ export type {
   SubmitInput,
   SubmitOutcome,
   TranscriptHistory,
+  UpsertContextEntryInput,
   UsageFilter,
   UsageModelSummary,
   UsageProviderSummary,

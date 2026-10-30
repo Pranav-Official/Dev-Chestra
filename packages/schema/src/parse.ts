@@ -135,8 +135,21 @@ const limitsSchema = z.strictObject({
 });
 
 const contextSchema = z.strictObject({
-  project: z.enum(["none", "read", "readwrite"]),
-  workflow: z.enum(["none", "read", "readwrite"]),
+  project: z.enum(["none", "read"]).optional(),
+  workflow: z.enum(["none", "read"]).optional(),
+  execution: z.enum(["none", "read", "readwrite"]).optional(),
+});
+
+const contextEntrySchema = z.strictObject({
+  key: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(
+      /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/,
+      "context key must match [A-Za-z0-9._-], starting alphanumeric",
+    ),
+  value: z.string().min(1).max(4096),
 });
 
 const startNodeSchema = z.strictObject({
@@ -332,6 +345,7 @@ const workflowSchema = z.strictObject({
   name: z.string(),
   description: z.string().optional(),
   budget: z.record(z.string(), z.unknown()).optional(),
+  context: z.array(contextEntrySchema).max(64).optional(),
   supervisor: z.unknown().optional(),
   graph: z.strictObject({
     nodes: z.array(

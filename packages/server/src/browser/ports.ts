@@ -30,7 +30,7 @@ import type {
   WorkspaceView,
 } from "@devchestra/api";
 import type { EventType, JsonObject, RunStatus } from "@devchestra/core";
-import type { NormalizedWorkflow } from "@devchestra/schema";
+import type { ContextEntry, NormalizedWorkflow } from "@devchestra/schema";
 import type { AcceptedOutput, ExecutionHistory, ExecutionRow } from "@devchestra/store";
 import type { Hono } from "hono";
 
@@ -274,6 +274,8 @@ export interface StartRunCommand {
   snapshot: NormalizedWorkflow;
   snapshotRaw: string;
   params: JsonObject;
+  /** Frozen project static context pool, loaded by the server from the project root. */
+  projectContext?: ContextEntry[];
   /** Normalized run-level workspace; the server always sends a selection for fresh runs. */
   workspace?: RunWorkspaceSelection;
   idempotencyKey?: string;

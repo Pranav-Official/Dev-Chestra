@@ -112,13 +112,27 @@ describe("analyzeLinearWorkflow", () => {
     }
   });
 
-  it("rejects context banks and project writes", () => {
-    const context = analyzeLinearWorkflow(
+  it("accepts context pool reads and rejects context writes to static pools", () => {
+    const read = analyzeLinearWorkflow(
       mutate((snapshot) => {
         record(nodeAt(snapshot, 1), "context").project = "read";
       }),
     );
-    expect(context.ok).toBe(false);
+    expect(read.ok).toBe(true);
+
+    const executionWrite = analyzeLinearWorkflow(
+      mutate((snapshot) => {
+        record(nodeAt(snapshot, 1), "context").execution = "readwrite";
+      }),
+    );
+    expect(executionWrite.ok).toBe(true);
+
+    const projectWrite = analyzeLinearWorkflow(
+      mutate((snapshot) => {
+        record(nodeAt(snapshot, 1), "context").project = "readwrite";
+      }),
+    );
+    expect(projectWrite.ok).toBe(false);
 
     const write = analyzeLinearWorkflow(
       mutate((snapshot) => {

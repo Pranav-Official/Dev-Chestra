@@ -231,6 +231,7 @@ async function openHarness(schema: Record<string, unknown>): Promise<Harness> {
     outputSchemaHash: compiled.hash,
     validationLimit: 3,
     expiresAt: Date.now() + 120_000,
+    context: { project: "none", workflow: "none", execution: "none" },
   };
   const token = tokens.issue(scope);
 
@@ -238,6 +239,7 @@ async function openHarness(schema: Record<string, unknown>): Promise<Harness> {
   const app = createAgentGateway({
     tokens,
     submissions: store.submissions,
+    context: store.contextPool,
     validator,
     port: () => port,
     rateLimit: { capacity: 100, refillPerSecond: 0.001 },

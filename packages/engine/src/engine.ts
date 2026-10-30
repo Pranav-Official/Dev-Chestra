@@ -146,11 +146,15 @@ export class LinearEngine implements Engine {
       if (this.#stopping) {
         throw new DevChestraError("E_CONFLICT", "Engine is shutting down; no new run was created");
       }
-      const planResult = analyzeWorkflowPlan(input.snapshot);
+      // Freeze static context pools into the snapshot before planning/hashing,
+      // so project + workflow notes are immutable for the run.
+      const { freezeContextPools } = await import("./context-pool.js");
+      const snapshot = freezeContextPools(input.snapshot, input.projectContext);
+      const planResult = analyzeWorkflowPlan(snapshot);
       if (!planResult.ok) return err(planResult.error);
       const plan = planResult.value;
       const options = validateRunOptions({
-        snapshot: input.snapshot,
+        snapshot,
         budgets: input.budgets,
         baseSha: input.baseSha,
         kind: "run",
@@ -182,7 +186,7 @@ export class LinearEngine implements Engine {
       if (needsBundle || input.workflowDependencies !== undefined) {
         const frozen = await freezeWorkflowBundle({
           projectId: input.projectId,
-          rootSnapshot: input.snapshot,
+          rootSnapshot: snapshot,
           rootWorkflowId: input.workflowId,
           ...(input.workflowDependencies === undefined
             ? {}
@@ -202,12 +206,12 @@ export class LinearEngine implements Engine {
       if (!isRunWorkspaceSelection(selection)) {
         throw new DevChestraError("E_VALIDATION", "workspace selection is invalid");
       }
-      const workflowHash = await hashJson(input.snapshot);
+      const workflowHash = await hashJson(snapshot);
       const createInput: CreateRunInput = {
         projectId: input.projectId,
         workflowId: input.workflowId,
         workflowHash,
-        snapshot: input.snapshot,
+        snapshot,
         snapshotRaw: input.snapshotRaw,
         params: params.value as never,
         ...(input.budgets === undefined ? {} : { budgets: input.budgets }),

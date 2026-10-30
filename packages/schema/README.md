@@ -115,7 +115,7 @@ public executor and main API are typechecked.
 `normalizeWorkflow` validates first. It fills explicit defaults, inlines `promptFile` from the
 supplied prompt map, strips UI, sorts nodes/edges by id and normalizes output schemas. Agent
 defaults: `workspace: {mode:"scratch"}`, `limits {timeoutMin:30, validationRetries:2,
-crashRetries:1}`, `context {project:"none", workflow:"none"}`, `supervise:"default"`, `env:[]`.
+crashRetries:1}`, `context {project:"none", workflow:"none", execution:"none"}`, `supervise:"default"`, `env:[]`.
 Shell default: `timeoutMin:10`, `allowFailure:false`.
 
 `hashWorkflow` is `core.hashJson(normalized)`. UI and input ordering do not change the hash;
@@ -130,7 +130,7 @@ the CLI/workspaces layer owns `.devchestra/workflows/<id>.json` placement.
 
 Unsupported node types; `fake` (test-only, behind `DEVCHESTRA_ALLOW_FAKE=1`); per-node workspace execution (legacy `workspace` metadata
 still parses, but fresh runs use the run-level selection); agent context
-reads/writes; top-level supervisor; node supervise modes other than `default`; workflow budgets
+writes to the static pools; top-level supervisor; node supervise modes other than `default`; workflow budgets
 (`maxUsd`, `maxTokens`, `maxActiveMinutes` are not enforced yet and are not accepted); artifact
 `format: "devchestra-artifact"`; non-empty `cliOptions`; non-empty `env`; project write permission;
 `maxQuotaWaitHours`; raw `{{{ }}}` templates; shell heredocs, placeholders in comments or after a

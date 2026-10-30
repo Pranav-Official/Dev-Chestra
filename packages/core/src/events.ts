@@ -467,16 +467,18 @@ export interface WorkspaceRemovedPayload {
 }
 
 export interface ContextReadPayload {
-  scope: "project" | "workflow";
+  scope: "project" | "workflow" | "execution";
   watermark: number;
 }
 
 export interface ContextWrittenPayload {
-  scope: "project" | "workflow";
+  scope: "project" | "workflow" | "execution";
   entryId: string;
   topic: string;
-  kind: "append" | "supersede" | "propose";
+  kind: "append" | "supersede" | "propose" | "upsert" | "delete";
   status: string;
+  key?: string;
+  updatedBy?: string;
 }
 
 export interface PinUsedPayload {

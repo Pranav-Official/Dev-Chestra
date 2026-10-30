@@ -418,16 +418,18 @@ const workspaceCommittedPayloadSchema = strict({
 const workspaceRemovedPayloadSchema = strict({ dir: z.string() });
 
 const contextReadPayloadSchema = strict({
-  scope: z.enum(["project", "workflow"]),
+  scope: z.enum(["project", "workflow", "execution"]),
   watermark: z.number().int().nonnegative(),
 });
 
 const contextWrittenPayloadSchema = strict({
-  scope: z.enum(["project", "workflow"]),
+  scope: z.enum(["project", "workflow", "execution"]),
   entryId: z.string(),
   topic: z.string(),
-  kind: z.enum(["append", "supersede", "propose"]),
+  kind: z.enum(["append", "supersede", "propose", "upsert", "delete"]),
   status: z.string(),
+  key: z.string().optional(),
+  updatedBy: z.string().optional(),
 });
 
 const pinUsedPayloadSchema = strict({

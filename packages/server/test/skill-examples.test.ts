@@ -249,8 +249,16 @@ describe("skill.md embedded examples", () => {
       expect(codes(withEnv)).toContain("E_WORKFLOW_INVALID");
 
       const withContext = base();
-      agentOf(withContext).context = { project: "read", workflow: "none" };
+      agentOf(withContext).context = { project: "readwrite", workflow: "none" };
       expect(codes(withContext)).toContain("E_WORKFLOW_INVALID");
+
+      const withContextRead = base();
+      agentOf(withContextRead).context = {
+        project: "read",
+        workflow: "read",
+        execution: "readwrite",
+      };
+      expect(codes(withContextRead)).not.toContain("E_WORKFLOW_INVALID");
 
       const withNodeField = base();
       (agentOf(withNodeField) as Record<string, unknown>).description = "nope";

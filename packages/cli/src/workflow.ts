@@ -3,9 +3,11 @@ import { readFile, stat } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { DevChestraError, type Result, type RunWorkspaceSelection } from "@devchestra/core";
 import {
+  type ContextEntry,
   hashWorkflow,
   type NormalizedWorkflow,
   normalizeWorkflow,
+  parseContextEntries,
   parseWorkflowJson,
   validateWorkflow,
   type WorkflowFile,
@@ -25,6 +27,7 @@ export interface LoadedWorkflow {
   file: WorkflowFile;
   normalized: NormalizedWorkflow;
   workflowHash: string;
+  projectContext: ContextEntry[];
 }
 
 function projectKind(root: string): Promise<"git" | "folder"> {
@@ -123,7 +126,38 @@ export async function loadWorkflow(
     file: parsed.value,
     normalized: normalized.value,
     workflowHash,
+    projectContext: await loadProjectContext(projectRoot),
   };
+}
+
+/**
+ * Project static context pool: `.devchestra/context.json` inside the project
+ * root, an array of `{ key, value }` notes. Missing file reads as empty; an
+ * invalid file fails the run before anything durable is created.
+ */
+export async function loadProjectContext(projectRoot: string): Promise<ContextEntry[]> {
+  let resolved: string;
+  try {
+    const inner = pathSafety.resolveFileInside(projectRoot, ".devchestra/context.json");
+    if (!inner.ok) throw inner.error;
+    resolved = inner.value;
+  } catch (error) {
+    if (error instanceof DevChestraError && error.code === "E_NOT_FOUND") return [];
+    throw error;
+  }
+  const raw = await readFile(resolved, "utf8");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new DevChestraError(
+      "E_VALIDATION",
+      "Project context file .devchestra/context.json is not valid JSON.",
+    );
+  }
+  const entries = parseContextEntries(parsed);
+  if (!entries.ok) throw entries.error;
+  return entries.value;
 }
 
 /**

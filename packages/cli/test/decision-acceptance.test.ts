@@ -66,6 +66,7 @@ let issueGatewayToken: (scope: {
   outputSchemaHash: string;
   validationLimit: number;
   expiresAt: number;
+  context: unknown;
 }) => { token: string; revoke: () => void };
 let server: RunningBrowserServer;
 let cookie = "";
@@ -183,6 +184,7 @@ async function useEngine(fakeScript: unknown[]): Promise<Engine> {
           outputSchemaHash: scope.outputSchemaHash,
           validationLimit: scope.validationLimit,
           expiresAt: scope.expiresAt,
+          context: scope.context,
         }),
     },
     dataDir,
@@ -408,6 +410,7 @@ beforeAll(async () => {
   const gatewayApp = createAgentGateway({
     tokens,
     submissions: store.submissions,
+    context: store.contextPool,
     validator,
     port: () => gatewayPort,
     logger: (line) => {
@@ -425,6 +428,7 @@ beforeAll(async () => {
       outputSchemaHash: scope.outputSchemaHash,
       validationLimit: scope.validationLimit,
       expiresAt: scope.expiresAt,
+      context: scope.context as never,
     });
     return { token, revoke: () => tokens.revoke(token) };
   };

@@ -45,6 +45,7 @@ async function openHarness(
     maxBodyBytes?: number;
     submitTimeoutMs?: number;
     submissions?: SubmissionPort;
+    context?: ExecScope["context"];
     now?: () => number;
     reuse?: { dbFile: string; identity: ExecutionIdentity };
   } = {},
@@ -112,11 +113,13 @@ async function openHarness(
     outputSchemaHash: compiled.hash,
     validationLimit: options.validationLimit ?? 3,
     expiresAt: Date.now() + 60_000,
+    context: options.context ?? { project: "none", workflow: "none", execution: "none" },
   };
   const token = tokens.issue(scope);
   const app = createAgentGateway({
     tokens,
     submissions: options.submissions ?? store.submissions,
+    context: store.contextPool,
     validator,
     port: PORT,
     rateLimit: {
@@ -627,6 +630,7 @@ describe("submit_result semantics against the real store", () => {
     const app = createAgentGateway({
       tokens,
       submissions: reopened.submissions,
+      context: reopened.contextPool,
       validator,
       port: PORT,
     });
@@ -668,6 +672,7 @@ describe("submit_result semantics against the real store", () => {
     const app = createAgentGateway({
       tokens,
       submissions: reopened.submissions,
+      context: reopened.contextPool,
       validator,
       port: PORT,
     });
@@ -703,5 +708,118 @@ describe("submit_result semantics against the real store", () => {
     const completed = h.store.executions.complete({ identity: h.identity });
     expect(completed.status).toBe("succeeded");
     expect(h.store.executions.get(h.identity.runId, h.identity.path)?.status).toBe("succeeded");
+  });
+});
+
+describe("execution context tools", () => {
+  const call = (
+    h: Harness,
+    token: string,
+    callId: string,
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<Response> =>
+    Promise.resolve(
+      h.app.request(url("/internal/agent/call"), {
+        method: "POST",
+        headers: { ...baseHeaders(token), "X-DevChestra-Call-Id": callId },
+        body: JSON.stringify({ name, arguments: args }),
+      }),
+    );
+
+  const toolsOf = async (h: Harness, token: string): Promise<string[]> => {
+    const res = await h.app.request(url("/internal/agent/tools"), {
+      headers: baseHeaders(token),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { tools: { name: string }[] };
+    return body.tools.map((tool) => tool.name);
+  };
+
+  it("lists only submit_result without execution access", async () => {
+    const h = await openHarness();
+    expect(await toolsOf(h, h.token)).toEqual(["submit_result"]);
+  });
+
+  it("lists context tools according to access", async () => {
+    const read = await openHarness({
+      context: { project: "none", workflow: "none", execution: "read" },
+    });
+    expect(await toolsOf(read, read.token)).toEqual(["submit_result", "context_read"]);
+
+    const write = await openHarness({
+      context: { project: "none", workflow: "none", execution: "readwrite" },
+    });
+    expect(await toolsOf(write, write.token)).toEqual([
+      "submit_result",
+      "context_read",
+      "context_upsert",
+    ]);
+  });
+
+  it("upserts and reads notes round-trip", async () => {
+    const h = await openHarness({
+      context: { project: "read", workflow: "read", execution: "readwrite" },
+    });
+    const saved = await call(h, h.token, "call-1", "context_upsert", {
+      key: "finding",
+      value: "api is slow",
+    });
+    expect(saved.status).toBe(200);
+    expect(((await saved.json()) as { content: { text: string }[] }).content[0]?.text).toContain(
+      "finding",
+    );
+    const readAll = await call(h, h.token, "call-2", "context_read", {});
+    const entries = ((await readAll.json()) as { content: { text: string }[] }).content[0]?.text;
+    expect(entries).toContain("api is slow");
+    // Key filter + append mode.
+    await call(h, h.token, "call-3", "context_upsert", {
+      key: "finding",
+      value: "retry helps",
+      mode: "append",
+    });
+    const filtered = await call(h, h.token, "call-4", "context_read", { keys: ["finding"] });
+    const filteredText = ((await filtered.json()) as { content: { text: string }[] }).content[0]
+      ?.text;
+    expect(JSON.parse(filteredText ?? "{}")).toEqual({
+      entries: [
+        {
+          key: "finding",
+          value: "api is slow\nretry helps",
+          updatedBy: "research",
+          version: 2,
+        },
+      ],
+    });
+    expect(h.store.contextPool.get(h.identity.runId, "finding")?.updatedByPath).toBe("research");
+  });
+
+  it("rejects writes without readwrite and reads without access", async () => {
+    const read = await openHarness({
+      context: { project: "none", workflow: "none", execution: "read" },
+    });
+    const denied = await call(read, read.token, "call-1", "context_upsert", {
+      key: "k",
+      value: "v",
+    });
+    expect(denied.status).toBe(403);
+
+    const none = await openHarness();
+    const forbidden = await call(none, none.token, "call-1", "context_read", {});
+    expect(forbidden.status).toBe(403);
+  });
+
+  it("returns tool errors for invalid context input", async () => {
+    const h = await openHarness({
+      context: { project: "none", workflow: "none", execution: "readwrite" },
+    });
+    const badKey = await call(h, h.token, "call-1", "context_upsert", {
+      key: "-bad",
+      value: "v",
+    });
+    expect(badKey.status).toBe(200);
+    expect(((await badKey.json()) as { isError: boolean }).isError).toBe(true);
+    const missingValue = await call(h, h.token, "call-2", "context_upsert", { key: "k" });
+    expect(((await missingValue.json()) as { isError: boolean }).isError).toBe(true);
   });
 });

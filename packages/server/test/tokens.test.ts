@@ -17,6 +17,7 @@ function scope(overrides: Partial<ExecScope> = {}): ExecScope {
     outputSchemaHash: "hash",
     validationLimit: 3,
     expiresAt: Date.now() + 60_000,
+    context: { project: "none", workflow: "none", execution: "none" },
     ...overrides,
   };
 }
@@ -48,13 +49,16 @@ describe("ExecTokenRegistry", () => {
     expect(Object.isFrozen(resolvedScope.outputSchema)).toBe(true);
   });
 
-  it("rejects invalid expiry, toolset and identity at issue time", () => {
+  it("rejects invalid expiry, toolset, context and identity at issue time", () => {
     const registry = new ExecTokenRegistry();
     expect(() => registry.issue(scope({ expiresAt: Number.NaN }))).toThrow();
     expect(() => registry.issue(scope({ expiresAt: Date.now() - 1 }))).toThrow();
     expect(() => registry.issue(scope({ toolset: "other" as never }))).toThrow();
     expect(() => registry.issue(scope({ identity: { ...identity, generation: 0 } }))).toThrow();
     expect(() => registry.issue(scope({ validationLimit: 0 }))).toThrow();
+    expect(() =>
+      registry.issue(scope({ context: { project: "readwrite", workflow: "none", execution: "none" } as never })),
+    ).toThrow();
   });
 
   it("registers and releases the bearer with the injected secret hook", () => {

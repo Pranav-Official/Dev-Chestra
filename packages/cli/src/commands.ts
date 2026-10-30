@@ -196,6 +196,7 @@ export async function executeRun(options: CliOptions, dataDir: string): Promise<
       snapshotRaw: loaded.raw,
       params: params.value as JsonObject,
       workspace,
+      projectContext: loaded.projectContext,
     });
     if (!outcome.ok) throw outcome.error;
     const exitCode = exitCodeForOutcome(outcome.value);

@@ -2,7 +2,7 @@ import { isRecord } from "@devchestra/core";
 import { type Context, Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { DevChestraError, devchestraErrorCode, errorBody, toDevChestraError } from "./errors.js";
-import type { SubmissionPort, SubmitOutcome } from "./ports.js";
+import type { ContextPoolPort, SubmissionPort, SubmitOutcome } from "./ports.js";
 import { type ExecScope, type ExecTokenRegistry, scopeKey } from "./tokens.js";
 import { formatIssues, type OutputValidator } from "./validate.js";
 
@@ -14,6 +14,8 @@ export interface RateLimitOptions {
 export interface AgentGatewayOptions {
   tokens: ExecTokenRegistry;
   submissions: SubmissionPort;
+  /** Execution context-pool store; required when any node uses execution context. */
+  context: ContextPoolPort;
   validator: OutputValidator;
   /** Listening port, or a provider used once the loopback listener is bound. */
   port: number | (() => number);
@@ -167,7 +169,10 @@ function sameScope(left: ExecScope, right: ExecScope): boolean {
     left.identity.path === right.identity.path &&
     left.identity.attempt === right.identity.attempt &&
     left.identity.generation === right.identity.generation &&
-    left.toolset === right.toolset
+    left.toolset === right.toolset &&
+    left.context.project === right.context.project &&
+    left.context.workflow === right.context.workflow &&
+    left.context.execution === right.context.execution
   );
 }
 
@@ -271,7 +276,7 @@ async function readJsonObject(
 }
 
 export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEnv> {
-  const { tokens, submissions, validator } = options;
+  const { tokens, submissions, context, validator } = options;
   const now = options.now ?? Date.now;
   const submitTimeoutMs = options.submitTimeoutMs ?? DEFAULT_SUBMIT_TIMEOUT_MS;
   const maxBodyBytes = options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
@@ -351,16 +356,44 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
 
   app.get("/internal/agent/tools", (c) => {
     const scope = c.get("execScope");
-    const body = {
-      tools: [
-        {
-          name: "submit_result",
-          description:
-            "Submit the final structured result for this node. Arguments must match the output schema. Call exactly once when the work is complete.",
-          inputSchema: scope.outputSchema,
+    const tools: { name: string; description: string; inputSchema: unknown }[] = [
+      {
+        name: "submit_result",
+        description:
+          "Submit the final structured result for this node. Arguments must match the output schema. Call exactly once when the work is complete.",
+        inputSchema: scope.outputSchema,
+      },
+    ];
+    if (scope.context.execution !== "none") {
+      tools.push({
+        name: "context_read",
+        description:
+          "Read execution context notes written by earlier agents in this run. Optional keys array filters to those keys.",
+        inputSchema: {
+          type: "object",
+          properties: { keys: { type: "array", items: { type: "string" }, maxItems: 64 } },
+          additionalProperties: false,
         },
-      ],
-    };
+      });
+    }
+    if (scope.context.execution === "readwrite") {
+      tools.push({
+        name: "context_upsert",
+        description:
+          "Record a short note for downstream agents in this run (upsert, append, or delete by key). Keep entries short and specific.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            key: { type: "string" },
+            value: { type: "string" },
+            mode: { type: "string", enum: ["upsert", "append", "delete"] },
+          },
+          required: ["key"],
+          additionalProperties: false,
+        },
+      });
+    }
+    const body = { tools };
     const text = JSON.stringify(body);
     if (Buffer.byteLength(text, "utf8") > maxResponseBytes) {
       return c.json(errorBody("E_INTERNAL", "Tool schema is too large."), 500);
@@ -410,7 +443,93 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
         return c.json(errorBody("E_VALIDATION", "Tool arguments must be a JSON object."), 400);
       }
       const name = body.name;
-      const args = body.arguments;
+      const toolArgs = body.arguments;
+
+      if (name === "context_read" || name === "context_upsert") {
+        const work = (async (): Promise<Response> => {
+          const current = tokens.resolve(execToken, now());
+          if (current === null) {
+            throw new DevChestraError("E_AUTH", "The execution token is no longer valid.");
+          }
+          if (!sameScope(current, scope)) {
+            throw new DevChestraError("E_CONFLICT", "This execution is no longer current.");
+          }
+          if (name === "context_read") {
+            if (current.context.execution === "none") {
+              throw new DevChestraError(
+                "E_FORBIDDEN",
+                "This node has no execution context access.",
+              );
+            }
+            const keys = toolArgs.keys;
+            if (keys !== undefined && !Array.isArray(keys)) {
+              return c.json(
+                callResult("context_read keys must be an array of strings.", true),
+                200,
+              );
+            }
+            const wanted =
+              keys === undefined
+                ? null
+                : new Set(
+                    (keys as unknown[]).flatMap((key) => (typeof key === "string" ? [key] : [])),
+                  );
+            const entries = context
+              .list(scope.identity.runId)
+              .filter((entry) => wanted === null || wanted.has(entry.key))
+              .map((entry) => ({
+                key: entry.key,
+                value: entry.value,
+                updatedBy: entry.updatedByPath,
+                version: entry.version,
+              }));
+            let text = JSON.stringify({ entries });
+            if (Buffer.byteLength(text, "utf8") > maxResponseBytes) {
+              text = JSON.stringify({
+                entries: entries.map((entry) => entry.key),
+                truncated: true,
+                hint: "Too many entries; pass keys to read specific notes.",
+              });
+            }
+            return c.json(callResult(text, false), 200);
+          }
+          if (current.context.execution !== "readwrite") {
+            throw new DevChestraError("E_FORBIDDEN", "This node cannot write execution context.");
+          }
+          const key = toolArgs.key;
+          const mode = toolArgs.mode ?? "upsert";
+          if (typeof key !== "string" || key === "") {
+            return c.json(callResult("context_upsert key must be a non-empty string.", true), 200);
+          }
+          if (mode !== "upsert" && mode !== "append" && mode !== "delete") {
+            return c.json(
+              callResult("context_upsert mode must be upsert, append, or delete.", true),
+              200,
+            );
+          }
+          if (mode !== "delete" && typeof toolArgs.value !== "string") {
+            return c.json(callResult("context_upsert value must be a string.", true), 200);
+          }
+          try {
+            const record = context.upsert({
+              runId: scope.identity.runId,
+              key,
+              ...(mode === "delete" ? {} : { value: toolArgs.value as string }),
+              updatedByPath: scope.identity.path,
+              mode: mode as "upsert" | "append" | "delete",
+            });
+            return c.json(
+              callResult(`Saved context note '${record.key}' (version ${record.version}).`, false),
+              200,
+            );
+          } catch (error) {
+            const safe = toDevChestraError(error);
+            return c.json(callResult(`Could not save context note: ${safe.message}`, true), 200);
+          }
+        })();
+
+        return await raceAbort(work, controller.signal);
+      }
 
       if (name !== "submit_result") {
         return c.json(
@@ -421,7 +540,7 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
 
       const identity = scope.identity;
       const compiled = validator.compile(scope.outputSchema);
-      const validation = compiled.validate(args);
+      const validation = compiled.validate(toolArgs);
 
       const work = (async (): Promise<Response> => {
         if (validation.ok) {
@@ -437,9 +556,9 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
             outcome = await submissions.submit({
               identity,
               callId,
-              request: { name, arguments: args },
+              request: { name, arguments: toolArgs },
               ok: true,
-              output: args,
+              output: toolArgs,
               schemaHash: scope.outputSchemaHash,
             });
           } catch (error) {
@@ -472,7 +591,7 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
           outcome = await submissions.submit({
             identity,
             callId,
-            request: { name, arguments: args },
+            request: { name, arguments: toolArgs },
             ok: false,
             errors: validation.issues,
           });

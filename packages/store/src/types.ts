@@ -312,6 +312,25 @@ export interface CreateContextCaptureInput {
   entries: import("@devchestra/core").CaptureEntry[];
 }
 
+/** One row of the run-scoped execution context blackboard. */
+export interface ContextEntryRecord {
+  runId: RunId;
+  key: string;
+  value: string;
+  updatedByPath: string;
+  updatedAt: number;
+  version: number;
+}
+
+export interface UpsertContextEntryInput {
+  runId: RunId;
+  key: string;
+  /** Ignored for mode "delete". */
+  value?: unknown;
+  updatedByPath: string;
+  mode?: "upsert" | "append" | "delete";
+}
+
 export interface StartLoopInput {
   identity: ExecutionIdentity;
   /** Legacy inline parent scope; each value <=16 KiB JSON. Mutually exclusive with parentRef. */

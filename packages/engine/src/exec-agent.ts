@@ -24,9 +24,15 @@ import {
   toStopSignal,
 } from "./agent-support.js";
 import { type ActiveRunState, type EngineContext, toDevChestraError } from "./context.js";
+import { buildContextBlock, readContextAccess, readContextPools } from "./context-pool.js";
 import type { PlanNode, ScopeSource } from "./graph-plan.js";
 import { stripUi } from "./hash-config.js";
-import { composeAgentPrompt, renderAgentInputContext, renderSubmitContract } from "./prompt.js";
+import {
+  composeAgentPrompt,
+  renderAgentContextBlock,
+  renderAgentInputContext,
+  renderSubmitContract,
+} from "./prompt.js";
 import { buildScopeData } from "./scope.js";
 import type { LinearChain } from "./sequence.js";
 import { ProcessGroupAliveError, StopSignal } from "./stop.js";
@@ -171,14 +177,26 @@ async function runAttempts(
   const scope = buildScopeData(run.params, ancestors);
   const rendered = await ctx.render(String(stripUi(node.raw).prompt ?? ""), scope);
   const submitRef = adapter.toolRef("submit_result");
-  const contract = renderSubmitContract({ submitRef });
+  const access = readContextAccess(node.raw);
+  const pools = readContextPools(run.snapshot);
+  const executionEntries = access.execution === "none" ? [] : ctx.store.contextPool.list(run.id);
+  const block = buildContextBlock(pools, executionEntries, access);
+  const contextBlock = block === "" ? "" : renderAgentContextBlock(block);
+  const contract = renderSubmitContract({
+    submitRef,
+    ...(access.project !== "none" || access.workflow !== "none" || access.execution !== "none"
+      ? { contextRead: true }
+      : {}),
+    ...(access.execution === "readwrite" ? { contextWrite: true } : {}),
+  });
   const inputContext = renderAgentInputContext(scope);
-  const basePrompt = composeAgentPrompt(rendered.text, contract, inputContext);
+  const basePrompt = composeAgentPrompt(rendered.text, contract, inputContext, contextBlock);
   const prepared: AttemptPrepared = {
     adapter,
     basePrompt,
     contract,
     inputContext,
+    contextBlock,
     scope,
     schemaHash: await hashJson(node.raw.output),
     baseEnv: ctx.baseEnv(adapter.id),
