@@ -1,8 +1,6 @@
 name: Windows native spike
 on:
-  push:
-    branches: [spike/windows-native, feature/bounded-loops]
-  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:

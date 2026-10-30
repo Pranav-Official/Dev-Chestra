@@ -1,8 +1,6 @@
 name: SQLite native canary
 
 on:
-  push:
-  pull_request:
   workflow_dispatch:
 
 permissions:
