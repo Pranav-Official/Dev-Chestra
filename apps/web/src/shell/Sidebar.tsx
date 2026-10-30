@@ -7,8 +7,9 @@ import {
   FolderGit2,
   GitBranch,
   Layers3,
+  Settings,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { api, classifyError } from "../api/client.js";
 import { queryKeys, useBootstrap } from "../api/hooks.js";
@@ -22,6 +23,41 @@ interface WorkflowNav {
   name: string;
   managed: boolean;
   runs: RunSummary[];
+}
+
+function SettingsMenu() {
+  const menu = useRef<HTMLDetailsElement>(null);
+  const location = useLocation();
+  const match = location.pathname.match(/^\/p\/([^/]+)/);
+  const usagePath = match ? `/p/${match[1]}/settings/usage` : "/settings/usage";
+  const active = location.pathname.endsWith("/settings/usage");
+  return (
+    <details
+      className="workspace-menu workspace-menu-up"
+      ref={menu}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && menu.current) {
+          menu.current.open = false;
+          menu.current.querySelector("summary")?.focus();
+        }
+      }}
+    >
+      <summary aria-label="Settings">
+        <Settings size={15} aria-hidden="true" />
+      </summary>
+      <div className="workspace-menu-items">
+        <Link
+          to={usagePath}
+          aria-current={active ? "page" : undefined}
+          onClick={() => {
+            if (menu.current) menu.current.open = false;
+          }}
+        >
+          Usage
+        </Link>
+      </div>
+    </details>
+  );
 }
 
 export function Sidebar() {
@@ -235,11 +271,12 @@ export function Sidebar() {
         <span className={`status-icon ${bootstrap.data ? "succeeded" : "idle"}`} aria-hidden="true">
           ●
         </span>
-        <span>
+        <span style={{ flex: 1 }}>
           {bootstrap.data
             ? `DevChestra ${bootstrap.data.version} · ${bootstrap.data.counts.activeRuns} active`
             : "Not connected"}
         </span>
+        <SettingsMenu />
       </div>
     </aside>
   );

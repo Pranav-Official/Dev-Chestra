@@ -427,6 +427,33 @@ export interface RunSnapshot {
   watermark: number;
 }
 
+/** Aggregated cost/token usage.
+ *
+ * `total` rolls up the runs table (authoritative run-level cost/tokens).
+ * `byProvider` breaks executions down by CLI provider then model.
+ */
+export interface UsageModelSummary {
+  model: string;
+  usd: number;
+  tokens: number;
+}
+
+export interface UsageProviderSummary {
+  provider: string;
+  usd: number;
+  tokens: number;
+  byModel: UsageModelSummary[];
+}
+
+export interface UsageSummary {
+  total: { usd: number; tokens: number };
+  byProvider: UsageProviderSummary[];
+}
+
+export interface UsageFilter {
+  projectId?: string;
+}
+
 export interface EventPageOptions {
   /** Numeric replay position. Mutually exclusive with `cursor`. */
   after?: number;

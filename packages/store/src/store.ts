@@ -87,6 +87,7 @@ import {
 import { createRun, getRun, listActiveRuns } from "./runs.js";
 import type { Runtime } from "./runtime.js";
 import { type SecretFinding, SecretRegistry } from "./secrets.js";
+import { getUsageSummary } from "./usage.js";
 import {
   countNoSubmit,
   getAcceptedOutput,
@@ -148,6 +149,8 @@ import type {
   StartLoopResult,
   SubmitInput,
   SubmitOutcome,
+  UsageFilter,
+  UsageSummary,
 } from "./types.js";
 import { fail } from "./util.js";
 import {
@@ -178,6 +181,10 @@ export interface RunsApi {
 
 export interface ProcessesApi {
   active(): ActiveProcess[];
+}
+
+export interface UsageApi {
+  summary(filter?: UsageFilter): UsageSummary;
 }
 
 export interface OutputsApi {
@@ -339,6 +346,7 @@ export class Store {
   readonly runs: RunsApi;
   readonly executions: ExecutionsApi;
   readonly processes: ProcessesApi;
+  readonly usage: UsageApi;
   readonly outputs: OutputsApi;
   readonly submissions: SubmissionsApi;
   readonly events: EventsApi;
@@ -401,6 +409,9 @@ export class Store {
     };
     this.processes = {
       active: () => activeProcesses(this.#runtime),
+    };
+    this.usage = {
+      summary: (filter) => getUsageSummary(this.#runtime, filter ?? {}),
     };
     this.outputs = {
       recordDeterministic: (input) => this.tx(() => recordDeterministic(this.#runtime, input)),

@@ -272,6 +272,7 @@ a:hover {
 .workspace-menu-items {
   position: absolute;
   right: 0;
+  top: calc(100% + 6px);
   z-index: 30;
   width: 190px;
   padding: 4px;
@@ -280,7 +281,13 @@ a:hover {
   background: var(--bg);
   box-shadow: 0 4px 12px rgb(0 0 0 / 12%);
 }
-.workspace-menu-items > button {
+/* Footer menus sit at the viewport bottom — open upward so items stay visible. */
+.workspace-menu-up .workspace-menu-items {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+.workspace-menu-items > button,
+.workspace-menu-items > a {
   display: block;
   width: 100%;
   text-align: left;
@@ -289,8 +296,11 @@ a:hover {
   border: 0;
   color: var(--text);
   cursor: pointer;
+  text-decoration: none;
+  box-sizing: border-box;
 }
-.workspace-menu-items > button:hover {
+.workspace-menu-items > button:hover,
+.workspace-menu-items > a:hover {
   background: var(--bg-muted);
 }
 .workspace-menu-items > button:disabled {

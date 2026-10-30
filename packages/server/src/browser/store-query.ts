@@ -466,6 +466,10 @@ export function createStoreQueryPort(store: Store): BrowserQueryPort {
         inbox,
       };
     },
+    usageSummary: (input) =>
+      store.usage.summary({
+        ...(input.projectId === undefined ? {} : { projectId: input.projectId }),
+      }),
     listRunChildren(runId: string, input: { cursor?: string; limit: number }) {
       const limit = Math.min(Math.max(input.limit, 1), 100);
       const offset = (() => {
