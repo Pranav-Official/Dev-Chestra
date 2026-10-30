@@ -359,7 +359,7 @@ export function createStoreQueryPort(store: Store): BrowserQueryPort {
       // Metadata-first: executions table rows (no projection hydration) plus a
       // single bounded outputs-metadata query mapped by output id (no N+1, no
       // JSON hydration). Schemas resolve via the frozen run snapshot served by
-      // run detail; see docs/execution-context.md.
+      // run detail.
       const limit = Math.min(Math.max(query.limit, 1), 500);
       let rows = store.executions.list(runId as RunId);
       if (query.pathPrefix !== undefined && query.pathPrefix !== "") {

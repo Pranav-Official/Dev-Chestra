@@ -1,6 +1,6 @@
 # DevChestra
 
-Local, single-user workflow orchestrator for headless coding agents. DevChestra runs workflows of `start`, `agent`, `shell`, `gate`, `join`, `approval`, `decision`, `loop` and `end` nodes against the Claude Code, Codex, Opencode and Pi CLIs through a real MCP shim, a SQLite event store and a loopback web server. Use the browser editor to register a project, build and save a workflow with conflict-safe ETags, then run it into the live viewer (events, transcripts and event-based replay) without editing JSON. Each run picks one workspace at Start: the project root (dirty files included), an existing Git worktree, or a new per-run worktree. Gates branch in order with a mandatory `otherwise`, joins resolve with `first` or `all`, and approvals pause the run until a person approves or rejects. Bounded [Repeat until loops](docs/loops.md) preserve separate history for every round. Maps, artifact capture, spending budgets, context banks and release packaging are not built yet.
+Local, single-user workflow orchestrator for headless coding agents. DevChestra runs workflows of `start`, `agent`, `shell`, `gate`, `join`, `approval`, `decision`, `loop` and `end` nodes against the Claude Code, Codex, Opencode and Pi CLIs through a real MCP shim, a SQLite event store and a loopback web server. Use the browser editor to register a project, build and save a workflow with conflict-safe ETags, then run it into the live viewer (events, transcripts and event-based replay) without editing JSON. Each run picks one workspace at Start: the project root (dirty files included), an existing Git worktree, or a new per-run worktree. Gates branch in order with a mandatory `otherwise`, joins resolve with `first` or `all`, and approvals pause the run until a person approves or rejects. Bounded Repeat until loops preserve separate history for every round. Maps, artifact capture, spending budgets, context banks and release packaging are not built yet.
 
 The product name is provisional (`DevChestra` internally). Do not create durable user-facing paths or publish under a final name until that decision is recorded.
 
@@ -9,7 +9,7 @@ The product name is provisional (`DevChestra` internally). Do not create durable
 - Node.js **22 or newer**. CI runs the test suite on Node 22 and 24; the SQLite canary also covers Node 26.
 - pnpm **10.14.0** (declared in `packageManager`)
 - Git 2.30+ (required only for the existing-worktree and new-worktree run options; the default project root also works for non-Git folders)
-- Linux or macOS. The `spike/windows-native` branch adds experimental native Windows 10/11 x64 support; see [the Windows spike notes](docs/windows-native-spike.md) for setup, evidence and remaining gaps.
+- Linux or macOS. The `spike/windows-native` branch adds experimental native Windows 10/11 x64 support.
 
 ## Install
 
