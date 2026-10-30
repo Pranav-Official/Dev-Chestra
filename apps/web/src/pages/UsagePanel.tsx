@@ -76,103 +76,246 @@ async function fetchUsageSummary(
   return (await response.json()) as UsageSummary;
 }
 
-function ProviderBars({ providers }: { providers: UsageByProvider[] }) {
+function buildColorMap(providers: UsageByProvider[]): Map<string, string> {
+  const sorted = [...providers].sort((a, b) => b.tokens - a.tokens || b.usd - a.usd);
+  const map = new Map<string, string>();
+  sorted.forEach((p, idx) => {
+    map.set(p.provider, colorAt(idx));
+  });
+  return map;
+}
+
+function ProviderBars({
+  providers,
+  colorMap,
+}: {
+  providers: UsageByProvider[];
+  colorMap: Map<string, string>;
+}) {
   const rows = [...providers].sort((a, b) => b.tokens - a.tokens);
+  const totalTokens = rows.reduce((sum, p) => sum + p.tokens, 0);
   const max = Math.max(1, ...rows.map((p) => p.tokens));
   if (rows.length === 0) return <p className="faint">No provider data yet.</p>;
   return (
-    <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 10 }}>
-      {rows.map((item, index) => (
-        <li
-          key={item.provider}
-          style={{ display: "grid", gridTemplateColumns: "140px 1fr auto", gap: 10, alignItems: "center" }}
-        >
-          <span
-            className="mono"
-            style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-            title={item.provider}
-          >
-            {item.provider}
-          </span>
-          <span
-            role="img"
-            aria-label={`${item.provider}: ${formatCount(item.tokens)} tokens`}
-            style={{
-              display: "block",
-              height: 18,
-              borderRadius: 5,
-              background: "var(--bg-muted)",
-              overflow: "hidden",
-            }}
-          >
+    <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 14 }}>
+      {rows.map((item, index) => {
+        const color = colorMap.get(item.provider) ?? colorAt(index);
+        const pct = totalTokens > 0 ? (item.tokens / totalTokens) * 100 : 0;
+        return (
+          <li key={item.provider} style={{ display: "grid", gap: 6 }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(120px, 1fr) auto auto",
+                gap: 16,
+                alignItems: "baseline",
+              }}
+            >
+              <span className="row" style={{ gap: 8, minWidth: 0 }}>
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    flex: "none",
+                    background: color,
+                  }}
+                />
+                <span
+                  className="mono"
+                  style={{
+                    fontWeight: 500,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                  title={item.provider}
+                >
+                  {item.provider}
+                </span>
+              </span>
+              <span
+                className="mono"
+                style={{ fontVariantNumeric: "tabular-nums", textAlign: "right" }}
+              >
+                {formatTokens(item.tokens)}{" "}
+                <span className="faint">({pct >= 0.1 || pct === 0 ? pct.toFixed(1) : "<0.1"}%)</span>
+              </span>
+              <span
+                className="mono muted"
+                style={{
+                  minWidth: 68,
+                  textAlign: "right",
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {formatCost(item.usd)}
+              </span>
+            </div>
             <span
+              role="img"
+              aria-label={`${item.provider}: ${formatCount(item.tokens)} tokens`}
               style={{
                 display: "block",
-                height: "100%",
-                width: `${Math.max(2, (item.tokens / max) * 100)}%`,
-                borderRadius: 5,
-                background: colorAt(index),
+                height: 8,
+                borderRadius: 999,
+                background: "var(--bg-muted)",
+                overflow: "hidden",
               }}
-            />
-          </span>
-          <span className="faint mono" style={{ minWidth: 120, textAlign: "right" }}>
-            {formatTokens(item.tokens)} · {formatCost(item.usd)}
-          </span>
-        </li>
-      ))}
+            >
+              <span
+                style={{
+                  display: "block",
+                  height: "100%",
+                  width: `${Math.max(1.5, (item.tokens / max) * 100)}%`,
+                  borderRadius: 999,
+                  background: color,
+                }}
+              />
+            </span>
+          </li>
+        );
+      })}
     </ul>
   );
 }
 
-function CostDonut({ providers }: { providers: UsageByProvider[] }) {
+function CostDonut({
+  providers,
+  colorMap,
+}: {
+  providers: UsageByProvider[];
+  colorMap: Map<string, string>;
+}) {
   const models = providers
     .flatMap((p) => p.byModel.map((m) => ({ ...m, provider: p.provider })))
     .filter((m) => m.usd > 0 || m.tokens > 0)
     .sort((a, b) => b.usd - a.usd || b.tokens - a.tokens);
   const total = models.reduce((sum, item) => sum + item.usd, 0);
   if (models.length === 0 || total <= 0) return <p className="faint">No cost data yet.</p>;
-  let cursor = 0;
-  const segments = models.map((item, index) => {
-    const start = (cursor / total) * 100;
-    cursor += item.usd;
-    const end = (cursor / total) * 100;
-    return `${colorAt(index)} ${start.toFixed(1)}% ${end.toFixed(1)}%`;
+
+  const modelColors = models.map((item, index) => {
+    const sameProviderCount = models.filter((m) => m.provider === item.provider).length;
+    if (sameProviderCount === 1) {
+      return colorMap.get(item.provider) ?? colorAt(index);
+    }
+    return colorAt(index);
   });
+
+  let cursor = 0;
+  const segments = models
+    .map((item, index) => {
+      if (item.usd <= 0) return null;
+      const start = (cursor / total) * 100;
+      cursor += item.usd;
+      const end = (cursor / total) * 100;
+      return `${modelColors[index]} ${start.toFixed(2)}% ${end.toFixed(2)}%`;
+    })
+    .filter((s): s is string => s !== null);
+
   return (
-    <div className="row wrap" style={{ gap: 20, alignItems: "center" }}>
+    <div className="row wrap" style={{ gap: 28, alignItems: "center" }}>
       <div
-        role="img"
-        aria-label="Cost by model donut chart"
         style={{
-          width: 150,
-          height: 150,
-          borderRadius: "50%",
+          position: "relative",
+          width: 148,
+          height: 148,
+          display: "grid",
+          placeItems: "center",
           flex: "none",
-          background: `conic-gradient(${segments.join(", ")})`,
-          mask: "radial-gradient(circle, transparent 55%, black 56%)",
-          WebkitMask: "radial-gradient(circle, transparent 55%, black 56%)",
+          margin: "0 auto",
         }}
-      />
-      <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8, flex: "1 1 220px" }}>
-        {models.map((item, index) => (
-          <li key={`${item.provider}/${item.model}`} className="row" style={{ gap: 8, alignItems: "baseline" }}>
-            <span
-              aria-hidden="true"
+      >
+        <div
+          role="img"
+          aria-label="Cost by model donut chart"
+          style={{
+            width: "100%",
+            height: "100%",
+            borderRadius: "50%",
+            background: `conic-gradient(${segments.join(", ")})`,
+            mask: "radial-gradient(circle, transparent 58%, black 59.5%)",
+            WebkitMask: "radial-gradient(circle, transparent 58%, black 59.5%)",
+          }}
+        />
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            textAlign: "center",
+            pointerEvents: "none",
+            lineHeight: 1.2,
+          }}
+        >
+          <div className="faint" style={{ fontSize: 11 }}>
+            Total
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-0.015em" }}>
+            {formatCost(total)}
+          </div>
+        </div>
+      </div>
+
+      <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 10, flex: "1 1 260px" }}>
+        {models.map((item, index) => {
+          const share = (item.usd / total) * 100;
+          return (
+            <li
+              key={`${item.provider}/${item.model}`}
               style={{
-                width: 10,
-                height: 10,
-                borderRadius: 3,
-                flex: "none",
-                alignSelf: "center",
-                background: colorAt(index),
+                display: "grid",
+                gridTemplateColumns: "minmax(140px, 1fr) auto auto",
+                gap: 14,
+                alignItems: "center",
+                paddingBottom: index < models.length - 1 ? 10 : 0,
+                borderBottom: index < models.length - 1 ? "1px solid var(--border)" : "none",
               }}
-            />
-            <span className="mono">{shortModel(item.provider, item.model)}</span>
-            <span className="faint" style={{ marginLeft: "auto", whiteSpace: "nowrap" }}>
-              {formatCost(item.usd)} · {((item.usd / total) * 100).toFixed(1)}%
-            </span>
-          </li>
-        ))}
+            >
+              <span className="row" style={{ gap: 8, minWidth: 0 }}>
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 3,
+                    flex: "none",
+                    background: modelColors[index],
+                  }}
+                />
+                <span
+                  className="mono"
+                  style={{
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                  title={shortModel(item.provider, item.model)}
+                >
+                  {shortModel(item.provider, item.model)}
+                </span>
+              </span>
+              <span
+                className="faint mono"
+                style={{ fontVariantNumeric: "tabular-nums", textAlign: "right" }}
+              >
+                {formatTokens(item.tokens)} tok
+              </span>
+              <span
+                className="mono"
+                style={{
+                  minWidth: 108,
+                  textAlign: "right",
+                  fontVariantNumeric: "tabular-nums",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <span style={{ fontWeight: 500 }}>{formatCost(item.usd)}</span>{" "}
+                <span className="faint">· {share.toFixed(1)}%</span>
+              </span>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
@@ -190,38 +333,77 @@ export function UsagePanel() {
   // Fall back to mock totals when the live endpoint is unreachable.
   const data = usage.data ?? MOCK_USAGE;
   const mocked = usage.isError || usage.data === undefined;
+  const colorMap = buildColorMap(data.byProvider);
 
   return (
-    <div>
+    <div className="stack" style={{ gap: 16 }}>
       {mocked ? (
-        <p className="faint" role="status" style={{ marginTop: 0 }}>
-          Showing fallback totals — the live <span className="mono">/api/usage</span> endpoint is not
-          reachable.
-        </p>
+        <div className="note" role="status">
+          <span>
+            Showing fallback totals — the live <span className="mono">/api/usage</span> endpoint is
+            not reachable.
+          </span>
+        </div>
       ) : null}
-      <div className="row wrap" style={{ marginBottom: 16 }}>
-        <div className="stat">
-          <div className="faint">Total tokens</div>
-          <div className="v">{formatCount(data.total.tokens)}</div>
-        </div>
-        <div className="stat">
-          <div className="faint">Total cost</div>
-          <div className="v">{formatCost(data.total.usd)}</div>
-        </div>
-        <div className="stat">
-          <div className="faint">Providers</div>
-          <div className="v">{data.byProvider.length}</div>
-        </div>
-      </div>
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h2 style={{ marginTop: 0 }}>Tokens by provider</h2>
-        <ProviderBars providers={data.byProvider} />
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+          gap: 12,
+        }}
+      >
+        <div className="stat" style={{ background: "var(--bg-subtle)" }}>
+          <div className="faint">Total tokens</div>
+          <div className="v" style={{ fontVariantNumeric: "tabular-nums" }}>
+            {formatCount(data.total.tokens)}
+          </div>
+          <div className="faint mono" style={{ marginTop: 4, fontSize: 11 }}>
+            {formatTokens(data.total.tokens)} processed
+          </div>
+        </div>
+        <div className="stat" style={{ background: "var(--bg-subtle)" }}>
+          <div className="faint">Total cost</div>
+          <div className="v" style={{ fontVariantNumeric: "tabular-nums" }}>
+            {formatCost(data.total.usd)}
+          </div>
+          <div className="faint mono" style={{ marginTop: 4, fontSize: 11 }}>
+            Cumulative spend
+          </div>
+        </div>
+        <div className="stat" style={{ background: "var(--bg-subtle)" }}>
+          <div className="faint">Providers</div>
+          <div className="v" style={{ fontVariantNumeric: "tabular-nums" }}>
+            {data.byProvider.length}
+          </div>
+          <div className="faint mono" style={{ marginTop: 4, fontSize: 11 }}>
+            Active harnesses
+          </div>
+        </div>
       </div>
 
       <div className="card">
-        <h2 style={{ marginTop: 0 }}>Cost by model</h2>
-        <CostDonut providers={data.byProvider} />
+        <div className="card-head" style={{ justifyContent: "space-between" }}>
+          <h2 style={{ margin: 0, fontSize: 14 }}>Tokens by provider</h2>
+          <span className="faint" style={{ fontSize: 12, fontWeight: 400 }}>
+            Volume &amp; spend per harness
+          </span>
+        </div>
+        <div className="card-body" style={{ padding: "16px 18px" }}>
+          <ProviderBars providers={data.byProvider} colorMap={colorMap} />
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-head" style={{ justifyContent: "space-between" }}>
+          <h2 style={{ margin: 0, fontSize: 14 }}>Cost by model</h2>
+          <span className="faint" style={{ fontSize: 12, fontWeight: 400 }}>
+            Spend share across models
+          </span>
+        </div>
+        <div className="card-body" style={{ padding: "18px" }}>
+          <CostDonut providers={data.byProvider} colorMap={colorMap} />
+        </div>
       </div>
     </div>
   );

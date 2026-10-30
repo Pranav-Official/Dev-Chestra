@@ -24,11 +24,11 @@ export function SettingsPage() {
               <p>Workspace settings. Token and cost analytics, live.</p>
             </div>
           </div>
-          <div className="row" style={{ gap: 16, alignItems: "flex-start" }}>
+          <div className="row wrap" style={{ gap: 24, alignItems: "flex-start" }}>
             <nav
               aria-label="Settings sections"
               className="card"
-              style={{ flex: "0 0 25%", minWidth: 160 }}
+              style={{ flex: "0 0 180px", padding: 6 }}
             >
               <Link
                 to={usagePath}
@@ -39,7 +39,10 @@ export function SettingsPage() {
                 <span>Usage</span>
               </Link>
             </nav>
-            <section aria-label="Usage settings" className="card" style={{ flex: "0 0 75%" }}>
+            <section
+              aria-label="Usage settings"
+              style={{ flex: "1 1 540px", minWidth: 0 }}
+            >
               <UsagePanel />
             </section>
           </div>
