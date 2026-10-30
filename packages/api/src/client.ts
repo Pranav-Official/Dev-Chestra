@@ -29,6 +29,11 @@ import {
   executionDetailResponseSchema,
   type HealthResponse,
   healthResponseSchema,
+  type OutputPreview,
+  outputPreviewSchema,
+  type RunContextQuery,
+  type RunContextResponse,
+  runContextResponseSchema,
   type ListProjectsQuery,
   type ListProjectsResponse,
   listProjectsResponseSchema,
@@ -392,6 +397,39 @@ export class ApiClientBase {
       ["runs", runId, "executions", path, "transcript"],
       transcriptPageResponseSchema,
       this.req(options, { query: { cursor: query.cursor, limit: query.limit } }),
+    );
+  }
+
+  getRunContext(
+    runId: string,
+    query: RunContextQuery = {},
+    options: ApiRequestOptions = {},
+  ): Promise<RunContextResponse> {
+    return this.request(
+      "GET",
+      ["runs", runId, "context"],
+      runContextResponseSchema,
+      this.req(options, {
+        query: {
+          pathPrefix: query.pathPrefix,
+          status: query.status,
+          limit: query.limit,
+          cursor: query.cursor,
+        },
+      }),
+    );
+  }
+
+  getRunOutput(
+    runId: string,
+    outputId: string,
+    options: ApiRequestOptions = {},
+  ): Promise<OutputPreview> {
+    return this.request(
+      "GET",
+      ["runs", runId, "outputs", outputId],
+      outputPreviewSchema,
+      this.req(options),
     );
   }
 

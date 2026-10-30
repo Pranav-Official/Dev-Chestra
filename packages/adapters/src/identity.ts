@@ -3,6 +3,7 @@ import { readFile, readlink } from "node:fs/promises";
 import { basename } from "node:path";
 import { DevChestraError } from "@devchestra/core";
 import type { ProcessIdentity, SpawnIdentity } from "./types.js";
+import { stopWindowsTree, windowsProcessIdentity } from "./windows.js";
 
 const DEFAULT_GRACE = 5_000;
 const IDENTITY_ATTEMPTS = 25;
@@ -85,6 +86,10 @@ export async function readProcessIdentity(pid: number): Promise<ProcessIdentity 
   if (!Number.isSafeInteger(pid) || pid < 1) return null;
   if (process.platform === "linux") return linuxIdentity(pid);
   if (process.platform === "darwin") return darwinIdentity(pid);
+  if (process.platform === "win32") {
+    const identity = windowsProcessIdentity(pid);
+    return identity === null ? null : { pid, ...identity };
+  }
   return null;
 }
 
@@ -110,7 +115,7 @@ export async function matchesProcess(
 
 export function isGroupAlive(pid: number): boolean {
   try {
-    process.kill(-pid, 0);
+    process.kill(process.platform === "win32" ? pid : -pid, 0);
     return true;
   } catch (error) {
     return (error as NodeJS.ErrnoException).code === "EPERM";
@@ -119,7 +124,7 @@ export function isGroupAlive(pid: number): boolean {
 
 async function signalGroup(pid: number, signal: NodeJS.Signals): Promise<void> {
   try {
-    process.kill(-pid, signal);
+    process.kill(process.platform === "win32" ? pid : -pid, signal);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
   }
@@ -154,6 +159,7 @@ export async function killTreeWith(pid: number, graceMs: number, deps: KillDeps)
 
 /** Terminate a process group this runner owns. See killTreeWith for semantics. */
 export async function killTree(pid: number, options: { graceMs?: number } = {}): Promise<boolean> {
+  if (process.platform === "win32") return stopWindowsTree(pid);
   return killTreeWith(pid, options.graceMs ?? DEFAULT_GRACE, {
     isAlive: isGroupAlive,
     signal: signalGroup,
@@ -168,7 +174,13 @@ export async function killOrphan(
 ): Promise<{ matched: boolean; killed: boolean }> {
   const matched = await matchesProcess(recorded);
   if (!matched) return { matched: false, killed: false };
-  return { matched: true, killed: await killTree(recorded.pid, options) };
+  return {
+    matched: true,
+    killed:
+      process.platform === "win32"
+        ? await stopWindowsTree(recorded.pid, recorded.pidStart)
+        : await killTree(recorded.pid, options),
+  };
 }
 
 export async function spawnIdentity(

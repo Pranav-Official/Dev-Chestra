@@ -90,6 +90,9 @@ export function reduceExecutionEvent(view: RunView, envelope: EventEnvelope): Ru
           approvalRequest: null,
           approvalDecision: null,
           decision: null,
+          loop: null,
+          workflow: null,
+          foreach: null,
           requiresAcceptedResult:
             exec.requiresAcceptedResult || (payload.init?.requireSubmission ?? false),
           acceptedResult: null,
@@ -155,6 +158,12 @@ export function reduceExecutionEvent(view: RunView, envelope: EventEnvelope): Ru
           throw internal(
             "Execution succeeded before process stop and workspace finalization for the accepted result",
             { path, accepted: exec.acceptedResult },
+          );
+        }
+        if (exec.kind === "loop" && !isDurablyComplete(exec)) {
+          throw internal(
+            "Loop controller cannot succeed without a finished done decision and recorded output for the current generation",
+            { path, kind: exec.kind },
           );
         }
         if (

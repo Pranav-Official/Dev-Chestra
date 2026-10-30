@@ -119,8 +119,8 @@ setTimeout(() => process.exit(9), 5000);`,
     expect(result.code).toBe(0);
     expect(result.killedBy).toBeNull();
     expect(result.pid).toBe(spawn?.pid);
-    expect(spawn?.pidStart).toMatch(/^(linux:|darwin:)/);
-    expect(spawn?.binary).toContain("node");
+    expect(spawn?.pidStart).toMatch(/^(linux:|darwin:|windows:)/);
+    expect(spawn?.binary).toContain(process.platform === "win32" ? "windows-process" : "node");
     expect(spawn?.cwd).toBe(dir);
     expect(await readFile(`${marker}.stdin`, "utf8")).toBe("hello-prompt");
     expect(await readFile(`${marker}.done`, "utf8")).toBe("x");
@@ -423,8 +423,14 @@ describe("materializeInvocation", () => {
       files: [{ path: join(dir, "exec", "mcp.json"), content: "{}\n" }],
     });
     const { stat } = await import("node:fs/promises");
-    expect((await stat(join(dir, "exec", "mcp.json"))).mode & 0o777).toBe(0o600);
-    expect((await stat(join(dir, "exec"))).mode & 0o777).toBe(0o700);
+    if (process.platform === "win32") {
+      const { isWindowsPrivatePath } = await import("../src/index.js");
+      expect(isWindowsPrivatePath(join(dir, "exec", "mcp.json"))).toBe(true);
+      expect(isWindowsPrivatePath(join(dir, "exec"))).toBe(true);
+    } else {
+      expect((await stat(join(dir, "exec", "mcp.json"))).mode & 0o777).toBe(0o600);
+      expect((await stat(join(dir, "exec"))).mode & 0o777).toBe(0o700);
+    }
   });
 
   it("links canonical files instead of copying them", async () => {
@@ -442,7 +448,8 @@ describe("materializeInvocation", () => {
     await materializeInvocation(inv);
     // Repeat materialization replaces the previous link instead of failing.
     await materializeInvocation(inv);
-    expect(await readlink(join(dir, "exec", "linked.json"))).toBe(join(dir, "canonical.json"));
+    if (process.platform !== "win32")
+      expect(await readlink(join(dir, "exec", "linked.json"))).toBe(join(dir, "canonical.json"));
     expect(await readFile(join(dir, "exec", "linked.json"), "utf8")).toBe('{"a":1}\n');
   });
 });

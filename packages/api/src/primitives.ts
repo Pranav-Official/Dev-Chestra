@@ -189,8 +189,10 @@ const NODE_KIND_VALUES = [
   "decision",
   "map",
   "loop",
+  "foreach",
+  "workflow",
   "supervisor",
-] as const satisfies readonly NodeKind[];
+] as const satisfies readonly (NodeKind | "foreach" | "workflow")[];
 
 const RUN_PAUSE_REASON_VALUES = [
   "quota",

@@ -9,6 +9,7 @@ import {
   validateParams,
   validateWorkflow,
   type WorkflowFile,
+  workflowNodes,
 } from "@devchestra/schema";
 import { assertProjectPathAllowed } from "../browser/workflow.js";
 import { DevChestraError } from "../errors.js";
@@ -24,6 +25,7 @@ import {
   replaceManagedFile,
 } from "./io.js";
 import { withProjectLock } from "./lock.js";
+import { ensureProjectSkill } from "./skill.js";
 
 export interface WorkflowProject {
   id: string;
@@ -80,6 +82,22 @@ export interface RunWorkflowSnapshot {
   params: Record<string, unknown>;
 }
 
+export interface ResolvedChildWorkflow {
+  id: string;
+  normalized: NormalizedWorkflow;
+  hash: string;
+  text: string;
+}
+
+/**
+ * Project-bound single-id reader (safe ManagedWorkflowService read only).
+ * The engine owns the canonical transitive freeze walker; this never walks.
+ */
+export type ChildWorkflowReader = (
+  project: WorkflowProject,
+  workflowId: string,
+) => Promise<ResolvedChildWorkflow>;
+
 export interface ManagedWorkflowServiceDeps {
   dataDir: string;
   providers?: string[];
@@ -121,6 +139,8 @@ export class ManagedWorkflowService {
     if (paths === null) {
       throw new DevChestraError("E_NOT_FOUND", "The project has no managed workflows yet.");
     }
+    // Backfill for projects registered before the guide existed; no-op when present.
+    if (create) ensureProjectSkill(root);
     return paths;
   }
 
@@ -331,7 +351,7 @@ export class ManagedWorkflowService {
         expected: id,
       });
     }
-    const prompts = workflow.graph.nodes.filter(
+    const prompts = [...workflowNodes(workflow.graph)].filter(
       (node) => node.type === "agent" && node.promptFile !== undefined,
     );
     if (prompts.length > 0) {
@@ -371,6 +391,54 @@ export class ManagedWorkflowService {
       workflowHash,
       params: input.params ?? {},
     };
+  }
+
+  /**
+   * Project-bound single-id child read for the engine resolver.
+   * Parse+validate+normalize through the managed file service (size/id limits
+   * enforced by readManagedFile). Never walks transitively itself: the engine
+   * owns recursive resolution, cycle detection and depth limits.
+   */
+  async readChildNormalized(
+    project: WorkflowProject,
+    workflowId: string,
+  ): Promise<ResolvedChildWorkflow> {
+    assertWorkflowId(workflowId);
+    const paths = this.#paths(project, false);
+    let file: ManagedFile;
+    try {
+      file = readManagedFile(paths, workflowId);
+    } catch {
+      throw new DevChestraError("E_NOT_FOUND", `Child workflow '${workflowId}' was not found.`);
+    }
+    const workflow = parseWorkflowJsonOrThrow(file.text);
+    if (workflow.id !== workflowId) {
+      throw new DevChestraError("E_VALIDATION", "Workflow id must equal the file stem.");
+    }
+    const prompts = [...workflowNodes(workflow.graph)].filter(
+      (node) => node.type === "agent" && node.promptFile !== undefined,
+    );
+    if (prompts.length > 0) {
+      throw new DevChestraError(
+        "E_NOT_SUPPORTED",
+        "promptFile is not supported for child workflow runs yet; inline the prompt and save.",
+        { nodeIds: prompts.map((node) => node.id) },
+      );
+    }
+    const validation = this.#validate(workflow, project);
+    if (!validation.ok) {
+      throw new DevChestraError(
+        "E_VALIDATION",
+        `Child workflow '${workflowId}' is invalid: ${validation.errors[0]?.message ?? "unknown error"}`,
+        { issues: validation.errors },
+      );
+    }
+    const normal = normalizeWorkflow(workflow);
+    if (!normal.ok) {
+      throw new DevChestraError("E_VALIDATION", normal.error.message, normal.error.details);
+    }
+    const hash = await hashWorkflow(normal.value);
+    return { id: workflowId, normalized: normal.value, hash, text: file.text };
   }
 }
 

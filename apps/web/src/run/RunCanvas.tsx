@@ -13,20 +13,29 @@ import {
 } from "@xyflow/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "@xyflow/react/dist/style.css";
-import { deriveRouting, isTerminalRunStatus, type RunView } from "@devchestra/core";
+import {
+  deriveRouting,
+  isTerminalRunStatus,
+  LOOP_EXHAUSTED_HANDLE,
+  loopTerminalOutcome,
+  type RunView,
+} from "@devchestra/core";
 import { type DecisionMode, type DecisionNode, decisionHandles } from "@devchestra/schema";
 import {
   Bot,
   CheckCircle2,
   Circle,
   CircleSlash,
+  Files,
   Flag,
   GitBranch,
   GitMerge,
+  ListOrdered,
   LoaderCircle,
   OctagonX,
   PauseCircle,
   Play,
+  Repeat,
   ShieldCheck,
   TerminalSquare,
   TriangleAlert,
@@ -46,10 +55,14 @@ interface SnapshotNode {
   command?: string;
   status?: string;
   branches?: { id: string; when?: string; otherwise?: true }[];
-  mode?: "first" | "all" | DecisionMode;
-  inputs?: string[];
+  mode?: "first" | "all" | "repeatUntil" | DecisionMode;
+  inputs?: string[] | Record<string, string>;
   provider?: string;
   instructions?: string;
+  maxIterations?: number;
+  maxItems?: number;
+  workflowId?: string;
+  body?: { nodes: SnapshotNode[]; edges: { id: string; from: string; to: string }[] };
 }
 
 export interface WorkflowSnapshot {
@@ -81,7 +94,7 @@ export function toRoutingGraph(snapshot: WorkflowSnapshot): {
       type: node.type,
       ...(node.branches === undefined ? {} : { branches: node.branches }),
       ...(typeof node.mode === "string" ? { mode: node.mode } : {}),
-      ...(node.inputs === undefined ? {} : { inputs: node.inputs }),
+      ...(Array.isArray(node.inputs) ? { inputs: node.inputs } : {}),
     })),
     edges: snapshot.graph.edges,
   };
@@ -107,6 +120,8 @@ interface NodeData extends Record<string, unknown> {
   approvalRequestId: string | null;
   approvalAttempt: number | null;
   approvalGeneration: number | null;
+  /** Terminal loop outcome from the durable controller; null while running or legacy-unknown. */
+  loopOutcome: "condition_met" | "iteration_limit" | null;
 }
 
 const NODE_W = 184;
@@ -139,6 +154,9 @@ function NodeIcon({ kind }: { kind: string }) {
   if (kind === "gate") return <GitBranch size={12} aria-hidden="true" />;
   if (kind === "join") return <GitMerge size={12} aria-hidden="true" />;
   if (kind === "approval") return <ShieldCheck size={12} aria-hidden="true" />;
+  if (kind === "loop") return <Repeat size={12} aria-hidden="true" />;
+  if (kind === "foreach") return <ListOrdered size={12} aria-hidden="true" />;
+  if (kind === "workflow") return <Files size={12} aria-hidden="true" />;
   return <Flag size={12} aria-hidden="true" />;
 }
 
@@ -305,6 +323,13 @@ function WorkflowNode({ data }: NodeProps<Node<NodeData>>) {
                 .join(" ")}`}
         </div>
       ) : null}
+      {data.kind === "loop" && data.loopOutcome !== null ? (
+        <div className="flow-node-route" data-testid={`run-loop-outcome-${String(data.id)}`}>
+          {data.loopOutcome === "iteration_limit"
+            ? "exhausted · iteration limit reached"
+            : "success · condition met"}
+        </div>
+      ) : null}
       {data.kind === "approval" && data.approvalCanAct ? <ApprovalNodeActions data={data} /> : null}
       <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
     </div>
@@ -378,6 +403,12 @@ function subtitle(node: SnapshotNode): string {
   if (node.provider) {
     const short = (node.instructions ?? "").trim().slice(0, 32);
     return short === "" ? node.provider : `${node.provider} · ${short}`;
+  }
+  if (node.type === "foreach") return `sequential · max ${node.maxItems ?? 1000} items`;
+  if (node.type === "workflow") return node.workflowId ?? "Run workflow";
+  if (node.type === "loop") {
+    const max = typeof node.maxIterations === "number" ? node.maxIterations : null;
+    return max === null ? "repeat until" : `repeat ≤${max}`;
   }
   return "";
 }
@@ -479,7 +510,12 @@ export function RunCanvas({
           id: node.id,
           name: node.name,
           kind: node.type,
-          subtitle: subtitle(node),
+          subtitle:
+            node.type === "foreach" && exec?.foreach
+              ? `${exec.foreach.processed}/${exec.foreach.total} items · ${exec.foreach.failed + exec.foreach.rejected} unsuccessful`
+              : node.type === "workflow" && exec?.workflow?.childRunId
+                ? `child · ${exec.workflow.status ?? "running"}`
+                : subtitle(node),
           status,
           runStatus: view.status,
           selected: selectedPath === node.id,
@@ -491,6 +527,7 @@ export function RunCanvas({
           decisionBranch: exec?.decision?.routing.branch ?? null,
           decisionReason: exec?.decision?.routing.reason ?? null,
           decisionHandles: node.type === "decision" ? decisionHandlesFor(node) : [],
+          loopOutcome: node.type === "loop" ? loopTerminalOutcome(exec?.loop) : null,
           runId,
           approvalCanAct: canAct,
           approvalRequestId:
@@ -522,11 +559,19 @@ export function RunCanvas({
       const className = edgeClass(state, targetStatus);
       const animated = className === "live" && !isTerminalRunStatus(view.status);
       const dead = state === "dead";
+      const sourceNode = snapshot.graph.nodes.find((node) => node.id === source);
+      const loopLabel =
+        sourceNode?.type === "loop"
+          ? edge.from === `${source}.${LOOP_EXHAUSTED_HANDLE}`
+            ? "exhausted"
+            : "success"
+          : undefined;
       return {
         id: edge.id,
         source,
         target,
         type: "smoothstep",
+        ...(loopLabel === undefined ? {} : { label: loopLabel }),
         animated,
         className,
         ariaLabel: `${edge.id} ${state}`,

@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { constants, promises as fs } from "node:fs";
 import { join } from "node:path";
+import { isWindowsPrivatePath } from "@devchestra/adapters";
 import { DevChestraError } from "@devchestra/core";
 import { processAlive, processIdentity } from "./lock.js";
 
@@ -56,7 +57,9 @@ export function isServerMetadata(value: unknown): value is ServerMetadata {
   );
 }
 
-function ownerOnly(stat: { mode: number; uid: number }): string | null {
+function ownerOnly(stat: { mode: number; uid: number }, file: string): string | null {
+  if (process.platform === "win32")
+    return isWindowsPrivatePath(file) ? null : "metadata Windows ACL is not owner-only";
   if ((stat.mode & 0o077) !== 0) return "metadata is not owner-only (expected mode 0600)";
   const uid = process.getuid?.();
   if (uid !== undefined && stat.uid !== uid) return "metadata is owned by another user";
@@ -78,7 +81,7 @@ export async function readServerMetadata(dataDir: string): Promise<MetadataRead>
   if (!stat.isFile()) {
     return { status: "unsafe", reason: "metadata path is not a regular file" };
   }
-  const mode = ownerOnly(stat);
+  const mode = ownerOnly(stat, file);
   if (mode !== null) return { status: "unsafe", reason: mode };
 
   let handle: Awaited<ReturnType<typeof fs.open>>;
@@ -90,7 +93,7 @@ export async function readServerMetadata(dataDir: string): Promise<MetadataRead>
   try {
     const opened = await handle.stat();
     if (!opened.isFile()) return { status: "unsafe", reason: "metadata is not a regular file" };
-    const addressed = ownerOnly(opened);
+    const addressed = ownerOnly(opened, file);
     if (addressed !== null) return { status: "unsafe", reason: addressed };
     const text = await handle.readFile("utf8");
     let parsed: unknown;

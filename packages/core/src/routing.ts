@@ -1,4 +1,5 @@
-import type { NodeKind } from "./events.js";
+import type { LoopOutcome, NodeKind } from "./events.js";
+import { loopTerminalOutcome } from "./reducer-types.js";
 import type { ExecStatus } from "./transitions.js";
 
 /** Derived edge state from spec 12.4. Edges are never stored. */
@@ -37,7 +38,18 @@ export interface RoutingExecutionState {
   // callers pass run views straight in without mapping.
   approvalDecision?: { decision: "approve" | "reject"; requestId?: string | null } | null;
   decision?: { routing: { branch: string | null } } | null;
+  /**
+   * Durable loop controller (ExecView.loop passes straight in). A succeeded
+   * loop with no controller or no terminal round is a legacy success.
+   */
+  loop?: {
+    rounds: readonly { done: boolean; outcome?: LoopOutcome | null }[];
+  } | null;
+  workflow?: { status?: string | null } | null;
 }
+
+/** Source handle of a loop's iteration-budget-exhausted output. */
+export const LOOP_EXHAUSTED_HANDLE = "exhausted";
 
 export interface RoutingView {
   /** Keyed by edge id. */
@@ -96,12 +108,36 @@ function edgeState(
     const chosen = execution?.decision?.routing.branch ?? null;
     return chosen !== null && source.handle === chosen ? "active" : "dead";
   }
+  if (node?.type === "loop") {
+    // Plain endpoint = condition met (and every legacy loop); `.exhausted`
+    // activates only when the durable terminal round hit the iteration limit.
+    const exhausted = loopTerminalOutcome(execution?.loop) === "iteration_limit";
+    return (source.handle === LOOP_EXHAUSTED_HANDLE) === exhausted ? "active" : "dead";
+  }
   if (node?.type === "approval") {
     const decision = execution?.approvalDecision?.decision;
     if (decision !== "approve" && decision !== "reject") return "dead";
     const isRejected = decision === "reject";
     if (source.handle === "rejected") return isRejected ? "active" : "dead";
     return isRejected ? "dead" : "active";
+  }
+  if (node?.type === "workflow") {
+    // Plain endpoint = child succeeded; `.failed` = child failed/rejected.
+    // Cancelled children never route — the parent fails/cancels instead.
+    const status = (execution as { workflow?: { status?: string | null } | null })?.workflow
+      ?.status;
+    if (source.handle === "failed")
+      return status === "failed" || status === "rejected" ? "active" : "dead";
+    return status === "succeeded"
+      ? "active"
+      : status === null || status === undefined || status === "running"
+        ? "pending"
+        : "dead";
+  }
+  if (node?.type === "foreach") {
+    // Foreach with onItemFailure=stop fails like a normal node; continue always
+    // succeeds (failures recorded per-item). Routing resolves after success.
+    return "active";
   }
   return "active";
 }

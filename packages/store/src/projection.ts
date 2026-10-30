@@ -135,11 +135,29 @@ export function normalizeCachedView(view: RunView): RunView {
       joinResolution?: ExecView["joinResolution"];
       approvalRequest?: ExecView["approvalRequest"];
       approvalDecision?: ExecView["approvalDecision"];
+      decision?: ExecView["decision"];
+      loop?: ExecView["loop"];
     };
     if (legacy.gateDecision === undefined) legacy.gateDecision = null;
     if (legacy.joinResolution === undefined) legacy.joinResolution = null;
     if (legacy.approvalRequest === undefined) legacy.approvalRequest = null;
     if (legacy.approvalDecision === undefined) legacy.approvalDecision = null;
+    if (legacy.decision === undefined) legacy.decision = null;
+    if (legacy.loop === undefined) legacy.loop = null;
+    if ((legacy as { workflow?: unknown }).workflow === undefined)
+      (legacy as { workflow: null }).workflow = null;
+    if ((legacy as { foreach?: unknown }).foreach === undefined)
+      (legacy as { foreach: null }).foreach = null;
+    if (legacy.loop !== null && legacy.loop !== undefined) {
+      const loop = legacy.loop as unknown as Record<string, unknown>;
+      if (loop.parentRef === undefined) loop.parentRef = null;
+      if (Array.isArray(loop.rounds)) {
+        for (const round of loop.rounds as Record<string, unknown>[]) {
+          if (round.outcome === undefined)
+            round.outcome = round.done === true ? "condition_met" : null;
+        }
+      }
+    }
   }
   return view;
 }

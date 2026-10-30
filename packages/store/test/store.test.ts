@@ -18,6 +18,7 @@ import Database from "better-sqlite3";
 import { afterEach, describe, expect, it } from "vitest";
 import { nodeSqliteDriver } from "../src/driver-node-sqlite.js";
 import { openStore, type Store } from "../src/index.js";
+import { MIGRATIONS } from "../src/migrate.js";
 
 interface Harness {
   dir: string;
@@ -322,7 +323,7 @@ describe("migrations", () => {
     store.close();
 
     const upgraded = new Database(file, { readonly: true });
-    expect(upgraded.pragma("user_version", { simple: true })).toBe(5);
+    expect(upgraded.pragma("user_version", { simple: true })).toBe(MIGRATIONS.length);
     const generationColumns = (
       upgraded.pragma("table_info(process_generations)") as { name: string }[]
     ).map((column) => column.name);

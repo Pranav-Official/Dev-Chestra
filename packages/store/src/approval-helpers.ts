@@ -1,4 +1,10 @@
-import type { ExecutionIdentity } from "@devchestra/core";
+import {
+  type ExecutionIdentity,
+  isRecord,
+  type Path,
+  parsePath,
+  type Segment,
+} from "@devchestra/core";
 import { fail } from "./util.js";
 
 export function validateMessage(m: string): string {
@@ -39,16 +45,38 @@ export function validateCriteria(c: string[] | undefined): string[] | null {
 export function stableRequestId(id: ExecutionIdentity): string {
   return `${id.runId}:${id.path}:${id.attempt}:${id.generation}`;
 }
-export function hasRejectedEdge(snapshot: unknown, nodeId: string): boolean {
-  const s = snapshot as { graph?: { edges?: { from?: string }[] } } | null;
-  if (s === null || typeof s !== "object")
+function snapshotGraphAt(snapshot: unknown, segments: readonly Segment[]): unknown {
+  if (!isRecord(snapshot))
     fail("E_INTERNAL", "Stored run snapshot is corrupt; refusing to resolve approval");
-  const graph = s.graph;
-  if (graph === null || typeof graph !== "object" || graph === undefined)
+  let graph = snapshot.graph;
+  // Each round segment enters that controller's body graph.
+  for (let i = 0; i < segments.length - 1; i += 1) {
+    const seg = segments[i];
+    if (!seg || seg.round === undefined)
+      fail("E_INTERNAL", "Stored loop execution path is corrupt");
+    if (!isRecord(graph)) fail("E_INTERNAL", "Stored run snapshot graph is corrupt");
+    const nodes = graph.nodes;
+    if (!Array.isArray(nodes)) fail("E_INTERNAL", "Stored run snapshot nodes are corrupt");
+    const node: unknown = nodes.find((entry) => isRecord(entry) && entry.id === seg.node);
+    if (!isRecord(node) || node.type !== "loop" || !isRecord(node.body))
+      fail("E_INTERNAL", "Stored loop controller or body is missing");
+    graph = node.body;
+  }
+  return graph;
+}
+
+export function hasRejectedEdge(snapshot: unknown, fullPath: Path): boolean {
+  const parsed = parsePath(fullPath);
+  if (!parsed.ok) fail("E_INTERNAL", "Stored execution path is corrupt", { path: fullPath });
+  const segments = parsed.value;
+  const last = segments.at(-1);
+  if (!last) fail("E_INTERNAL", "Stored execution path is empty");
+  const graph = snapshotGraphAt(snapshot, segments);
+  if (typeof graph !== "object" || graph === null)
     fail("E_INTERNAL", "Stored run snapshot graph is corrupt");
   const edges = (graph as { edges?: unknown }).edges;
   if (!Array.isArray(edges)) fail("E_INTERNAL", "Stored run snapshot edges are corrupt");
-  const target = `${nodeId}.rejected`;
+  const target = `${last.node}.rejected`;
   for (const e of edges) {
     if (e === null || typeof e !== "object")
       fail("E_INTERNAL", "Stored run snapshot edge is corrupt");

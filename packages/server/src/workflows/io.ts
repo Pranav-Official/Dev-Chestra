@@ -111,7 +111,8 @@ function checkedDirectory(path: string, root: string): void {
   }
 }
 
-function ensureDirectory(path: string, root: string): void {
+/** Create `path` (private) when absent, then require a real, contained directory. */
+export function ensureManagedDirectory(path: string, root: string): void {
   try {
     lstatSync(path);
   } catch {
@@ -132,8 +133,8 @@ export function managedPaths(
   const devchestra = join(root, ".devchestra");
   const workflows = join(devchestra, "workflows");
   if (options.create) {
-    ensureDirectory(devchestra, root);
-    ensureDirectory(workflows, root);
+    ensureManagedDirectory(devchestra, root);
+    ensureManagedDirectory(workflows, root);
   } else {
     try {
       checkedDirectory(devchestra, root);
@@ -327,16 +328,22 @@ function writeAll(fd: number, bytes: Buffer): void {
   }
 }
 
-function writeTemp(paths: ManagedPaths, id: string, bytes: Buffer): string {
-  checkedDirectory(paths.workflows, paths.root);
-  const temp = join(paths.workflows, `.${id}.${process.pid}.${randomBytes(8).toString("hex")}.tmp`);
+function writeTemp(
+  directory: string,
+  root: string,
+  stem: string,
+  bytes: Buffer,
+  mode: number,
+): string {
+  checkedDirectory(directory, root);
+  const temp = join(directory, `.${stem}.${process.pid}.${randomBytes(8).toString("hex")}.tmp`);
   const fd = openSync(
     temp,
     constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
-    0o600,
+    mode,
   );
   try {
-    if (realpathSync.native(paths.workflows) !== paths.workflows) {
+    if (realpathSync.native(directory) !== directory) {
       throw forbidden("Managed workflow directory changed during the write.");
     }
     writeAll(fd, bytes);
@@ -357,31 +364,52 @@ function syncDirectory(directory: string): void {
     fsyncSync(fd);
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
-    if (code !== "EINVAL" && code !== "ENOTSUP" && code !== "EISDIR") throw error;
+    if (
+      code !== "EINVAL" &&
+      code !== "ENOTSUP" &&
+      code !== "EISDIR" &&
+      !(process.platform === "win32" && code === "EPERM")
+    )
+      throw error;
   } finally {
     if (fd !== undefined) closeSync(fd);
   }
 }
 
-export function createManagedFile(paths: ManagedPaths, id: string, bytes: Buffer): ManagedFile {
-  const target = join(paths.workflows, `${id}.json`);
-  const temp = writeTemp(paths, id, bytes);
-  let linked = false;
+/**
+ * Atomically publish `bytes` as `directory/name` only when that name is free. The
+ * bytes are fsynced into a private temp, then hard-linked into place, so readers
+ * never see a partial file, concurrent writers cannot overwrite each other, and a
+ * symlink (even a dangling one) already at `name` is never followed. Returns false
+ * when the name is already taken; every other failure propagates.
+ */
+export function publishNewFile(
+  directory: string,
+  root: string,
+  name: string,
+  tempStem: string,
+  bytes: Buffer,
+  mode = 0o600,
+): boolean {
+  const temp = writeTemp(directory, root, tempStem, bytes, mode);
   try {
     try {
-      linkSync(temp, target);
-      linked = true;
+      linkSync(temp, join(directory, name));
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "EEXIST") {
-        throw new DevChestraError("E_CONFLICT", `Workflow '${id}' already exists.`);
-      }
+      if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
       throw error;
     }
-    syncDirectory(paths.workflows);
+    syncDirectory(directory);
+    return true;
   } finally {
     rmSync(temp, { force: true });
   }
-  if (!linked) throw new DevChestraError("E_INTERNAL", "Workflow was not created.");
+}
+
+export function createManagedFile(paths: ManagedPaths, id: string, bytes: Buffer): ManagedFile {
+  if (!publishNewFile(paths.workflows, paths.root, `${id}.json`, id, bytes)) {
+    throw new DevChestraError("E_CONFLICT", `Workflow '${id}' already exists.`);
+  }
   return committedFile(paths, id, bytes);
 }
 
@@ -393,7 +421,7 @@ export function replaceManagedFile(
 ): ManagedFile {
   const current = readManagedFile(paths, id);
   if (current.etag !== expectedEtag) throw conflict(current.etag);
-  const temp = writeTemp(paths, id, bytes);
+  const temp = writeTemp(paths.workflows, paths.root, id, bytes, 0o600);
   let committed = false;
   try {
     // Re-check immediately before the rename: an ordinary external edit between

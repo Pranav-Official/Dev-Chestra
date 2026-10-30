@@ -1,6 +1,6 @@
-import type { Issue, WorkflowNode } from "@devchestra/schema";
+import type { Edge, Issue, WorkflowNode } from "@devchestra/schema";
 import { AlertTriangle, Info, Pickaxe } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "../../styles/editor-inspector.css";
 import { AgentForm } from "./AgentForm.js";
 import { ApprovalForm } from "./ApprovalForm.js";
@@ -8,14 +8,18 @@ import { BufferContext } from "./BufferContext.js";
 import { contentSignature } from "./contentSignature.js";
 import { DecisionForm } from "./DecisionForm.js";
 import { EndForm } from "./EndForm.js";
+import { ForEachForm } from "./ForEachForm.js";
+import { PickerScopeContext } from "./fields/VariablePicker.js";
 import { GateForm } from "./GateForm.js";
 import { issuesForNode, summaryIssues } from "./issues.js";
 import { JoinForm } from "./JoinForm.js";
+import { LoopForm } from "./LoopForm.js";
 import { NodeHeader } from "./NodeHeader.js";
 import { InspectorSection } from "./Section.js";
 import { ShellForm } from "./ShellForm.js";
 import { StartForm } from "./StartForm.js";
 import type { BufferValidity, InspectorProps, PatchOf } from "./types.js";
+import { WorkflowForm } from "./WorkflowForm.js";
 
 function NodeIssues({ issues }: { issues: readonly Issue[] }) {
   if (issues.length === 0) return null;
@@ -45,14 +49,123 @@ function NodeIssues({ issues }: { issues: readonly Issue[] }) {
   );
 }
 
+function renderBodyNode(
+  bodyNode: WorkflowNode,
+  bodyIssues: readonly Issue[],
+  onBodyPatch: (patch: Partial<WorkflowNode>) => void,
+  bodyEdges: readonly Edge[],
+  onBodyRouting: (patch: Partial<WorkflowNode>, removeEdgeIds?: readonly string[]) => void,
+  projectId?: string,
+): ReactNode {
+  // Each wrapper converts the form's narrow patch to the union patch with the
+  // same unknown hop Inspector.emit uses (PatchOf permits explicit undefined for
+  // field removal; Partial under exactOptionalPropertyTypes does not).
+  switch (bodyNode.type) {
+    case "start":
+      return (
+        <StartForm
+          node={bodyNode}
+          issues={bodyIssues}
+          onPatch={(p) => onBodyPatch(p as unknown as Partial<WorkflowNode>)}
+          bodyMode
+        />
+      );
+    case "agent":
+      return (
+        <AgentForm
+          node={bodyNode}
+          issues={bodyIssues}
+          projectId={projectId}
+          onPatch={(p) => onBodyPatch(p as unknown as Partial<WorkflowNode>)}
+        />
+      );
+    case "shell":
+      return (
+        <ShellForm
+          node={bodyNode}
+          issues={bodyIssues}
+          onPatch={(p) => onBodyPatch(p as unknown as Partial<WorkflowNode>)}
+        />
+      );
+    case "gate":
+      return (
+        <GateForm
+          node={bodyNode}
+          issues={bodyIssues}
+          projectId={projectId}
+          edges={bodyEdges}
+          onPatch={(p) => onBodyPatch(p as unknown as Partial<WorkflowNode>)}
+          onRoutingChange={(p, r) => onBodyRouting(p as unknown as Partial<WorkflowNode>, r)}
+        />
+      );
+    case "join":
+      return (
+        <JoinForm
+          node={bodyNode}
+          issues={bodyIssues}
+          edges={bodyEdges}
+          onPatch={(p) => onBodyPatch(p as unknown as Partial<WorkflowNode>)}
+          onRoutingChange={(p, r) => onBodyRouting(p as unknown as Partial<WorkflowNode>, r)}
+        />
+      );
+    case "approval":
+      return (
+        <ApprovalForm
+          node={bodyNode}
+          issues={bodyIssues}
+          onPatch={(p) => onBodyPatch(p as unknown as Partial<WorkflowNode>)}
+        />
+      );
+    case "decision":
+      return (
+        <DecisionForm
+          node={bodyNode}
+          issues={bodyIssues}
+          projectId={projectId}
+          edges={bodyEdges}
+          onPatch={(p) => onBodyPatch(p as unknown as Partial<WorkflowNode>)}
+          onRoutingChange={(p, r) => onBodyRouting(p as unknown as Partial<WorkflowNode>, r)}
+        />
+      );
+    case "end":
+      return (
+        <EndForm
+          node={bodyNode}
+          issues={bodyIssues}
+          onPatch={(p) => onBodyPatch(p as unknown as Partial<WorkflowNode>)}
+          bodyMode
+        />
+      );
+    case "workflow":
+      return (
+        <WorkflowForm
+          node={bodyNode}
+          issues={bodyIssues}
+          projectId={projectId}
+          onPatch={(patch) => onBodyPatch(patch as Partial<WorkflowNode>)}
+        />
+      );
+    case "loop":
+    case "foreach":
+      return null;
+    default: {
+      const _exhaustive: never = bodyNode;
+      return _exhaustive;
+    }
+  }
+}
+
 export function Inspector({
   node,
   projectId,
   issues,
   onPatch,
+  graph,
   edges,
   onRoutingChange,
   onBufferValidityChange,
+  loopBodyOpenRequested,
+  onLoopBodyOpenHandled,
 }: InspectorProps) {
   const callbackRef = useRef(onBufferValidityChange);
   callbackRef.current = onBufferValidityChange;
@@ -143,14 +256,20 @@ export function Inspector({
   const summary = node === null ? [] : summaryIssues(issues, node.id);
 
   return (
-    <aside className="inspector" aria-label="Node inspector" data-testid="inspector">
-      {node === null ? (
-        <div className="inspector-empty" data-testid="inspector-empty">
-          <Pickaxe size={20} aria-hidden="true" />
-          <p>Select a node to edit its settings.</p>
-        </div>
-      ) : (
-        <>
+    <PickerScopeContext.Provider
+      value={
+        graph === undefined
+          ? {}
+          : { parentGraph: graph as unknown as import("@devchestra/schema").Graph }
+      }
+    >
+      <aside className="inspector" aria-label="Node inspector" data-testid="inspector">
+        {node === null ? (
+          <div className="inspector-empty" data-testid="inspector-empty">
+            <Pickaxe size={20} aria-hidden="true" />
+            <p>Select a node to edit its settings.</p>
+          </div>
+        ) : (
           <div className="inspector-body" key={session}>
             <BufferContext.Provider value={registry}>
               <NodeHeader node={node} issues={nodeIssues} onPatch={emit} />
@@ -183,12 +302,8 @@ export function Inspector({
                     onRoutingChange={emitRouting}
                   />
                 ) : null}
-                {(node as { type: string }).type === "approval" ? (
-                  <ApprovalForm
-                    node={node as unknown as never}
-                    issues={nodeIssues}
-                    onPatch={emit as unknown as never}
-                  />
+                {node.type === "approval" ? (
+                  <ApprovalForm node={node} issues={nodeIssues} onPatch={emit} />
                 ) : null}
                 {node.type === "decision" ? (
                   <DecisionForm
@@ -200,15 +315,66 @@ export function Inspector({
                     onRoutingChange={emitRouting}
                   />
                 ) : null}
+                {node.type === "workflow" ? (
+                  <WorkflowForm
+                    node={node}
+                    issues={nodeIssues}
+                    onPatch={emit}
+                    projectId={projectId}
+                  />
+                ) : null}
+                {node.type === "foreach" ? (
+                  <ForEachForm
+                    node={node}
+                    issues={nodeIssues}
+                    onPatch={emit}
+                    openRequested={loopBodyOpenRequested}
+                    onOpenHandled={onLoopBodyOpenHandled}
+                    renderBodyInspector={(
+                      bodyNode,
+                      bodyIssues,
+                      onBodyPatch,
+                      bodyEdges,
+                      onBodyRouting,
+                    ) =>
+                      renderBodyNode(
+                        bodyNode,
+                        bodyIssues,
+                        onBodyPatch,
+                        bodyEdges,
+                        onBodyRouting,
+                        projectId,
+                      )
+                    }
+                  />
+                ) : null}
                 {node.type === "end" ? (
                   <EndForm node={node} issues={nodeIssues} onPatch={emit} />
+                ) : null}
+                {node.type === "loop" ? (
+                  <LoopForm
+                    openRequested={loopBodyOpenRequested}
+                    onOpenHandled={onLoopBodyOpenHandled}
+                    node={node}
+                    issues={nodeIssues}
+                    onPatch={emit}
+                    renderBodyInspector={(
+                      bodyNode,
+                      _bodyIssues,
+                      onBodyPatch,
+                      bodyEdges,
+                      onBodyRouting,
+                    ) =>
+                      renderBodyNode(bodyNode, [], onBodyPatch, bodyEdges, onBodyRouting, projectId)
+                    }
+                  />
                 ) : null}
                 <NodeIssues issues={summary} />
               </div>
             </BufferContext.Provider>
           </div>
-        </>
-      )}
-    </aside>
+        )}
+      </aside>
+    </PickerScopeContext.Provider>
   );
 }

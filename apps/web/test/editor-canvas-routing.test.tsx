@@ -1,5 +1,5 @@
 import type { Edge, WorkflowFile, WorkflowNode } from "@devchestra/schema";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { EditorCanvas } from "../src/editor/canvas/EditorCanvas.js";
 import { NodePalette } from "../src/editor/canvas/Palette.js";
@@ -51,6 +51,7 @@ describe("routing canvas", () => {
         onAdd={() => undefined}
       />,
     );
+    fireEvent.click(screen.getByTestId("palette-toggle"));
     expect(screen.getByTestId("palette-add-gate")).toHaveTextContent("Gate");
     expect(screen.getByTestId("palette-add-join")).toHaveTextContent("Join");
   });

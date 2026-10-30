@@ -1,5 +1,6 @@
 import { DevChestraError } from "./error.js";
 import type { EventEnvelope, KnownEventType } from "./events.js";
+import { canonicalJson } from "./hash.js";
 import {
   assertIdentity,
   assertRunCompletionLegal,
@@ -11,7 +12,30 @@ import {
   withEventId,
 } from "./reducer-support.js";
 import type { RunView } from "./reducer-types.js";
+import {
+  type LoopView,
+  loopDecisionProblem,
+  loopRoundOutcome,
+  MAX_LOOP_HISTORY,
+} from "./reducer-types.js";
 import { assertRunTransition, type RunStatus } from "./transitions.js";
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function checkLoopIteration(iteration: unknown): number {
+  if (!Number.isSafeInteger(iteration) || (iteration as number) < 1) {
+    throw internal("Loop iteration must be a positive integer", { iteration });
+  }
+  const n = iteration as number;
+  if (n > MAX_LOOP_HISTORY) {
+    throw internal(`Loop iteration exceeds the ${MAX_LOOP_HISTORY} history bound`, {
+      iteration: n,
+    });
+  }
+  return n;
+}
 
 function fenceOptionalIdentity(
   exec: { attempt: number; generation: number },
@@ -459,6 +483,332 @@ export function reduceLifecycleEvent(view: RunView, envelope: EventEnvelope): Ru
           eventId: envelope.id,
         },
       }));
+    }
+
+    case "loop.started": {
+      const payload = (envelope as EventEnvelope<"loop.started">).payload;
+      const exec = view.executions[key];
+      if (exec === undefined) return withEventId(view, envelope);
+      fenceOptionalIdentity(exec, type, payload);
+      const iteration = checkLoopIteration(payload.iteration);
+      if (iteration !== 1) {
+        throw internal("Loop start iteration must be 1", { path, iteration });
+      }
+      const hasParent = payload.parent !== undefined;
+      const hasParentRef = payload.parentRef !== undefined;
+      if ((hasParent ? 1 : 0) + (hasParentRef ? 1 : 0) !== 1) {
+        throw internal("Loop start must carry exactly one of parent or parentRef", { path });
+      }
+      if (hasParentRef) {
+        const ref = payload.parentRef as { kind?: unknown; captureId?: unknown };
+        if (
+          ref.kind !== "devchestra.execution-context/v1" ||
+          typeof ref.captureId !== "string" ||
+          ref.captureId.length === 0
+        ) {
+          throw internal("Loop parentRef must be a tagged execution-context reference", { path });
+        }
+      }
+      if (hasParent && !isPlainObject(payload.parent)) {
+        throw internal("Loop parent must be a JSON object", { path });
+      }
+      if (!isPlainObject(payload.state)) {
+        throw internal("Loop state must be a JSON object", { path });
+      }
+      if (exec.loop !== null) {
+        const cur = exec.loop;
+        const sameRef =
+          (cur.parentRef?.captureId ?? null) ===
+          (hasParentRef ? (payload.parentRef as { captureId: string }).captureId : null);
+        const sameParent =
+          hasParentRef || cur.parentRef !== null
+            ? sameRef
+            : canonicalJson(cur.parent) === canonicalJson(payload.parent);
+        const same =
+          cur.iteration === 1 &&
+          sameParent &&
+          canonicalJson(cur.state) === canonicalJson(payload.state) &&
+          cur.rounds.length === 0;
+        // Idempotent replay: identical start after run terminal must not change status.
+        if (same) return withEventId(view, envelope);
+        throw new DevChestraError("E_CONFLICT", "Loop controller is immutable once started", {
+          details: { path, existing: cur, received: payload },
+        });
+      }
+      if (exec.status !== "running" && exec.status !== "validating") {
+        throw internal("Loop start arrived in an unexpected status", {
+          path,
+          status: exec.status,
+        });
+      }
+      const loop: LoopView = {
+        iteration: 1,
+        parent: hasParentRef
+          ? {}
+          : ({ ...(payload.parent as Record<string, unknown>) } as LoopView["parent"]),
+        parentRef: hasParentRef
+          ? {
+              kind: "devchestra.execution-context/v1",
+              captureId: (payload.parentRef as { captureId: string }).captureId,
+            }
+          : null,
+        state: { ...(payload.state as Record<string, unknown>) } as LoopView["state"],
+        rounds: [],
+      };
+      return withEventId(
+        updateExec(view, key, (current) => ({ ...current, loop })),
+        envelope,
+      );
+    }
+
+    case "loop.iteration.decided": {
+      const payload = (envelope as EventEnvelope<"loop.iteration.decided">).payload;
+      const exec = view.executions[key];
+      if (exec === undefined) return withEventId(view, envelope);
+      fenceOptionalIdentity(exec, type, payload);
+      const iteration = checkLoopIteration(payload.iteration);
+      if (typeof payload.done !== "boolean") {
+        throw internal("Loop decision done must be boolean", { path });
+      }
+      if (payload.nextState !== undefined && !isPlainObject(payload.nextState)) {
+        throw internal("Loop nextState must be a JSON object when present", { path });
+      }
+      const problem = loopDecisionProblem(payload);
+      if (problem !== null) throw internal(problem, { path });
+      if (exec.loop === null) {
+        throw internal("Loop decision arrived before loop.started", { path });
+      }
+      const outcome = loopRoundOutcome(payload);
+      const existing = exec.loop.rounds.find((round) => round.iteration === iteration);
+      if (existing !== undefined) {
+        const same =
+          canonicalJson(existing.result) === canonicalJson(payload.result) &&
+          existing.done === payload.done &&
+          loopRoundOutcome(existing) === outcome &&
+          canonicalJson(existing.nextState ?? null) === canonicalJson(payload.nextState ?? null);
+        // Idempotent replay even after run terminal — do not change status again.
+        if (same) return withEventId(view, envelope);
+        throw new DevChestraError("E_CONFLICT", "Loop round decision is immutable", {
+          details: { path, existing, received: payload },
+        });
+      }
+      if (exec.loop.rounds.some((round) => loopRoundOutcome(round) !== null)) {
+        throw new DevChestraError("E_CONFLICT", "Loop is already finished; no further decisions", {
+          details: { path, iteration },
+        });
+      }
+      if (iteration !== exec.loop.iteration) {
+        throw new DevChestraError("E_CONFLICT", "Stale or future loop iteration", {
+          details: { path, expected: exec.loop.iteration, received: iteration },
+        });
+      }
+      if (exec.status !== "running" && exec.status !== "validating") {
+        throw internal("Loop decision arrived in an unexpected status", {
+          path,
+          status: exec.status,
+        });
+      }
+      const round = {
+        iteration,
+        result: payload.result,
+        done: payload.done,
+        nextState:
+          payload.nextState === undefined
+            ? null
+            : ({ ...(payload.nextState as Record<string, unknown>) } as LoopView["state"]),
+        outcome,
+        eventId: envelope.id,
+      };
+      const rounds = [...exec.loop.rounds, round].slice(-MAX_LOOP_HISTORY);
+      // Terminal rounds (condition met or iteration budget exhausted) leave the
+      // controller's iteration in place for idempotent publication.
+      const loop: LoopView =
+        outcome !== null
+          ? { ...exec.loop, rounds }
+          : {
+              iteration: iteration + 1,
+              parent: exec.loop.parent,
+              parentRef: exec.loop.parentRef,
+              state:
+                payload.nextState === undefined
+                  ? exec.loop.state
+                  : ({ ...(payload.nextState as Record<string, unknown>) } as LoopView["state"]),
+              rounds,
+            };
+      return withEventId(
+        updateExec(view, key, (current) => ({ ...current, loop })),
+        envelope,
+      );
+    }
+
+    case "workflow.linked": {
+      const payload = (envelope as EventEnvelope<"workflow.linked">).payload;
+      const exec = view.executions[key];
+      if (exec === undefined) return withEventId(view, envelope);
+      fenceOptionalIdentity(exec, type, payload);
+      if (typeof payload.childRunId !== "string" || payload.childRunId.length === 0) {
+        throw internal("workflow.linked childRunId must be a non-empty string", { path });
+      }
+      if (typeof payload.workflowId !== "string" || payload.workflowId.length === 0) {
+        throw internal("workflow.linked workflowId must be a non-empty string", { path });
+      }
+      if (exec.workflow !== null) {
+        const cur = exec.workflow;
+        const same = cur.childRunId === payload.childRunId && cur.workflowId === payload.workflowId;
+        if (same) return withEventId(view, envelope);
+        throw new DevChestraError("E_CONFLICT", "Workflow child link is immutable", {
+          details: { path, existing: cur, received: payload },
+        });
+      }
+      if (exec.status !== "running" && exec.status !== "validating") {
+        throw internal("Workflow link arrived in an unexpected status", {
+          path,
+          status: exec.status,
+        });
+      }
+      return updateExec(view, key, (current) => ({
+        ...current,
+        workflow: {
+          childRunId: payload.childRunId,
+          workflowId: payload.workflowId,
+          status: "running",
+          resultRef: null,
+          eventId: envelope.id,
+        },
+      }));
+    }
+
+    case "workflow.completed": {
+      const payload = (envelope as EventEnvelope<"workflow.completed">).payload;
+      const exec = view.executions[key];
+      if (exec === undefined) return withEventId(view, envelope);
+      fenceOptionalIdentity(exec, type, payload);
+      const valid = ["succeeded", "failed", "rejected", "cancelled"];
+      if (!valid.includes(payload.status)) {
+        throw internal("workflow.completed status must be a terminal child status", { path });
+      }
+      if (exec.workflow === null) {
+        throw internal("workflow.completed arrived before workflow.linked", { path });
+      }
+      if (exec.workflow.childRunId !== payload.childRunId) {
+        throw new DevChestraError("E_CONFLICT", "Stale workflow completion for another child", {
+          details: { path, expected: exec.workflow.childRunId, received: payload.childRunId },
+        });
+      }
+      if (exec.workflow.status !== "running") {
+        const same =
+          exec.workflow.status === payload.status &&
+          (exec.workflow.resultRef ?? null) === (payload.resultRef ?? null);
+        if (same) return withEventId(view, envelope);
+        throw new DevChestraError("E_CONFLICT", "Workflow completion is immutable", {
+          details: { path },
+        });
+      }
+      if (exec.status !== "running" && exec.status !== "validating") {
+        throw internal("Workflow completion arrived in an unexpected status", {
+          path,
+          status: exec.status,
+        });
+      }
+      return updateExec(view, key, (current) => ({
+        ...current,
+        workflow: {
+          childRunId: payload.childRunId,
+          workflowId: current.workflow?.workflowId ?? null,
+          status: payload.status,
+          resultRef: payload.resultRef ?? null,
+          eventId: envelope.id,
+        },
+      }));
+    }
+
+    case "foreach.started": {
+      const payload = (envelope as EventEnvelope<"foreach.started">).payload;
+      const exec = view.executions[key];
+      if (exec === undefined) return withEventId(view, envelope);
+      fenceOptionalIdentity(exec, type, payload);
+      if (!Number.isSafeInteger(payload.total) || payload.total < 0) {
+        throw internal("foreach.started total must be a non-negative integer", { path });
+      }
+      if (payload.parentRef !== undefined) {
+        const ref = payload.parentRef as { kind?: unknown; captureId?: unknown };
+        if (
+          ref.kind !== "devchestra.execution-context/v1" ||
+          typeof ref.captureId !== "string" ||
+          ref.captureId.length === 0
+        ) {
+          throw internal("Foreach parentRef must be a tagged execution-context reference", {
+            path,
+          });
+        }
+      }
+      if (exec.foreach !== null) {
+        const cur = exec.foreach;
+        const same = cur.total === payload.total && cur.sourceId === payload.sourceId;
+        if (same) return withEventId(view, envelope);
+        throw new DevChestraError("E_CONFLICT", "Foreach controller is immutable once started", {
+          details: { path },
+        });
+      }
+      if (exec.status !== "running" && exec.status !== "validating") {
+        throw internal("Foreach start arrived in an unexpected status", {
+          path,
+          status: exec.status,
+        });
+      }
+      return updateExec(view, key, (current) => ({
+        ...current,
+        foreach: {
+          total: payload.total,
+          processed: 0,
+          succeeded: 0,
+          failed: 0,
+          rejected: 0,
+          resultsRef: payload.sourceId,
+          sourceId: payload.sourceId,
+          eventId: envelope.id,
+        },
+      }));
+    }
+
+    case "foreach.item.decided": {
+      const payload = (envelope as EventEnvelope<"foreach.item.decided">).payload;
+      const exec = view.executions[key];
+      if (exec === undefined) return withEventId(view, envelope);
+      fenceOptionalIdentity(exec, type, payload);
+      if (!Number.isSafeInteger(payload.index) || payload.index < 0) {
+        throw internal("foreach.item.decided index must be a non-negative integer", { path });
+      }
+      if (exec.foreach === null) {
+        throw internal("foreach.item.decided arrived before foreach.started", { path });
+      }
+      if (payload.index !== exec.foreach.processed) {
+        // Idempotent replay: same index already counted is checked by store;
+        // projection enforces strict ordering.
+        throw new DevChestraError("E_CONFLICT", "Stale or future foreach index", {
+          details: { path, expected: exec.foreach.processed, received: payload.index },
+        });
+      }
+      if (exec.status !== "running" && exec.status !== "validating") {
+        throw internal("Foreach item decision arrived in an unexpected status", {
+          path,
+          status: exec.status,
+        });
+      }
+      return updateExec(view, key, (current) => {
+        const cur = current.foreach;
+        if (cur === null) return current;
+        return {
+          ...current,
+          foreach: {
+            ...cur,
+            processed: cur.processed + 1,
+            succeeded: cur.succeeded + (payload.status === "succeeded" ? 1 : 0),
+            failed: cur.failed + (payload.status === "failed" ? 1 : 0),
+            rejected: cur.rejected + (payload.status === "rejected" ? 1 : 0),
+          },
+        };
+      });
     }
 
     // Reserved catalog events have no RunView effect in the P0 slice. Their

@@ -272,6 +272,60 @@ const edgeSchema = z.strictObject({
   ui: uiSchema.optional(),
 });
 
+const childWorkflowNodeSchema = z.strictObject({
+  ...nodeBase,
+  type: z.literal("workflow"),
+  workflowId: z.string(),
+  inputs: z.record(z.string(), z.string()),
+  output: z.record(z.string(), z.unknown()).optional(),
+});
+
+const bodyNodeUnion = z.discriminatedUnion("type", [
+  startNodeSchema,
+  agentNodeSchema,
+  shellNodeSchema,
+  gateNodeSchema,
+  joinNodeSchema,
+  approvalNodeSchema,
+  decisionNodeSchema,
+  childWorkflowNodeSchema,
+  endNodeSchema,
+]);
+
+const bodySchema = z.strictObject({
+  nodes: z.array(bodyNodeUnion),
+  edges: z.array(edgeSchema),
+});
+
+const loopNodeSchema = z.strictObject({
+  ...nodeBase,
+  type: z.literal("loop"),
+  mode: z.literal("repeatUntil"),
+  maxIterations: z.number(),
+  initialState: z.string().optional(),
+  nextState: z.string().optional(),
+  until: z.string(),
+  result: z.string(),
+  output: z.record(z.string(), z.unknown()),
+  body: bodySchema,
+});
+
+const foreachSourceSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("expression"), expression: z.string() }),
+  z.strictObject({ kind: z.literal("csv"), path: z.string() }),
+]);
+
+const foreachNodeSchema = z.strictObject({
+  ...nodeBase,
+  type: z.literal("foreach"),
+  source: foreachSourceSchema,
+  maxItems: z.number().optional(),
+  onItemFailure: z.enum(["stop", "continue"]).optional(),
+  body: bodySchema,
+  result: z.string(),
+  output: z.record(z.string(), z.unknown()),
+});
+
 const workflowSchema = z.strictObject({
   schemaVersion: z.literal(1),
   id: z.string(),
@@ -289,6 +343,9 @@ const workflowSchema = z.strictObject({
         joinNodeSchema,
         approvalNodeSchema,
         decisionNodeSchema,
+        loopNodeSchema,
+        foreachNodeSchema,
+        childWorkflowNodeSchema,
         endNodeSchema,
       ]),
     ),
@@ -304,6 +361,9 @@ const SUPPORTED_NODE_TYPES = new Set([
   "join",
   "approval",
   "decision",
+  "loop",
+  "foreach",
+  "workflow",
   "end",
 ]);
 const SUPPORTED_CLIS = new Set<string>([...PROD_CLIS]);
@@ -352,9 +412,34 @@ function precheck(raw: unknown): DevChestraError | undefined {
       if (typeof type === "string" && !SUPPORTED_NODE_TYPES.has(type)) {
         return new DevChestraError(
           "E_WORKFLOW_INVALID",
-          `Unsupported node type '${type}' at graph.nodes[${i}]. P1 supports: start, agent, shell, gate, join, approval, decision, end.`,
+          `Unsupported node type '${type}' at graph.nodes[${i}]. P1 supports: start, agent, shell, gate, join, approval, decision, loop, foreach, workflow, end.`,
           { details: { pointer: `/graph/nodes/${i}/type` } },
         );
+      }
+      if (type === "loop" || type === "foreach") {
+        const body = record(node.body);
+        const bodyNodes = body !== undefined ? body.nodes : undefined;
+        if (Array.isArray(bodyNodes)) {
+          for (let j = 0; j < bodyNodes.length; j += 1) {
+            const child = record(bodyNodes[j]);
+            if (child === undefined) continue;
+            const childType = child.type;
+            if (childType === "loop" || childType === "foreach") {
+              return new DevChestraError(
+                "E_WORKFLOW_INVALID",
+                `Nested controllers are not supported (${type} body node '${String(child.id ?? j)}' at graph.nodes[${i}].body.nodes[${j}] has type '${String(childType)}'). Use a separate workflow with a loop.`,
+                { details: { pointer: `/graph/nodes/${i}/body/nodes/${j}/type` } },
+              );
+            }
+            if (typeof childType === "string" && !SUPPORTED_NODE_TYPES.has(childType)) {
+              return new DevChestraError(
+                "E_WORKFLOW_INVALID",
+                `Unsupported node type '${childType}' at graph.nodes[${i}].body.nodes[${j}].`,
+                { details: { pointer: `/graph/nodes/${i}/body/nodes/${j}/type` } },
+              );
+            }
+          }
+        }
       }
       if (type === "agent") {
         const cli = node.cli;

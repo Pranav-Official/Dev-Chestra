@@ -278,6 +278,60 @@ export function mountWorkflowRoutes(app: Hono, deps: WorkflowRouteDeps): void {
     deps.validate("StartRunResponse", response);
     return c.json(response, 202);
   });
+
+  // Parent-child provenance (refs only, paginated, max 100/page). Child
+  // results resolve via run detail / outputs endpoints, never hydrated here.
+  app.get("/api/runs/:rid/children", async (c) => {
+    const runId = c.req.param("rid");
+    const found = await deps.store.getRun(runId);
+    if (found === null) return c.json(errorBody("E_NOT_FOUND", "Run not found."), 404);
+    const rawLimit = c.req.query("limit");
+    const limit = rawLimit === undefined ? 50 : Number(rawLimit);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+      return c.json(errorBody("E_VALIDATION", "limit must be between 1 and 100."), 400);
+    }
+    const cursor = c.req.query("cursor") ?? undefined;
+    if (cursor !== undefined && !/^\d{1,10}$/u.test(cursor)) {
+      return c.json(errorBody("E_VALIDATION", "cursor is invalid."), 400);
+    }
+    if (!deps.store.listRunChildren) {
+      return c.json(errorBody("E_NOT_SUPPORTED", "Run children inspection is unavailable."), 501);
+    }
+    const page = await deps.store.listRunChildren(runId, {
+      ...(cursor === undefined ? {} : { cursor }),
+      limit,
+    });
+    deps.validate("RunChildrenResponse", page);
+    return c.json(page);
+  });
+
+  // Foreach per-item refs (max 100/page). Per-item result values resolve via
+  // GET /api/runs/:rid/outputs/:outputId using the returned outputId.
+  app.get("/api/runs/:rid/foreach/:sourceId/items", async (c) => {
+    const runId = c.req.param("rid");
+    const sourceId = c.req.param("sourceId");
+    const found = await deps.store.getRun(runId);
+    if (found === null) return c.json(errorBody("E_NOT_FOUND", "Run not found."), 404);
+    const rawLimit = c.req.query("limit");
+    const limit = rawLimit === undefined ? 50 : Number(rawLimit);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+      return c.json(errorBody("E_VALIDATION", "limit must be between 1 and 100."), 400);
+    }
+    const cursor = c.req.query("cursor") ?? undefined;
+    if (cursor !== undefined && !/^\d{1,10}$/u.test(cursor)) {
+      return c.json(errorBody("E_VALIDATION", "cursor is invalid."), 400);
+    }
+    if (!deps.store.listForeachItems) {
+      return c.json(errorBody("E_NOT_SUPPORTED", "Foreach item inspection is unavailable."), 501);
+    }
+    const page = await deps.store.listForeachItems(runId, sourceId, {
+      ...(cursor === undefined ? {} : { cursor }),
+      limit,
+    });
+    if (page === null) return c.json(errorBody("E_NOT_FOUND", "Foreach source not found."), 404);
+    deps.validate("ForeachItemsResponse", page);
+    return c.json(page);
+  });
 }
 
 function errorResponse(status: 404, message: string): Response {

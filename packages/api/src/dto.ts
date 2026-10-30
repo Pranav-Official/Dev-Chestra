@@ -552,3 +552,72 @@ export const transcriptQuerySchema = strict({
 });
 
 export type TranscriptQuery = z.infer<typeof transcriptQuerySchema>;
+
+export interface OutputMetadata {
+  id: string;
+  runId: string;
+  path: string;
+  attempt: number;
+  generation: number;
+  kind: string;
+  hash: string;
+  bytes: number;
+  createdAt: number;
+}
+
+export const outputMetadataSchema = strict({
+  id: z.string(),
+  runId: z.string(),
+  path: z.string(),
+  attempt: z.number().int().positive(),
+  generation: z.number().int().positive(),
+  kind: z.string(),
+  hash: z.string(),
+  bytes: z.number().int().nonnegative(),
+  createdAt: z.number().int().nonnegative(),
+}) as unknown as z.ZodType<OutputMetadata>;
+
+export interface RunContextEntry {
+  path: string;
+  nodeId: string;
+  kind: string | null;
+  status: string;
+  attempt: number;
+  generation: number;
+  /** Enclosing loop round for body executions; controller iteration for loop controllers. */
+  loopRound: number | null;
+  output: { id: string; hash: string; bytes: number } | null;
+  /** Reference-backed parent capture id for loop controllers. */
+  captureId: string | null;
+}
+
+export const runContextEntrySchema = strict({
+  path: z.string(),
+  nodeId: z.string(),
+  kind: z.string().nullable(),
+  status: z.string(),
+  attempt: z.number().int().positive(),
+  generation: z.number().int().positive(),
+  loopRound: z.number().int().positive().nullable(),
+  output: z.strictObject({ id: z.string(), hash: z.string(), bytes: z.number().int().nonnegative() }).nullable(),
+  captureId: z.string().nullable(),
+}) as unknown as z.ZodType<RunContextEntry>;
+
+export interface RunContextResponse {
+  entries: RunContextEntry[];
+  nextCursor: string | null;
+}
+
+export const runContextResponseSchema = strict({
+  entries: z.array(runContextEntrySchema),
+  nextCursor: z.string().nullable(),
+}) as unknown as z.ZodType<RunContextResponse>;
+
+export const runContextQuerySchema = strict({
+  pathPrefix: z.string().max(4096).optional(),
+  status: z.string().max(64).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+  cursor: cursorQuerySchema,
+});
+
+export type RunContextQuery = z.infer<typeof runContextQuerySchema>;

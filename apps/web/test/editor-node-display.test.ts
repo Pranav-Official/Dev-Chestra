@@ -10,6 +10,7 @@ import type {
 } from "@devchestra/schema";
 import { describe, expect, it } from "vitest";
 import { handleSignature, subtitle } from "../src/editor/canvas/nodes.js";
+import { createDefaultNode } from "../src/editor/model/index.js";
 
 function start(params: StartNode["params"]): StartNode {
   return { id: "start", type: "start", name: "Start", params };
@@ -179,5 +180,10 @@ describe("handleSignature pins current output per node type", () => {
     expect(handleSignature(agent())).toBeNull();
     expect(handleSignature(shell())).toBeNull();
     expect(handleSignature(end())).toBeNull();
+  });
+
+  it("loop pins its success/exhausted output handles", () => {
+    const loop = createDefaultNode("loop", []);
+    expect(handleSignature(loop)).toBe(`loop:${loop.id}`);
   });
 });

@@ -8,6 +8,7 @@ import {
   isRecord,
   isRunWorkspaceBinding,
   type Path,
+  parsePath,
   type Result,
   type RunId,
   type RunStatus,
@@ -24,9 +25,14 @@ import {
 import { createNodeExpressionExecutor } from "@devchestra/schema/node";
 import type { AcceptedOutput, ExecutionRow, RunRecord, Store } from "@devchestra/store";
 import type { ScratchWorkspace } from "@devchestra/workspaces";
+import { ExecutionContextCache } from "./execution-context.js";
 import type { PlanNode, ScopeSource, WorkflowPlan } from "./graph-plan.js";
 import { stripUi } from "./hash-config.js";
+import { decisionScopeValue } from "./scope.js";
 import type { LinearChain } from "./sequence.js";
+
+export { decisionScopeValue } from "./scope.js";
+
 import type { EngineDeps } from "./types.js";
 
 export interface ActiveRunState {
@@ -44,10 +50,16 @@ export interface ActiveRunState {
 function workspaceModeFor(run: RunRecord, path: string): "scratch" | "worktree" {
   const snapshot = run.snapshot;
   const graph = isRecord(snapshot) ? snapshot.graph : undefined;
-  const nodes = isRecord(graph) ? graph.nodes : undefined;
-  const node = Array.isArray(nodes)
-    ? nodes.find((candidate) => isRecord(candidate) && candidate.id === path)
-    : undefined;
+  let nodes: unknown = isRecord(graph) ? graph.nodes : undefined;
+  let node: unknown;
+  const parsed = parsePath(path);
+  if (!parsed.ok) throw parsed.error;
+  for (const segment of parsed.value) {
+    node = Array.isArray(nodes)
+      ? nodes.find((candidate) => isRecord(candidate) && candidate.id === segment.node)
+      : undefined;
+    nodes = isRecord(node) && isRecord(node.body) ? node.body.nodes : undefined;
+  }
   const workspace = isRecord(node) ? node.workspace : undefined;
   if (!isRecord(workspace)) {
     throw new DevChestraError(
@@ -74,20 +86,6 @@ export function toDevChestraError(
   });
 }
 
-/**
- * What expressions and templates see for a decision node. An unknown (null)
- * confidence reads as the number 0, so `d.confidence >= 0.8` is false and
- * `d.confidence < 0.5` is true without touching the evaluator (F3).
- * `confidenceSource` stays null so "unknown" is still detectable. The
- * persisted output, events, API and UI keep null.
- */
-function decisionScopeValue(output: unknown): unknown {
-  if (!isRecord(output)) return output;
-  if (output.confidence !== null || output.confidenceSource !== null) return output;
-  if (typeof output.branch !== "string") return output;
-  return { ...output, confidence: 0 };
-}
-
 export function serializeError(error: DevChestraError): {
   code: DevChestraError["code"];
   message: string;
@@ -105,6 +103,8 @@ export class EngineContext {
   readonly store: Store;
   readonly clock: Clock;
   readonly #executor = createNodeExpressionExecutor();
+  /** Immutable capture scopes resolved once per engine (per run lifetime). */
+  readonly contextCache = new ExecutionContextCache();
 
   constructor(deps: EngineDeps) {
     this.deps = deps;
@@ -161,6 +161,7 @@ export class EngineContext {
     const result = await renderTemplate(template, scope, {
       executor: this.#executor,
       shell,
+      shellStyle: process.platform === "win32" ? "powershell" : "posix",
       ...(shell ? { timeoutMs: 2_000 } : {}),
     });
     if (!result.ok) throw result.error;
@@ -178,8 +179,17 @@ export class EngineContext {
   ): Promise<Array<{ nodeId: string; output: unknown }>> {
     const outputs: Array<{ nodeId: string; output: unknown }> = [];
     if ("ancestorsOf" in source) {
+      // Body Start has no parameters, even when its node id is not "start".
+      if (source.body) outputs.push({ nodeId: "start", output: {} });
+      for (const [nodeId, output] of Object.entries(source.scope ?? {})) {
+        outputs.push({ nodeId, output });
+      }
       for (const id of (source as WorkflowPlan).ancestorsOf(nodeId)) {
-        outputs.push({ nodeId: id, output: this.ancestorValue(run, id) });
+        const localId = source.byId.get(id)?.raw.id;
+        outputs.push({
+          nodeId: source.body ? String(localId) : id,
+          output: this.ancestorValue(run, id),
+        });
       }
       return outputs;
     }
@@ -487,6 +497,12 @@ export class EngineContext {
     });
   }
 
+  /** Release cached capture scopes for a run. Called on terminal transitions;
+   * paused/resumable runs keep theirs so resume resolves the same outputs. */
+  releaseRunContext(runId: string): void {
+    this.contextCache.evictRun(runId);
+  }
+
   completeRun(
     runId: string,
     status: "success" | "failed" | "rejected",
@@ -500,12 +516,16 @@ export class EngineContext {
       ...(result === undefined ? {} : { result }),
       ...(error === undefined ? {} : { error: serializeError(error) }),
     });
+    this.releaseRunContext(runId);
   }
 
   failRun(runId: string, error: DevChestraError): void {
     try {
       const run = this.run(runId);
-      if (isTerminal(run.status as RunStatus)) return;
+      if (isTerminal(run.status as RunStatus)) {
+        this.releaseRunContext(runId);
+        return;
+      }
     } catch {
       return;
     }
@@ -529,6 +549,7 @@ export class EngineContext {
     } catch {
       // The run may already be terminal from a racing cancel.
     }
+    this.releaseRunContext(runId);
   }
 
   outcome(runId: string): import("./types.js").RunOutcome {

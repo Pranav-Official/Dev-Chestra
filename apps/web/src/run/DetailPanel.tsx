@@ -1,4 +1,11 @@
-import type { DecisionRef, EventEnvelope, RunStatus, RunView } from "@devchestra/core";
+import {
+  type DecisionRef,
+  type EventEnvelope,
+  loopTerminalOutcome,
+  type RunStatus,
+  type RunView,
+} from "@devchestra/core";
+import { nodeAtPath } from "@devchestra/schema";
 import { Info, LockKeyhole, TriangleAlert } from "lucide-react";
 import { classifyError } from "../api/client.js";
 import { useExecutionDetail } from "../api/hooks.js";
@@ -9,6 +16,7 @@ import { JsonView } from "../ui/JsonView.js";
 import { StatusPill, statusLabel } from "../ui/StatusPill.js";
 import { InlineError } from "../ui/states.js";
 import { ApprovalPanel } from "./ApprovalPanel.js";
+import { BatchItemResults } from "./BatchItemResults.js";
 import { type DerivedAttempt, deriveDetail } from "./deriveDetail.js";
 import type { WorkflowSnapshot } from "./RunCanvas.js";
 import { isUnresolvedExecution, unresolvedSummary } from "./staleExecution.js";
@@ -70,6 +78,152 @@ function execFor(view: RunView, path: string): RunView["executions"][string] | u
     if (key.endsWith(`/${path}`)) return exec;
   }
   return undefined;
+}
+
+function LoopDetail({
+  path,
+  exec,
+  view,
+  snapshot,
+  onSelectPath,
+}: {
+  path: string;
+  exec: NonNullable<RunView["executions"][string]>;
+  view: RunView;
+  snapshot: WorkflowSnapshot | null;
+  onSelectPath?: ((next: string) => void) | undefined;
+}) {
+  const loop = exec.loop;
+  if (!loop) return null;
+  const snapshotMax = (() => {
+    if (!snapshot) return null;
+    const controller = snapshot.graph.nodes.find((n) => n.id === path) as
+      | { maxIterations?: unknown }
+      | undefined;
+    return typeof controller?.maxIterations === "number" ? controller.maxIterations : null;
+  })();
+  // The store advances iteration past the limit after a final false decision
+  // (E_LOOP_LIMIT fails before the next dispatch). Clamp the presented round so
+  // a failed limit reads as the completed round, never "round 3 of 2".
+  const completedRounds = loop.rounds.length;
+  const shownIteration =
+    snapshotMax === null ? loop.iteration : Math.min(loop.iteration, snapshotMax);
+  // Explicit durable outcome: an exhausted loop that routed downstream. The
+  // overflow inference remains only for unwired/legacy limit failures.
+  const terminalOutcome = loopTerminalOutcome(loop);
+  const exhausted = terminalOutcome === "iteration_limit";
+  const atLimit = !exhausted && snapshotMax !== null && loop.iteration > snapshotMax;
+  const bodyIds = (() => {
+    if (!snapshot) return [];
+    const controller = snapshot.graph.nodes.find((n) => n.id === path);
+    const body = (controller as { body?: { nodes?: { id: string }[] } } | undefined)?.body;
+    if (!body || !Array.isArray(body.nodes)) return [];
+    return body.nodes.map((n) => n.id);
+  })();
+  // Live route: while a round is executing, no decision exists yet, so history
+  // has no links. Prefer actual current-round executions with statuses.
+  const currentChildren = Object.entries(view.executions)
+    .filter(([p]) => p.startsWith(`${path}#${loop.iteration}/`))
+    .map(([p, e]) => ({ path: p, nodeId: e.nodeId, status: e.status }))
+    .sort((a, b) => a.path.localeCompare(b.path));
+  return (
+    <div className="note loop-detail" data-testid="detail-loop">
+      <div className="row wrap" style={{ gap: 6 }}>
+        <span className="pill">Loop</span>
+        <span className="faint mono" data-testid="detail-loop-iteration">
+          iteration {shownIteration}
+        </span>
+        <span className="faint mono">{completedRounds} rounds</span>
+        {terminalOutcome === "condition_met" ? (
+          <span className="chip green" data-testid="detail-loop-outcome">
+            success · condition met
+          </span>
+        ) : null}
+        {exhausted ? (
+          <span className="chip amber" data-testid="detail-loop-outcome">
+            exhausted · iteration limit reached
+          </span>
+        ) : null}
+        {atLimit ? (
+          <span className="chip amber" data-testid="detail-loop-limit">
+            at iteration limit
+          </span>
+        ) : null}
+      </div>
+      <h3 style={{ margin: "10px 0 6px" }}>State</h3>
+      <JsonView value={loop.state} testId="detail-loop-state" />
+      <h3 style={{ margin: "10px 0 6px" }}>Parent</h3>
+      <JsonView value={loop.parent} testId="detail-loop-parent" />
+      <h3 style={{ margin: "10px 0 6px" }}>Current round</h3>
+      <div data-testid="detail-loop-current">
+        <div className="row wrap" style={{ gap: 6 }}>
+          <span className="mono">#{shownIteration}</span>
+          {currentChildren.length === 0 ? (
+            <span className="faint">No child executions yet for this round.</span>
+          ) : (
+            currentChildren.map((child) => (
+              <button
+                key={child.path}
+                type="button"
+                className="btn sm"
+                data-testid={`detail-loop-current-${child.nodeId}`}
+                title={`${child.path} · ${child.status}`}
+                onClick={() => onSelectPath?.(child.path)}
+              >
+                {child.nodeId} · {child.status}
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+      <h3 style={{ margin: "10px 0 6px" }}>History</h3>
+      {loop.rounds.length === 0 ? (
+        <p className="faint">No rounds decided yet.</p>
+      ) : (
+        <div className="col" style={{ gap: 6 }}>
+          {loop.rounds.map((round) => (
+            <div
+              key={round.iteration}
+              className="note"
+              data-testid={`detail-loop-round-${round.iteration}`}
+            >
+              <div className="row wrap" style={{ gap: 6 }}>
+                <span className="mono">#{round.iteration}</span>
+                <span
+                  className={`chip${round.done ? " green" : round.outcome === "iteration_limit" ? " amber" : ""}`}
+                >
+                  {round.done
+                    ? "done"
+                    : round.outcome === "iteration_limit"
+                      ? "exhausted"
+                      : "continue"}
+                </span>
+                {bodyIds.length > 0 && onSelectPath ? (
+                  <span className="row wrap" style={{ gap: 4 }}>
+                    {bodyIds.map((id) => {
+                      const child = `${path}#${round.iteration}/${id}`;
+                      return (
+                        <button
+                          key={child}
+                          type="button"
+                          className="btn sm"
+                          data-testid={`detail-loop-child-${round.iteration}-${id}`}
+                          onClick={() => onSelectPath(child)}
+                        >
+                          {id}
+                        </button>
+                      );
+                    })}
+                  </span>
+                ) : null}
+              </div>
+              <JsonView value={round.result} testId={`detail-loop-result-${round.iteration}`} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function AttemptList({ attempts }: { attempts: (AttemptView | DerivedAttempt)[] }) {
@@ -534,6 +688,7 @@ export function DetailPanel({
   events,
   isReplay,
   snapshot,
+  onSelectPath,
 }: {
   run: RunSummary | null;
   runId: string;
@@ -543,6 +698,7 @@ export function DetailPanel({
   events: EventEnvelope[];
   isReplay: boolean;
   snapshot?: WorkflowSnapshot | null;
+  onSelectPath?: (next: string) => void;
 }) {
   const execution = useExecutionDetail(runId, path, !isReplay && path !== null);
   if (path === null) {
@@ -550,7 +706,16 @@ export function DetailPanel({
   }
   const exec = execFor(view, path);
   const status = exec?.status ?? "pending";
-  const snapshotNode = snapshot?.graph.nodes.find((n) => n.id === path) ?? null;
+  const snapshotNode = (() => {
+    if (!snapshot) return null;
+    try {
+      const found = nodeAtPath(snapshot.graph as never, path);
+      if (found) return found as unknown as { id: string; type: string };
+    } catch {
+      // fall through to top-level lookup
+    }
+    return snapshot.graph.nodes.find((n) => n.id === path) ?? null;
+  })();
   const isApproval =
     exec?.kind === "approval" || snapshotNode?.type === "approval" || status === "waiting_approval";
   if (isApproval && snapshot) {
@@ -597,6 +762,75 @@ export function DetailPanel({
           decision={exec.decision}
           tokensIn={exec.tokensIn}
           tokensOut={exec.tokensOut}
+        />
+      ) : null}
+      {exec?.workflow ? (
+        <section className="col" data-testid="detail-workflow">
+          <h3>Child workflow</h3>
+          <span className="faint">
+            {exec.workflow.workflowId} · {exec.workflow.status ?? "waiting"}
+          </span>
+          {exec.workflow.childRunId && run ? (
+            <a
+              className="mono"
+              href={`/p/${encodeURIComponent(run.projectId)}/r/${encodeURIComponent(exec.workflow.childRunId)}`}
+            >
+              Open child run
+            </a>
+          ) : null}
+        </section>
+      ) : null}
+      {exec?.foreach ? (
+        <section className="col" data-testid="detail-foreach">
+          <h3>For each · sequential</h3>
+          <p>
+            {exec.foreach.processed} of {exec.foreach.total} items processed
+          </p>
+          <p className="faint">
+            {exec.foreach.succeeded} succeeded · {exec.foreach.failed} failed ·{" "}
+            {exec.foreach.rejected} rejected
+          </p>
+          <progress
+            aria-label="Batch progress"
+            value={exec.foreach.processed}
+            max={Math.max(exec.foreach.total, 1)}
+          />
+          {exec.foreach.resultsRef ? (
+            <p className="faint mono">Results reference: {exec.foreach.resultsRef}</p>
+          ) : null}
+          {exec.foreach.sourceId ? (
+            <BatchItemResults
+              key={`${runId}:${exec.foreach.sourceId}`}
+              runId={runId}
+              sourceId={exec.foreach.sourceId}
+              processed={exec.foreach.processed}
+              isReplay={isReplay}
+            />
+          ) : null}
+          <h4>Recent item steps</h4>
+          {Object.entries(view.executions)
+            .filter(([childPath]) => childPath.startsWith(`${path}[`))
+            .slice(-30)
+            .map(([childPath, child]) => (
+              <button
+                key={childPath}
+                type="button"
+                className="btn ghost sm"
+                onClick={() => onSelectPath?.(childPath)}
+                disabled={!onSelectPath}
+              >
+                <span className="mono">{childPath}</span> · {child.status}
+              </button>
+            ))}
+        </section>
+      ) : null}
+      {exec?.loop ? (
+        <LoopDetail
+          path={path}
+          exec={exec}
+          view={view}
+          snapshot={snapshot ?? null}
+          onSelectPath={onSelectPath}
         />
       ) : null}
       {isReplay ? (

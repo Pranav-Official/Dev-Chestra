@@ -1,7 +1,10 @@
 import { canonicalJson, type DevChestraError, type Result } from "@devchestra/core";
+import { foreachEnvelopeSchema } from "./foreach-envelope.js";
 import { analyzeGraph } from "./graph.js";
+import { loopEnvelopeSchema } from "./loop-envelope.js";
 import { normalizeOutputSchema } from "./output-schema.js";
 import type { Graph, Issue, JoinNode, JsonSchemaObject, WorkflowNode } from "./types.js";
+import { workflowEnvelopeSchema } from "./workflow-envelope.js";
 
 export type SchemaAssignability = "yes" | "no" | "unknown";
 
@@ -58,6 +61,22 @@ function outputSchema(node: WorkflowNode | undefined): JsonSchemaObject | null {
       return null;
     case "decision":
       return null;
+    case "loop": {
+      const inner = normalize(node.output);
+      if (inner === null) return null;
+      return loopEnvelopeSchema(inner);
+    }
+    case "foreach": {
+      const inner = normalize(node.output);
+      if (inner === null) return null;
+      return foreachEnvelopeSchema(inner);
+    }
+    case "workflow": {
+      const output = (node as { output?: unknown }).output;
+      if (output === undefined) return workflowEnvelopeSchema(null);
+      const inner = normalize(output as import("./types.js").JsonSchemaObject);
+      return workflowEnvelopeSchema(inner);
+    }
     case "start":
       return OPAQUE_OBJECT;
     case "end":

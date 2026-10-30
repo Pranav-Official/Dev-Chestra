@@ -19,6 +19,48 @@ function UpstreamOutputs({
   isReplay: boolean;
 }) {
   const ancestors = (() => {
+    const hash = path.indexOf("#");
+    if (hash >= 0) {
+      const controller = path.slice(0, hash);
+      const rest = path.slice(hash + 1);
+      const slash = rest.indexOf("/");
+      const iteration = slash >= 0 ? rest.slice(0, slash) : rest;
+      const local = slash >= 0 ? (rest.slice(slash + 1).split(".")[0] ?? rest) : path;
+      const loopNode = snapshot.graph.nodes.find((n) => n.id === controller) as
+        | {
+            body?: {
+              nodes?: { id: string; name: string; type: string }[];
+              edges?: { from: string; to: string }[];
+            };
+          }
+        | undefined;
+      const body = loopNode?.body;
+      if (!body || !Array.isArray(body.nodes) || !Array.isArray(body.edges)) return [];
+      const incoming = new Map<string, string[]>();
+      for (const edge of body.edges) {
+        const src = edge.from.split(".")[0] ?? edge.from;
+        const tgt = edge.to.split(".")[0] ?? edge.to;
+        const list = incoming.get(tgt);
+        if (list === undefined) incoming.set(tgt, [src]);
+        else list.push(src);
+      }
+      const seen = new Set<string>();
+      const queue = [local];
+      const order: string[] = [];
+      while (queue.length > 0) {
+        const id = queue.shift();
+        if (id === undefined) continue;
+        for (const src of incoming.get(id) ?? []) {
+          if (seen.has(src)) continue;
+          seen.add(src);
+          order.push(src);
+          queue.push(src);
+        }
+      }
+      return body.nodes
+        .filter((n) => seen.has(n.id))
+        .map((n) => ({ ...n, fullPath: `${controller}#${iteration}/${n.id}` }));
+    }
     const incoming = new Map<string, string[]>();
     for (const edge of snapshot.graph.edges) {
       const src = edge.from.split(".")[0] ?? edge.from;
@@ -40,7 +82,9 @@ function UpstreamOutputs({
         queue.push(src);
       }
     }
-    return snapshot.graph.nodes.filter((n) => seen.has(n.id));
+    return snapshot.graph.nodes
+      .filter((n) => seen.has(n.id))
+      .map((n) => ({ ...n, fullPath: n.id }));
   })();
 
   if (ancestors.length === 0)
@@ -64,7 +108,11 @@ function UpstreamOutputs({
   return (
     <div className="col" style={{ gap: 8 }}>
       {ancestors.map((node) => (
-        <UpstreamRow key={node.id} node={node} runId={runId} />
+        <UpstreamRow
+          key={(node as { fullPath?: string }).fullPath ?? node.id}
+          node={node as { id: string; name: string; type: string; fullPath?: string }}
+          runId={runId}
+        />
       ))}
     </div>
   );
@@ -74,10 +122,11 @@ function UpstreamRow({
   node,
   runId,
 }: {
-  node: { id: string; name: string; type: string };
+  node: { id: string; name: string; type: string; fullPath?: string };
   runId: string;
 }) {
-  const detail = useExecutionDetail(runId, node.id, true);
+  const fullPath = node.fullPath ?? node.id;
+  const detail = useExecutionDetail(runId, fullPath, true);
   const output = detail.data?.output ?? null;
   return (
     <div className="note" data-testid={`upstream-${node.id}`}>

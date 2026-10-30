@@ -367,6 +367,100 @@ function normalizeKinds(
   return unique.sort();
 }
 
+export interface OutputMetadataRow {
+  id: string;
+  run_id: string;
+  path: string;
+  attempt: number;
+  generation: number;
+  kind: string;
+  hash: string;
+  bytes: number;
+  created_at: number;
+}
+
+function mapMetadata(row: OutputMetadataRow): import("./types.js").OutputMetadata {
+  return {
+    id: row.id,
+    runId: row.run_id as RunId,
+    path: row.path as Path,
+    attempt: row.attempt,
+    generation: row.generation,
+    kind: row.kind as import("./types.js").OutputKind,
+    hash: row.hash,
+    bytes: row.bytes,
+    createdAt: row.created_at,
+  };
+}
+
+export function getOutputMetadataById(runtime: Runtime, id: string): import("./types.js").OutputMetadata | null {
+  if (typeof id !== "string" || id.length === 0 || id.length > 256) {
+    fail("E_VALIDATION", "output id must be a non-empty string");
+  }
+  const row = runtime.db
+    .prepare(
+      "SELECT id, run_id, path, attempt, generation, kind, hash, bytes, created_at FROM outputs WHERE id = ?",
+    )
+    .get(id) as OutputMetadataRow | undefined;
+  return row === undefined ? null : mapMetadata(row);
+}
+
+/** Metadata-only listing; never loads/parses full output JSON. */
+export function listOutputsMetadata(
+  runtime: Runtime,
+  query: OutputProvenanceQuery,
+): import("./types.js").OutputMetadataPage {
+  requireRun(runtime, query.runId);
+  const kinds = normalizeKinds(query.kind);
+  const fingerprint = queryFingerprint({
+    kind: "outputs-meta",
+    runId: query.runId,
+    path: query.path ?? null,
+    attempt: query.attempt ?? null,
+    generation: query.generation ?? null,
+    kinds,
+  });
+  const limit = pageLimit(query.limit);
+  const where = ["run_id = ?"];
+  const params: unknown[] = [query.runId];
+  if (query.path !== undefined) {
+    where.push("path = ?");
+    params.push(query.path);
+  }
+  if (query.attempt !== undefined) {
+    where.push("attempt = ?");
+    params.push(query.attempt);
+  }
+  if (query.generation !== undefined) {
+    where.push("generation = ?");
+    params.push(query.generation);
+  }
+  if (kinds !== null) {
+    where.push(`kind IN (${kinds.map(() => "?").join(", ")})`);
+    params.push(...kinds);
+  }
+  if (query.cursor !== undefined) {
+    const cursor = decodeOutputsCursor(query.cursor);
+    if (cursor.q !== fingerprint) fail("E_VALIDATION", "Output cursor does not belong to this query");
+    const anchor = runtime.db.prepare("SELECT created_at FROM outputs WHERE id = ?").get(cursor.i) as { created_at: number } | undefined;
+    if (!anchor || anchor.created_at !== cursor.c) fail("E_CONFLICT", "Output cursor is stale or ahead of the current list");
+    where.push("(created_at < ? OR (created_at = ? AND id < ?))");
+    params.push(cursor.c, cursor.c, cursor.i);
+  }
+  const rows = runtime.db
+    .prepare(
+      `SELECT id, run_id, path, attempt, generation, kind, hash, bytes, created_at FROM outputs WHERE ${where.join(" AND ")} ORDER BY created_at DESC, id DESC LIMIT ?`,
+    )
+    .all(...params, limit + 1) as OutputMetadataRow[];
+  const items = rows.slice(0, limit).map(mapMetadata);
+  const last = items[items.length - 1];
+  const nextCursor =
+    rows.length > limit && last !== undefined
+      ? encodeCursor({ v: 1, k: "outputs", q: fingerprint, c: last.createdAt, i: last.id })
+      : null;
+  return { items, nextCursor };
+}
+
 export function getOutputById(runtime: Runtime, id: string): OutputRecord | null {
   if (typeof id !== "string" || id.length === 0 || id.length > 256) {
     fail("E_VALIDATION", "output id must be a non-empty string");

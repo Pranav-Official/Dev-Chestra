@@ -4,6 +4,28 @@ function byNodeId<T extends { nodeId: string }>(items: T[]): T[] {
   return items.sort((left, right) => left.nodeId.localeCompare(right.nodeId));
 }
 
+function flattenNodes(nodes: readonly WorkflowNode[]): WorkflowNode[] {
+  const out: WorkflowNode[] = [];
+  const visit = (list: readonly WorkflowNode[]): void => {
+    for (const node of list) {
+      out.push(node);
+      if (node.type === "loop" || node.type === "foreach") {
+        const body = (node as { body?: { nodes?: unknown } }).body;
+        if (
+          body !== undefined &&
+          body !== null &&
+          typeof body === "object" &&
+          Array.isArray((body as { nodes?: unknown }).nodes)
+        ) {
+          visit((body as { nodes: WorkflowNode[] }).nodes);
+        }
+      }
+    }
+  };
+  visit(nodes);
+  return out;
+}
+
 export function buildRequires(
   nodes: readonly WorkflowNode[],
   budget?: WorkflowBudget,
@@ -16,7 +38,7 @@ export function buildRequires(
   const worktreeNodes: string[] = [];
 
   const irreversibleApprovals: string[] = [];
-  for (const node of nodes) {
+  for (const node of flattenNodes(nodes)) {
     for (const name of node.env ?? []) envVars.add(name);
     if (node.type === "approval" && (node as { irreversible?: boolean }).irreversible === true) {
       irreversibleApprovals.push(node.id);

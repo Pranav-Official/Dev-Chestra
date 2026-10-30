@@ -1,7 +1,7 @@
 {
   "name": "@devchestra/adapters",
   "version": "0.1.0",
-  "description": "DevChestra headless CLI adapters and POSIX process runner",
+  "description": "DevChestra headless CLI adapters and platform process runner",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -16,7 +16,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node ../../scripts/build-windows-helper.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "test": "vitest run"
   },

@@ -9,6 +9,7 @@ import {
   parseWorkflowJson,
   validateWorkflow,
   type WorkflowFile,
+  workflowNodes,
 } from "@devchestra/schema";
 import { pathSafety, realRoot } from "@devchestra/workspaces";
 import { validateWorkspaceSelection } from "./workspace-service.js";
@@ -54,7 +55,7 @@ async function readInsideFile(root: string, rel: string): Promise<string> {
 
 async function loadPrompts(root: string, file: WorkflowFile): Promise<Record<string, string>> {
   const prompts: Record<string, string> = {};
-  for (const node of file.graph.nodes) {
+  for (const node of workflowNodes(file.graph)) {
     if (node.type !== "agent" || node.promptFile === undefined) continue;
     const prefix = `${file.id}.prompts/`;
     const candidates = node.promptFile.startsWith(prefix)
@@ -146,14 +147,111 @@ export async function resolveRunWorkspace(
   });
 }
 
+export interface ResolvedChildRef {
+  id: string;
+  normalized: NormalizedWorkflow;
+  hash: string;
+  text: string;
+}
+
+/**
+ * Project-bound single-id child read for the engine resolver.
+ * Reads `.devchestra/workflows/<id>.json` inside the project root through the
+ * safe path loader (no cwd guessing, 1 MiB cap via parseWorkflowJson).
+ * Never walks transitively itself: the engine owns recursive resolution,
+ * cycle detection and depth limits.
+ */
+export async function loadChildWorkflowResolved(
+  projectRoot: string,
+  workflowId: string,
+): Promise<ResolvedChildRef> {
+  if (!/^[a-z0-9-]{1,64}$/.test(workflowId)) {
+    throw new DevChestraError("E_VALIDATION", `Child workflow id '${workflowId}' is invalid.`);
+  }
+  const rel = `.devchestra/workflows/${workflowId}.json`;
+  const resolved = pathSafety.resolveFileInside(projectRoot, rel);
+  if (!resolved.ok) throw resolved.error;
+  const raw = await readFile(resolved.value, "utf8");
+  const parsed = parseWorkflowJson(raw);
+  if (!parsed.ok) throw parsed.error;
+  if (parsed.value.id !== workflowId) {
+    throw new DevChestraError("E_VALIDATION", "Workflow id must equal the file stem.");
+  }
+  const report = validateWorkflow(parsed.value, { projectKind: await projectKind(projectRoot) });
+  if (!report.ok) {
+    throw new DevChestraError(
+      "E_VALIDATION",
+      `Child workflow '${workflowId}' is invalid: ${report.errors[0]?.message ?? "unknown error"}`,
+      { details: { issues: report.errors } },
+    );
+  }
+  const normalized = normalizeWorkflow(parsed.value, {
+    prompts: await loadPrompts(projectRoot, parsed.value),
+  });
+  if (!normalized.ok) throw normalized.error;
+  return {
+    id: workflowId,
+    normalized: normalized.value,
+    hash: await hashWorkflow(normalized.value),
+    text: raw,
+  };
+}
+
+/** Back-compat normalized-only child read (resolver uses the resolved form). */
+export async function loadChildWorkflow(
+  projectRoot: string,
+  workflowId: string,
+): Promise<NormalizedWorkflow> {
+  return (await loadChildWorkflowResolved(projectRoot, workflowId)).normalized;
+}
+
+/**
+ * Engine resolver bound to the CLI store: looks up the project root by
+ * projectId, then performs the safe single-id read. Same-project enforced
+ * (the read never leaves the project root); missing children fail explicitly.
+ */
+export function createCliWorkflowResolver(store: {
+  projects: { get(projectId: string): { path: string } | null };
+}): {
+  resolve(
+    projectId: string,
+    workflowId: string,
+  ): Promise<{ ok: true; value: ResolvedChildRef } | { ok: false; error: DevChestraError }>;
+} {
+  return {
+    async resolve(projectId: string, workflowId: string) {
+      const proj = store.projects.get(projectId);
+      if (proj === null) {
+        return {
+          ok: false as const,
+          error: new DevChestraError("E_NOT_FOUND", `Project '${projectId}' was not found.`),
+        };
+      }
+      try {
+        const value = await loadChildWorkflowResolved(proj.path, workflowId);
+        return { ok: true as const, value };
+      } catch (error) {
+        if (error instanceof DevChestraError) return { ok: false as const, error };
+        return {
+          ok: false as const,
+          error: new DevChestraError(
+            "E_VALIDATION",
+            error instanceof Error ? error.message : String(error),
+          ),
+        };
+      }
+    },
+  };
+}
+
 export function workflowRequiresRealAdapter(workflow: NormalizedWorkflow): boolean {
-  return workflow.graph.nodes.some(
+  return [...workflowNodes(workflow.graph)].some(
     (node) => node.type === "agent" && (node.cli as string) !== "fake",
   );
 }
 
 export function requireFakeScriptForFakeNodes(workflow: NormalizedWorkflow): boolean {
-  return workflow.graph.nodes.some(
+  return [...workflowNodes(workflow.graph)].some(
     (node) => node.type === "agent" && (node.cli as string) === "fake",
   );
 }

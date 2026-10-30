@@ -3,17 +3,23 @@ import { normalizeOutputSchema } from "./output-schema.js";
 import type {
   AgentNode,
   ApprovalNode,
+  ChildWorkflowNode,
   DecisionNode,
   EndNode,
+  ForEachNode,
   GateNode,
   JoinNode,
   JsonSchemaObject,
+  LoopNode,
   NormalizedAgentNode,
   NormalizedApprovalNode,
+  NormalizedChildWorkflowNode,
   NormalizedDecisionNode,
   NormalizedEndNode,
+  NormalizedForEachNode,
   NormalizedGateNode,
   NormalizedJoinNode,
+  NormalizedLoopNode,
   NormalizedNode,
   NormalizedShellNode,
   NormalizedStartNode,
@@ -220,6 +226,108 @@ function normalizeDecision(node: DecisionNode): NormalizedDecisionNode {
   return out;
 }
 
+function normalizeLoopBody(
+  file: WorkflowFile,
+  node: LoopNode,
+  options: NormalizeOptions,
+): NormalizedLoopNode["body"] {
+  const nodes = node.body.nodes
+    .map((child) => {
+      if (child.type === "loop" || child.type === "foreach") {
+        throw new DevChestraError("E_WORKFLOW_INVALID", "Nested controllers are not supported.");
+      }
+      return normalizeNode(file, child, options);
+    })
+    .sort((left, right) => left.id.localeCompare(right.id));
+  const edges = node.body.edges
+    .map((edge) => ({ id: edge.id, from: edge.from, to: edge.to }))
+    .sort((left, right) => left.id.localeCompare(right.id));
+  return { nodes, edges };
+}
+
+function normalizeLoop(
+  file: WorkflowFile,
+  node: LoopNode,
+  options: NormalizeOptions,
+): NormalizedLoopNode {
+  const output = normalizeOutputSchema(node.output);
+  if (!output.ok) throw output.error;
+  return {
+    id: node.id,
+    type: "loop",
+    name: node.name,
+    supervise: "default",
+    env: [],
+    mode: "repeatUntil",
+    maxIterations: node.maxIterations,
+    initialState: node.initialState ?? "{}",
+    nextState: node.nextState ?? "loop.state",
+    until: node.until,
+    result: node.result,
+    output: output.value,
+    body: normalizeLoopBody(file, node, options),
+  };
+}
+
+function normalizeForEachBody(
+  file: WorkflowFile,
+  node: ForEachNode,
+  options: NormalizeOptions,
+): NormalizedLoopNode["body"] {
+  const nodes = node.body.nodes
+    .map((child) => {
+      if (child.type === "loop" || child.type === "foreach") {
+        throw new DevChestraError("E_WORKFLOW_INVALID", "Nested controllers are not supported.");
+      }
+      return normalizeNode(file, child, options);
+    })
+    .sort((left, right) => left.id.localeCompare(right.id));
+  const edges = node.body.edges
+    .map((edge) => ({ id: edge.id, from: edge.from, to: edge.to }))
+    .sort((left, right) => left.id.localeCompare(right.id));
+  return { nodes, edges };
+}
+
+function normalizeForEach(
+  file: WorkflowFile,
+  node: ForEachNode,
+  options: NormalizeOptions,
+): NormalizedForEachNode {
+  const output = normalizeOutputSchema(node.output);
+  if (!output.ok) throw output.error;
+  return {
+    id: node.id,
+    type: "foreach",
+    name: node.name,
+    supervise: "default",
+    env: [],
+    source: structuredClone(node.source),
+    maxItems: node.maxItems ?? 1000,
+    onItemFailure: node.onItemFailure ?? "stop",
+    result: node.result,
+    output: output.value,
+    body: normalizeForEachBody(file, node, options),
+  };
+}
+
+function normalizeChildWorkflow(node: ChildWorkflowNode): NormalizedChildWorkflowNode {
+  const out: NormalizedChildWorkflowNode = {
+    id: node.id,
+    type: "workflow",
+    name: node.name,
+    supervise: "default",
+    env: [],
+    workflowId: node.workflowId,
+    inputs: { ...node.inputs },
+  };
+  if (node.output !== undefined) {
+    const output = normalizeOutputSchema(node.output);
+    if (!output.ok) throw output.error;
+    out.output = output.value;
+  }
+  return out;
+}
+
 function normalizeNode(
   file: WorkflowFile,
   node: WorkflowNode,
@@ -240,6 +348,12 @@ function normalizeNode(
       return normalizeApproval(node as ApprovalNode);
     case "decision":
       return normalizeDecision(node as DecisionNode);
+    case "loop":
+      return normalizeLoop(file, node, options);
+    case "foreach":
+      return normalizeForEach(file, node as ForEachNode, options);
+    case "workflow":
+      return normalizeChildWorkflow(node as ChildWorkflowNode);
     case "end":
       return normalizeEnd(node);
   }

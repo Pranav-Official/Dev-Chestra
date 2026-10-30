@@ -10,6 +10,9 @@ export const SUPPORTED_NODE_TYPES: readonly string[] = [
   "join",
   "approval",
   "decision",
+  "loop",
+  "foreach",
+  "workflow",
   "end",
 ] as const;
 
@@ -165,6 +168,69 @@ export function createDefaultNode(
         onError: "fail",
         ui,
       } as unknown as WorkflowNode;
+    case "loop":
+      return {
+        id,
+        type: "loop",
+        name,
+        mode: "repeatUntil",
+        maxIterations: 5,
+        initialState: "{}",
+        nextState: "loop.state",
+        result: "{}",
+        until: "false",
+        output: defaultAgentOutput(),
+        body: {
+          nodes: [
+            { id: "start", type: "start", name: "Start round", params: [], ui: { x: 32, y: 32 } },
+            {
+              id: "done",
+              type: "end",
+              name: "Finish round",
+              status: "success",
+              result: "{}",
+              ui: { x: 288, y: 32 },
+            },
+          ],
+          edges: [{ id: "body-edge", from: "start", to: "done" }],
+        },
+        ui,
+      } as unknown as WorkflowNode;
+    case "foreach":
+      return {
+        id,
+        type: "foreach",
+        name: "For each",
+        source: { kind: "expression", expression: "[]" },
+        maxItems: 1000,
+        onItemFailure: "stop",
+        result: "{}",
+        output: defaultAgentOutput(),
+        body: {
+          nodes: [
+            { id: "start", type: "start", name: "Start item", params: [], ui: { x: 32, y: 32 } },
+            {
+              id: "done",
+              type: "end",
+              name: "Finish item",
+              status: "success",
+              result: "{}",
+              ui: { x: 320, y: 32 },
+            },
+          ],
+          edges: [{ id: "item-edge", from: "start", to: "done" }],
+        },
+        ui,
+      } as WorkflowNode;
+    case "workflow":
+      return {
+        id,
+        type: "workflow",
+        name: "Run workflow",
+        workflowId: "",
+        inputs: {},
+        ui,
+      } as WorkflowNode;
     case "end":
       return {
         id,

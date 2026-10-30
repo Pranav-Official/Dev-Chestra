@@ -1,12 +1,15 @@
 import type { Issue, WorkflowNode } from "@devchestra/schema";
 import {
   Bot,
+  Files,
   Flag,
   GitBranch,
+  ListOrdered,
   Lock,
   type LucideIcon,
   Merge,
   Play,
+  Repeat,
   Scale,
   Terminal,
   UserCheck,
@@ -24,6 +27,9 @@ const TYPE_ICON: Record<string, LucideIcon> = {
   join: Merge,
   approval: UserCheck,
   decision: Scale,
+  loop: Repeat,
+  foreach: ListOrdered,
+  workflow: Files,
   end: Flag,
 };
 
@@ -35,6 +41,9 @@ const TYPE_LABEL: Record<string, string> = {
   join: "Join",
   approval: "Approval",
   decision: "Decision",
+  loop: "Loop",
+  foreach: "For each",
+  workflow: "Run workflow",
   end: "End",
 };
 

@@ -27,7 +27,7 @@ export {
   matchesProcess,
   readProcessIdentity,
 } from "./identity.js";
-export { materializeInvocation } from "./invocation.js";
+export { finalizeInvocation, materializeInvocation } from "./invocation.js";
 export { CODEX_INTERNAL_CONNECTOR_NAMES } from "./mcp-discovery/codex.js";
 export {
   createMcpResolver,
@@ -107,3 +107,10 @@ export function describeInvocation(
     files: inv.files.map((file) => file.path),
   };
 }
+export {
+  findWindowsExecutable,
+  isWindowsPrivatePath,
+  protectWindowsDirectory,
+  stopWindowsTree,
+  windowsProcessIdentity,
+} from "./windows.js";

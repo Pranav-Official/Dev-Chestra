@@ -1,4 +1,4 @@
-import type { RunView } from "@devchestra/core";
+import type { ForeachView, RunView, WorkflowView } from "@devchestra/core";
 import { DECISION_PROVIDERS, type NormalizedWorkflow, PROD_CLIS } from "@devchestra/schema";
 import { coreErrorCodeSchema } from "./errors.js";
 import {
@@ -12,6 +12,7 @@ import {
 import {
   epochMsSchema,
   execStatusSchema,
+  jsonObjectSchema,
   jsonValueSchema,
   nodeKindSchema,
   pathSchema,
@@ -82,6 +83,51 @@ const execErrorViewSchema = strict({
   message: z.string(),
 });
 
+const loopViewSchema = strict({
+  iteration: z.number().int().positive(),
+  parent: jsonObjectSchema,
+  parentRef: z
+    .strictObject({
+      kind: z.literal("devchestra.execution-context/v1"),
+      captureId: z.string(),
+    })
+    .nullable()
+    .optional(),
+  state: jsonObjectSchema,
+  rounds: z
+    .array(
+      strict({
+        iteration: z.number().int().positive(),
+        result: jsonValueSchema,
+        done: z.boolean(),
+        nextState: jsonObjectSchema.nullable(),
+        // Absent on views cached before explicit loop outcomes.
+        outcome: z.enum(["condition_met", "iteration_limit"]).nullable().optional(),
+        eventId: z.number().int().nonnegative(),
+      }),
+    )
+    .max(1000),
+});
+
+const workflowViewSchema: z.ZodType<WorkflowView> = strict({
+  childRunId: z.string().nullable(),
+  workflowId: z.string().nullable(),
+  status: z.enum(["running", "succeeded", "failed", "rejected", "cancelled"]).nullable(),
+  resultRef: z.string().nullable(),
+  eventId: z.number().int().nonnegative(),
+});
+
+const foreachViewSchema: z.ZodType<ForeachView> = strict({
+  total: z.number().int().nonnegative(),
+  processed: z.number().int().nonnegative(),
+  succeeded: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  rejected: z.number().int().nonnegative(),
+  resultsRef: z.string().nullable(),
+  sourceId: z.string().nullable(),
+  eventId: z.number().int().nonnegative(),
+});
+
 export const execViewSchema = strict({
   path: pathSchema,
   nodeId: z.string(),
@@ -89,6 +135,9 @@ export const execViewSchema = strict({
   attempt: z.number().int().positive(),
   generation: z.number().int().positive(),
   kind: nodeKindSchema.nullable(),
+  loop: loopViewSchema.nullable().optional(),
+  workflow: workflowViewSchema.nullable().optional(),
+  foreach: foreachViewSchema.nullable().optional(),
   requiresAcceptedResult: z.boolean(),
   acceptedResult: acceptedResultRefSchema.nullable(),
   recordedOutput: recordedOutputRefSchema.nullable(),
@@ -355,7 +404,15 @@ const normalizedDecisionNodeSchema = strict({
   onError: z.enum(["fail", "uncertain"]),
 });
 
-export const normalizedNodeSchema = z.discriminatedUnion("type", [
+const normalizedWorkflowRefNodeSchema = strict({
+  ...normalizedNodeBase,
+  type: z.literal("workflow"),
+  workflowId: z.string(),
+  inputs: z.record(z.string(), z.string()),
+  output: jsonSchemaObjectSchema.optional(),
+});
+
+const normalizedBodyNodeSchema = z.discriminatedUnion("type", [
   normalizedStartNodeSchema,
   normalizedAgentNodeSchema,
   normalizedShellNodeSchema,
@@ -363,7 +420,48 @@ export const normalizedNodeSchema = z.discriminatedUnion("type", [
   normalizedJoinNodeSchema,
   normalizedApprovalNodeSchema,
   normalizedDecisionNodeSchema,
+  normalizedWorkflowRefNodeSchema,
   normalizedEndNodeSchema,
+]);
+
+const normalizedLoopNodeSchema = strict({
+  ...normalizedNodeBase,
+  type: z.literal("loop"),
+  mode: z.literal("repeatUntil"),
+  maxIterations: z.number().int().min(1).max(1000),
+  initialState: z.string(),
+  nextState: z.string(),
+  result: z.string(),
+  until: z.string(),
+  output: z.record(z.string(), z.unknown()),
+  body: strict({
+    nodes: z.array(normalizedBodyNodeSchema),
+    edges: z.array(strict({ id: z.string(), from: z.string(), to: z.string() })),
+  }),
+});
+
+const normalizedForEachNodeSchema = strict({
+  ...normalizedNodeBase,
+  type: z.literal("foreach"),
+  source: z.union([
+    strict({ kind: z.literal("expression"), expression: z.string() }),
+    strict({ kind: z.literal("csv"), path: z.string() }),
+  ]),
+  maxItems: z.number().int().min(1).max(1000),
+  onItemFailure: z.enum(["stop", "continue"]),
+  result: z.string(),
+  output: z.record(z.string(), z.unknown()),
+  body: strict({
+    nodes: z.array(normalizedBodyNodeSchema),
+    edges: z.array(strict({ id: z.string(), from: z.string(), to: z.string() })),
+  }),
+});
+
+export const normalizedNodeSchema = z.union([
+  normalizedBodyNodeSchema,
+  normalizedLoopNodeSchema,
+  normalizedForEachNodeSchema,
+  normalizedWorkflowRefNodeSchema,
 ]);
 
 export const normalizedWorkflowSchema = strict({

@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
+import { stopWindowsTree } from "@devchestra/adapters";
 import { processAlive, processIdentity } from "./lock.js";
 import { clearServerMetadata, readServerMetadata, type ServerMetadata } from "./server-metadata.js";
+import { requestWindowsStop } from "./windows-control.js";
 
 export type ServerState = "running" | "stopped" | "stale" | "unsafe" | "invalid";
 
@@ -90,6 +92,13 @@ export async function serverStatus(
     version: meta.version,
     startedAt: meta.startedAt,
   };
+  if (processAlive(meta.pid) && processIdentity(meta.pid) === null) {
+    return {
+      state: "unsafe",
+      ...base,
+      reason: "the live server process identity could not be verified",
+    };
+  }
   if (!isSameProcess(meta)) {
     return {
       state: "stale",
@@ -151,13 +160,27 @@ export async function stopServer(
   const pid = status.pid;
   const meta = await readServerMetadata(dataDir);
   const pidStart = meta.status === "valid" ? meta.value.pidStart : null;
+  if (meta.status !== "valid" || !isSameProcess(meta.value)) {
+    return {
+      result: "failed",
+      status,
+      reason: "server identity changed before shutdown; refusing to signal anything",
+    };
+  }
   const gone = (): boolean =>
-    !processAlive(pid) || isZombie(pid) || (pidStart !== null && processIdentity(pid) !== pidStart);
+    !processAlive(pid) ||
+    isZombie(pid) ||
+    (pidStart !== null && processIdentity(pid) !== null && processIdentity(pid) !== pidStart);
 
   try {
-    kill(pid, "SIGTERM");
+    if (process.platform === "win32" && deps.kill === undefined)
+      await requestWindowsStop(meta.value);
+    else kill(pid, "SIGTERM");
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ESRCH") {
+    if (
+      (error as NodeJS.ErrnoException).code !== "ESRCH" &&
+      !(process.platform === "win32" && options.force && deps.kill === undefined)
+    ) {
       return { result: "failed", status, reason: `could not signal the server: ${String(error)}` };
     }
   }
@@ -174,8 +197,22 @@ export async function stopServer(
         reason: `the server did not exit within ${Math.round(options.timeoutMs / 1000)}s (it may still be finishing runs). Wait, or pass --force to kill it.`,
       };
     }
+    if (!isSameProcess(meta.value)) {
+      return {
+        result: "failed",
+        status,
+        reason: "server identity changed before force termination",
+      };
+    }
     try {
-      kill(pid, "SIGKILL");
+      if (process.platform === "win32" && deps.kill === undefined) {
+        if (!(await stopWindowsTree(pid, meta.value.pidStart)))
+          return {
+            result: "failed",
+            status,
+            reason: "Windows could not confirm server-tree termination",
+          };
+      } else kill(pid, "SIGKILL");
     } catch {
       // already gone
     }

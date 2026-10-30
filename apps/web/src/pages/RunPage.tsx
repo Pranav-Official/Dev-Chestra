@@ -104,8 +104,14 @@ function RunPage({ rid }: { rid: string }) {
   // replay position, and stays mounted while the live head is nonterminal.
   // `readonly` only covers snapshot editing, so it never suppresses the stop.
   const stopControl =
-    view !== null && session.phase !== "error" ? (
-      <StopRunButton runId={rid} headStatus={session.head.status} isReplay={isReplay} />
+    (view !== null || session.phase === "error") &&
+    session.errorCode !== "E_AUTH" &&
+    session.errorCode !== "E_NOT_FOUND" ? (
+      <StopRunButton
+        runId={rid}
+        headStatus={session.head.lastEventId > 0 ? session.head.status : null}
+        isReplay={isReplay}
+      />
     ) : null;
 
   const topbar = (
@@ -340,6 +346,7 @@ function RunPage({ rid }: { rid: string }) {
                 events={session.events}
                 isReplay={isReplay}
                 snapshot={detail?.snapshot ?? null}
+                onSelectPath={(next) => update({ path: next, tab: "detail" })}
               />
             ) : tab === "events" ? (
               <EventsPanel

@@ -9,11 +9,15 @@ import {
   decisionTestResultSchema,
   eventPageResponseSchema,
   executionDetailResponseSchema,
+  foreachItemsResponseSchema,
   gateTestResultSchema,
   healthResponseSchema,
   listProjectsResponseSchema,
+  outputPreviewSchema,
   projectViewSchema,
   projectWorkspacesResponseSchema,
+  runChildrenResponseSchema,
+  runContextResponseSchema,
   runDetailResponseSchema,
   runListResponseSchema,
   startRunResponseSchema,
@@ -42,6 +46,8 @@ const RESPONSE_SCHEMAS: Readonly<Record<string, SafeSchema>> = {
   ProjectView: projectViewSchema,
   ProjectWorkspacesResponse: projectWorkspacesResponseSchema,
   RunListResponse: runListResponseSchema,
+  RunContextResponse: runContextResponseSchema,
+  OutputPreview: outputPreviewSchema,
   RunDetailResponse: runDetailResponseSchema,
   EventPageResponse: eventPageResponseSchema,
   ExecutionDetailResponse: executionDetailResponseSchema,
@@ -56,6 +62,8 @@ const RESPONSE_SCHEMAS: Readonly<Record<string, SafeSchema>> = {
   DecisionTestResult: decisionTestResultSchema,
   ApprovalListResponse: approvalListResponseSchema,
   ApprovalResolveResponse: approvalResolveResponseSchema,
+  RunChildrenResponse: runChildrenResponseSchema,
+  ForeachItemsResponse: foreachItemsResponseSchema,
 } as unknown as Readonly<Record<string, SafeSchema>>;
 
 export function makeResponseValidator(

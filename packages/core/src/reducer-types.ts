@@ -3,6 +3,10 @@ import type {
   DecisionAnsweredPayload,
   GateDecidedPayload,
   JoinResolvedPayload,
+  JsonObject,
+  JsonValue,
+  LoopIterationDecidedPayload,
+  LoopOutcome,
   NodeKind,
   RunPauseReason,
   ValidationIssue,
@@ -97,6 +101,118 @@ export interface DecisionRef {
   eventId: number;
 }
 
+/** Durable per-round loop decision; round != retry attempt. */
+export interface LoopRoundView {
+  iteration: number;
+  result: JsonValue;
+  /** True only when the stop condition matched. */
+  done: boolean;
+  nextState: JsonObject | null;
+  /**
+   * Terminal outcome; null for a continuing round. Legacy `done=true` rounds
+   * are normalized to `condition_met` when projected.
+   */
+  outcome?: LoopOutcome | null;
+  eventId: number;
+}
+
+/** Normalize a round's terminal outcome (legacy done=true infers condition_met). */
+export function loopRoundOutcome(round: {
+  done: boolean;
+  outcome?: LoopOutcome | null;
+}): LoopOutcome | null {
+  return round.outcome ?? (round.done ? "condition_met" : null);
+}
+
+/** Terminal outcome of the loop's final round, or null while it is still running. */
+export function loopTerminalOutcome(
+  loop: { rounds: readonly { done: boolean; outcome?: LoopOutcome | null }[] } | null | undefined,
+): LoopOutcome | null {
+  const last = loop?.rounds.at(-1);
+  return last === undefined ? null : loopRoundOutcome(last);
+}
+
+/** Validate the done/outcome/nextState combination of a decision; returns a problem or null. */
+export function loopDecisionProblem(input: {
+  done: boolean;
+  outcome?: unknown;
+  nextState?: unknown;
+}): string | null {
+  const { done, outcome, nextState } = input;
+  if (outcome !== undefined && outcome !== "condition_met" && outcome !== "iteration_limit") {
+    return "Loop outcome must be 'condition_met' or 'iteration_limit'";
+  }
+  if (outcome === "condition_met" && !done) {
+    return "Loop outcome 'condition_met' requires done=true";
+  }
+  if (outcome === "iteration_limit" && done) {
+    return "Loop outcome 'iteration_limit' requires done=false";
+  }
+  if ((done || outcome !== undefined) && nextState !== undefined) {
+    return "A terminal loop decision must not carry nextState";
+  }
+  return null;
+}
+
+/**
+ * Durable loop controller state. `iteration` is the current round to execute;
+ * a continuing decision advances it synchronously, a terminal decision
+ * (`done=true` or outcome `iteration_limit`) leaves it in place so the engine
+ * can publish the final output idempotently after restart.
+ *
+ * `parent` is the immutable scope captured at start for legacy events.
+ * New captures store only `parentRef`; `parent` is then an empty placeholder
+ * and MUST NOT be hydrated back into the projection (see execution-context).
+ */
+export interface LoopView {
+  iteration: number;
+  parent: JsonObject;
+  /** Reference-backed capture; null for legacy inline-parent controllers. */
+  parentRef: { kind: "devchestra.execution-context/v1"; captureId: string } | null;
+  state: JsonObject;
+  rounds: LoopRoundView[];
+}
+
+/** Hard bound so loop history never grows without limit. */
+export const MAX_LOOP_HISTORY = 1000;
+
+export function loopRoundFromPayload(
+  payload: LoopIterationDecidedPayload,
+  eventId: number,
+): LoopRoundView {
+  return {
+    iteration: payload.iteration,
+    result: payload.result,
+    done: payload.done,
+    nextState: payload.nextState ?? null,
+    outcome: loopRoundOutcome(payload),
+    eventId,
+  };
+}
+
+/** Durable workflow-call controller. Linked child run identity is stable per parent run/path/attempt. */
+export interface WorkflowView {
+  childRunId: string | null;
+  workflowId: string | null;
+  status: "running" | "succeeded" | "failed" | "rejected" | "cancelled" | null;
+  /** Durable output id for the child envelope; null until completed. */
+  resultRef: string | null;
+  eventId: number;
+}
+
+/** Durable foreach controller. Per-item results live in foreach_items, referenced by resultsRef. */
+export interface ForeachView {
+  total: number;
+  processed: number;
+  succeeded: number;
+  failed: number;
+  rejected: number;
+  /** Durable foreach_sources row id; doubles as results ref for listItems. */
+  resultsRef: string | null;
+  sourceId: string | null;
+  eventId: number;
+}
+
 export interface ExecView {
   path: Path;
   nodeId: string;
@@ -110,6 +226,12 @@ export interface ExecView {
   approvalDecision: ApprovalDecisionRef | null;
   /** Durable decision answer; null until decision.answered. */
   decision: DecisionRef | null;
+  /** Durable loop controller; null until loop.started. */
+  loop: LoopView | null;
+  /** Durable workflow-call controller; null until workflow.linked. */
+  workflow: WorkflowView | null;
+  /** Durable foreach controller; null until foreach.started. */
+  foreach: ForeachView | null;
   requiresAcceptedResult: boolean;
   acceptedResult: AcceptedResultRef | null;
   recordedOutput: RecordedOutputRef | null;
@@ -252,6 +374,45 @@ export function isDurablyComplete(exec: ExecView): boolean {
       finalized.attempt === accepted.attempt &&
       finalized.generation === accepted.generation
     );
+  }
+  if (exec.kind === "loop") {
+    if (exec.loop === null) return false;
+    if (loopTerminalOutcome(exec.loop) === null) return false;
+    const recorded = exec.recordedOutput;
+    if (
+      recorded === null ||
+      recorded.attempt !== exec.attempt ||
+      recorded.generation !== exec.generation
+    ) {
+      return false;
+    }
+    return true;
+  }
+  if (exec.kind === "workflow") {
+    if (exec.workflow === null) return false;
+    if (exec.workflow.status === null || exec.workflow.status === "running") return false;
+    const recorded = exec.recordedOutput;
+    if (
+      recorded === null ||
+      recorded.attempt !== exec.attempt ||
+      recorded.generation !== exec.generation
+    ) {
+      return false;
+    }
+    return true;
+  }
+  if (exec.kind === "foreach") {
+    if (exec.foreach === null) return false;
+    if (exec.foreach.processed < exec.foreach.total) return false;
+    const recorded = exec.recordedOutput;
+    if (
+      recorded === null ||
+      recorded.attempt !== exec.attempt ||
+      recorded.generation !== exec.generation
+    ) {
+      return false;
+    }
+    return true;
   }
   if (exec.kind === "shell" || exec.kind === "start" || exec.kind === "end") {
     const recorded = exec.recordedOutput;

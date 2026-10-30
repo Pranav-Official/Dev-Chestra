@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
 import { isRecord } from "@devchestra/core";
 import {
@@ -388,7 +388,7 @@ export async function discoverCodexModels(
 
   let proc: ChildProcess;
   try {
-    proc = spawn(request.bin ?? "codex", ["app-server", "--listen", "stdio://"], {
+    proc = spawnOwned(request.bin ?? "codex", ["app-server", "--listen", "stdio://"], {
       cwd: request.cwd,
       env: { ...request.env },
       detached: true,
@@ -536,3 +536,5 @@ export async function discoverCodexModels(
   if (!stopped) return failure("unavailable", MESSAGES.stopFailed);
   return outcome;
 }
+
+import { spawnOwned } from "./windows.js";

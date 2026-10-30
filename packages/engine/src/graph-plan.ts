@@ -1,8 +1,28 @@
-import { DevChestraError, err, isRecord, ok, type Result } from "@devchestra/core";
-import { analyzeGraph, type GateBranch, validateWorkflow } from "@devchestra/schema";
+import {
+  DevChestraError,
+  err,
+  isRecord,
+  LOOP_EXHAUSTED_HANDLE,
+  ok,
+  type Result,
+} from "@devchestra/core";
+import {
+  analyzeGraph,
+  type GateBranch,
+  validateLoopNode,
+  validateWorkflow,
+} from "@devchestra/schema";
 import { type LinearNodeKind, validateBaseNodeConfig } from "./sequence.js";
 
-export type PlanNodeKind = LinearNodeKind | "gate" | "join" | "approval" | "decision";
+export type PlanNodeKind =
+  | LinearNodeKind
+  | "gate"
+  | "join"
+  | "approval"
+  | "decision"
+  | "loop"
+  | "workflow"
+  | "foreach";
 
 export interface PlanNode {
   readonly id: string;
@@ -19,6 +39,9 @@ export interface PlanEdge {
 }
 
 export interface WorkflowPlan {
+  /** A body plan uses execution paths as ids while retaining local ids in raw. */
+  readonly scope?: Readonly<Record<string, unknown>>;
+  readonly body?: boolean;
   readonly nodes: readonly PlanNode[];
   readonly edges: readonly PlanEdge[];
   readonly start: PlanNode;
@@ -67,6 +90,85 @@ function joinConfig(raw: Record<string, unknown>): { mode: "first" | "all"; inpu
   };
 }
 
+function validateWorkflowNodeConfig(raw: Record<string, unknown>): void {
+  if (typeof raw.workflowId !== "string" || raw.workflowId.length === 0) {
+    throw invalid("Workflow node workflowId must be a non-empty string", { nodeId: raw.id });
+  }
+  if (!isRecord(raw.inputs)) {
+    throw invalid("Workflow node inputs must be a record of JSONata expressions", {
+      nodeId: raw.id,
+    });
+  }
+  for (const [key, value] of Object.entries(raw.inputs)) {
+    if (typeof value !== "string" || value.length === 0) {
+      throw invalid(`Workflow input '${key}' must be a bare JSONata expression string`, {
+        nodeId: raw.id,
+      });
+    }
+    if (/\{\{|\}\}/.test(value)) {
+      throw invalid(`Workflow input '${key}' must not contain templates`, { nodeId: raw.id });
+    }
+  }
+  if (raw.output !== undefined && !isRecord(raw.output)) {
+    throw invalid("Workflow node output must be a JSON schema object", { nodeId: raw.id });
+  }
+}
+
+function validateForeachNodeConfig(raw: Record<string, unknown>): void {
+  const source = raw.source;
+  if (!isRecord(source) || (source.kind !== "expression" && source.kind !== "csv")) {
+    throw invalid("Foreach node source must be {kind:expression,expression} or {kind:csv,path}", {
+      nodeId: raw.id,
+    });
+  }
+  if (source.kind === "expression" && typeof source.expression !== "string") {
+    throw invalid("Foreach expression source requires an expression string", { nodeId: raw.id });
+  }
+  if (source.kind === "csv" && typeof source.path !== "string") {
+    throw invalid("Foreach csv source requires a path template string", { nodeId: raw.id });
+  }
+  if (raw.maxItems !== undefined) {
+    if (
+      !Number.isSafeInteger(raw.maxItems) ||
+      (raw.maxItems as number) < 1 ||
+      (raw.maxItems as number) > 1000
+    ) {
+      throw invalid("Foreach maxItems must be an integer between 1 and 1000", { nodeId: raw.id });
+    }
+  }
+  if (
+    raw.onItemFailure !== undefined &&
+    raw.onItemFailure !== "stop" &&
+    raw.onItemFailure !== "continue"
+  ) {
+    throw invalid("Foreach onItemFailure must be 'stop' or 'continue'", { nodeId: raw.id });
+  }
+  if (typeof raw.result !== "string" || raw.result.length === 0) {
+    throw invalid("Foreach node result must be a per-item expression string", { nodeId: raw.id });
+  }
+  if (!isRecord(raw.output)) {
+    throw invalid("Foreach node output must be a JSON schema object", { nodeId: raw.id });
+  }
+  if (!isRecord(raw.body)) {
+    throw invalid("Foreach node body must be a graph object", { nodeId: raw.id });
+  }
+  const body = raw.body as Record<string, unknown>;
+  if (!Array.isArray(body.nodes) || !Array.isArray(body.edges)) {
+    throw invalid("Foreach body must have nodes and edges arrays", { nodeId: raw.id });
+  }
+  for (const node of body.nodes as unknown[]) {
+    if (!isRecord(node)) throw invalid("Foreach body node must be an object", { nodeId: raw.id });
+    if (node.type === "loop" || node.type === "foreach") {
+      throw invalid(
+        "Foreach body must not directly contain loop/foreach in v1; wrap in a workflow",
+        {
+          nodeId: raw.id,
+        },
+      );
+    }
+  }
+}
+
 function readPlanNode(value: unknown, index: number): PlanNode {
   if (!isRecord(value)) throw invalid(`Node ${index} must be an object`);
   const id = value.id;
@@ -74,7 +176,15 @@ function readPlanNode(value: unknown, index: number): PlanNode {
   if (typeof id !== "string" || !NODE_ID_RE.test(id)) {
     throw invalid("Node id is missing or invalid", { id, index });
   }
-  if (typeof type !== "string" || (!BASE_TYPES.has(type) && type !== "gate" && type !== "join")) {
+  if (
+    typeof type !== "string" ||
+    (!BASE_TYPES.has(type) &&
+      type !== "gate" &&
+      type !== "join" &&
+      type !== "loop" &&
+      type !== "workflow" &&
+      type !== "foreach")
+  ) {
     throw new DevChestraError(
       "E_WORKFLOW_INVALID",
       `Node type '${String(type)}' is not supported in this increment`,
@@ -86,6 +196,8 @@ function readPlanNode(value: unknown, index: number): PlanNode {
       validateBaseNodeConfig(value, type as LinearNodeKind);
     }
   }
+  if (type === "workflow") validateWorkflowNodeConfig(value);
+  if (type === "foreach") validateForeachNodeConfig(value);
   if (type === "gate") gateBranches(value);
   if (type === "join") joinConfig(value);
   return { id, type: type as PlanNodeKind, raw: Object.freeze({ ...value }) };
@@ -142,9 +254,21 @@ function resolveEndpoints(
       if (fromParts.handle === undefined) {
         throw invalid(`Edge from decision '${source.id}' must use 'decisionId.handleId'`);
       }
+    } else if (source.type === "loop") {
+      if (fromParts.handle !== undefined && fromParts.handle !== LOOP_EXHAUSTED_HANDLE) {
+        throw invalid(
+          `Edge from loop '${source.id}' must be '${source.id}' or '${source.id}.${LOOP_EXHAUSTED_HANDLE}'`,
+        );
+      }
+    } else if (source.type === "workflow") {
+      if (fromParts.handle !== undefined && fromParts.handle !== "failed") {
+        throw invalid(
+          `Edge from workflow '${source.id}' must be '${source.id}' or '${source.id}.failed'`,
+        );
+      }
     } else if (fromParts.handle !== undefined) {
       throw invalid(
-        `Edge source '${value.from}' uses a handle on a non-gate/non-approval/non-decision node`,
+        `Edge source '${value.from}' uses a handle on a non-gate/non-approval/non-decision/non-loop/non-workflow node`,
       );
     }
     if (target.type === "join") {
@@ -208,9 +332,17 @@ function canonicalStructure(graph: Record<string, unknown>, nodes: readonly unkn
         }
       : value,
   );
-  const issue = analyzeGraph({ nodes, edges } as never).issues.find(
-    (entry) => entry.severity === "error",
-  );
+  const { issues } = analyzeGraph({ nodes, edges } as never);
+  const filtered = issues.filter((entry) => {
+    if (entry.severity !== "error") return false;
+    // Schema package does not yet know workflow/foreach (owned by another agent);
+    // tolerate only those type/handle errors and enforce the rest.
+    if (entry.code === "E_NODE_TYPE" && /workflow|foreach/.test(entry.message)) return false;
+    if (entry.code === "E_EDGE_HANDLE" && /\.failed/.test(entry.message)) return false;
+    if (entry.code === "E_EDGE_BRANCH" && /\.failed/.test(entry.message)) return false;
+    return true;
+  });
+  const issue = filtered.find((entry) => entry.severity === "error");
   if (issue !== undefined) {
     throw invalid(`${issue.code}: ${issue.message}`, {
       ...(issue.pointer === undefined ? {} : { pointer: issue.pointer }),
@@ -296,6 +428,48 @@ export function analyzeWorkflowPlan(snapshot: unknown): Result<WorkflowPlan, Dev
       cache.set(nodeId, found);
       return found;
     };
+
+    for (const node of nodes) {
+      if (node.type === "loop") {
+        // Loop bodies may contain workflow but never foreach (v1).
+        const body = (node.raw as Record<string, unknown>).body as
+          | { nodes?: unknown[] }
+          | undefined;
+        for (const child of body?.nodes ?? []) {
+          if (isRecord(child) && child.type === "foreach") {
+            throw invalid("Loop body must not contain foreach in v1; wrap in a workflow", {
+              nodeId: node.id,
+            });
+          }
+        }
+        const issue = validateLoopNode(node.raw, {
+          parentAllowed: new Set(["start", ...ancestorsOf(node.id)]),
+        }).find((issue) => issue.severity === "error");
+        if (issue) throw invalid(issue.message, { nodeId: node.id, pointer: issue.pointer });
+      }
+      if (node.type === "foreach") {
+        // Foreach bodies are validated structurally here; loop/foreach nesting is rejected at read time.
+        const body = (node.raw as Record<string, unknown>).body as unknown;
+        const checked = analyzeWorkflowPlan({ graph: body });
+        if (!checked.ok) throw checked.error;
+        // Body Start carries empty params; single success End required.
+        const start = checked.value.start;
+        const startParams = (start.raw as Record<string, unknown>).params;
+        if (Array.isArray(startParams) && startParams.length > 0) {
+          throw invalid("Foreach body Start must have empty params", { nodeId: node.id });
+        }
+        if (
+          !checked.value.ends.some(
+            (end) => (end.raw as Record<string, unknown>).status === "success",
+          )
+        ) {
+          throw invalid("Foreach body must have one success End", { nodeId: node.id });
+        }
+      }
+      if (node.type === "workflow") {
+        // Child graph itself is frozen/validated at launch via the bundle; nothing structural here.
+      }
+    }
 
     return ok({
       nodes,

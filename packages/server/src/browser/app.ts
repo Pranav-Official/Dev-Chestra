@@ -1,6 +1,7 @@
 import { realpathSync, statSync } from "node:fs";
 import {
   type ErrorResponse,
+  runContextQuerySchema,
   runEventsQuerySchema,
   runListQuerySchema,
   transcriptQuerySchema,
@@ -34,6 +35,7 @@ import {
   findInput,
   latestTranscriptRef,
   previewFromOutput,
+  truncatedPreview,
 } from "./execution.js";
 import { mountGateRoutes } from "./gate-routes.js";
 import { mountMcpRoutes } from "./mcp-routes.js";
@@ -439,6 +441,65 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
     };
     validate("ExecutionDetailResponse", detail);
     return json(c, detail);
+  });
+
+  // Metadata-first run context: execution identity, attempt/loop round,
+  // status, output id/hash/size. Values are fetched separately on demand.
+  // Never hydrates full outputs; the picker works without a run. Schemas
+  // resolve via the frozen run snapshot served by run detail.
+  app.get("/api/runs/:rid/context", async (c) => {
+    const runId = c.req.param("rid");
+    const run = await deps.store.getRun(runId);
+    if (run === null) return c.json(errorBody("E_NOT_FOUND", "Run not found."), 404);
+    if (!deps.store.runContext) return c.json(errorBody("E_NOT_SUPPORTED", "Context inspection is unavailable."), 501);
+    const query = runContextQuerySchema.safeParse({
+      pathPrefix: c.req.query("pathPrefix") || undefined,
+      status: c.req.query("status") || undefined,
+      limit: c.req.query("limit") || undefined,
+      cursor: c.req.query("cursor") || undefined,
+    });
+    if (!query.success) {
+      return c.json(errorBody("E_VALIDATION", "Context query is invalid."), 400);
+    }
+    const context = await deps.store.runContext(runId, {
+      ...(query.data.pathPrefix === undefined ? {} : { pathPrefix: query.data.pathPrefix }),
+      ...(query.data.status === undefined ? {} : { status: query.data.status }),
+      limit: query.data.limit ?? 100,
+      ...(query.data.cursor === undefined || query.data.cursor === null ? {} : { cursor: query.data.cursor }),
+    });
+    validate("RunContextResponse", context);
+    return json(c, context);
+  });
+
+  // Bounded on-demand value retrieval with explicit truncation semantics.
+  // Metadata bytes are checked first: oversized values return truncation
+  // metadata without hydrating or parsing the full JSON. Enforces output
+  // ownership against the run id; never silently unlimited.
+  app.get("/api/runs/:rid/outputs/:outputId", async (c) => {
+    const runId = c.req.param("rid");
+    const outputId = c.req.param("outputId");
+    const run = await deps.store.getRun(runId);
+    if (run === null) return c.json(errorBody("E_NOT_FOUND", "Run not found."), 404);
+    if (!deps.store.getOutputMetadataById || !deps.store.getOutputById) {
+      return c.json(errorBody("E_NOT_SUPPORTED", "Output inspection is unavailable."), 501);
+    }
+    const meta = await deps.store.getOutputMetadataById(outputId);
+    if (meta === null || meta.runId !== runId) {
+      return c.json(errorBody("E_NOT_FOUND", "Output not found."), 404);
+    }
+    const limit = 64 * 1024;
+    if (meta.bytes > limit) {
+      const preview = truncatedPreview(meta);
+      validate("OutputPreview", preview);
+      return json(c, preview);
+    }
+    const record = await deps.store.getOutputById(outputId);
+    if (record === null || (record.runId as string) !== runId) {
+      return c.json(errorBody("E_NOT_FOUND", "Output not found."), 404);
+    }
+    const preview = previewFromOutput(record);
+    validate("OutputPreview", preview);
+    return json(c, preview);
   });
 
   app.post("/api/runs/:rid/cancel", async (c) => {

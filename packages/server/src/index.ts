@@ -95,9 +95,11 @@ export {
 } from "./workflows/io.js";
 export { mountWorkflowRoutes, type WorkflowRouteDeps } from "./workflows/routes.js";
 export {
+  type ChildWorkflowReader,
   type CreateWorkflowInput,
   ManagedWorkflowService,
   type ManagedWorkflowServiceDeps,
+  type ResolvedChildWorkflow,
   type RunWorkflowInput,
   type RunWorkflowSnapshot,
   type SaveWorkflowInput,
@@ -106,3 +108,10 @@ export {
   type WorkflowProject,
   type WorkflowValidationSummary,
 } from "./workflows/service.js";
+export {
+  ensureProjectSkill,
+  PROJECT_SKILL_FILE,
+  PROJECT_SKILL_RELATIVE_FILE,
+  type ProjectSkillResult,
+  projectSkillTemplate,
+} from "./workflows/skill.js";

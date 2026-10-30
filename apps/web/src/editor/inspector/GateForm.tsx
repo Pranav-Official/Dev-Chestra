@@ -8,6 +8,7 @@ import {
   updateGateBranch,
 } from "../model/routing.js";
 import { useBufferFlag } from "./BufferContext.js";
+import { ExpandableTextarea } from "./fields/ExpandableTextarea.js";
 import { describedBy, Field } from "./fields/fields.js";
 import { useBufferedHandle } from "./fields/useBufferedHandle.js";
 import { GateTester, type GateTestRunner } from "./GateTester.js";
@@ -150,19 +151,14 @@ function BranchRow({
             help="First true branch wins. A non-boolean or evaluation error fails the gate and the run."
             error={whenIssue}
           >
-            <textarea
-              id={`${id}-when`}
-              className="inspector-input inspector-textarea inspector-code-input"
-              data-testid={`gate-branch-${index}-when`}
-              rows={2}
-              spellCheck={false}
-              value={branch.when ?? ""}
-              aria-invalid={whenIssue ? true : undefined}
-              aria-describedby={describedBy(`${id}-when`, undefined, whenIssue)}
-              onChange={(event) => {
-                const updated = updateGateBranch(node, branch.id, {
-                  when: event.currentTarget.value,
-                });
+            <GateWhenPicker
+              id={id}
+              index={index}
+              branchId={branch.id}
+              when={branch.when ?? ""}
+              nodeId={node.id}
+              onCommit={(next) => {
+                const updated = updateGateBranch(node, branch.id, { when: next });
                 if (updated !== null) onRoutingChange({ branches: updated.branches });
               }}
             />
@@ -234,5 +230,40 @@ export function GateForm({
         <GateTester node={node} projectId={projectId} runTest={runTest} />
       </InspectorSection>
     </>
+  );
+}
+
+function GateWhenPicker({
+  id,
+  index,
+  branchId,
+  when,
+  nodeId,
+  onCommit,
+}: {
+  id: string;
+  index: number;
+  branchId: string;
+  when: string;
+  nodeId: string;
+  onCommit: (next: string) => void;
+}) {
+  void branchId;
+  return (
+    <ExpandableTextarea
+      id={`${id}-when`}
+      label={`When condition (branch ${index + 1})`}
+      value={when}
+      onCommit={onCommit}
+      mode="expression"
+      nodeId={nodeId}
+      field="gate.when"
+      pickerTestId={`gate-branch-${index}-when-variables`}
+      textareaTestId={`gate-branch-${index}-when`}
+      rows={2}
+      className="inspector-input inspector-textarea inspector-code-input"
+      spellCheck={false}
+      help="First true branch wins. A non-boolean or evaluation error fails the gate and the run."
+    />
   );
 }

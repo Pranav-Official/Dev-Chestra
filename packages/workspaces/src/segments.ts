@@ -1,3 +1,4 @@
+import { isAbsolute, join } from "node:path";
 import { DevChestraError, fsSlug, type Path, parsePath } from "@devchestra/core";
 
 const SEGMENT_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -19,7 +20,7 @@ export function requireAbsolutePath(value: unknown, label: string): string {
   if (typeof value !== "string" || value.length === 0 || value.includes("\0")) {
     throw validation(`${label} must be a non-empty path without NUL`);
   }
-  if (!value.startsWith("/")) throw validation(`${label} must be an absolute path`);
+  if (!isAbsolute(value)) throw validation(`${label} must be an absolute path`);
   return value;
 }
 export function parseWorkspacePath(value: Path | string): Path {
@@ -43,11 +44,11 @@ export function workspaceLayout(
   const project = requireSegment(projectId, "projectId");
   const run = requireSegment(runId, "runId");
   const slug = fsSlug(parseWorkspacePath(path));
-  const runDir = `${dataDir}/projects/${project}/runs/${run}`;
+  const runDir = join(dataDir, "projects", project, "runs", run);
   return {
-    projectDir: `${dataDir}/projects/${project}`,
+    projectDir: join(dataDir, "projects", project),
     runDir,
-    wsRoot: `${runDir}/ws`,
-    wsDir: `${runDir}/ws/${slug}`,
+    wsRoot: join(runDir, "ws"),
+    wsDir: join(runDir, "ws", slug),
   };
 }

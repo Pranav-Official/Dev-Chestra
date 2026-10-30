@@ -276,7 +276,7 @@ export function resolveApproval(
     | { snapshot_json: string }
     | undefined;
   const snapshot = runRec ? parseJson(runRec.snapshot_json) : null;
-  const hasRejected = hasRejectedEdge(snapshot, exec.nodeId);
+  const hasRejected = hasRejectedEdge(snapshot, id.path);
   const targetStatus = input.decision === "approve" || hasRejected ? "succeeded" : "rejected";
   const outputJson = { decision: input.decision, by, ...(note ? { note } : {}), requestId };
   const outSecret = runtime.secrets.scanValue(outputJson);

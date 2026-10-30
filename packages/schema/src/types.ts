@@ -228,6 +228,73 @@ export interface JoinNode extends NodeBase {
   output?: JsonSchemaObject;
 }
 
+export const LOOP_MODE = "repeatUntil" as const;
+export type LoopMode = typeof LOOP_MODE;
+
+/** Bounds for bounded Repeat-until loops. Runtime also bounds state bytes. */
+export const LOOP_MAX_ITERATIONS = 1000;
+export const LOOP_MIN_ITERATIONS = 1;
+/** Per-value JSON cap for loop state/result (16 KiB; store event cap is 64 KiB). */
+export const LOOP_STATE_MAX_BYTES = 16 * 1024;
+/** Body node ids reserved for loop scope roots. */
+export const LOOP_RESERVED_BODY_IDS: readonly string[] = ["loop", "result"];
+
+/** Bounds for foreach fan-out. */
+export const FOREACH_MAX_ITEMS = 1000;
+export const FOREACH_MIN_ITEMS = 1;
+export const FOREACH_DEFAULT_MAX_ITEMS = 1000;
+/** Body node ids reserved for foreach scope roots (bare `foreach` in bodies). */
+export const FOREACH_RESERVED_BODY_IDS: readonly string[] = ["foreach", "result"];
+/** Source handle of a child-workflow failure output. Plain endpoint = success. */
+export const WORKFLOW_FAILED_HANDLE = "failed";
+/** Max depth/total for transitive child-workflow freeze (engine canonical). */
+export const WORKFLOW_MAX_DEPTH = 8;
+export const WORKFLOW_MAX_DEPENDENCIES = 32;
+
+export interface LoopNode extends NodeBase {
+  type: "loop";
+  mode: LoopMode;
+  maxIterations: number;
+  /** Expression evaluated once in parent scope. Defaults to '{}'. */
+  initialState?: string;
+  /** Expression evaluated when continuing. Defaults to 'loop.state'. */
+  nextState?: string;
+  /** Boolean expression over the current result. */
+  until: string;
+  /** Expression over body outputs (end ancestors, not end output). */
+  result: string;
+  output: JsonSchemaObject;
+  body: Graph;
+}
+
+export type ForeachSource =
+  | { kind: "expression"; expression: string }
+  | { kind: "csv"; path: string };
+
+export interface ForEachNode extends NodeBase {
+  type: "foreach";
+  source: ForeachSource;
+  /** 1..1000, defaults to 1000. */
+  maxItems?: number;
+  /** Defaults to "stop". */
+  onItemFailure?: "stop" | "continue";
+  body: Graph;
+  /** Per-item result expression over End ancestors plus foreach scope. */
+  result: string;
+  /** Per-item output schema. */
+  output: JsonSchemaObject;
+}
+
+export interface ChildWorkflowNode extends NodeBase {
+  type: "workflow";
+  /** Same managed-workflow id rules as file stems. */
+  workflowId: string;
+  /** Bare JSONata per target param. */
+  inputs: Record<string, string>;
+  /** Optional successful child-result object schema. */
+  output?: JsonSchemaObject;
+}
+
 export type WorkflowNode =
   | StartNode
   | AgentNode
@@ -236,6 +303,9 @@ export type WorkflowNode =
   | JoinNode
   | ApprovalNode
   | DecisionNode
+  | LoopNode
+  | ForEachNode
+  | ChildWorkflowNode
   | EndNode;
 export type NodeType = WorkflowNode["type"];
 
@@ -332,6 +402,46 @@ export interface NormalizedDecisionNode extends NormalizedNodeBase {
   onError: "fail" | "uncertain";
 }
 
+export interface NormalizedLoopBody {
+  nodes: NormalizedNode[];
+  edges: NormalizedEdge[];
+}
+
+export interface NormalizedLoopNode extends NormalizedNodeBase {
+  type: "loop";
+  mode: LoopMode;
+  maxIterations: number;
+  initialState: string;
+  nextState: string;
+  until: string;
+  result: string;
+  output: JsonSchemaObject;
+  body: NormalizedLoopBody;
+}
+
+export interface NormalizedForEachNode extends NormalizedNodeBase {
+  type: "foreach";
+  source: ForeachSource;
+  maxItems: number;
+  onItemFailure: "stop" | "continue";
+  body: NormalizedLoopBody;
+  result: string;
+  output: JsonSchemaObject;
+}
+
+export interface NormalizedChildWorkflowNode extends NormalizedNodeBase {
+  type: "workflow";
+  workflowId: string;
+  inputs: Record<string, string>;
+  output?: JsonSchemaObject;
+}
+
+/** Body children exclude nested loops by validation (type allows, validator rejects). */
+export type NormalizedBodyNode = Exclude<
+  NormalizedNode,
+  NormalizedLoopNode | NormalizedForEachNode
+>;
+
 export type NormalizedNode =
   | NormalizedStartNode
   | NormalizedAgentNode
@@ -340,6 +450,9 @@ export type NormalizedNode =
   | NormalizedJoinNode
   | NormalizedApprovalNode
   | NormalizedDecisionNode
+  | NormalizedLoopNode
+  | NormalizedForEachNode
+  | NormalizedChildWorkflowNode
   | NormalizedEndNode;
 
 export interface NormalizedEdge {
@@ -420,13 +533,25 @@ export interface Capabilities {
 
 export const SCHEMA_CAPABILITIES: Capabilities = {
   schemaVersion: 1,
-  nodeTypes: ["start", "agent", "shell", "gate", "join", "approval", "decision", "end"],
+  nodeTypes: [
+    "start",
+    "agent",
+    "shell",
+    "gate",
+    "join",
+    "approval",
+    "decision",
+    "loop",
+    "foreach",
+    "workflow",
+    "end",
+  ],
   clis: [...PROD_CLIS],
   workspaces: ["scratch", "worktree"],
   runWorkspaces: ["project", "existing-worktree", "new-worktree"],
   defaultRunWorkspace: "project",
   unsupported: [
-    "node types other than start/agent/shell/gate/join/approval/decision/end",
+    "node types other than start/agent/shell/gate/join/approval/decision/loop/foreach/workflow/end",
     "cli fake (test-only, behind DEVCHESTRA_ALLOW_FAKE)",
     "per-node workspace selection (legacy metadata is ignored on fresh runs)",
     "per-node worktree base/setup/from options",

@@ -1,5 +1,10 @@
 # @devchestra/cli — P1 headless runner
 
+Native Windows support is experimental on `spike/windows-native`. See
+[setup and validation notes](../../docs/windows-native-spike.md). Windows uses
+`%LOCALAPPDATA%\devchestra` for data, PowerShell for shell nodes, and a local
+authenticated pipe for graceful `stop`.
+
 Built binary: `packages/cli/dist/main.js` (`devchestra`). The root scripts forward:
 
 ```sh

@@ -20,6 +20,8 @@ export type NodeKind =
   | "decision"
   | "map"
   | "loop"
+  | "workflow"
+  | "foreach"
   | "supervisor";
 
 export type RunKind = "run" | "node_test";
@@ -318,6 +320,96 @@ export interface LoopExitedPayload {
   rounds: number;
 }
 
+export type WorkflowChildStatus = "succeeded" | "failed" | "rejected" | "cancelled";
+
+export interface WorkflowLinkedPayload {
+  childRunId: string;
+  workflowId: string;
+  workflowHash: string;
+  attempt: number;
+  generation: number;
+}
+
+export interface WorkflowCompletedPayload {
+  childRunId: string;
+  status: WorkflowChildStatus;
+  /** Durable output id for the child envelope (small ref, never hydrated result). */
+  resultRef: string | null;
+  attempt: number;
+  generation: number;
+}
+
+export interface ForeachStartedPayload {
+  total: number;
+  maxItems: number;
+  /** Durable foreach_sources row id; event never carries items. */
+  sourceId: string;
+  sourceHash: string;
+  /** Optional immutable parent capture ref (resolved from foreach_sources on resume). */
+  parentRef?: { kind: "devchestra.execution-context/v1"; captureId: string };
+  attempt: number;
+  generation: number;
+}
+
+export type ForeachItemStatus = "succeeded" | "failed" | "rejected" | "skipped";
+
+export interface ForeachItemDecidedPayload {
+  index: number;
+  status: ForeachItemStatus;
+  /** Durable foreach_items ref (output id) for the mapped per-item result. */
+  resultRef?: string | null;
+  attempt: number;
+  generation: number;
+}
+
+export interface LoopStartedPayload {
+  /** Always 1; the controller starts iteration 1 once, idempotently. */
+  iteration: number;
+  /** Legacy inline parent scope (events written before reference-backed captures). */
+  parent?: JsonObject;
+  /**
+   * Reference-backed parent capture (new events). Tagged and versioned; the
+   * manifest lives in context_captures, never in the event payload.
+   * Exactly one of `parent` / `parentRef` is present on valid events.
+   */
+  parentRef?: { kind: "devchestra.execution-context/v1"; captureId: string };
+  /** Initial carried state for iteration 1. */
+  state: JsonObject;
+  /** Engine-emitted invocation fence; optional for older events. */
+  attempt?: number;
+  generation?: number;
+}
+
+/**
+ * Why a loop reached its terminal round. `done` keeps meaning "the stop
+ * condition matched"; `iteration_limit` is a budget-exhausted terminal round
+ * (`done=false`) that routes downstream instead of failing the run.
+ */
+export type LoopOutcome = "condition_met" | "iteration_limit";
+
+export const LOOP_OUTCOMES: readonly LoopOutcome[] = ["condition_met", "iteration_limit"];
+
+export interface LoopIterationDecidedPayload {
+  /** 1-based round this decision belongs to; round != retry attempt. */
+  iteration: number;
+  /** Validated body result for the round. */
+  result: JsonValue;
+  /** True when the stop condition matched; false to continue. */
+  done: boolean;
+  /** Carried state for the next round; absent retains current state. */
+  nextState?: JsonObject;
+  /**
+   * Explicit terminal outcome. `condition_met` requires `done=true`;
+   * `iteration_limit` requires `done=false` and no `nextState`. Absent on
+   * continuing rounds and on legacy events (`done=true` then implies
+   * `condition_met`).
+   */
+  outcome?: LoopOutcome;
+  /** Engine-emitted invocation fence; optional for older events. */
+  attempt?: number;
+  generation?: number;
+}
+
 export interface JoinResolvedPayload {
   mode: string;
   /** Resolved input names that were active. */
@@ -462,6 +554,12 @@ export const EVENT_TYPES = [
   "loop.round.started",
   "loop.round.completed",
   "loop.exited",
+  "loop.started",
+  "loop.iteration.decided",
+  "workflow.linked",
+  "workflow.completed",
+  "foreach.started",
+  "foreach.item.decided",
   "join.resolved",
   "quota.blocked",
   "quota.released",
@@ -516,6 +614,12 @@ export interface EventPayloads {
   "loop.round.started": LoopRoundStartedPayload;
   "loop.round.completed": LoopRoundCompletedPayload;
   "loop.exited": LoopExitedPayload;
+  "loop.started": LoopStartedPayload;
+  "loop.iteration.decided": LoopIterationDecidedPayload;
+  "workflow.linked": WorkflowLinkedPayload;
+  "workflow.completed": WorkflowCompletedPayload;
+  "foreach.started": ForeachStartedPayload;
+  "foreach.item.decided": ForeachItemDecidedPayload;
   "join.resolved": JoinResolvedPayload;
   "quota.blocked": QuotaBlockedPayload;
   "quota.released": QuotaReleasedPayload;

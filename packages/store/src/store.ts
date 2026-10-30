@@ -22,6 +22,11 @@ import {
 } from "./approvals.js";
 import { EventBus } from "./bus.js";
 import { archiveWorkflowRuns, removeProject, setRunArchived } from "./cleanup.js";
+import {
+  createContextCapture,
+  getContextCapture,
+  resolveCaptureScope,
+} from "./context-captures.js";
 import type { SqliteDb } from "./driver.js";
 import { betterSqliteDriver } from "./driver-better-sqlite3.js";
 import { appendEvents, type ListEventsOptions } from "./events.js";
@@ -32,6 +37,15 @@ import {
   getExecution,
   listExecutions,
 } from "./executions.js";
+import {
+  createForeachSource,
+  getForeachSource,
+  getForeachSourceByAttempt,
+  getForeachSourceMeta,
+  listForeachItemRefs,
+  listForeachItems,
+} from "./foreach.js";
+import { decideLoop, startLoop } from "./loops.js";
 import { applyMigrations } from "./migrate.js";
 import { getOutput, recordDeterministic } from "./outputs.js";
 import {
@@ -53,7 +67,9 @@ import {
 import {
   executionHistory,
   getOutputById,
+  getOutputMetadataById,
   listOutputsByProvenance,
+  listOutputsMetadata,
   listRuns,
   pageEvents,
   snapshotRun,
@@ -61,6 +77,13 @@ import {
 } from "./read-ports.js";
 import { recover } from "./recovery.js";
 import { recordDecision, recordGateDecision, recordJoinResolution } from "./routing.js";
+import {
+  getChildLink,
+  getParentLink,
+  getRunBundle,
+  listChildLinks,
+  putRunBundle,
+} from "./run-children.js";
 import { createRun, getRun, listActiveRuns } from "./runs.js";
 import type { Runtime } from "./runtime.js";
 import { type SecretFinding, SecretRegistry } from "./secrets.js";
@@ -80,8 +103,12 @@ import type {
   CompleteAcceptedAfterRecoveryInput,
   CompleteExecutionInput,
   CompleteExecutionResult,
+  ContextCaptureRecord,
+  CreateContextCaptureInput,
   CreateRunInput,
   CreateRunResult,
+  DecideLoopInput,
+  DecideLoopResult,
   EnsureExecutionInput,
   EnsureProjectInput,
   EventPage,
@@ -89,6 +116,8 @@ import type {
   ExecutionHistory,
   ExecutionRow,
   OpenStoreOptions,
+  OutputMetadata,
+  OutputMetadataPage,
   OutputProvenancePage,
   OutputProvenanceQuery,
   OutputRecord,
@@ -115,10 +144,18 @@ import type {
   RunRecord,
   RunSnapshot,
   RunSummary,
+  StartLoopInput,
+  StartLoopResult,
   SubmitInput,
   SubmitOutcome,
 } from "./types.js";
 import { fail } from "./util.js";
+import {
+  recordForeachItemDecided,
+  recordForeachStarted,
+  recordWorkflowCompleted,
+  recordWorkflowLinked,
+} from "./workflow-events.js";
 
 export interface ProjectsApi {
   ensure(input: EnsureProjectInput): void;
@@ -148,6 +185,8 @@ export interface OutputsApi {
   get(identity: Pick<ExecutionIdentity, "runId" | "path" | "attempt">): AcceptedOutput | null;
   getById(id: string): OutputRecord | null;
   listByProvenance(query: OutputProvenanceQuery): OutputProvenancePage;
+  getMetadataById(id: string): OutputMetadata | null;
+  listMetadata(query: OutputProvenanceQuery): OutputMetadataPage;
 }
 
 export interface ExecutionsApi {
@@ -195,6 +234,86 @@ export interface RoutingApi {
   recordJoinResolution(input: RecordJoinResolutionInput): RoutingCommitResult;
 }
 
+export interface LoopsApi {
+  start(input: StartLoopInput): StartLoopResult;
+  decide(input: DecideLoopInput): DecideLoopResult;
+}
+
+export interface WorkflowCallsApi {
+  link(input: {
+    identity: import("@devchestra/core").ExecutionIdentity;
+    childRunId: string;
+    workflowId: string;
+    workflowHash: string;
+  }): { eventId: number | null; duplicate: boolean };
+  complete(input: {
+    identity: import("@devchestra/core").ExecutionIdentity;
+    childRunId: string;
+    status: "succeeded" | "failed" | "rejected" | "cancelled";
+    resultRef: string | null;
+  }): { eventId: number | null; duplicate: boolean };
+  getLink(
+    parentRunId: import("@devchestra/core").RunId,
+    parentPath: import("@devchestra/core").Path,
+    parentAttempt: number,
+  ): import("./run-children.js").ChildLink | null;
+  getParent(childRunId: string): import("./run-children.js").ChildLink | null;
+  listByParent(
+    parentRunId: import("@devchestra/core").RunId,
+  ): import("./run-children.js").ChildLink[];
+  putBundle(
+    runId: import("@devchestra/core").RunId,
+    bundle: Record<string, unknown>,
+    hash: string,
+  ): void;
+  getBundle(runId: import("@devchestra/core").RunId): import("./run-children.js").RunBundle | null;
+}
+
+export interface ForeachApi {
+  createSource(input: {
+    identity: import("@devchestra/core").ExecutionIdentity;
+    kind: "expression" | "csv";
+    items: unknown[];
+    maxItems: number;
+    parentCaptureId?: string;
+  }): { source: import("./foreach.js").ForeachSource; duplicate: boolean };
+  getSource(sourceId: string): import("./foreach.js").ForeachSource | null;
+  /** Metadata-only source read (no items JSON parsed). */
+  getSourceMeta(sourceId: string): import("./foreach.js").ForeachSourceMeta | null;
+  listItems(sourceId: string): import("./foreach.js").ForeachItem[];
+  /** Bounded item refs (no result_json selected). */
+  listItemRefs(
+    sourceId: string,
+    options?: { offset?: number; limit?: number },
+  ): import("./foreach.js").ForeachItemRef[];
+  getSourceByAttempt(
+    runId: import("@devchestra/core").RunId,
+    path: import("@devchestra/core").Path,
+    attempt: number,
+  ): import("./foreach.js").ForeachSource | null;
+  start(input: {
+    identity: import("@devchestra/core").ExecutionIdentity;
+    total: number;
+    maxItems: number;
+    sourceId: string;
+    sourceHash: string;
+  }): { eventId: number | null; duplicate: boolean };
+  decideItem(input: {
+    identity: import("@devchestra/core").ExecutionIdentity;
+    sourceId: string;
+    index: number;
+    status: "succeeded" | "failed" | "rejected" | "skipped";
+    result?: unknown;
+  }): { eventId: number | null; duplicate: boolean };
+}
+
+export interface ContextCapturesApi {
+  create(input: CreateContextCaptureInput): ContextCaptureRecord;
+  get(captureId: string): ContextCaptureRecord | null;
+  /** Verified hydration of a capture to its parent scope (fresh object per call). */
+  resolve(runId: RunId, captureId: string): Record<string, unknown>;
+}
+
 export interface ApprovalsApi {
   request(input: RequestApprovalInput): RequestApprovalResult;
   resolve(input: ResolveApprovalInput): ResolveApprovalResult;
@@ -226,6 +345,10 @@ export class Store {
   readonly view: ViewApi;
   readonly recovery: RecoveryApi;
   readonly routing: RoutingApi;
+  readonly loops: LoopsApi;
+  readonly workflowCalls: WorkflowCallsApi;
+  readonly foreach: ForeachApi;
+  readonly contextCaptures: ContextCapturesApi;
   readonly approvals: ApprovalsApi;
   readonly security: SecurityApi;
 
@@ -284,6 +407,8 @@ export class Store {
       get: (identity) => getOutput(this.#runtime, identity.runId, identity.path, identity.attempt),
       getById: (id) => getOutputById(this.#runtime, id),
       listByProvenance: (query) => listOutputsByProvenance(this.#runtime, query),
+      getMetadataById: (id) => getOutputMetadataById(this.#runtime, id),
+      listMetadata: (query) => listOutputsMetadata(this.#runtime, query),
     };
     this.executions = {
       ensure: (input) => this.tx(() => ensureExecution(this.#runtime, input)),
@@ -326,6 +451,37 @@ export class Store {
       recordGateDecision: (input) => this.tx(() => recordGateDecision(this.#runtime, input)),
       recordDecision: (input) => this.tx(() => recordDecision(this.#runtime, input)),
       recordJoinResolution: (input) => this.tx(() => recordJoinResolution(this.#runtime, input)),
+    };
+    this.loops = {
+      start: (input) => this.tx(() => startLoop(this.#runtime, input)),
+      decide: (input) => this.tx(() => decideLoop(this.#runtime, input)),
+    };
+    this.workflowCalls = {
+      link: (input) => this.tx(() => recordWorkflowLinked(this.#runtime, input)),
+      complete: (input) => this.tx(() => recordWorkflowCompleted(this.#runtime, input)),
+      getLink: (parentRunId, parentPath, parentAttempt) =>
+        getChildLink(this.#runtime, parentRunId, parentPath, parentAttempt),
+      getParent: (childRunId) => getParentLink(this.#runtime, childRunId),
+      listByParent: (parentRunId) => listChildLinks(this.#runtime, parentRunId),
+      putBundle: (runId, bundle, hash) =>
+        this.tx(() => putRunBundle(this.#runtime, runId, bundle, hash)),
+      getBundle: (runId) => getRunBundle(this.#runtime, runId),
+    };
+    this.foreach = {
+      createSource: (input) => this.tx(() => createForeachSource(this.#runtime, input)),
+      getSource: (sourceId) => getForeachSource(this.#runtime, sourceId),
+      getSourceMeta: (sourceId) => getForeachSourceMeta(this.#runtime, sourceId),
+      getSourceByAttempt: (runId, path, attempt) =>
+        getForeachSourceByAttempt(this.#runtime, runId, path, attempt),
+      listItems: (sourceId) => listForeachItems(this.#runtime, sourceId),
+      listItemRefs: (sourceId, options) => listForeachItemRefs(this.#runtime, sourceId, options),
+      start: (input) => this.tx(() => recordForeachStarted(this.#runtime, input)),
+      decideItem: (input) => this.tx(() => recordForeachItemDecided(this.#runtime, input)),
+    };
+    this.contextCaptures = {
+      create: (input) => this.tx(() => createContextCapture(this.#runtime, input)),
+      get: (captureId) => getContextCapture(this.#runtime, captureId),
+      resolve: (runId, captureId) => resolveCaptureScope(this.#runtime, runId, captureId),
     };
     this.approvals = {
       request: (input) => this.tx(() => requestApproval(this.#runtime, input)),

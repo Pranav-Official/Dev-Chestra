@@ -9,7 +9,12 @@ import type {
   WorkflowFile,
   WorkflowNode,
 } from "@devchestra/schema";
-import { DECISION_UNCERTAIN_HANDLE, decisionHandles, HANDLE_ID_PATTERN } from "@devchestra/schema";
+import {
+  DECISION_UNCERTAIN_HANDLE,
+  decisionHandles,
+  HANDLE_ID_PATTERN,
+  LOOP_EXHAUSTED_HANDLE,
+} from "@devchestra/schema";
 import type { ConnectRequest } from "./types.js";
 
 export interface ParsedEndpoint {
@@ -33,6 +38,9 @@ const SUPPORTED_TYPES: ReadonlySet<string> = new Set<string>([
   "join",
   "approval",
   "decision",
+  "loop",
+  "foreach",
+  "workflow",
   "end",
 ]);
 
@@ -519,7 +527,7 @@ export function checkConnection(file: WorkflowFile, request: ConnectRequest): Co
     return {
       ok: false,
       message:
-        "This editor can only connect Start, Agent, Shell, Gate, Join, Approval, Decision and End nodes.",
+        "This editor can only connect Start, Agent, Shell, Gate, Join, Approval, Decision, Loop and End nodes.",
     };
   }
   if (source.id === target.id) {
@@ -558,6 +566,22 @@ export function checkConnection(file: WorkflowFile, request: ConnectRequest): Co
       };
     }
     from = `${source.id}.${sourceEndpoint.handle}`;
+  } else if (source.type === "workflow") {
+    if (sourceEndpoint.handle !== null && sourceEndpoint.handle !== "failed") {
+      return { ok: false, message: "Run workflow has success (plain) and failed outputs." };
+    }
+    from = sourceEndpoint.handle === "failed" ? `${source.id}.failed` : source.id;
+  } else if (source.type === "loop") {
+    if (sourceEndpoint.handle !== null && sourceEndpoint.handle !== LOOP_EXHAUSTED_HANDLE) {
+      return {
+        ok: false,
+        message: "Loop has only success (plain) and exhausted outputs.",
+      };
+    }
+    from =
+      sourceEndpoint.handle === LOOP_EXHAUSTED_HANDLE
+        ? `${source.id}.${LOOP_EXHAUSTED_HANDLE}`
+        : source.id;
   } else if (sourceEndpoint.handle !== null && sourceEndpoint.handle !== "out") {
     return { ok: false, message: "That node has no such output handle." };
   }
