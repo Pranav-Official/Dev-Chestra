@@ -26,6 +26,7 @@ import type {
   StartRunResponse,
   TranscriptLine,
   TranscriptPageResponse,
+  UsageQuery,
   UsageSummary,
   WorkspaceView,
 } from "@devchestra/api";
@@ -123,10 +124,6 @@ export interface RunContextQuery {
   status?: string;
   limit: number;
   cursor?: string;
-}
-
-export interface UsageQuery {
-  projectId?: string;
 }
 
 export interface BrowserQueryPort {

@@ -665,7 +665,8 @@ export interface UsageSummary {
   byProvider: UsageProviderSummary[];
 }
 
-export const usageSummarySchema = strict({
+/** Registered as UsageSummaryResponse in the browser response contracts. */
+export const usageSummaryResponseSchema = strict({
   total: strict({
     usd: z.number().nonnegative(),
     tokens: z.number().int().nonnegative(),
@@ -673,11 +674,8 @@ export const usageSummarySchema = strict({
   byProvider: z.array(usageProviderSummarySchema),
 }) as unknown as z.ZodType<UsageSummary>;
 
-/** Shared response schema registered as UsageSummaryResponse in contracts. */
-export const usageSummaryResponseSchema = usageSummarySchema;
-
+/** Omitting projectId returns the global rollup. */
 export const usageQuerySchema = strict({
-  scope: z.enum(["global", "project"]).optional(),
   projectId: projectIdSchema.optional(),
 });
 

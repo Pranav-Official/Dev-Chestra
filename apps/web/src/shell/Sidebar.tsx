@@ -9,13 +9,14 @@ import {
   Layers3,
   Settings,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { api, classifyError } from "../api/client.js";
 import { queryKeys, useBootstrap } from "../api/hooks.js";
 import type { RunSummary } from "../api/types.js";
 import { workflowApi } from "../editor/api/workflowApi.js";
 import { statusLabel } from "../ui/StatusPill.js";
+import { useDetailsMenu } from "../ui/useDetailsMenu.js";
 import { WorkspaceActions } from "../ui/WorkspaceActions.js";
 
 interface WorkflowNav {
@@ -26,7 +27,7 @@ interface WorkflowNav {
 }
 
 function SettingsMenu() {
-  const menu = useRef<HTMLDetailsElement>(null);
+  const menu = useDetailsMenu();
   const location = useLocation();
   const match = location.pathname.match(/^\/p\/([^/]+)/);
   const usagePath = match ? `/p/${match[1]}/settings/usage` : "/settings/usage";
@@ -34,25 +35,15 @@ function SettingsMenu() {
   return (
     <details
       className="workspace-menu workspace-menu-up"
-      ref={menu}
-      onKeyDown={(event) => {
-        if (event.key === "Escape" && menu.current) {
-          menu.current.open = false;
-          menu.current.querySelector("summary")?.focus();
-        }
-      }}
+      ref={menu.ref}
+      onKeyDown={menu.onKeyDown}
+      onBlur={menu.onBlur}
     >
-      <summary aria-label="Settings">
+      <summary aria-label="Settings" title="Settings">
         <Settings size={15} aria-hidden="true" />
       </summary>
       <div className="workspace-menu-items">
-        <Link
-          to={usagePath}
-          aria-current={active ? "page" : undefined}
-          onClick={() => {
-            if (menu.current) menu.current.open = false;
-          }}
-        >
+        <Link to={usagePath} aria-current={active ? "page" : undefined} onClick={menu.close}>
           Usage
         </Link>
       </div>
@@ -271,7 +262,7 @@ export function Sidebar() {
         <span className={`status-icon ${bootstrap.data ? "succeeded" : "idle"}`} aria-hidden="true">
           ●
         </span>
-        <span style={{ flex: 1 }}>
+        <span className="sidebar-foot-status">
           {bootstrap.data
             ? `DevChestra ${bootstrap.data.version} · ${bootstrap.data.counts.activeRuns} active`
             : "Not connected"}

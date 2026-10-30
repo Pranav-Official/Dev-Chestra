@@ -2,7 +2,8 @@ import type { EventEnvelope, RunId } from "@devchestra/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { api } from "../src/api/client.js";
 import { SettingsPage } from "../src/pages/SettingsPage.js";
 import { EventsPanel } from "../src/run/EventsPanel.js";
 import { ReplayBar } from "../src/run/ReplayBar.js";
@@ -94,7 +95,23 @@ describe("ReplayBar", () => {
 });
 
 describe("SettingsPage", () => {
-  it("renders structured usage stats, provider bars, and cost breakdown", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("renders structured usage stats, provider bars, and cost breakdown", async () => {
+    const usage = {
+      total: { usd: 12.34, tokens: 4_820_500 },
+      byProvider: [
+        {
+          provider: "anthropic",
+          usd: 12.34,
+          tokens: 4_820_500,
+          byModel: [{ model: "claude-sonnet-5-5", usd: 12.34, tokens: 4_820_500 }],
+        },
+      ],
+    };
+    vi.spyOn(api, "getUsage").mockResolvedValue(usage);
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={client}>
@@ -103,7 +120,7 @@ describe("SettingsPage", () => {
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    expect(screen.getByRole("heading", { name: "Tokens by provider" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Tokens by provider" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Cost by model" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Cost by model donut chart" })).toBeInTheDocument();
     expect(screen.getByText("4,820,500")).toBeInTheDocument();

@@ -1254,7 +1254,7 @@ describe("real store DTO validation", () => {
 });
 
 describe("usage summary endpoint", () => {
-  it("serves empty totals and validates scope/projectId", async () => {
+  it("serves empty totals and validates projectId", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "devchestra-browser-usage-"));
     const store = openStore({ file: join(dataDir, "devchestra.db") });
     cleanups.push(async () => {
@@ -1278,26 +1278,13 @@ describe("usage summary endpoint", () => {
     expect(empty.status).toBe(200);
     expect(await empty.json()).toEqual({ total: { usd: 0, tokens: 0 }, byProvider: [] });
 
-    const scoped = await app.request(url("/api/usage?scope=project&projectId=proj-usage"), {
+    const scoped = await app.request(url("/api/usage?projectId=proj-usage"), {
       headers: cookieHeaders(),
     });
     expect(scoped.status).toBe(200);
     expect(await scoped.json()).toEqual({ total: { usd: 0, tokens: 0 }, byProvider: [] });
 
-    const missingScope = await app.request(url("/api/usage?scope=project"), {
-      headers: cookieHeaders(),
-    });
-    expect(missingScope.status).toBe(400);
-    expect(((await missingScope.json()) as { error: { code: string } }).error.code).toBe(
-      "E_VALIDATION",
-    );
-
-    const globalWithId = await app.request(url("/api/usage?scope=global&projectId=proj-usage"), {
-      headers: cookieHeaders(),
-    });
-    expect(globalWithId.status).toBe(400);
-
-    const missingProject = await app.request(url("/api/usage?scope=project&projectId=nope"), {
+    const missingProject = await app.request(url("/api/usage?projectId=nope"), {
       headers: cookieHeaders(),
     });
     expect(missingProject.status).toBe(404);

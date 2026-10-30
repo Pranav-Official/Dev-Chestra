@@ -14,6 +14,7 @@ export const queryKeys = {
   workflows: (projectId: string) => ["workflows", projectId] as const,
   workflow: (projectId: string, workflowId: string) => ["workflow", projectId, workflowId] as const,
   approvals: ["approvals"] as const,
+  usage: (projectId?: string) => ["usage", projectId ?? "global"] as const,
 };
 
 export function useProjectWorkflows(projectId: string, enabled = true) {

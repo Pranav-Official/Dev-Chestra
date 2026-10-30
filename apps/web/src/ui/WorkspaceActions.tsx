@@ -1,11 +1,12 @@
 import { isTerminalRunStatus } from "@devchestra/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api, classifyError } from "../api/client.js";
 import { queryKeys, useBootstrap } from "../api/hooks.js";
 import type { RunSummary } from "../api/types.js";
 import { ConfirmDialog } from "../editor/controls/ConfirmDialog.js";
+import { useDetailsMenu } from "./useDetailsMenu.js";
 
 export function WorkspaceActions({
   projectId,
@@ -19,7 +20,7 @@ export function WorkspaceActions({
   name?: string;
 }) {
   const [confirm, setConfirm] = useState(false);
-  const menu = useRef<HTMLDetailsElement>(null);
+  const menu = useDetailsMenu();
   const client = useQueryClient();
   const bootstrap = useBootstrap();
   const navigate = useNavigate();
@@ -57,13 +58,9 @@ export function WorkspaceActions({
     <>
       <details
         className="workspace-menu"
-        ref={menu}
-        onKeyDown={(event) => {
-          if (event.key === "Escape" && menu.current) {
-            menu.current.open = false;
-            menu.current.querySelector("summary")?.focus();
-          }
-        }}
+        ref={menu.ref}
+        onKeyDown={menu.onKeyDown}
+        onBlur={menu.onBlur}
       >
         <summary
           aria-label={
@@ -82,7 +79,7 @@ export function WorkspaceActions({
             disabled={disabled}
             title={disabled ? "Only completed runs can be archived." : undefined}
             onClick={() => {
-              if (menu.current) menu.current.open = false;
+              menu.close();
               mutation.reset();
               setConfirm(true);
             }}

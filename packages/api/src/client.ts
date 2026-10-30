@@ -55,6 +55,9 @@ import {
   type TranscriptPageResponse,
   type TranscriptQuery,
   transcriptPageResponseSchema,
+  type UsageQuery,
+  type UsageSummary,
+  usageSummaryResponseSchema,
 } from "./dto.js";
 import { ApiError, ApiProtocolError, ApiTransportError, errorResponseSchema } from "./errors.js";
 import { type EventPageResponse, eventPageResponseSchema, type RunEventsQuery } from "./events.js";
@@ -296,6 +299,15 @@ export class ApiClientBase {
       ["projects", projectId, "relink"],
       projectViewSchema,
       this.req(options, { body: parsed, mutation: true }),
+    );
+  }
+
+  getUsage(query: UsageQuery = {}, options: ApiRequestOptions = {}): Promise<UsageSummary> {
+    return this.request(
+      "GET",
+      ["usage"],
+      usageSummaryResponseSchema,
+      this.req(options, { query: { projectId: query.projectId } }),
     );
   }
 

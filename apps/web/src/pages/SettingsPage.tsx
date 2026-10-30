@@ -1,13 +1,12 @@
 import { BarChart3 } from "lucide-react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { Topbar } from "../shell/Topbar.js";
+import "../styles/settings.css";
 import { UsagePanel } from "./UsagePanel.js";
 
 export function SettingsPage() {
   const { pid = "" } = useParams();
-  const location = useLocation();
   const usagePath = pid !== "" ? `/p/${pid}/settings/usage` : "/settings/usage";
-  const active = location.pathname.endsWith("/settings/usage");
   const crumbs =
     pid !== ""
       ? [{ label: "Project", to: `/p/${pid}/workflows` }, { label: "Settings" }, { label: "Usage" }]
@@ -21,28 +20,17 @@ export function SettingsPage() {
           <div className="page-head">
             <div className="grow">
               <h1>Settings</h1>
-              <p>Workspace settings. Token and cost analytics, live.</p>
+              <p>Token and cost analytics across runs.</p>
             </div>
           </div>
-          <div className="row wrap" style={{ gap: 24, alignItems: "flex-start" }}>
-            <nav
-              aria-label="Settings sections"
-              className="card"
-              style={{ flex: "0 0 180px", padding: 6 }}
-            >
-              <Link
-                to={usagePath}
-                aria-current={active ? "page" : undefined}
-                className={`nav-item${active ? " active" : ""}`}
-              >
+          <div className="settings-layout">
+            <nav aria-label="Settings sections" className="card settings-nav">
+              <Link to={usagePath} aria-current="page" className="nav-item active">
                 <BarChart3 size={15} aria-hidden="true" />
                 <span>Usage</span>
               </Link>
             </nav>
-            <section
-              aria-label="Usage settings"
-              style={{ flex: "1 1 540px", minWidth: 0 }}
-            >
+            <section aria-label="Usage settings" className="settings-main">
               <UsagePanel />
             </section>
           </div>

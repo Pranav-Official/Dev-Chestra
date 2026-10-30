@@ -320,6 +320,13 @@ a:hover {
   color: var(--text-2);
   font-size: 12px;
 }
+.sidebar-foot-status {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .main-col {
   display: flex;
   flex-direction: column;
@@ -534,6 +541,9 @@ a:hover {
 }
 
 @media (max-width: 560px) {
+  .page {
+    padding: 20px 16px 48px;
+  }
   .topbar {
     padding: 0 10px;
     gap: 4px;

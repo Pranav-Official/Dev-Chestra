@@ -256,26 +256,12 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
 
   app.get("/api/usage", async (c) => {
     const query = usageQuerySchema.safeParse({
-      scope: c.req.query("scope") || undefined,
       projectId: c.req.query("projectId") || undefined,
     });
     if (!query.success) {
       return c.json(errorBody("E_VALIDATION", "Usage query is invalid."), 400);
     }
-    const scope = query.data.scope ?? (query.data.projectId === undefined ? "global" : "project");
-    if (scope === "project" && query.data.projectId === undefined) {
-      return c.json(
-        errorBody("E_VALIDATION", "Usage query requires projectId when scope is project."),
-        400,
-      );
-    }
-    if (scope === "global" && query.data.projectId !== undefined) {
-      return c.json(
-        errorBody("E_VALIDATION", "Usage query must not include projectId when scope is global."),
-        400,
-      );
-    }
-    const projectId = scope === "project" ? (query.data.projectId as string) : undefined;
+    const { projectId } = query.data;
     if (projectId !== undefined) {
       const project = await deps.store.getProject(projectId);
       if (project === null) return c.json(errorBody("E_NOT_FOUND", "Project not found."), 404);
