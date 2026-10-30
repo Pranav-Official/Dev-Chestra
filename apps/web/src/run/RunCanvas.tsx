@@ -16,7 +16,6 @@ import "@xyflow/react/dist/style.css";
 import {
   deriveRouting,
   isTerminalRunStatus,
-  LOOP_EXHAUSTED_HANDLE,
   loopTerminalOutcome,
   type RunView,
 } from "@devchestra/core";
@@ -559,19 +558,11 @@ export function RunCanvas({
       const className = edgeClass(state, targetStatus);
       const animated = className === "live" && !isTerminalRunStatus(view.status);
       const dead = state === "dead";
-      const sourceNode = snapshot.graph.nodes.find((node) => node.id === source);
-      const loopLabel =
-        sourceNode?.type === "loop"
-          ? edge.from === `${source}.${LOOP_EXHAUSTED_HANDLE}`
-            ? "exhausted"
-            : "success"
-          : undefined;
       return {
         id: edge.id,
         source,
         target,
         type: "smoothstep",
-        ...(loopLabel === undefined ? {} : { label: loopLabel }),
         animated,
         className,
         ariaLabel: `${edge.id} ${state}`,
