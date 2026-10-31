@@ -6,6 +6,7 @@ import { api, classifyError } from "../api/client.js";
 import { queryKeys, useBootstrap } from "../api/hooks.js";
 import type { RunSummary } from "../api/types.js";
 import { ConfirmDialog } from "../editor/controls/ConfirmDialog.js";
+import { RefreshWorkflowsDialog } from "./RefreshWorkflowsDialog.js";
 
 export function WorkspaceActions({
   projectId,
@@ -19,6 +20,7 @@ export function WorkspaceActions({
   name?: string;
 }) {
   const [confirm, setConfirm] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const menu = useRef<HTMLDetailsElement>(null);
   const client = useQueryClient();
   const bootstrap = useBootstrap();
@@ -77,6 +79,17 @@ export function WorkspaceActions({
           ⋯
         </summary>
         <div className="workspace-menu-items">
+          {removing ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (menu.current) menu.current.open = false;
+                setRefreshing(true);
+              }}
+            >
+              Refresh workflows
+            </button>
+          ) : null}
           <button
             type="button"
             disabled={disabled}
@@ -92,6 +105,14 @@ export function WorkspaceActions({
           {disabled ? <span className="faint">Active runs cannot be archived.</span> : null}
         </div>
       </details>
+      {removing ? (
+        <RefreshWorkflowsDialog
+          projectId={projectId}
+          projectName={name ?? projectId}
+          open={refreshing}
+          onClose={() => setRefreshing(false)}
+        />
+      ) : null}
       <ConfirmDialog
         open={confirm}
         title={label}

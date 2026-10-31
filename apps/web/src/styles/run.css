@@ -401,3 +401,45 @@ button.event-row:hover {
   overflow: auto;
   overflow-wrap: anywhere;
 }
+
+/* Refresh workflows dialog: what a refresh would add and remove. */
+.refresh-diff {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.refresh-diff-title {
+  margin: 0 0 6px;
+}
+.refresh-diff-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.refresh-diff-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  font-size: 13px;
+}
+.refresh-diff-list .nm {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.refresh-diff-list .faint {
+  margin-left: auto;
+  font-size: 12px;
+}
+.refresh-diff-list.added svg {
+  color: var(--green);
+}
+.refresh-diff-list.removed svg {
+  color: var(--red);
+}
