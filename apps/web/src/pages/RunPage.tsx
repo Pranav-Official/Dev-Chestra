@@ -14,7 +14,6 @@ import { TranscriptPanel } from "../run/TranscriptPanel.js";
 import { Topbar } from "../shell/Topbar.js";
 import { showReconnectBanner } from "../state/runSession.js";
 import { formatCost, formatDuration, formatTime, formatTokens } from "../ui/format.js";
-import { StatusPill } from "../ui/StatusPill.js";
 import {
   AuthState,
   LoadingState,
@@ -291,27 +290,24 @@ function RunPage({ rid }: { rid: string }) {
         </div>
       ) : null}
 
-      <div className="run-header">
-        <div className="run-identity">
-          <b className="run-name">{detail?.snapshot.name ?? workflowName}</b>
-          <span className="faint">Run #{run?.runNumber ?? view.runNumber}</span>
-        </div>
+      {/* One status bar: the run's status and reason on the left, quick facts and
+          the stop control on the right. The name and number live in the breadcrumb. */}
+      <div className="run-bar">
+        <RunOutcome
+          view={view}
+          nodeName={(nodeId) =>
+            detail?.snapshot.graph.nodes.find((node) => node.id === nodeId)?.name ?? nodeId
+          }
+          onSelectPath={(next) => update({ path: next, tab: "detail" })}
+        />
         <span className="sp" />
-        <StatusPill status={view.status} testId="run-status" />
+        <div className="run-meta">
+          <span>{formatCost(view.budget.usd)}</span>
+          <span>{formatTokens(view.budget.tokens)} tokens</span>
+          <span>{formatDuration(view.budget.activeMs)} active</span>
+          <span>{run?.startedAt ? `Started ${formatTime(run.startedAt)}` : "Not started"}</span>
+        </div>
         {stopControl}
-      </div>
-      <RunOutcome
-        view={view}
-        nodeName={(nodeId) =>
-          detail?.snapshot.graph.nodes.find((node) => node.id === nodeId)?.name ?? nodeId
-        }
-        onSelectPath={(next) => update({ path: next, tab: "detail" })}
-      />
-      <div className="run-meta">
-        <span>{formatCost(view.budget.usd)}</span>
-        <span>{formatTokens(view.budget.tokens)} tokens</span>
-        <span>{formatDuration(view.budget.activeMs)} active</span>
-        <span>{run?.startedAt ? `Started ${formatTime(run.startedAt)}` : "Not started"}</span>
       </div>
 
       <div className="run-split">

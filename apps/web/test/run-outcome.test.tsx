@@ -34,13 +34,14 @@ function exec(path: string, status: string) {
 const nodeName = (nodeId: string) => (nodeId === "render" ? "Render summary" : nodeId);
 
 describe("RunOutcome", () => {
-  it("says the run completed when it succeeded", () => {
+  it("shows one status pill and no reason when the run succeeded", () => {
     render(<RunOutcome view={viewWith("succeeded")} nodeName={nodeName} onSelectPath={vi.fn()} />);
-    expect(screen.getByTestId("run-outcome")).toHaveTextContent("Run completed.");
+    expect(screen.getByTestId("run-status")).toHaveTextContent("Succeeded");
+    expect(screen.getByTestId("run-outcome")).not.toHaveTextContent("completed");
     expect(screen.queryByRole("button")).toBeNull();
   });
 
-  it("names the failed step and its error, and links to the step", () => {
+  it("names the failed step and its error after the status, and links to the step", () => {
     const onSelectPath = vi.fn();
     const view = viewWith("failed", {
       executions: { render: exec("render", "failed") },
@@ -57,30 +58,28 @@ describe("RunOutcome", () => {
     });
     render(<RunOutcome view={view} nodeName={nodeName} onSelectPath={onSelectPath} />);
 
-    expect(screen.getByTestId("run-outcome")).toHaveTextContent(
-      "Failed at Render summary: exit status 1",
-    );
+    expect(screen.getByTestId("run-status")).toHaveTextContent("Failed");
+    expect(screen.getByTestId("run-outcome")).toHaveTextContent("at Render summary: exit status 1");
     fireEvent.click(screen.getByRole("button", { name: "View error" }));
     expect(onSelectPath).toHaveBeenCalledWith("render");
   });
 
-  it("still states the failure when no step is recorded as failed", () => {
+  it("still gives the error when no step is recorded as failed", () => {
     const view = viewWith("failed", {
       errors: [
         { eventId: 2, ts: "", path: "", code: "E_RUN", message: "engine stopped", details: null },
       ],
     });
     render(<RunOutcome view={view} nodeName={nodeName} onSelectPath={vi.fn()} />);
-    expect(screen.getByTestId("run-outcome")).toHaveTextContent(
-      "Failed at the run: engine stopped",
-    );
+    expect(screen.getByTestId("run-outcome")).toHaveTextContent("engine stopped");
     expect(screen.queryByRole("button")).toBeNull();
   });
 
-  it("shows what a live run is waiting on", () => {
+  it("shows what a live run is on", () => {
     const view = viewWith("running", { executions: { render: exec("render", "running") } });
     render(<RunOutcome view={view} nodeName={nodeName} onSelectPath={vi.fn()} />);
-    expect(screen.getByTestId("run-outcome")).toHaveTextContent("Running Render summary.");
+    expect(screen.getByTestId("run-status")).toHaveTextContent("Running");
+    expect(screen.getByTestId("run-outcome")).toHaveTextContent("Render summary");
   });
 
   it("links an approval wait to its step", () => {
@@ -89,16 +88,16 @@ describe("RunOutcome", () => {
       executions: { render: exec("render", "waiting_approval") },
     });
     render(<RunOutcome view={view} nodeName={nodeName} onSelectPath={onSelectPath} />);
-    expect(screen.getByTestId("run-outcome")).toHaveTextContent(
-      "Waiting for approval at Render summary.",
-    );
+    expect(screen.getByTestId("run-status")).toHaveTextContent("Waiting for approval");
+    expect(screen.getByTestId("run-outcome")).toHaveTextContent("at Render summary");
     fireEvent.click(screen.getByRole("button", { name: "Review" }));
     expect(onSelectPath).toHaveBeenCalledWith("render");
   });
 
-  it("uses the engine's pause detail when paused", () => {
+  it("uses the engine's pause detail as the reason when paused", () => {
     const view = viewWith("paused", { pauseDetail: "Quota reached for this provider." });
     render(<RunOutcome view={view} nodeName={nodeName} onSelectPath={vi.fn()} />);
+    expect(screen.getByTestId("run-status")).toHaveTextContent("Paused");
     expect(screen.getByTestId("run-outcome")).toHaveTextContent("Quota reached for this provider.");
   });
 });
