@@ -566,7 +566,7 @@ button.event-row:hover {
   min-width: 0;
 }
 .json-preview-body {
-  max-height: 180px;
+  height: 180px;
   overflow: hidden;
   padding: 10px 12px 0;
 }
@@ -580,7 +580,7 @@ button.event-row:hover {
   font-size: 12px;
 }
 .json-dialog-body {
-  max-height: 70vh;
+  height: min(62vh, 640px);
   overflow: auto;
   padding: 4px 2px;
 }

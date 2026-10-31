@@ -1,7 +1,16 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { JsonTree } from "../src/ui/JsonTree.js";
 import { JsonView } from "../src/ui/JsonView.js";
+
+const originalOffsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetHeight");
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  if (originalOffsetHeight !== undefined) {
+    Object.defineProperty(HTMLElement.prototype, "offsetHeight", originalOffsetHeight);
+  }
+});
 
 const small = { ok: true, count: 2, tags: ["a", "b"] };
 const large = {
@@ -69,5 +78,36 @@ describe("JsonTree", () => {
     expect(container.querySelector(".json-num")).toHaveTextContent("4");
     expect(container.querySelector(".json-bool")).toHaveTextContent("true");
     expect(container.querySelector(".json-null")).toHaveTextContent("null");
+  });
+});
+
+describe("keeps its height when content collapses", () => {
+  it("does not shrink below the tallest height it has shown, and grows with taller content", () => {
+    let height = 200;
+    let notify: () => void = () => undefined;
+    Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+      configurable: true,
+      get: () => height,
+    });
+    class FakeResizeObserver {
+      constructor(callback: () => void) {
+        notify = callback;
+      }
+      observe() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+
+    render(<JsonView value={small} testId="json" />);
+    const box = screen.getByTestId("json");
+    expect(box.style.minHeight).toBe("200px");
+
+    height = 40;
+    act(() => notify());
+    expect(box.style.minHeight).toBe("200px");
+
+    height = 260;
+    act(() => notify());
+    expect(box.style.minHeight).toBe("260px");
   });
 });
