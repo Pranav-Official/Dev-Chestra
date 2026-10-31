@@ -152,9 +152,9 @@ function LoopDetail({
         ) : null}
       </div>
       <h3 style={{ margin: "10px 0 6px" }}>State</h3>
-      <JsonView value={loop.state} testId="detail-loop-state" />
+      <JsonView value={loop.state} testId="detail-loop-state" label="Loop state" />
       <h3 style={{ margin: "10px 0 6px" }}>Parent</h3>
-      <JsonView value={loop.parent} testId="detail-loop-parent" />
+      <JsonView value={loop.parent} testId="detail-loop-parent" label="Parent" />
       <h3 style={{ margin: "10px 0 6px" }}>Current round</h3>
       <div data-testid="detail-loop-current">
         <div className="row wrap" style={{ gap: 6 }}>
@@ -498,8 +498,8 @@ function LiveDetail({
         <p className="faint">No resolved input is available for this execution.</p>
       ) : (
         <>
-          <div className="mono faint" style={{ marginBottom: 4 }}>
-            hash {input.hash || "—"} · {input.bytes} bytes
+          <div className="json-meta" title={input.hash || undefined}>
+            {input.bytes} bytes · hash {shortSha(input.hash)}
             {input.truncated ? " · preview truncated" : ""}
           </div>
           {input.data === null ? (
@@ -507,7 +507,7 @@ function LiveDetail({
           ) : (
             <>
               <ToolsLine data={input.data} />
-              <JsonView value={input.data} testId="detail-input" />
+              <JsonView value={input.data} testId="detail-input" label="Input" />
             </>
           )}
         </>
@@ -517,14 +517,14 @@ function LiveDetail({
         <p className="faint">No accepted output yet.</p>
       ) : (
         <>
-          <div className="mono faint" style={{ marginBottom: 4 }}>
-            id {output.id || "—"} · hash {output.hash || "—"} · {output.bytes} bytes
+          <div className="json-meta" title={`output ${output.id} · hash ${output.hash}`}>
+            {output.bytes} bytes · hash {shortSha(output.hash)}
             {output.truncated ? " · preview truncated" : ""}
           </div>
           {output.data === null ? (
             <p className="faint">Output content was not inlined (over 64 KiB).</p>
           ) : (
-            <JsonView value={output.data} testId="detail-output" />
+            <JsonView value={output.data} testId="detail-output" label="Output" />
           )}
         </>
       )}
