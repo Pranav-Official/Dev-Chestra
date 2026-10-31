@@ -63,9 +63,19 @@ function SettingsMenu() {
 export function Sidebar() {
   const location = useLocation();
   const bootstrap = useBootstrap();
+  // Projects start expanded, so `collapsed` lists the ones the user closed.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Workflows start collapsed, so `openWorkflows` lists the ones the user opened.
+  const [openWorkflows, setOpenWorkflows] = useState<Set<string>>(new Set());
   const toggle = (key: string) =>
     setCollapsed((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  const toggleWorkflow = (key: string) =>
+    setOpenWorkflows((current) => {
       const next = new Set(current);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -91,16 +101,16 @@ export function Sidebar() {
       staleTime: 5_000,
     })),
   });
-  const disclosure = (key: string, label: string) => (
+  const disclosure = (label: string, expanded: boolean, controls: string, onToggle: () => void) => (
     <button
       type="button"
       className="nav-disclosure"
       aria-label={`Toggle ${label}`}
-      aria-expanded={!collapsed.has(key)}
-      aria-controls={`nav-${key}`}
-      onClick={() => toggle(key)}
+      aria-expanded={expanded}
+      aria-controls={controls}
+      onClick={onToggle}
     >
-      {collapsed.has(key) ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+      {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
     </button>
   );
   return (
@@ -160,7 +170,9 @@ export function Sidebar() {
           return (
             <div key={project.id} className="nav-project">
               <div className="nav-tree-row nav-project-row">
-                {disclosure(project.id, project.name)}
+                {disclosure(project.name, !collapsed.has(project.id), `nav-${project.id}`, () =>
+                  toggle(project.id),
+                )}
                 <Link
                   to={projectPath}
                   className={`nav-item${location.pathname === projectPath ? " active" : ""}`}
@@ -192,13 +204,16 @@ export function Sidebar() {
                     const key = `${project.id}-${workflow.id}`;
                     const editorPath = `/p/${project.id}/w/${workflow.id}`;
                     const historyPath = `/p/${project.id}/runs?workflow=${encodeURIComponent(workflow.id)}`;
+                    const expanded = openWorkflows.has(key);
                     const selected = workflow.managed
                       ? location.pathname === editorPath
                       : location.pathname + location.search === historyPath;
                     return (
                       <div key={workflow.id}>
                         <div className="nav-tree-row nav-workflow-row">
-                          {disclosure(key, workflow.name)}
+                          {disclosure(workflow.name, expanded, `nav-${key}`, () =>
+                            toggleWorkflow(key),
+                          )}
                           <Link
                             to={workflow.managed ? editorPath : historyPath}
                             className={`nav-item${selected ? " active" : ""}`}
@@ -223,11 +238,7 @@ export function Sidebar() {
                             name={workflow.name}
                           />
                         </div>
-                        <div
-                          className="nav-run-group"
-                          id={`nav-${key}`}
-                          hidden={collapsed.has(key)}
-                        >
+                        <div className="nav-run-group" id={`nav-${key}`} hidden={!expanded}>
                           {workflow.runs.map((run) => {
                             const runPath = `/p/${project.id}/r/${run.id}`;
                             const selectedRun =
