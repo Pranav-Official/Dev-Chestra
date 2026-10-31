@@ -35,6 +35,9 @@ describe("JsonView", () => {
     expect(dialog).toBeInTheDocument();
     expect(within(dialog).getByText('"evidence"')).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Copy JSON" })).toBeInTheDocument();
+    // One scroller only: the frame holds the size, the JSON section scrolls.
+    expect(dialog.querySelector(".editor-dialog-body")).toHaveClass("json-dialog-frame");
+    expect(within(dialog).getByLabelText("Output")).toHaveClass("json-dialog-body");
   });
 
   it("removes the dialog from the page when it closes", () => {

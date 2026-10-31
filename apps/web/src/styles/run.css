@@ -579,10 +579,20 @@ button.event-row:hover {
   border-top: 1px solid var(--border);
   font-size: 12px;
 }
-.json-dialog-body {
+/* One scroller: the frame keeps the dialog's size and never scrolls; the
+   JSON section inside is the only thing that scrolls. Nested scrollers make a
+   wheel gesture stop at the inner end instead of carrying on. */
+.editor-dialog-body.json-dialog-frame {
   height: min(62vh, 640px);
+  max-height: none;
+  padding: 0;
+  overflow: hidden;
+}
+.json-dialog-body {
+  height: 100%;
   overflow: auto;
-  padding: 4px 2px;
+  box-sizing: border-box;
+  padding: 14px;
 }
 .json-meta {
   margin-bottom: 6px;

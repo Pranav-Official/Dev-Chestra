@@ -69,6 +69,7 @@ export function JsonView({
           description={summary}
           onClose={() => setExpanded(false)}
           wide
+          bodyClassName="json-dialog-frame"
           {...(testId === undefined ? {} : { testId: `${testId}-dialog` })}
           footer={
             <button type="button" className="btn sm" onClick={copy}>
