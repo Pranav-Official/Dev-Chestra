@@ -330,7 +330,7 @@ export function ApprovalPanel({
       </div>
 
       <div>
-        <h3 style={{ margin: "4px 0 6px" }}>Upstream outputs</h3>
+        <h3 className="detail-heading">Upstream outputs</h3>
         <p className="faint" style={{ marginBottom: 6 }}>
           Structured snapshots and bounded previews, not the raw inputs hash.
         </p>

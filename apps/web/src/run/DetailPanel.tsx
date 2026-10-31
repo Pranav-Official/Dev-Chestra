@@ -151,11 +151,11 @@ function LoopDetail({
           </span>
         ) : null}
       </div>
-      <h3 style={{ margin: "10px 0 6px" }}>State</h3>
+      <h3 className="detail-heading">State</h3>
       <JsonView value={loop.state} testId="detail-loop-state" label="Loop state" />
-      <h3 style={{ margin: "10px 0 6px" }}>Parent</h3>
+      <h3 className="detail-heading">Parent</h3>
       <JsonView value={loop.parent} testId="detail-loop-parent" label="Parent" />
-      <h3 style={{ margin: "10px 0 6px" }}>Current round</h3>
+      <h3 className="detail-heading">Current round</h3>
       <div data-testid="detail-loop-current">
         <div className="row wrap" style={{ gap: 6 }}>
           <span className="mono">#{shownIteration}</span>
@@ -177,7 +177,7 @@ function LoopDetail({
           )}
         </div>
       </div>
-      <h3 style={{ margin: "10px 0 6px" }}>History</h3>
+      <h3 className="detail-heading">History</h3>
       {loop.rounds.length === 0 ? (
         <p className="faint">No rounds decided yet.</p>
       ) : (
@@ -290,14 +290,14 @@ function ReplayDetail({
           below are derived from events up to #{view.lastEventId}.
         </span>
       </div>
-      <h3 style={{ margin: "14px 0 6px" }}>Attempts</h3>
+      <h3 className="detail-heading">Attempts</h3>
       <AttemptList attempts={derived.attempts} />
-      <h3 style={{ margin: "14px 0 6px" }}>Input</h3>
+      <h3 className="detail-heading">Input</h3>
       {derived.input === null ? (
         <p className="faint">Input content is not present in the event log for this attempt.</p>
       ) : (
         <>
-          <div className="mono faint" style={{ marginBottom: 4 }}>
+          <div className="json-meta">
             hash {derived.input.inputsHash || "—"} · event #{derived.input.eventId}
           </div>
           {derived.input.inputs === null ? (
@@ -310,7 +310,7 @@ function ReplayDetail({
           )}
         </>
       )}
-      <h3 style={{ margin: "14px 0 6px" }}>Output</h3>
+      <h3 className="detail-heading">Output</h3>
       {derived.output === null ? (
         <p className="faint">No output event yet at this position.</p>
       ) : (
@@ -327,7 +327,7 @@ function ReplayDetail({
       )}
       {derived.process ? (
         <>
-          <h3 style={{ margin: "14px 0 6px" }}>Process</h3>
+          <h3 className="detail-heading">Process</h3>
           <dl className="kv">
             <dt>PID</dt>
             <dd className="mono">{derived.process.pid}</dd>
@@ -344,7 +344,7 @@ function ReplayDetail({
       ) : null}
       {derived.workspace ? (
         <>
-          <h3 style={{ margin: "14px 0 6px" }}>Workspace</h3>
+          <h3 className="detail-heading">Workspace</h3>
           <dl className="kv">
             <dt>Mode</dt>
             <dd>{derived.workspace.mode ?? "—"}</dd>
@@ -357,7 +357,7 @@ function ReplayDetail({
           </dl>
         </>
       ) : null}
-      <h3 style={{ margin: "14px 0 6px" }}>Provenance</h3>
+      <h3 className="detail-heading">Provenance</h3>
       <dl className="kv">
         <dt>As of event</dt>
         <dd className="mono">#{view.lastEventId}</dd>
@@ -385,7 +385,7 @@ function DecisionSection({
 }) {
   return (
     <>
-      <h3 style={{ margin: "14px 0 6px" }}>Decision</h3>
+      <h3 className="detail-heading">Decision</h3>
       <DecisionResultView
         output={decision.output}
         routing={decision.routing}
@@ -439,11 +439,7 @@ function LiveDetail({
   return (
     <>
       {unresolved ? (
-        <div
-          className="note amber"
-          data-testid="detail-unresolved-note"
-          style={{ marginBottom: 12 }}
-        >
+        <div className="note amber" data-testid="detail-unresolved-note">
           <TriangleAlert size={15} aria-hidden="true" />
           <span>
             <b>State unresolved — {unresolvedSummary(runStatus, execution.status)}.</b> No terminal
@@ -452,7 +448,7 @@ function LiveDetail({
           </span>
         </div>
       ) : null}
-      <dl className="kv" style={{ marginBottom: 14 }}>
+      <dl className="kv">
         <dt>Status</dt>
         <dd>
           <ExecutionStatus
@@ -491,9 +487,9 @@ function LiveDetail({
       {execution.errorMessage ? (
         <InlineError message={`${execution.errorCode ?? "Error"}: ${execution.errorMessage}`} />
       ) : null}
-      <h3 style={{ margin: "14px 0 6px" }}>Attempts</h3>
+      <h3 className="detail-heading">Attempts</h3>
       <AttemptList attempts={attempts} />
-      <h3 style={{ margin: "14px 0 6px" }}>Input</h3>
+      <h3 className="detail-heading">Input</h3>
       {input === null ? (
         <p className="faint">No resolved input is available for this execution.</p>
       ) : (
@@ -512,7 +508,7 @@ function LiveDetail({
           )}
         </>
       )}
-      <h3 style={{ margin: "14px 0 6px" }}>Output</h3>
+      <h3 className="detail-heading">Output</h3>
       {output === null ? (
         <p className="faint">No accepted output yet.</p>
       ) : (
@@ -530,7 +526,7 @@ function LiveDetail({
       )}
       {process ? (
         <>
-          <h3 style={{ margin: "14px 0 6px" }}>Process</h3>
+          <h3 className="detail-heading">Process</h3>
           <dl className="kv">
             <dt>PID</dt>
             <dd className="mono">{process.pid}</dd>
@@ -551,7 +547,7 @@ function LiveDetail({
       ) : null}
       {workspace ? (
         <>
-          <h3 style={{ margin: "14px 0 6px" }}>Workspace</h3>
+          <h3 className="detail-heading">Workspace</h3>
           <dl className="kv">
             <dt>Directory</dt>
             <dd className="mono">{workspace.dir || "—"}</dd>
@@ -570,7 +566,7 @@ function LiveDetail({
           </dl>
         </>
       ) : null}
-      <h3 style={{ margin: "14px 0 6px" }}>Provenance</h3>
+      <h3 className="detail-heading">Provenance</h3>
       <dl className="kv">
         <dt>Path</dt>
         <dd className="mono">{path}</dd>
@@ -608,7 +604,7 @@ export function RunSummaryPanel({
         </div>
       ) : null}
       {/* Status, run number, workflow, cost, tokens and timing live in the run header. */}
-      <dl className="kv" style={{ marginTop: isReplay ? 12 : 0 }}>
+      <dl className="kv">
         <dt>Created</dt>
         <dd>{formatTime(run?.createdAt)}</dd>
         {view.pausedMs > 0 || view.pauseReason !== null ? (
@@ -624,14 +620,14 @@ export function RunSummaryPanel({
         <dd className="mono">#{view.lastEventId}</dd>
       </dl>
       {view.pauseDetail ? (
-        <div className="note amber" style={{ marginTop: 12 }}>
+        <div className="note amber">
           <Info size={15} aria-hidden="true" />
           <span>{view.pauseDetail}</span>
         </div>
       ) : null}
       {view.errors.length > 0 ? (
         <>
-          <h3 style={{ margin: "14px 0 6px" }}>Errors</h3>
+          <h3 className="detail-heading">Errors</h3>
           <div className="col">
             {view.errors.slice(-5).map((error) => {
               const diagnostic = errorDiagnostic(error.details);
@@ -661,7 +657,7 @@ export function RunSummaryPanel({
           </div>
         </>
       ) : null}
-      <div className="note" style={{ marginTop: 14 }}>
+      <div className="note">
         <Info size={15} aria-hidden="true" />
         <span>Select a node to inspect attempts, input, output, workspace and provenance.</span>
       </div>

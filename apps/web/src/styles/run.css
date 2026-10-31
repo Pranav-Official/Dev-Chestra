@@ -600,3 +600,19 @@ button.event-row:hover {
   font: 12px var(--mono);
   overflow-wrap: anywhere;
 }
+
+/* Spacing scale for the run viewer. Set here, not inline: 16px between blocks,
+   8px within a group, 6px from a heading or meta line to what it labels. */
+.run-page .panel-body > * + * {
+  margin-top: 16px;
+}
+.run-page .detail-heading {
+  margin: 16px 0 6px;
+}
+.run-page .detail-heading + *,
+.run-page .json-meta + * {
+  margin-top: 0;
+}
+.run-page .json-meta {
+  margin: 0 0 6px;
+}

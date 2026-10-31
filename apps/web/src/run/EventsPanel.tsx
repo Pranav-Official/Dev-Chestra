@@ -105,7 +105,7 @@ export function EventsPanel({
         )}
       </div>
       {pageCount > 1 ? (
-        <div className="row" style={{ justifyContent: "space-between", marginTop: 10 }}>
+        <div className="row" style={{ justifyContent: "space-between", marginTop: 8 }}>
           <button
             type="button"
             className="btn sm"
