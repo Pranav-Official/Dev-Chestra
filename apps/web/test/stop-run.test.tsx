@@ -10,6 +10,12 @@ function renderStop(headStatus: RunStatus, isReplay = false) {
   return render(<StopRunButton runId={RUN_ID} headStatus={headStatus} isReplay={isReplay} />);
 }
 
+/** Stop is two steps: the control asks, the confirm step sends the request. */
+function requestStop() {
+  fireEvent.click(screen.getByTestId("run-stop"));
+  fireEvent.click(screen.getByTestId("run-stop-confirm"));
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (error: unknown) => void;
@@ -48,13 +54,82 @@ describe("StopRunButton visibility", () => {
   );
 });
 
+describe("StopRunButton confirmation", () => {
+  it("asks first and never posts from the initial click", () => {
+    const cancel = vi.spyOn(api, "cancelRun");
+    renderStop("running");
+
+    fireEvent.click(screen.getByTestId("run-stop"));
+    expect(screen.getByTestId("run-stop-confirm")).toHaveTextContent("Confirm stop");
+    expect(screen.getByRole("group", { name: "Confirm stopping this run" })).toHaveTextContent(
+      "Stop this run?",
+    );
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it("backs out without sending when the user keeps the run going", () => {
+    const cancel = vi.spyOn(api, "cancelRun");
+    renderStop("running");
+
+    fireEvent.click(screen.getByTestId("run-stop"));
+    fireEvent.click(screen.getByTestId("run-stop-keep"));
+    expect(screen.queryByTestId("run-stop-confirm")).toBeNull();
+    expect(screen.getByTestId("run-stop")).toBeEnabled();
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it("backs out on Escape without sending", () => {
+    const cancel = vi.spyOn(api, "cancelRun");
+    renderStop("running");
+
+    fireEvent.click(screen.getByTestId("run-stop"));
+    fireEvent.keyDown(screen.getByRole("group"), { key: "Escape" });
+    expect(screen.queryByTestId("run-stop-confirm")).toBeNull();
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it("moves focus into the question when it opens, so Escape is reachable", () => {
+    renderStop("running");
+    fireEvent.click(screen.getByTestId("run-stop"));
+    expect(screen.getByTestId("run-stop-keep")).toHaveFocus();
+  });
+
+  it("backs out on Escape pressed with focus outside the question, and returns focus to Stop", () => {
+    const cancel = vi.spyOn(api, "cancelRun");
+    renderStop("running");
+
+    fireEvent.click(screen.getByTestId("run-stop"));
+    // Focus is wherever the browser left it: the question is not focused here.
+    (document.activeElement as HTMLElement | null)?.blur();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(screen.queryByTestId("run-stop-confirm")).toBeNull();
+    expect(screen.getByTestId("run-stop")).toHaveFocus();
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it("returns focus to Stop after Keep running", () => {
+    renderStop("running");
+    fireEvent.click(screen.getByTestId("run-stop"));
+    fireEvent.click(screen.getByTestId("run-stop-keep"));
+    expect(screen.getByTestId("run-stop")).toHaveFocus();
+  });
+
+  it("asks in replay with the live-run wording", () => {
+    renderStop("running", true);
+    fireEvent.click(screen.getByTestId("run-stop"));
+    expect(screen.getByRole("group", { name: "Confirm stopping the live run" })).toHaveTextContent(
+      "Stop the live run?",
+    );
+  });
+});
+
 describe("StopRunButton cancel flow", () => {
   it("shows Stopping… while the request is in flight and never claims Cancelled optimistically", async () => {
     const gate = deferred<{ runId: string; status: RunStatus }>();
     const cancel = vi.spyOn(api, "cancelRun").mockReturnValue(gate.promise as never);
     renderStop("running");
 
-    fireEvent.click(screen.getByTestId("run-stop"));
+    requestStop();
     expect(screen.getByTestId("run-stop")).toBeDisabled();
     expect(screen.getByTestId("run-stop")).toHaveTextContent("Stopping…");
 
@@ -78,7 +153,7 @@ describe("StopRunButton cancel flow", () => {
       .mockResolvedValue({ runId: RUN_ID, status: "running" });
     renderStop("running");
 
-    fireEvent.click(screen.getByTestId("run-stop"));
+    requestStop();
     await screen.findByTestId("run-stop-requested");
     expect(screen.getByTestId("run-stop")).toBeDisabled();
 
@@ -95,9 +170,8 @@ describe("StopRunButton cancel flow", () => {
     const cancel = vi.spyOn(api, "cancelRun").mockReturnValue(gate.promise as never);
     renderStop("paused");
 
-    const button = screen.getByTestId("run-stop");
-    fireEvent.click(button);
-    fireEvent.click(button);
+    requestStop();
+    fireEvent.click(screen.getByTestId("run-stop"));
     fireEvent.click(screen.getByTestId("run-stop"));
     expect(cancel).toHaveBeenCalledTimes(1);
 
@@ -114,7 +188,7 @@ describe("StopRunButton cancel flow", () => {
       .mockResolvedValueOnce({ runId: RUN_ID, status: "running" });
     renderStop("waiting_approval");
 
-    fireEvent.click(screen.getByTestId("run-stop"));
+    requestStop();
     expect(await screen.findByTestId("run-stop-error")).toHaveTextContent("network down");
     expect(screen.getByTestId("run-stop-retry")).toBeInTheDocument();
 
@@ -131,7 +205,7 @@ describe("StopRunButton cancel flow", () => {
     const cancel = vi.spyOn(api, "cancelRun").mockRejectedValueOnce(new Error("boom"));
     renderStop("running");
 
-    fireEvent.click(screen.getByTestId("run-stop"));
+    requestStop();
     expect(await screen.findByTestId("run-stop-error")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("run-stop-dismiss"));
@@ -144,7 +218,7 @@ describe("StopRunButton cancel flow", () => {
     const cancel = vi.spyOn(api, "cancelRun").mockReturnValue(gate.promise as never);
     const view = renderStop("running");
 
-    fireEvent.click(screen.getByTestId("run-stop"));
+    requestStop();
     // Backend-confirmed terminal evidence arrives before the POST settles.
     view.rerender(<StopRunButton runId={RUN_ID} headStatus="succeeded" isReplay={false} />);
     expect(screen.queryByTestId("run-stop")).toBeNull();
@@ -160,7 +234,7 @@ describe("StopRunButton cancel flow", () => {
     vi.spyOn(api, "cancelRun").mockResolvedValue({ runId: RUN_ID, status: "running" });
     const view = renderStop("running");
 
-    fireEvent.click(screen.getByTestId("run-stop"));
+    requestStop();
     await screen.findByTestId("run-stop-requested");
     expect(screen.getByTestId("run-stop")).toHaveTextContent("Stopping…");
 
@@ -192,7 +266,7 @@ describe("StopRunButton replay vs live", () => {
   it("marks the requested note as a live-run stop while replaying", async () => {
     vi.spyOn(api, "cancelRun").mockResolvedValue({ runId: RUN_ID, status: "paused" });
     renderStop("paused", true);
-    fireEvent.click(screen.getByTestId("run-stop"));
+    requestStop();
     expect(await screen.findByTestId("run-stop-requested")).toHaveTextContent(
       "Confirming the live run stopped…",
     );

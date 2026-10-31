@@ -24,10 +24,18 @@ export function StopRunButton({
   const [pending, setPending] = useState(false);
   const [requested, setRequested] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Stopping is irreversible, so the first click only asks. The request fires
+  // from the confirm step, never from a single click on the control.
+  const [confirming, setConfirming] = useState(false);
   const pendingRef = useRef(false);
   const requestedRef = useRef(false);
   const headRef = useRef(headStatus);
   headRef.current = headStatus;
+  // Focus follows the confirm step: into it on open, back to Stop on dismiss.
+  // Opening the confirm removes the Stop button, so without this focus would fall to <body>.
+  const stopButtonRef = useRef<HTMLButtonElement>(null);
+  const keepButtonRef = useRef<HTMLButtonElement>(null);
+  const restoreFocusRef = useRef(false);
 
   // A broken viewer must not block cancellation. Null explicitly means that
   // status is unknown; the backend remains authoritative about this request.
@@ -49,6 +57,29 @@ export function StopRunButton({
       setError(null);
     }
   }, [cancellable]);
+
+  useEffect(() => {
+    if (confirming) {
+      keepButtonRef.current?.focus();
+      return;
+    }
+    if (restoreFocusRef.current) {
+      restoreFocusRef.current = false;
+      stopButtonRef.current?.focus();
+    }
+  }, [confirming]);
+
+  // Escape works wherever focus is while the question is open, not only inside it.
+  useEffect(() => {
+    if (!confirming) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      restoreFocusRef.current = true;
+      setConfirming(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [confirming]);
 
   if (!cancellable) return null;
 
@@ -90,23 +121,58 @@ export function StopRunButton({
 
   return (
     <span className="run-stop-wrap">
-      <button
-        type="button"
-        className="btn sm danger"
-        data-testid="run-stop"
-        disabled={busy}
-        aria-busy={busy}
-        aria-label={isReplay ? "Stop the live run" : "Stop this run"}
-        title={
-          isReplay
-            ? "Stop the live run (replay position is unaffected)"
-            : "Request the backend to cancel this run"
-        }
-        onClick={() => void stop()}
-      >
-        <OctagonX size={12} aria-hidden="true" />
-        {label}
-      </button>
+      {confirming && !busy ? (
+        <fieldset
+          className="run-stop-confirm"
+          aria-label={isReplay ? "Confirm stopping the live run" : "Confirm stopping this run"}
+        >
+          <span className="run-stop-question">
+            {isReplay ? "Stop the live run?" : "Stop this run?"}
+          </span>
+          <button
+            type="button"
+            className="btn sm danger"
+            data-testid="run-stop-confirm"
+            onClick={() => {
+              setConfirming(false);
+              void stop();
+            }}
+          >
+            Confirm stop
+          </button>
+          <button
+            type="button"
+            className="btn sm"
+            data-testid="run-stop-keep"
+            ref={keepButtonRef}
+            onClick={() => {
+              restoreFocusRef.current = true;
+              setConfirming(false);
+            }}
+          >
+            Keep running
+          </button>
+        </fieldset>
+      ) : (
+        <button
+          type="button"
+          className="btn sm danger"
+          data-testid="run-stop"
+          ref={stopButtonRef}
+          disabled={busy}
+          aria-busy={busy}
+          aria-label={isReplay ? "Stop the live run" : "Stop this run"}
+          title={
+            isReplay
+              ? "Stop the live run (replay position is unaffected)"
+              : "Request the backend to cancel this run"
+          }
+          onClick={() => setConfirming(true)}
+        >
+          <OctagonX size={12} aria-hidden="true" />
+          {label}
+        </button>
+      )}
       {busy && requested ? (
         <span className="run-stop-note" role="status" data-testid="run-stop-requested">
           {headStatus === null

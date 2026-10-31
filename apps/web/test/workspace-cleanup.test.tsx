@@ -80,18 +80,27 @@ describe("workspace navigation and cleanup", () => {
     });
     const user = userEvent.setup();
     const rendered = mount(<Sidebar />);
-    await screen.findByRole("link", { name: /Run #7/ });
+    await screen.findByRole("button", { name: "Toggle Workflow" });
     expect(summaries).toHaveBeenCalledWith(
       "p1",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(global).not.toHaveBeenCalled();
     expect(rendered.container.querySelector("a button, a summary")).toBeNull();
+    // Projects open by default; workflows open only when the user asks.
+    expect(screen.getByRole("button", { name: "Toggle Project" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
     const toggle = screen.getByRole("button", { name: "Toggle Workflow" });
-    toggle.focus();
-    await user.keyboard("{Enter}");
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("link", { name: /Run #7/ })).toBeNull();
+    toggle.focus();
+    await user.keyboard("{Enter}");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(await screen.findByRole("link", { name: /Run #7/ })).toBeInTheDocument();
+    await user.keyboard(" ");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
     await user.keyboard(" ");
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("link", { name: "View all runs" })).toHaveAttribute(

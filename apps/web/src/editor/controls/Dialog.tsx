@@ -10,6 +10,8 @@ export interface DialogProps {
   testId?: string;
   wide?: boolean;
   workspace?: boolean;
+  /** Extra class on the body, for a caller that owns the body's scrolling. */
+  bodyClassName?: string;
   /**
    * Escape guard consulted only by the native `cancel` (Escape) path, never
    * by the X button. Return true to keep the dialog open — used when an
@@ -34,6 +36,7 @@ export function Dialog({
   testId,
   wide = false,
   workspace = false,
+  bodyClassName,
   cancelGuard,
 }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -84,7 +87,11 @@ export function Dialog({
           {description}
         </p>
       )}
-      <div className="editor-dialog-body">{children}</div>
+      <div
+        className={`editor-dialog-body${bodyClassName === undefined ? "" : ` ${bodyClassName}`}`}
+      >
+        {children}
+      </div>
       {footer === undefined ? null : <div className="editor-dialog-foot">{footer}</div>}
     </dialog>
   );

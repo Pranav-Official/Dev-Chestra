@@ -1,4 +1,4 @@
-import type { EventEnvelope } from "@devchestra/core";
+import { type EventEnvelope, isTerminalRunStatus } from "@devchestra/core";
 import { Info, Radio, Unplug } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
@@ -8,6 +8,7 @@ import { DetailPanel } from "../run/DetailPanel.js";
 import { EventsPanel } from "../run/EventsPanel.js";
 import { ReplayBar } from "../run/ReplayBar.js";
 import { RunCanvas } from "../run/RunCanvas.js";
+import { RunOutcome } from "../run/RunOutcome.js";
 import { StopRunButton } from "../run/StopRunButton.js";
 import { TranscriptPanel } from "../run/TranscriptPanel.js";
 import { Topbar } from "../shell/Topbar.js";
@@ -114,14 +115,18 @@ function RunPage({ rid }: { rid: string }) {
       />
     ) : null;
 
-  const topbar = (
+  // The run body carries the status and stop control in its own header, so its
+  // topbar keeps navigation only. Loading and error states keep both up here.
+  const topbarFor = (inHeader: boolean) => (
     <Topbar
       crumbs={crumbs}
-      {...(view === null ? {} : { status: { value: view.status, testId: "run-status" } })}
+      {...(inHeader || view === null
+        ? {}
+        : { status: { value: view.status, testId: "run-status" } })}
       readonly
       actions={
         <>
-          {stopControl}
+          {inHeader ? null : stopControl}
           <Link className="btn sm" to={`/p/${pid}/runs`}>
             Project runs
           </Link>
@@ -129,6 +134,7 @@ function RunPage({ rid }: { rid: string }) {
       }
     />
   );
+  const topbar = topbarFor(false);
 
   const failure =
     session.phase === "error"
@@ -240,7 +246,7 @@ function RunPage({ rid }: { rid: string }) {
       data-run-id={rid}
       data-head-event-id={session.head.lastEventId}
     >
-      {topbar}
+      {topbarFor(true)}
       {project?.missing ? (
         <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--border)" }}>
           <MissingProjectBanner projectName={project.name} />
@@ -284,22 +290,24 @@ function RunPage({ rid }: { rid: string }) {
         </div>
       ) : null}
 
-      <div className="run-toolbar">
-        <span className="row" style={{ gap: 6, minWidth: 0 }}>
-          <b style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {detail?.snapshot.name ?? workflowName}
-          </b>
-          <span className="faint mono">snapshot</span>
-        </span>
+      {/* One status bar: the run's status and reason on the left, quick facts and
+          the stop control on the right. The name and number live in the breadcrumb. */}
+      <div className="run-bar">
+        <RunOutcome
+          view={view}
+          nodeName={(nodeId) =>
+            detail?.snapshot.graph.nodes.find((node) => node.id === nodeId)?.name ?? nodeId
+          }
+          onSelectPath={(next) => update({ path: next, tab: "detail" })}
+        />
         <span className="sp" />
-        <span className="chip">Run #{run?.runNumber ?? view.runNumber}</span>
-        <span className="chip">{run?.kind ?? "run"}</span>
-        <span className="chip optional">{formatCost(view.budget.usd)}</span>
-        <span className="chip optional">{formatTokens(view.budget.tokens)} tokens</span>
-        <span className="chip optional">{formatDuration(view.budget.activeMs)} active</span>
-        <span className="chip optional">
-          {run?.startedAt ? formatTime(run.startedAt) : "not started"}
-        </span>
+        <div className="run-meta">
+          <span>{formatCost(view.budget.usd)}</span>
+          <span>{formatTokens(view.budget.tokens)} tokens</span>
+          <span>{formatDuration(view.budget.activeMs)} active</span>
+          <span>{run?.startedAt ? `Started ${formatTime(run.startedAt)}` : "Not started"}</span>
+        </div>
+        {stopControl}
       </div>
 
       <div className="run-split">
@@ -368,6 +376,7 @@ function RunPage({ rid }: { rid: string }) {
           events={session.events}
           replayAt={session.replayAt}
           headEventId={session.head.lastEventId}
+          terminal={isTerminalRunStatus(view.status)}
           onChange={(eventId) => selectReplay(eventId)}
         />
       ) : (
