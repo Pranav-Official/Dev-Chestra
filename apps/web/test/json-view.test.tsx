@@ -47,6 +47,51 @@ describe("JsonView", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("opens the full structure several levels deep, not only the top", () => {
+    const nested = { note: "x".repeat(400), a: { b: { c: { d: "deep value" } } } };
+    render(<JsonView value={nested} testId="json" label="Output" />);
+    fireEvent.click(screen.getByRole("button", { name: "Expand" }));
+    const dialog = screen.getByRole("dialog", { name: "Output" });
+    expect(within(dialog).getByText('"d"')).toBeInTheDocument();
+    expect(within(dialog).queryByTestId("json-large-notice")).toBeNull();
+  });
+
+  it("warns on a large value and starts its nested items collapsed", () => {
+    const groups = Array.from({ length: 1000 }, (_, index) => ({
+      name: `group ${index}`,
+      items: [1, 2],
+    }));
+    render(<JsonView value={{ groups }} testId="json" label="Output" />);
+    fireEvent.click(screen.getByRole("button", { name: "Expand" }));
+    const dialog = screen.getByRole("dialog", { name: "Output" });
+    expect(within(dialog).getByTestId("json-large-notice")).toBeInTheDocument();
+    expect(within(dialog).getByText('"groups"')).toBeInTheDocument();
+    // The entries are not mounted until the reader expands "groups".
+    expect(within(dialog).queryByText('"name"')).toBeNull();
+  });
+
+  it("opens a payload nested far past the stack limit without throwing", () => {
+    let deep: unknown = "leaf";
+    for (let index = 0; index < 1500; index += 1) deep = { child: deep };
+    render(<JsonView value={deep} testId="json" label="Output" />);
+    fireEvent.click(screen.getByRole("button", { name: "Expand" }));
+    const dialog = screen.getByRole("dialog", { name: "Output" });
+    expect(within(dialog).queryByText(/nested deeper than/)).toBeNull();
+    expect(dialog.querySelector("pre.code")).toBeNull();
+  });
+
+  it("shows the raw text instead of blanking when a value cannot be rendered", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const hostile = {
+      get boom(): never {
+        throw new Error("getter failed");
+      },
+    };
+    const { container } = render(<JsonView value={hostile} testId="json" />);
+    expect(container.querySelector("pre.code")).not.toBeNull();
+    spy.mockRestore();
+  });
+
   it("shows nothing for a null value", () => {
     render(<JsonView value={null} testId="json" />);
     expect(screen.getByTestId("json")).toBeEmptyDOMElement();
@@ -73,6 +118,13 @@ describe("JsonTree", () => {
       "false",
     );
     expect(screen.getByText("3 items")).toBeInTheDocument();
+  });
+
+  it("stops at the nesting limit instead of overflowing the stack", () => {
+    let deep: unknown = "leaf";
+    for (let index = 0; index < 1500; index += 1) deep = { child: deep };
+    render(<JsonTree value={deep} openDepth={Number.POSITIVE_INFINITY} />);
+    expect(screen.getByText(/nested deeper than 64 levels/)).toBeInTheDocument();
   });
 
   it("colours keys, numbers, booleans and nulls by kind", () => {
@@ -112,5 +164,26 @@ describe("keeps its height when content collapses", () => {
     height = 260;
     act(() => notify());
     expect(box.style.minHeight).toBe("260px");
+  });
+});
+
+describe("ErrorBoundary", () => {
+  it("replaces only the failing subtree with its fallback", async () => {
+    const { ErrorBoundary } = await import("../src/ui/ErrorBoundary.js");
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    function Broken(): never {
+      throw new Error("render failed");
+    }
+    render(
+      <div>
+        <span>outside</span>
+        <ErrorBoundary fallback={<span>fallback</span>}>
+          <Broken />
+        </ErrorBoundary>
+      </div>,
+    );
+    expect(screen.getByText("fallback")).toBeInTheDocument();
+    expect(screen.getByText("outside")).toBeInTheDocument();
+    spy.mockRestore();
   });
 });

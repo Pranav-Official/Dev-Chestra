@@ -588,6 +588,10 @@ button.event-row:hover {
   padding: 0;
   overflow: hidden;
 }
+.json-dialog-note {
+  margin: 0 0 10px;
+  font-size: 12px;
+}
 .json-dialog-body {
   height: 100%;
   overflow: auto;

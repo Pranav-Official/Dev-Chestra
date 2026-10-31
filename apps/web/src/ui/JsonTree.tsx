@@ -6,6 +6,12 @@ import { type ReactNode, useState } from "react";
  * their own colours; containers collapse. A string with line breaks renders as
  * a text block, so agent output reads as prose instead of one escaped line.
  */
+/**
+ * Containers nested deeper than this render a summary instead of recursing.
+ * Each level is a React component, so an unbounded depth overflows the stack.
+ */
+export const JSON_MAX_DEPTH = 64;
+
 export function JsonTree({ value, openDepth = 3 }: { value: unknown; openDepth?: number }) {
   return (
     <div className="json-tree">
@@ -25,6 +31,20 @@ function JsonNode({
   openDepth: number;
   name?: string | undefined;
 }) {
+  if (depth >= JSON_MAX_DEPTH && value !== null && typeof value === "object") {
+    return (
+      <div className="json-line">
+        {name === undefined ? null : (
+          <>
+            <span className="json-key">{JSON.stringify(name)}</span>
+            <span className="json-punct">: </span>
+          </>
+        )}
+        <span className="json-summary">nested deeper than {JSON_MAX_DEPTH} levels, not shown</span>
+      </div>
+    );
+  }
+
   const label =
     name === undefined ? null : (
       <>

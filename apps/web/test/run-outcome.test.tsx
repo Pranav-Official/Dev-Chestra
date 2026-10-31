@@ -94,6 +94,65 @@ describe("RunOutcome", () => {
     expect(onSelectPath).toHaveBeenCalledWith("render");
   });
 
+  it("does not name a step for an error whose path matches no failed step", () => {
+    const onSelectPath = vi.fn();
+    const view = viewWith("failed", {
+      executions: { render: exec("render", "failed") },
+      errors: [
+        { eventId: 4, ts: "", path: "other", code: "E_X", message: "unrelated", details: null },
+      ],
+    });
+    render(<RunOutcome view={view} nodeName={nodeName} onSelectPath={onSelectPath} />);
+    const outcome = screen.getByTestId("run-outcome");
+    expect(outcome).toHaveTextContent("unrelated");
+    expect(outcome).not.toHaveTextContent("Render summary");
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("names the running step that started most recently, not an arbitrary one", () => {
+    const view = viewWith("running", {
+      executions: {
+        build: { ...exec("build", "running"), startedAt: 100 },
+        render: { ...exec("render", "running"), startedAt: 300 },
+        lint: { ...exec("lint", "validating"), startedAt: 200 },
+      },
+    });
+    render(<RunOutcome view={view} nodeName={nodeName} onSelectPath={vi.fn()} />);
+    expect(screen.getByTestId("run-outcome")).toHaveTextContent("Render summary");
+    expect(screen.getByTestId("run-outcome")).not.toHaveTextContent("build");
+  });
+
+  it("breaks a start-time tie by path, so the choice is stable", () => {
+    const view = viewWith("running", {
+      executions: {
+        zeta: { ...exec("zeta", "running"), startedAt: 50 },
+        alpha: { ...exec("alpha", "running"), startedAt: 50 },
+      },
+    });
+    render(<RunOutcome view={view} nodeName={(id) => `step ${id}`} onSelectPath={vi.fn()} />);
+    expect(screen.getByTestId("run-outcome")).toHaveTextContent("step alpha");
+  });
+
+  it("says when a queued run is waiting on provider quota", () => {
+    const view = viewWith("queued", {
+      executions: { render: exec("render", "waiting_quota") },
+    });
+    render(<RunOutcome view={view} nodeName={nodeName} onSelectPath={vi.fn()} />);
+    expect(screen.getByTestId("run-outcome")).toHaveTextContent(
+      "waiting for provider quota at Render summary",
+    );
+  });
+
+  it("gives no step while a queued run has only unstarted work", () => {
+    const view = viewWith("queued", {
+      executions: { render: exec("render", "ready"), build: exec("build", "pending") },
+    });
+    render(<RunOutcome view={view} nodeName={nodeName} onSelectPath={vi.fn()} />);
+    const outcome = screen.getByTestId("run-outcome");
+    expect(outcome).not.toHaveTextContent("Render summary");
+    expect(outcome).not.toHaveTextContent("build");
+  });
+
   it("uses the engine's pause detail as the reason when paused", () => {
     const view = viewWith("paused", { pauseDetail: "Quota reached for this provider." });
     render(<RunOutcome view={view} nodeName={nodeName} onSelectPath={vi.fn()} />);

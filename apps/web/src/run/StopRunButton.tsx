@@ -31,6 +31,11 @@ export function StopRunButton({
   const requestedRef = useRef(false);
   const headRef = useRef(headStatus);
   headRef.current = headStatus;
+  // Focus follows the confirm step: into it on open, back to Stop on dismiss.
+  // Opening the confirm removes the Stop button, so without this focus would fall to <body>.
+  const stopButtonRef = useRef<HTMLButtonElement>(null);
+  const keepButtonRef = useRef<HTMLButtonElement>(null);
+  const restoreFocusRef = useRef(false);
 
   // A broken viewer must not block cancellation. Null explicitly means that
   // status is unknown; the backend remains authoritative about this request.
@@ -52,6 +57,29 @@ export function StopRunButton({
       setError(null);
     }
   }, [cancellable]);
+
+  useEffect(() => {
+    if (confirming) {
+      keepButtonRef.current?.focus();
+      return;
+    }
+    if (restoreFocusRef.current) {
+      restoreFocusRef.current = false;
+      stopButtonRef.current?.focus();
+    }
+  }, [confirming]);
+
+  // Escape works wherever focus is while the question is open, not only inside it.
+  useEffect(() => {
+    if (!confirming) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      restoreFocusRef.current = true;
+      setConfirming(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [confirming]);
 
   if (!cancellable) return null;
 
@@ -97,9 +125,6 @@ export function StopRunButton({
         <fieldset
           className="run-stop-confirm"
           aria-label={isReplay ? "Confirm stopping the live run" : "Confirm stopping this run"}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") setConfirming(false);
-          }}
         >
           <span className="run-stop-question">
             {isReplay ? "Stop the live run?" : "Stop this run?"}
@@ -119,7 +144,11 @@ export function StopRunButton({
             type="button"
             className="btn sm"
             data-testid="run-stop-keep"
-            onClick={() => setConfirming(false)}
+            ref={keepButtonRef}
+            onClick={() => {
+              restoreFocusRef.current = true;
+              setConfirming(false);
+            }}
           >
             Keep running
           </button>
@@ -129,6 +158,7 @@ export function StopRunButton({
           type="button"
           className="btn sm danger"
           data-testid="run-stop"
+          ref={stopButtonRef}
           disabled={busy}
           aria-busy={busy}
           aria-label={isReplay ? "Stop the live run" : "Stop this run"}

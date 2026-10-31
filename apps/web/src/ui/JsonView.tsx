@@ -1,8 +1,9 @@
 // biome-ignore-all lint/a11y/noNoninteractiveTabindex: the expanded JSON must be keyboard reachable
 import { Copy, Maximize2 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Dialog } from "../editor/controls/Dialog.js";
+import { ErrorBoundary } from "./ErrorBoundary.js";
 import { jsonText } from "./format.js";
 import { JsonTree } from "./JsonTree.js";
 import { useKeepHeight } from "./useKeepHeight.js";
@@ -10,6 +11,19 @@ import { useKeepHeight } from "./useKeepHeight.js";
 /** Formatted JSON at or under both limits renders in full, inline. */
 const INLINE_MAX_CHARS = 320;
 const INLINE_MAX_LINES = 12;
+
+/**
+ * The dialog opens containers this many levels deep. Deeper containers start
+ * collapsed and expand on demand, so mounted nodes stay proportional to what
+ * the reader has opened.
+ */
+const DIALOG_OPEN_DEPTH = 6;
+/**
+ * Above this many values, the dialog opens only the top level. Every value
+ * that starts expanded mounts one React subtree per child, so a large payload
+ * fully opened would freeze the viewer.
+ */
+const DIALOG_MAX_NODES = 5000;
 
 export function JsonView({
   value,
@@ -22,18 +36,26 @@ export function JsonView({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
-  const text = jsonText(value);
+  // Serialising is O(n) in the payload, so it runs once per value, not per render.
+  const { text, summary, nodes } = useMemo(() => {
+    const serialised = jsonText(value);
+    const lineCount = serialised === "" ? 0 : serialised.split("\n").length;
+    const byteCount = new TextEncoder().encode(serialised).length;
+    return {
+      text: serialised,
+      summary: `${lineCount} ${lineCount === 1 ? "line" : "lines"} · ${byteCount} bytes`,
+      nodes: safeCountNodes(value),
+    };
+  }, [value]);
   if (text === "") return <pre className="code" data-testid={testId} />;
 
   const lines = text.split("\n").length;
-  const bytes = new TextEncoder().encode(text).length;
-  const summary = `${lines} ${lines === 1 ? "line" : "lines"} · ${bytes} bytes`;
 
   // Keyed by the text, so a new value starts from its own height, not the last one.
   if (text.length <= INLINE_MAX_CHARS && lines <= INLINE_MAX_LINES) {
     return (
       <KeptBox key={text} className="json-inline" testId={testId}>
-        <JsonTree value={value} />
+        <Tree value={value} fallback={text} />
       </KeptBox>
     );
   }
@@ -45,10 +67,12 @@ export function JsonView({
     );
   };
 
+  const large = nodes > DIALOG_MAX_NODES;
+
   return (
     <KeptBox key={text} className="json-preview" testId={testId}>
       <div className="json-preview-body">
-        <JsonTree value={value} openDepth={1} />
+        <Tree value={value} fallback={text} openDepth={1} />
       </div>
       <div className="json-preview-foot">
         <span className="faint">{summary}</span>
@@ -79,12 +103,65 @@ export function JsonView({
           }
         >
           <section className="json-dialog-body" tabIndex={0} aria-label={label}>
-            <JsonTree value={value} openDepth={Number.POSITIVE_INFINITY} />
+            {large ? (
+              <p className="faint json-dialog-note" data-testid="json-large-notice">
+                This value is large. Nested items start collapsed. Expand them to see more.
+              </p>
+            ) : null}
+            <Tree value={value} fallback={text} openDepth={large ? 1 : DIALOG_OPEN_DEPTH} />
           </section>
         </Dialog>
       ) : null}
     </KeptBox>
   );
+}
+
+/**
+ * A tree that a render failure cannot take down. The fallback is the raw
+ * text, so the reader still gets the value.
+ */
+function Tree({
+  value,
+  fallback,
+  openDepth,
+}: {
+  value: unknown;
+  fallback: string;
+  openDepth?: number;
+}) {
+  return (
+    <ErrorBoundary fallback={<pre className="code">{fallback}</pre>}>
+      <JsonTree value={value} {...(openDepth === undefined ? {} : { openDepth })} />
+    </ErrorBoundary>
+  );
+}
+
+/** A value that cannot be walked counts as large, so the dialog stays collapsed. */
+function safeCountNodes(value: unknown): number {
+  try {
+    return countNodes(value, DIALOG_MAX_NODES);
+  } catch {
+    return DIALOG_MAX_NODES + 1;
+  }
+}
+
+/**
+ * Counts values in the payload, stopping once `limit` is passed. Iterative,
+ * so a deeply nested payload cannot overflow the stack while being measured.
+ */
+function countNodes(root: unknown, limit: number): number {
+  const stack: unknown[] = [root];
+  let count = 0;
+  while (stack.length > 0 && count <= limit) {
+    const current = stack.pop();
+    count += 1;
+    if (Array.isArray(current)) {
+      for (const item of current) stack.push(item);
+    } else if (current !== null && typeof current === "object") {
+      for (const item of Object.values(current)) stack.push(item);
+    }
+  }
+  return count;
 }
 
 /**

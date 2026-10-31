@@ -88,6 +88,32 @@ describe("StopRunButton confirmation", () => {
     expect(cancel).not.toHaveBeenCalled();
   });
 
+  it("moves focus into the question when it opens, so Escape is reachable", () => {
+    renderStop("running");
+    fireEvent.click(screen.getByTestId("run-stop"));
+    expect(screen.getByTestId("run-stop-keep")).toHaveFocus();
+  });
+
+  it("backs out on Escape pressed with focus outside the question, and returns focus to Stop", () => {
+    const cancel = vi.spyOn(api, "cancelRun");
+    renderStop("running");
+
+    fireEvent.click(screen.getByTestId("run-stop"));
+    // Focus is wherever the browser left it: the question is not focused here.
+    (document.activeElement as HTMLElement | null)?.blur();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(screen.queryByTestId("run-stop-confirm")).toBeNull();
+    expect(screen.getByTestId("run-stop")).toHaveFocus();
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it("returns focus to Stop after Keep running", () => {
+    renderStop("running");
+    fireEvent.click(screen.getByTestId("run-stop"));
+    fireEvent.click(screen.getByTestId("run-stop-keep"));
+    expect(screen.getByTestId("run-stop")).toHaveFocus();
+  });
+
   it("asks in replay with the live-run wording", () => {
     renderStop("running", true);
     fireEvent.click(screen.getByTestId("run-stop"));

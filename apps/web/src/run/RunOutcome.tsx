@@ -18,9 +18,7 @@ export function RunOutcome({
   const executions = Object.values(view.executions);
   const lastError = view.errors.at(-1) ?? null;
   const failed = pickFailed(executions, lastError?.path ?? null);
-  const inFlight = executions.find(
-    (exec) => exec.status === "running" || exec.status === "validating",
-  );
+  const inFlight = pickInFlight(executions);
   const approval = executions.find((exec) => exec.status === "waiting_approval");
 
   let reason: string | null = null;
@@ -45,7 +43,12 @@ export function RunOutcome({
       break;
     case "running":
     case "queued":
-      reason = inFlight === undefined ? null : nodeName(inFlight.nodeId);
+      if (inFlight !== null) {
+        reason =
+          inFlight.status === "waiting_quota"
+            ? `waiting for provider quota at ${nodeName(inFlight.nodeId)}`
+            : nodeName(inFlight.nodeId);
+      }
       break;
     default:
       break;
@@ -64,9 +67,29 @@ export function RunOutcome({
   );
 }
 
+/** The failed step the run's last error belongs to, matched by path only. */
 function pickFailed(executions: ExecView[], errorPath: string | null): ExecView | null {
-  const failing = executions.filter(
-    (exec) => exec.status === "failed" || exec.status === "rejected",
+  if (errorPath === null || errorPath === "") return null;
+  return (
+    executions.find(
+      (exec) => exec.path === errorPath && (exec.status === "failed" || exec.status === "rejected"),
+    ) ?? null
   );
-  return failing.find((exec) => exec.path === errorPath) ?? failing[0] ?? null;
+}
+
+/**
+ * The step a live run is on. Parallel branches can all be active, so the
+ * choice is deterministic: a running step beats a quota wait, and within each
+ * group the most recently started step wins, ties broken by path. Queued steps
+ * that have not started give no reason.
+ */
+function pickInFlight(executions: ExecView[]): ExecView | null {
+  const byRecency = (a: ExecView, b: ExecView) =>
+    (b.startedAt ?? -Infinity) - (a.startedAt ?? -Infinity) || a.path.localeCompare(b.path);
+  const active = executions
+    .filter((exec) => exec.status === "running" || exec.status === "validating")
+    .sort(byRecency);
+  if (active[0] !== undefined) return active[0];
+  const waiting = executions.filter((exec) => exec.status === "waiting_quota").sort(byRecency);
+  return waiting[0] ?? null;
 }
