@@ -2,16 +2,22 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { type ReactNode, useState } from "react";
 
 /**
- * Structured, highlighted JSON. Keys, strings, numbers, booleans and nulls get
- * their own colours; containers collapse. A string with line breaks renders as
- * a text block, so agent output reads as prose instead of one escaped line.
- */
-/**
  * Containers nested deeper than this render a summary instead of recursing.
  * Each level is a React component, so an unbounded depth overflows the stack.
  */
 export const JSON_MAX_DEPTH = 64;
 
+/**
+ * An expanded container mounts this many children at first, then this many
+ * more on request. Without a limit, one wide array mounts one subtree per item.
+ */
+export const JSON_CHILD_PAGE = 200;
+
+/**
+ * Structured, highlighted JSON. Keys, strings, numbers, booleans and nulls get
+ * their own colours; containers collapse. A string with line breaks renders as
+ * a text block, so agent output reads as prose instead of one escaped line.
+ */
 export function JsonTree({ value, openDepth = 3 }: { value: unknown; openDepth?: number }) {
   return (
     <div className="json-tree">
@@ -31,20 +37,6 @@ function JsonNode({
   openDepth: number;
   name?: string | undefined;
 }) {
-  if (depth >= JSON_MAX_DEPTH && value !== null && typeof value === "object") {
-    return (
-      <div className="json-line">
-        {name === undefined ? null : (
-          <>
-            <span className="json-key">{JSON.stringify(name)}</span>
-            <span className="json-punct">: </span>
-          </>
-        )}
-        <span className="json-summary">nested deeper than {JSON_MAX_DEPTH} levels, not shown</span>
-      </div>
-    );
-  }
-
   const label =
     name === undefined ? null : (
       <>
@@ -53,40 +45,38 @@ function JsonNode({
       </>
     );
 
+  if (depth >= JSON_MAX_DEPTH && value !== null && typeof value === "object") {
+    return (
+      <div className="json-line">
+        {label}
+        <span className="json-summary">nested deeper than {JSON_MAX_DEPTH} levels, not shown</span>
+      </div>
+    );
+  }
+
   if (Array.isArray(value)) {
     return (
       <Container
         label={label}
         open={["[", "]"]}
-        count={value.length}
+        value={value}
         depth={depth}
         openDepth={openDepth}
         name={name}
-      >
-        {value.map((item, index) => (
-          // A JSON array has no identity of its own, and its items are never reordered.
-          // biome-ignore lint/suspicious/noArrayIndexKey: array position is the only identity
-          <JsonNode key={index} value={item} depth={depth + 1} openDepth={openDepth} />
-        ))}
-      </Container>
+      />
     );
   }
 
   if (value !== null && typeof value === "object") {
-    const entries = Object.entries(value);
     return (
       <Container
         label={label}
         open={["{", "}"]}
-        count={entries.length}
+        value={value}
         depth={depth}
         openDepth={openDepth}
         name={name}
-      >
-        {entries.map(([key, item]) => (
-          <JsonNode key={key} value={item} depth={depth + 1} openDepth={openDepth} name={key} />
-        ))}
-      </Container>
+      />
     );
   }
 
@@ -101,26 +91,28 @@ function JsonNode({
 function Container({
   label,
   open,
-  count,
+  value,
   depth,
   openDepth,
   name,
-  children,
 }: {
   label: ReactNode;
   open: [string, string];
-  count: number;
+  value: unknown[] | object;
   depth: number;
   openDepth: number;
   name: string | undefined;
-  children: ReactNode;
 }) {
   const [expanded, setExpanded] = useState(depth < openDepth);
+  const [shown, setShown] = useState(JSON_CHILD_PAGE);
   const [opening, closing] = open;
-  const empty = count === 0;
+  const isArray = Array.isArray(value);
+  // Keys are read only here, so a collapsed container costs one count, not a copy of its children.
+  const keys = isArray ? null : Object.keys(value);
+  const count = keys === null ? (value as unknown[]).length : keys.length;
   const what = name ?? "value";
 
-  if (empty) {
+  if (count === 0) {
     return (
       <div className="json-line">
         {label}
@@ -130,6 +122,34 @@ function Container({
         </span>
       </div>
     );
+  }
+
+  const visible = Math.min(shown, count);
+  const remaining = count - visible;
+  const children: ReactNode[] = [];
+  for (let index = 0; index < visible; index += 1) {
+    if (keys === null) {
+      // A JSON array has no identity of its own, and its items are never reordered.
+      children.push(
+        <JsonNode
+          key={index}
+          value={(value as unknown[])[index]}
+          depth={depth + 1}
+          openDepth={openDepth}
+        />,
+      );
+    } else {
+      const key = keys[index] as string;
+      children.push(
+        <JsonNode
+          key={key}
+          value={(value as Record<string, unknown>)[key]}
+          depth={depth + 1}
+          openDepth={openDepth}
+          name={key}
+        />,
+      );
+    }
   }
 
   return (
@@ -158,7 +178,23 @@ function Container({
         )}
         {expanded ? null : <span className="json-punct">{closing}</span>}
       </div>
-      {expanded ? <div className="json-children">{children}</div> : null}
+      {expanded ? (
+        <div className="json-children">
+          {children}
+          {remaining > 0 ? (
+            <div className="json-line">
+              <button
+                type="button"
+                className="btn sm"
+                data-testid="json-show-more"
+                onClick={() => setShown((current) => current + JSON_CHILD_PAGE)}
+              >
+                Show {Math.min(JSON_CHILD_PAGE, remaining)} more ({remaining} left)
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {expanded ? (
         <div className="json-line">
           <span className="json-punct">{closing}</span>

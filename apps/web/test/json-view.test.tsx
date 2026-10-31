@@ -70,6 +70,19 @@ describe("JsonView", () => {
     expect(within(dialog).queryByText('"name"')).toBeNull();
   });
 
+  it("mounts a wide flat payload 200 entries at a time, not all at once", () => {
+    const flat = Array.from({ length: 6000 }, (_, index) => index);
+    render(<JsonView value={flat} testId="json" label="Output" />);
+    fireEvent.click(screen.getByRole("button", { name: "Expand" }));
+    const dialog = screen.getByRole("dialog", { name: "Output" });
+    expect(within(dialog).getByTestId("json-large-notice")).toBeInTheDocument();
+    expect(dialog.querySelectorAll(".json-num")).toHaveLength(200);
+
+    fireEvent.click(within(dialog).getByTestId("json-show-more"));
+    expect(dialog.querySelectorAll(".json-num")).toHaveLength(400);
+    expect(within(dialog).getByTestId("json-show-more")).toHaveTextContent("200 more (5600 left)");
+  });
+
   it("opens a payload nested far past the stack limit without throwing", () => {
     let deep: unknown = "leaf";
     for (let index = 0; index < 1500; index += 1) deep = { child: deep };

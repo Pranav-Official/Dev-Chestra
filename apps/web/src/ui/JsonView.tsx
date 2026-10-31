@@ -37,19 +37,18 @@ export function JsonView({
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   // Serialising is O(n) in the payload, so it runs once per value, not per render.
-  const { text, summary, nodes } = useMemo(() => {
+  const { text, lines, summary, nodes } = useMemo(() => {
     const serialised = jsonText(value);
     const lineCount = serialised === "" ? 0 : serialised.split("\n").length;
     const byteCount = new TextEncoder().encode(serialised).length;
     return {
       text: serialised,
+      lines: lineCount,
       summary: `${lineCount} ${lineCount === 1 ? "line" : "lines"} · ${byteCount} bytes`,
       nodes: safeCountNodes(value),
     };
   }, [value]);
   if (text === "") return <pre className="code" data-testid={testId} />;
-
-  const lines = text.split("\n").length;
 
   // Keyed by the text, so a new value starts from its own height, not the last one.
   if (text.length <= INLINE_MAX_CHARS && lines <= INLINE_MAX_LINES) {
@@ -105,7 +104,8 @@ export function JsonView({
           <section className="json-dialog-body" tabIndex={0} aria-label={label}>
             {large ? (
               <p className="faint json-dialog-note" data-testid="json-large-notice">
-                This value is large. Nested items start collapsed. Expand them to see more.
+                This value is large. Nested items start collapsed, and long lists show 200 entries
+                at a time.
               </p>
             ) : null}
             <Tree value={value} fallback={text} openDepth={large ? 1 : DIALOG_OPEN_DEPTH} />
