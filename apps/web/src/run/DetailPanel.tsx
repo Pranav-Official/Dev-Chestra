@@ -15,6 +15,7 @@ import { formatCost, formatDuration, formatTime, formatTokens, shortSha } from "
 import { JsonView } from "../ui/JsonView.js";
 import { StatusPill, statusLabel } from "../ui/StatusPill.js";
 import { InlineError } from "../ui/states.js";
+import { useDelayedFlag } from "../ui/useDelayedFlag.js";
 import { ApprovalPanel } from "./ApprovalPanel.js";
 import { BatchItemResults } from "./BatchItemResults.js";
 import { type DerivedAttempt, deriveDetail } from "./deriveDetail.js";
@@ -606,30 +607,19 @@ export function RunSummaryPanel({
           </span>
         </div>
       ) : null}
+      {/* Status, run number, workflow, cost, tokens and timing live in the run header. */}
       <dl className="kv" style={{ marginTop: isReplay ? 12 : 0 }}>
-        <dt>Status</dt>
-        <dd>
-          <StatusPill status={view.status} />
-        </dd>
-        <dt>Run</dt>
-        <dd>#{run?.runNumber ?? view.runNumber}</dd>
-        <dt>Workflow</dt>
-        <dd>{run?.workflowName ?? run?.workflowId ?? "—"}</dd>
-        <dt>Kind</dt>
-        <dd>{run?.kind ?? "run"}</dd>
         <dt>Created</dt>
         <dd>{formatTime(run?.createdAt)}</dd>
-        <dt>Active</dt>
-        <dd>{formatDuration(view.budget.activeMs)}</dd>
-        <dt>Paused</dt>
-        <dd>
-          {formatDuration(view.pausedMs)}
-          {view.pauseReason ? ` · ${view.pauseReason}` : ""}
-        </dd>
-        <dt>Cost</dt>
-        <dd>{formatCost(view.budget.usd)}</dd>
-        <dt>Tokens</dt>
-        <dd>{formatTokens(view.budget.tokens)}</dd>
+        {view.pausedMs > 0 || view.pauseReason !== null ? (
+          <>
+            <dt>Paused</dt>
+            <dd>
+              {formatDuration(view.pausedMs)}
+              {view.pauseReason ? ` · ${view.pauseReason}` : ""}
+            </dd>
+          </>
+        ) : null}
         <dt>Last event</dt>
         <dd className="mono">#{view.lastEventId}</dd>
       </dl>
@@ -701,6 +691,7 @@ export function DetailPanel({
   onSelectPath?: (next: string) => void;
 }) {
   const execution = useExecutionDetail(runId, path, !isReplay && path !== null);
+  const slowLoad = useDelayedFlag(execution.isPending && !isReplay && path !== null, 4_000);
   if (path === null) {
     return <RunSummaryPanel run={run} view={view} isReplay={isReplay} />;
   }
@@ -835,8 +826,23 @@ export function DetailPanel({
       ) : null}
       {isReplay ? (
         <ReplayDetail events={events} path={path} view={view} />
+      ) : execution.isPending && slowLoad ? (
+        <div className="note" role="status" data-testid="detail-slow">
+          <Info size={15} aria-hidden="true" />
+          <span>Still loading this step. The request has not returned.</span>
+          <span className="sp" />
+          <button
+            type="button"
+            className="btn sm"
+            data-testid="detail-retry"
+            onClick={() => void execution.refetch()}
+          >
+            Retry
+          </button>
+        </div>
       ) : execution.isPending ? (
         <div className="col" aria-busy="true">
+          <span className="sr-only">Loading this step</span>
           <div className="skeleton" style={{ width: "70%" }} />
           <div className="skeleton" style={{ width: "100%" }} />
           <div className="skeleton" style={{ width: "84%" }} />

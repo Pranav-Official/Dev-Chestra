@@ -6,11 +6,14 @@ export function ReplayBar({
   events,
   replayAt,
   headEventId,
+  terminal,
   onChange,
 }: {
   events: EventEnvelope[];
   replayAt: number | null;
   headEventId: number;
+  /** A finished run has no live state; its head is the final state. */
+  terminal: boolean;
   onChange: (eventId: number | null) => void;
 }) {
   const lastIndex = events.length - 1;
@@ -84,11 +87,11 @@ export function ReplayBar({
           onClick={() => onChange(null)}
         >
           <Radio size={12} aria-hidden="true" />
-          Back to live
+          {terminal ? "Back to final" : "Back to live"}
         </button>
       </div>
       <div className="replay-meta">
-        <div className="v">{atLive ? "Live" : `Event #${replayAt}`}</div>
+        <div className="v">{atLive ? (terminal ? "Final" : "Live") : `Event #${replayAt}`}</div>
         <div className="t">
           {selected === undefined
             ? "No events yet"

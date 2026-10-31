@@ -213,18 +213,6 @@
   .sidebar {
     display: none;
   }
-  .run-split {
-    flex-direction: column;
-  }
-  .panel {
-    width: 100%;
-    border-left: 0;
-    border-top: 1px solid var(--border);
-    max-height: 50%;
-  }
-  .replay-meta {
-    display: none;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   *,

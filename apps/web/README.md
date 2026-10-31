@@ -52,8 +52,10 @@ after rebuilding the web app: the server caches `index.html` in memory at startu
 - The event list renders a 100-row window. Transcript pages are lazy and the newest 2,000 lines are
   rendered at most. All agent text is a React text node; there is no
   `dangerouslySetInnerHTML`.
-- The run page topbar carries one run-level Stop control, independent of the selected node and
-  tab. It renders while the authoritative live head status is nonterminal (including
+- The run header carries one run-level Stop control, beside the run status and independent of the
+  selected node and tab. Stopping is two steps: the first click asks "Stop this run?", and only
+  "Confirm stop" sends the request; "Keep running" or Escape sends nothing. It renders while the
+  authoritative live head status is nonterminal (including
   paused and waiting-for-approval runs) and unmounts once the head turns terminal. While
   replaying, the button is labelled "Stop live run" and still acts on the live head, never on
   the replay position. `cancelRun` resolves as accepted (the controller reports the early

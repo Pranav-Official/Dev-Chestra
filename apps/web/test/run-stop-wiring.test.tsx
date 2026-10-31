@@ -77,6 +77,7 @@ describe("RunPage stop control wiring", () => {
     ).toBeInTheDocument();
     expect(screen.getByTestId("run-stop")).toHaveTextContent("Request stop");
     fireEvent.click(screen.getByTestId("run-stop"));
+    fireEvent.click(screen.getByTestId("run-stop-confirm"));
     await waitFor(() => expect(cancel).toHaveBeenCalledWith("r1"));
     expect(await screen.findByTestId("run-stop-requested")).toHaveTextContent(
       "Stop requested. Run status is unavailable.",
