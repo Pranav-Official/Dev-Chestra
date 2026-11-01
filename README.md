@@ -93,3 +93,7 @@ Registering a project drops a `.devchestra/skill.md` file into your repo. It's a
 So you don't learn a new tool. You just tell your agent "add a workflow that lints, then asks me before fixing," and it draws the boxes for you. Rerun it, share it, version it like code.
 
 Local-first, single user, your files stay yours. No cloud account, no queue, no sandbox magic — steps run with your normal permissions in the workspace you chose.
+
+## Third-party icons
+
+The monochrome provider icons are vendored from [LobeHub Icons](https://github.com/lobehub/lobe-icons) (MIT, Copyright (c) 2023 LobeHub) and the official Pi mark from pi.dev. The marks belong to their respective owners and are used only to identify the matching CLI.

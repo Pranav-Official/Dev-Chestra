@@ -11,6 +11,8 @@ export function listRegistryClis(): CliListItem[] {
     id: provider.id,
     label: provider.label,
     experimental: provider.experimental,
+    // Placeholder until the provider-settings store lands: every CLI is on.
+    enabled: true,
   }));
 }
 

@@ -21,8 +21,10 @@ import {
 import {
   type BootstrapResponse,
   bootstrapResponseSchema,
+  type CliListItem,
   type CliListResponse,
   type CommandResponse,
+  cliListItemSchema,
   cliListResponseSchema,
   commandResponseSchema,
   type ExecutionDetailResponse,
@@ -66,6 +68,14 @@ import {
   cliModelCatalogSchema,
 } from "./model-catalog.js";
 import { apiPath } from "./primitives.js";
+import {
+  type CliStatusResponse,
+  cliStatusResponseSchema,
+  type ProviderStatusItem,
+  providerStatusItemSchema,
+  type UpdateCliRequest,
+  updateCliRequestSchema,
+} from "./provider-dto.js";
 import {
   type GlobalStreamMessage,
   parseGlobalStreamEvent,
@@ -283,6 +293,38 @@ export class ApiClientBase {
 
   listClis(options: ApiRequestOptions = {}): Promise<CliListResponse> {
     return this.request("GET", ["clis"], cliListResponseSchema, this.req(options));
+  }
+
+  /** Cached version probe for every provider CLI (server-side TTL). */
+  listCliStatus(options: ApiRequestOptions = {}): Promise<CliStatusResponse> {
+    return this.request("GET", ["clis", "status"], cliStatusResponseSchema, this.req(options));
+  }
+
+  /** Turn a provider on or off. Turning off the last enabled provider is a 409. */
+  async setCliEnabled(
+    cli: CatalogCli,
+    body: UpdateCliRequest,
+    options: ApiRequestOptions = {},
+  ): Promise<CliListItem> {
+    const parsedCli = catalogCliSchema.parse(cli);
+    const parsed = updateCliRequestSchema.parse(body);
+    return this.request(
+      "PATCH",
+      ["clis", parsedCli],
+      cliListItemSchema,
+      this.req(options, { body: parsed, mutation: true }),
+    );
+  }
+
+  /** Fresh probe of one provider CLI; bypasses the status cache. */
+  async probeCli(cli: CatalogCli, options: ApiRequestOptions = {}): Promise<ProviderStatusItem> {
+    const parsedCli = catalogCliSchema.parse(cli);
+    return this.request(
+      "POST",
+      ["clis", parsedCli, "probe"],
+      providerStatusItemSchema,
+      this.req(options, { mutation: true }),
+    );
   }
 
   async relinkProject(

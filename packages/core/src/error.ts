@@ -9,6 +9,7 @@ export type ErrorCode =
   | "E_OUTPUT_INVALID"
   | "E_ATTEMPTS_EXHAUSTED"
   | "E_CLI_MISSING"
+  | "E_CLI_DISABLED"
   | "E_CLI_AUTH"
   | "E_CLI_CRASH"
   | "E_QUOTA_WINDOW"
