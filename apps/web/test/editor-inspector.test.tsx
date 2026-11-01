@@ -270,8 +270,9 @@ describe("Agent fields", () => {
     expect(screen.getByText(/Permissions are advisory/)).toBeInTheDocument();
     expect(screen.getAllByText(/not an OS sandbox/i).length).toBeGreaterThan(0);
     expect(screen.queryByTestId("inspector-agent-model")).toBeNull();
-    expect(screen.queryByTestId("inspector-agent-model-picker")).toBeInTheDocument();
-    expect(screen.getByTestId("inspector-agent-model-selected-id")).toHaveTextContent(
+    expect(screen.getByTestId("inspector-agent-model-trigger")).toBeInTheDocument();
+    expect(screen.queryByTestId("inspector-agent-model-picker")).toBeNull();
+    expect(screen.getByTestId("inspector-agent-model-selected-label")).toHaveTextContent(
       "CLI default",
     );
     expect(screen.queryByLabelText(/context/i)).toBeNull();
@@ -281,9 +282,7 @@ describe("Agent fields", () => {
     expect(screen.queryByRole("button", { name: /worktree/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /project workspace/i })).toBeNull();
 
-    fireEvent.change(screen.getByTestId("inspector-agent-cli"), {
-      target: { value: "claude-code" },
-    });
+    fireEvent.click(screen.getByTestId("inspector-agent-cli-claude-code"));
     await waitFor(() =>
       expect(lastPatch()).toEqual({
         nodeId: "node-agent",
@@ -292,19 +291,21 @@ describe("Agent fields", () => {
     );
     expect(screen.getByText(/Permissions are advisory/i)).toBeInTheDocument();
 
-    const custom = screen.getByTestId("inspector-agent-model-custom-input");
-    fireEvent.change(custom, { target: { value: "gpt-test" } });
+    fireEvent.click(screen.getByTestId("inspector-agent-model-trigger"));
+    fireEvent.change(screen.getByTestId("inspector-agent-model-picker"), {
+      target: { value: "gpt-test" },
+    });
     expect(patches().at(-1)?.patch).not.toHaveProperty("model");
-    fireEvent.click(screen.getByTestId("inspector-agent-model-use-custom"));
+    fireEvent.click(screen.getByTestId("inspector-agent-model-custom-option"));
     await waitFor(() => expect(lastPatch()?.patch).toEqual({ model: "gpt-test" }));
     expect(screen.getByTestId("inspector-agent-model-selected-id")).toHaveTextContent("gpt-test");
 
-    fireEvent.focus(screen.getByTestId("inspector-agent-model-picker"));
+    fireEvent.click(screen.getByTestId("inspector-agent-model-trigger"));
     const defaultOption = await screen.findByTestId("inspector-agent-model-default");
     fireEvent.mouseDown(defaultOption);
     fireEvent.click(defaultOption);
     await waitFor(() =>
-      expect(screen.getByTestId("inspector-agent-model-selected-id")).toHaveTextContent(
+      expect(screen.getByTestId("inspector-agent-model-selected-label")).toHaveTextContent(
         "CLI default",
       ),
     );
@@ -315,9 +316,7 @@ describe("Agent fields", () => {
     render(
       <Inspector node={{ ...agent, cli: "codex", model: "gpt-5" }} issues={[]} onPatch={onPatch} />,
     );
-    fireEvent.change(screen.getByTestId("inspector-agent-cli"), {
-      target: { value: "claude-code" },
-    });
+    fireEvent.click(screen.getByTestId("inspector-agent-cli-claude-code"));
     expect(onPatch).toHaveBeenCalledTimes(1);
     expect(onPatch).toHaveBeenCalledWith("node-agent", {
       cli: "claude-code",

@@ -44,6 +44,7 @@ import { mountModelRoutes } from "./model-routes.js";
 import type {
   BrowserMcpServersPort,
   BrowserModelCatalogPort,
+  BrowserProviderSettingsPort,
   BrowserQueryPort,
   BrowserRunControllerPort,
   BrowserStreamPort,
@@ -53,6 +54,7 @@ import type {
   TranscriptPage,
 } from "./ports.js";
 import { mountProjectRoutes } from "./project-routes.js";
+import type { ProviderStatusService } from "./provider-status.js";
 import { mountRunStartRoute } from "./run-start-route.js";
 
 import {
@@ -99,6 +101,8 @@ export interface BrowserAppDeps {
   defaults?: { agentTimeoutMin: number; shellTimeoutMin: number };
   workflowService?: ManagedWorkflowService;
   modelCatalog?: BrowserModelCatalogPort;
+  providerSettings?: BrowserProviderSettingsPort;
+  providerStatus?: ProviderStatusService;
   mcpServers?: BrowserMcpServersPort;
   workspaceService?: BrowserWorkspacePort;
   /**
@@ -307,6 +311,7 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
     controller: deps.controller,
     dataDir,
     ...(deps.workspaceService === undefined ? {} : { workspaceService: deps.workspaceService }),
+    ...(deps.providerSettings === undefined ? {} : { providerSettings: deps.providerSettings }),
     validate,
   });
   mountModelRoutes(app, {
@@ -319,7 +324,11 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
     ...(deps.mcpServers === undefined ? {} : { mcpServers: deps.mcpServers }),
     validate,
   });
-  mountCliRoutes(app, { validate });
+  mountCliRoutes(app, {
+    ...(deps.providerSettings === undefined ? {} : { providerSettings: deps.providerSettings }),
+    ...(deps.providerStatus === undefined ? {} : { providerStatus: deps.providerStatus }),
+    validate,
+  });
   mountApprovalRoutes(app, { store: deps.store, controller: deps.controller, validate });
   mountWorkflowRoutes(app, {
     store: deps.store,
@@ -332,6 +341,7 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
       }),
     dataDir,
     ...(deps.workspaceService === undefined ? {} : { workspaceService: deps.workspaceService }),
+    ...(deps.providerSettings === undefined ? {} : { providerSettings: deps.providerSettings }),
     validate,
   });
 

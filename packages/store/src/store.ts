@@ -65,6 +65,12 @@ import {
   relinkProject,
 } from "./projects.js";
 import {
+  disabledClis,
+  listProviderSettings,
+  type ProviderSettingRecord,
+  setProviderEnabled,
+} from "./provider-settings.js";
+import {
   executionHistory,
   getOutputById,
   getOutputMetadataById,
@@ -85,9 +91,8 @@ import {
   putRunBundle,
 } from "./run-children.js";
 import { createRun, getRun, listActiveRuns } from "./runs.js";
-import type { Runtime } from "./runtime.js";
+import { now, type Runtime } from "./runtime.js";
 import { type SecretFinding, SecretRegistry } from "./secrets.js";
-import { getUsageSummary } from "./usage.js";
 import {
   countNoSubmit,
   getAcceptedOutput,
@@ -152,6 +157,7 @@ import type {
   UsageFilter,
   UsageSummary,
 } from "./types.js";
+import { getUsageSummary } from "./usage.js";
 import { fail } from "./util.js";
 import {
   recordForeachItemDecided,
@@ -167,6 +173,12 @@ export interface ProjectsApi {
   get(projectId: string): ProjectRecord | null;
   findByPath(path: string): ProjectRecord | null;
   relink(input: RelinkProjectInput): ProjectRecord;
+}
+
+export interface ProviderSettingsApi {
+  list(): ProviderSettingRecord[];
+  setEnabled(cli: string, enabled: boolean): void;
+  disabled(): ReadonlySet<string>;
 }
 
 export interface RunsApi {
@@ -343,6 +355,7 @@ export interface SecurityApi {
 export class Store {
   readonly bus = new EventBus();
   readonly projects: ProjectsApi;
+  readonly providerSettings: ProviderSettingsApi;
   readonly runs: RunsApi;
   readonly executions: ExecutionsApi;
   readonly processes: ProcessesApi;
@@ -395,6 +408,12 @@ export class Store {
       get: (projectId) => getProject(this.#runtime, projectId),
       findByPath: (path) => findProjectByPath(this.#runtime, path),
       relink: (input) => this.tx(() => relinkProject(this.#runtime, input)),
+    };
+    this.providerSettings = {
+      list: () => listProviderSettings(this.#runtime),
+      setEnabled: (cli, enabled) =>
+        this.tx(() => setProviderEnabled(this.#runtime, cli, enabled, now(this.#runtime))),
+      disabled: () => disabledClis(this.#runtime),
     };
     this.runs = {
       setArchived: (runId, archived) =>

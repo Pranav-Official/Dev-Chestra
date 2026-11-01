@@ -29,6 +29,13 @@ export function fieldIssue(issues: readonly Issue[], suffix: string): string | n
   return found.length === 0 ? null : found.map((issue) => issue.message).join(" ");
 }
 
+export function fieldWarning(issues: readonly Issue[], suffix: string): string | null {
+  const found = issues.filter(
+    (issue) => issue.severity === "warning" && endsWithPointer(issue, suffix),
+  );
+  return found.length === 0 ? null : found.map((issue) => issue.message).join(" ");
+}
+
 export function containingIssue(issues: readonly Issue[], segment: string): string | null {
   const found = issues.filter(
     (issue) =>

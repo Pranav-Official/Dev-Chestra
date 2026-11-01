@@ -1,4 +1,5 @@
-import type { RunStatus } from "@devchestra/core";
+import type { CatalogCli, CliListResponse, CliStatusResponse, RunStatus } from "@devchestra/api";
+import { isProdCliId } from "@devchestra/schema";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { workflowApi } from "../editor/api/workflowApi.js";
@@ -14,6 +15,8 @@ export const queryKeys = {
   workflows: (projectId: string) => ["workflows", projectId] as const,
   workflow: (projectId: string, workflowId: string) => ["workflow", projectId, workflowId] as const,
   approvals: ["approvals"] as const,
+  providers: ["providers"] as const,
+  providerStatuses: ["providerStatuses"] as const,
 };
 
 export function useProjectWorkflows(projectId: string, enabled = true) {
@@ -142,6 +145,78 @@ export function useApprovalsInbox() {
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
     staleTime: 5_000,
+  });
+}
+
+/** Keeps the production providers only; `fake` exists in tests and never shows here. */
+function selectProdClis(data: CliListResponse): CliListResponse {
+  return { clis: data.clis.filter((entry) => isProdCliId(entry.id)) };
+}
+
+export function useProviders() {
+  return useQuery({
+    queryKey: queryKeys.providers,
+    queryFn: ({ signal }) => api.listClis({ signal }),
+    select: selectProdClis,
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+    retry: false,
+  });
+}
+
+export function useProviderStatuses() {
+  return useQuery({
+    queryKey: queryKeys.providerStatuses,
+    queryFn: ({ signal }) => api.listCliStatus({ signal }),
+    staleTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+}
+
+export function useSetProviderEnabled() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ cli, enabled }: { cli: CatalogCli; enabled: boolean }) =>
+      api.setCliEnabled(cli, { enabled }),
+    onMutate: async ({ cli, enabled }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.providers });
+      const previous = queryClient.getQueryData<CliListResponse>(queryKeys.providers);
+      queryClient.setQueryData<CliListResponse>(queryKeys.providers, (current) =>
+        current === undefined
+          ? current
+          : {
+              clis: current.clis.map((entry) => (entry.id === cli ? { ...entry, enabled } : entry)),
+            },
+      );
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(queryKeys.providers, context.previous);
+      }
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.providers });
+    },
+  });
+}
+
+export function useProbeProvider() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (cli: CatalogCli) => api.probeCli(cli),
+    onSuccess: (status) => {
+      queryClient.setQueryData<CliStatusResponse>(queryKeys.providerStatuses, (current) => {
+        const statuses = current?.statuses ?? [];
+        const exists = statuses.some((entry) => entry.id === status.id);
+        return {
+          statuses: exists
+            ? statuses.map((entry) => (entry.id === status.id ? status : entry))
+            : [...statuses, status],
+        };
+      });
+    },
   });
 }
 

@@ -13,6 +13,7 @@ import {
 } from "@devchestra/core";
 import { isProdCliId, resolveParams } from "@devchestra/schema";
 import type { CreateRunInput, CreateRunResult, RunRecord } from "@devchestra/store";
+import { cliDisabledError } from "./agent-preflight.js";
 import {
   consumeStaleWakesForWaiting,
   consumeWakesForTerminal,
@@ -215,6 +216,12 @@ export class LinearEngine implements Engine {
         ...(input.idempotency === undefined ? {} : { idempotency: input.idempotency }),
       };
       const created: CreateRunResult = this.#ctx.store.tx(() => {
+        // A provider may have been turned off while the async freeze and hash steps above
+        // ran. tx() is a synchronous BEGIN IMMEDIATE and provider-setting writes take the
+        // same lock, so checking here makes a disable win over an overlapping launch (even
+        // from another process) and nothing is persisted when it does.
+        this.#assertAdapters(plan);
+        this.#assertBundleAdapters(bundle);
         const created = this.#ctx.store.runs.create(createInput);
         if (!created.duplicate) {
           if (Object.keys(bundle).length > 0) {
@@ -471,6 +478,7 @@ export class LinearEngine implements Engine {
           details: { cli },
         });
       }
+      if (this.#ctx.deps.isCliEnabled?.(cli) === false) throw cliDisabledError(cli);
       const provider = getProvider(cli);
       if (provider.experimental) {
         const allowed = this.#ctx.deps.allowExperimentalClis ?? [];

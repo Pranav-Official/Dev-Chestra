@@ -494,6 +494,7 @@ export interface RequiresSummary {
 export interface ValidationContext {
   providers?: string[];
   projectKind?: "git" | "folder";
+  disabledClis?: string[];
 }
 
 export interface ValidationReport {

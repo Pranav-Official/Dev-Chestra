@@ -2,10 +2,11 @@ import type { ProjectView } from "@devchestra/api";
 import { isApiError } from "@devchestra/api";
 import type { Issue, WorkflowNode } from "@devchestra/schema";
 import { AlertTriangle, Info, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useBlocker, useNavigate } from "react-router-dom";
 import { useStore } from "zustand";
 import { Topbar } from "../../shell/Topbar.js";
+import { ProviderStateProvider } from "../../ui/providerState.js";
 import {
   currentEtagFrom,
   describeWorkflowError,
@@ -17,6 +18,7 @@ import { EditorCanvas, NodePalette } from "../canvas/index.js";
 import { ConfirmDialog } from "../controls/ConfirmDialog.js";
 import { RunDialog, type RunPreparation } from "../controls/RunDialog.js";
 import { Inspector } from "../inspector/index.js";
+import { useAvailableClis } from "../inspector/model/useAvailableClis.js";
 import type { BufferValidity } from "../inspector/types.js";
 import { createEditorModel } from "../model/index.js";
 import type { CommandOutcome } from "../model/types.js";
@@ -95,7 +97,16 @@ export function WorkflowEditor({
   const [conflictBusy, setConflictBusy] = useState(false);
   const [conflictError, setConflictError] = useState<string | null>(null);
   const lastAck = useRef(0);
-  const validation = useEditorValidation(file, revision);
+  const { clis } = useAvailableClis();
+  const providerState = useMemo(
+    () => ({ isDisabled: (cli: string) => clis.some((item) => item.id === cli && !item.enabled) }),
+    [clis],
+  );
+  const disabledClis = useMemo(
+    () => clis.filter((item) => !item.enabled).map((item) => item.id),
+    [clis],
+  );
+  const validation = useEditorValidation(file, revision, disabledClis);
 
   useEffect(() => {
     controller.activate();
@@ -339,44 +350,46 @@ export function WorkflowEditor({
       )}
 
       <div className="editor-workspace">
-        <div className="editor-canvas-host">
-          <NodePalette file={file} onAdd={(type) => commit(model.getState().addNode(type))} />
-          <EditorCanvas
-            onLoopOpen={setLoopBodyOpenRequest}
-            file={file}
-            selection={selection}
+        <ProviderStateProvider value={providerState}>
+          <div className="editor-canvas-host">
+            <NodePalette file={file} onAdd={(type) => commit(model.getState().addNode(type))} />
+            <EditorCanvas
+              onLoopOpen={setLoopBodyOpenRequest}
+              file={file}
+              selection={selection}
+              issues={issues}
+              onSelectionChange={(next) => model.getState().select(next)}
+              onChange={(next, change) => {
+                const before = model.getState().revision;
+                const outcome = model.getState().applyDocumentChange(next, change);
+                if (!outcome.ok) {
+                  setNotice(outcome.error);
+                  return;
+                }
+                if (outcome.change !== null && outcome.state.revision !== before) {
+                  controller.change(outcome.state.file, outcome.change);
+                }
+              }}
+              onConnectionRejected={(message) => setNotice(message)}
+              onUndo={undo}
+              onRedo={redo}
+            />
+          </div>
+          <Inspector
+            loopBodyOpenRequested={
+              (node?.type === "loop" || node?.type === "foreach") && loopBodyOpenRequest === node.id
+            }
+            onLoopBodyOpenHandled={clearLoopBodyOpenRequest}
+            node={node}
+            projectId={pid}
             issues={issues}
-            onSelectionChange={(next) => model.getState().select(next)}
-            onChange={(next, change) => {
-              const before = model.getState().revision;
-              const outcome = model.getState().applyDocumentChange(next, change);
-              if (!outcome.ok) {
-                setNotice(outcome.error);
-                return;
-              }
-              if (outcome.change !== null && outcome.state.revision !== before) {
-                controller.change(outcome.state.file, outcome.change);
-              }
-            }}
-            onConnectionRejected={(message) => setNotice(message)}
-            onUndo={undo}
-            onRedo={redo}
+            graph={file.graph}
+            edges={file.graph.edges}
+            onPatch={(nodeId, patch) => commit(model.getState().updateNode(nodeId, patch))}
+            onRoutingChange={changeRouting}
+            onBufferValidityChange={onBufferValidityChange}
           />
-        </div>
-        <Inspector
-          loopBodyOpenRequested={
-            (node?.type === "loop" || node?.type === "foreach") && loopBodyOpenRequest === node.id
-          }
-          onLoopBodyOpenHandled={clearLoopBodyOpenRequest}
-          node={node}
-          projectId={pid}
-          issues={issues}
-          graph={file.graph}
-          edges={file.graph.edges}
-          onPatch={(nodeId, patch) => commit(model.getState().updateNode(nodeId, patch))}
-          onRoutingChange={changeRouting}
-          onBufferValidityChange={onBufferValidityChange}
-        />
+        </ProviderStateProvider>
       </div>
 
       <RunDialog

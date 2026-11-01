@@ -13,11 +13,7 @@ import {
 } from "@xyflow/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "@xyflow/react/dist/style.css";
-import {
-  deriveRouting,
-  isTerminalRunStatus,
-  type RunView,
-} from "@devchestra/core";
+import { deriveRouting, isTerminalRunStatus, type RunView } from "@devchestra/core";
 import { type DecisionMode, type DecisionNode, decisionHandles } from "@devchestra/schema";
 import {
   Bot,
@@ -39,7 +35,9 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { resolveApproval } from "../api/approvals.js";
+import { shortModel } from "../editor/canvas/nodes.js";
 import { EdgeHealer } from "../ui/EdgeHealer.js";
+import { ProviderIcon } from "../ui/ProviderIcon.js";
 import { StatusPill, statusLabel } from "../ui/StatusPill.js";
 import { approvalForPath, isActionable } from "./approval.js";
 import { isUnresolvedExecution, unresolvedSummary } from "./staleExecution.js";
@@ -102,6 +100,9 @@ interface NodeData extends Record<string, unknown> {
   name: string;
   kind: string;
   subtitle: string;
+  /** Agent nodes only: the provider icon and short model replace the text subtitle. */
+  cli?: string;
+  model?: string;
   status: string;
   runStatus: string;
   selected: boolean;
@@ -267,7 +268,21 @@ function WorkflowNode({ data }: NodeProps<Node<NodeData>>) {
           ) : (
             statusLabel(data.status)
           )}
-          {data.subtitle ? ` · ${data.subtitle}` : ""}
+          {data.cli === undefined ? (
+            data.subtitle ? (
+              ` · ${data.subtitle}`
+            ) : (
+              ""
+            )
+          ) : (
+            <>
+              {" · "}
+              <span className="flow-node-provider" title={data.subtitle}>
+                <ProviderIcon cli={data.cli} size={12} />
+                <span>{shortModel(data.model)}</span>
+              </span>
+            </>
+          )}
         </span>
       </div>
       {data.kind === "gate" ? (
@@ -499,6 +514,8 @@ export function RunCanvas({
           id: node.id,
           name: node.name,
           kind: node.type,
+          ...(node.cli === undefined ? {} : { cli: node.cli }),
+          ...(node.model === undefined ? {} : { model: node.model }),
           subtitle:
             node.type === "foreach" && exec?.foreach
               ? `${exec.foreach.processed}/${exec.foreach.total} items · ${exec.foreach.failed + exec.foreach.rejected} unsuccessful`

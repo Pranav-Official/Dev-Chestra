@@ -91,12 +91,15 @@ export interface CliListItem {
   id: string;
   label: string;
   experimental: boolean;
+  /** Provider switch from Settings. A turned-off provider is hidden from pickers and blocked at run start. */
+  enabled: boolean;
 }
 
 export const cliListItemSchema = strict({
   id: z.string().min(1).max(64),
   label: z.string().min(1).max(128),
   experimental: z.boolean(),
+  enabled: z.boolean(),
 }) as unknown as z.ZodType<CliListItem>;
 
 export interface CliListResponse {

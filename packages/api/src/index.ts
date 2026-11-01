@@ -27,6 +27,7 @@ export * from "./gate-dto.js";
 export * from "./mcp-servers.js";
 export * from "./model-catalog.js";
 export * from "./primitives.js";
+export * from "./provider-dto.js";
 export * from "./sse.js";
 export * from "./view.js";
 export * from "./workflow-client.js";

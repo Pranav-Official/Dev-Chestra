@@ -2,7 +2,13 @@ import { startRunRequestSchema } from "@devchestra/api";
 import type { Hono } from "hono";
 import { DevChestraError, errorBody } from "../errors.js";
 import { parseParams } from "./execution.js";
-import type { BrowserQueryPort, BrowserRunControllerPort, BrowserWorkspacePort } from "./ports.js";
+import type {
+  BrowserProviderSettingsPort,
+  BrowserQueryPort,
+  BrowserRunControllerPort,
+  BrowserWorkspacePort,
+} from "./ports.js";
+import { disabledClisRequired, providersOffResponse } from "./provider-guard.js";
 import { readJsonObject } from "./security.js";
 import {
   assertProjectPathAllowed,
@@ -17,6 +23,7 @@ export interface RunStartRouteDeps {
   store: BrowserQueryPort;
   controller: BrowserRunControllerPort;
   workspaceService?: BrowserWorkspacePort;
+  providerSettings?: BrowserProviderSettingsPort;
   dataDir: string;
   validate: (name: string, value: unknown) => void;
 }
@@ -67,6 +74,10 @@ export function mountRunStartRoute(app: Hono, deps: RunStartRouteDeps): void {
       workflowFile,
       params,
     });
+    if (deps.providerSettings !== undefined) {
+      const off = disabledClisRequired(loaded.snapshot, deps.providerSettings.disabled());
+      if (off.length > 0) return c.json(providersOffResponse(off), 409);
+    }
     const workspace = await validateRunWorkspace(
       deps.workspaceService,
       root,

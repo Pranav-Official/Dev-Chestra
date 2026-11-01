@@ -46,6 +46,8 @@ const APP_ROUTE_PATTERNS = [
   /^\/p\/[^/?#]+\/w\/[^/?#]+(?:\/.*)?$/,
   /^\/p\/[^/?#]+\/runs(?:\/.*)?$/,
   /^\/p\/[^/?#]+\/r\/[^/?#]+(?:\/.*)?$/,
+  /^\/settings(?:\/(?:providers|usage))?(?:[?#].*)?$/,
+  /^\/p\/[^/?#]+\/settings(?:\/(?:providers|usage))?(?:[?#].*)?$/,
 ];
 
 function within(root: string, candidate: string): boolean {
