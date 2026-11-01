@@ -45,3 +45,80 @@
     transition: none;
   }
 }
+
+/* Providers panel (pages/settings/ProvidersPanel.tsx) */
+.provider-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.provider-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+}
+.provider-row + .provider-row {
+  border-top: 1px solid var(--border);
+}
+.provider-tile {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+.provider-row.off .provider-tile {
+  color: var(--text-3);
+}
+.provider-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.provider-name-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.provider-name {
+  font-weight: 600;
+}
+.provider-row.off .provider-name {
+  color: var(--text-3);
+}
+.provider-secondary {
+  margin: 2px 0 0;
+  color: var(--text-3);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.provider-error {
+  margin: 4px 0 0;
+  color: var(--red);
+  font-size: 12px;
+}
+.provider-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+.provider-spin {
+  animation: provider-spin 0.9s linear infinite;
+}
+@keyframes provider-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .provider-spin {
+    animation: none;
+  }
+}
