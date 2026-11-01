@@ -1,8 +1,10 @@
+import { emptyRunView } from "@devchestra/core";
 import type { AgentNode, StartNode, WorkflowFile } from "@devchestra/schema";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { EditorCanvas } from "../src/editor/canvas/EditorCanvas.js";
 import { shortModel } from "../src/editor/canvas/nodes.js";
+import { RunCanvas, type WorkflowSnapshot } from "../src/run/RunCanvas.js";
 import { ProviderStateProvider } from "../src/ui/providerState.js";
 
 function agentNode(model?: string): AgentNode {
@@ -95,5 +97,32 @@ describe("provider icon on editor nodes", () => {
     const { container } = render(<EditorCanvas {...canvasProps(fileWith(startNode()))} />);
     await screen.findByTestId("ed-node-start");
     expect(container.querySelector("[data-provider-icon]")).toBeNull();
+  });
+});
+
+describe("provider icon in the run viewer", () => {
+  it("shows the provider icon and short model on an agent snapshot node", () => {
+    const snapshot: WorkflowSnapshot = {
+      name: "Run",
+      graph: {
+        nodes: [
+          { id: "start", type: "start", name: "Start" },
+          { id: "agent", type: "agent", name: "Agent", cli: "codex", model: "gpt-5" },
+        ],
+        edges: [{ id: "e1", from: "start", to: "agent" }],
+      },
+    };
+    render(
+      <RunCanvas
+        snapshot={snapshot}
+        view={{ ...emptyRunView(), status: "running" }}
+        selectedPath={null}
+        onSelect={() => undefined}
+      />,
+    );
+    const node = screen.getByTestId("run-node-agent");
+    expect(node.querySelector('[data-provider-icon="codex"]')).not.toBeNull();
+    expect(node).toHaveTextContent("gpt-5");
+    expect(node.querySelector(".flow-node-provider")).toHaveAttribute("title", "codex · gpt-5");
   });
 });
