@@ -256,6 +256,15 @@ describe("workspace navigation and cleanup", () => {
       "/p/p1/runs",
     );
     await screen.findByRole("link", { name: "#7" });
+    const projectSections = screen.getByRole("navigation", { name: "Project sections" });
+    expect(within(projectSections).getByRole("link", { name: "Workflows" })).toHaveAttribute(
+      "href",
+      "/p/p1/workflows",
+    );
+    expect(within(projectSections).getByRole("link", { name: "Runs" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Archived" }));
     await waitFor(() =>
       expect(list).toHaveBeenLastCalledWith(

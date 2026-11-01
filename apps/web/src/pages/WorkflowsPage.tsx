@@ -4,8 +4,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   FilePlus2,
-  Folder,
-  FolderGit2,
   Link2,
   Trash2,
   ChevronDown,
@@ -22,6 +20,7 @@ import { CreateWorkflowDialog } from "../editor/controls/CreateWorkflowDialog.js
 import { RelinkProjectDialog } from "../editor/controls/RelinkProjectDialog.js";
 import { Topbar } from "../shell/Topbar.js";
 import { formatTime } from "../ui/format.js";
+import { ProjectHeader } from "../ui/ProjectHeader.js";
 import { AuthState, EmptyState, LoadingState, NetworkError, NotFoundState } from "../ui/states.js";
 import { GroupControls, GroupSelect } from "../workflows/GroupControls.js";
 
@@ -75,9 +74,6 @@ export function WorkflowsPage() {
   ];
   const actions = (
     <>
-      <Link className="btn sm" to={`/p/${pid}/runs`}>
-        Runs
-      </Link>
       <button
         type="button"
         className="btn sm"
@@ -169,29 +165,7 @@ export function WorkflowsPage() {
       <Topbar crumbs={crumbs} actions={actions} />
       <div className="content" data-testid="workflows-page">
         <div className="page">
-          <div className="page-head">
-            <div className="grow">
-              <h1>{project.name}</h1>
-              <p className="mono">{project.path}</p>
-            </div>
-            <span className="chip" title={project.path}>
-              {project.kind === "git" ? (
-                <FolderGit2 size={12} aria-hidden="true" />
-              ) : (
-                <Folder size={12} aria-hidden="true" />
-              )}
-              {project.kind}
-            </span>
-          </div>
-
-          <nav className="editor-subnav" aria-label="Project sections">
-            <Link className="tab active" to={`/p/${pid}/workflows`} aria-current="page">
-              Workflows
-            </Link>
-            <Link className="tab" to={`/p/${pid}/runs`}>
-              Runs
-            </Link>
-          </nav>
+          <ProjectHeader project={project} section="workflows" />
 
           {project.missing ? (
             <div className="banner amber" role="status" data-testid="missing-project-banner">

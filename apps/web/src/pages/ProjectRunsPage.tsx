@@ -1,11 +1,12 @@
 import type { RunStatus } from "@devchestra/core";
-import { Folder, FolderGit2, History, PlayCircle } from "lucide-react";
+import { History, PlayCircle } from "lucide-react";
 import { useMemo } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { classifyError } from "../api/client.js";
 import { useBootstrap, useProjectRuns, useProjectWorkflows } from "../api/hooks.js";
 import { Topbar } from "../shell/Topbar.js";
 import { formatCost, formatTime } from "../ui/format.js";
+import { ProjectHeader } from "../ui/ProjectHeader.js";
 import { StatusPill } from "../ui/StatusPill.js";
 import {
   AuthState,
@@ -117,30 +118,19 @@ export function ProjectRunsPage() {
   return (
     <>
       <Topbar
-        crumbs={[{ label: "Projects", to: "/" }, { label: project.name }]}
-        actions={
-          <span className="chip" title={project.path}>
-            {project.kind === "git" ? (
-              <FolderGit2 size={12} aria-hidden="true" />
-            ) : (
-              <Folder size={12} aria-hidden="true" />
-            )}
-            {project.kind}
-          </span>
-        }
+        crumbs={[{ label: "Projects", to: "/" }, { label: project.name }, { label: "Runs" }]}
       />
       <div className="content">
         <div className="page">
-          <div className="page-head">
-            <div className="grow">
-              <h1>{project.name}</h1>
-              <p className="mono">{project.path}</p>
-            </div>
-          </div>
+          <ProjectHeader project={project} section="runs" />
 
           {project.missing ? <MissingProjectBanner projectName={project.name} /> : null}
 
-          <div className="row wrap" style={{ marginTop: 16 }}>
+          <div className="runs-heading">
+            <h2>Run history</h2>
+            <p>Review runs for workflows in this project.</p>
+          </div>
+          <div className="row wrap" style={{ marginTop: 16 }} aria-label="Run history view">
             <button
               type="button"
               className={`chip${!archived ? " on" : ""}`}
@@ -167,6 +157,7 @@ export function ProjectRunsPage() {
                 key={filter.value}
                 type="button"
                 className={`chip${(status ?? "all") === filter.value ? " on" : ""}`}
+                aria-pressed={(status ?? "all") === filter.value}
                 onClick={() => update("status", filter.value === "all" ? null : filter.value)}
               >
                 {filter.label}
@@ -220,7 +211,7 @@ export function ProjectRunsPage() {
               />
             </div>
           ) : (
-            <div className="card">
+            <div className="card runs-table">
               <table className="table">
                 <thead>
                   <tr>
