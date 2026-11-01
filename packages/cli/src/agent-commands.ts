@@ -108,7 +108,12 @@ export const COMMANDS: Record<string, CommandSpec> = {
     ],
     description: "Start a durable run",
   },
-  "run list": { min: 0, max: 0, flags: ["project", ...pageFlags], description: "List runs" },
+  "run list": {
+    min: 0,
+    max: 0,
+    flags: ["project", "workflow", "status", "archived", ...pageFlags],
+    description: "List runs",
+  },
   "run show": { min: 1, max: 1, flags: [], description: "Inspect a run" },
   "run events": { min: 1, max: 1, flags: ["after", "limit"], description: "Page run events" },
   "run execution": { min: 1, max: 1, flags: ["path"], description: "Inspect an execution" },

@@ -152,6 +152,33 @@ describe.skipIf(!existsSync(main))("agent CLI lifecycle", () => {
     expect(JSON.parse(duplicate.out)).toMatchObject({ runId: id, duplicate: true });
     const watch = run("run", "watch", id, "--timeout", "10");
     expect(watch.code, watch.err).toBe(5);
+    const capabilities = JSON.parse(run("capabilities").out);
+    expect(
+      capabilities.commands.find((command: { name: string }) => command.name === "run list").flags,
+    ).toEqual(expect.arrayContaining(["workflow", "status", "archived"]));
+    const matching = run(
+      "run",
+      "list",
+      "--project",
+      project,
+      "--workflow",
+      "review",
+      "--status",
+      "waiting_approval",
+      "--archived",
+      "false",
+    );
+    expect(matching.code, matching.err).toBe(0);
+    expect(JSON.parse(matching.out).items.map((item: { id: string }) => item.id)).toContain(id);
+    const wrongWorkflow = run("run", "list", "--project", project, "--workflow", "other");
+    expect(wrongWorkflow.code, wrongWorkflow.err).toBe(0);
+    expect(JSON.parse(wrongWorkflow.out).items).toHaveLength(0);
+    const wrongStatus = run("run", "list", "--project", project, "--status", "failed");
+    expect(wrongStatus.code, wrongStatus.err).toBe(0);
+    expect(JSON.parse(wrongStatus.out).items).toHaveLength(0);
+    const archived = run("run", "list", "--project", project, "--archived", "true");
+    expect(archived.code, archived.err).toBe(0);
+    expect(JSON.parse(archived.out).items).toHaveLength(0);
     const timeout = run("run", "watch", id, "--until", "terminal", "--timeout", "1");
     expect(timeout.code).toBe(1);
     expect(JSON.parse(timeout.err)).toMatchObject({
