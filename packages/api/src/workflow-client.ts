@@ -38,6 +38,12 @@ import {
   workflowDocumentResponseSchema,
   workflowListResponseSchema,
 } from "./workflow-dto.js";
+import {
+  type WorkflowGroupsDocument,
+  type WorkflowGroupsResponse,
+  workflowGroupsDocumentSchema,
+  workflowGroupsResponseSchema,
+} from "./workflow-groups.js";
 
 export interface StartWorkflowOptions extends ApiRequestOptions {
   /** Optional durable idempotency key; replay returns duplicate: true. */
@@ -49,6 +55,38 @@ export interface StartWorkflowOptions extends ApiRequestOptions {
  * source file small. The base owns transport, auth, CSRF and ETag header rules.
  */
 export class ApiClient extends ApiClientBase {
+  getWorkflowGroups(
+    projectId: string,
+    options: ApiRequestOptions = {},
+  ): Promise<WorkflowGroupsResponse> {
+    return this.request(
+      "GET",
+      ["projects", projectId, "workflow-groups"],
+      workflowGroupsResponseSchema,
+      this.req(options),
+    );
+  }
+
+  saveWorkflowGroups(
+    projectId: string,
+    document: WorkflowGroupsDocument,
+    ifMatch: string,
+  ): Promise<WorkflowGroupsResponse> {
+    return this.request(
+      "PUT",
+      ["projects", projectId, "workflow-groups"],
+      workflowGroupsResponseSchema,
+      this.req(
+        {},
+        {
+          body: workflowGroupsDocumentSchema.parse(document),
+          mutation: true,
+          extraHeaders: { [IF_MATCH_HEADER]: quoteEtag(etagSchema.parse(ifMatch)) },
+        },
+      ),
+    );
+  }
+
   listWorkflows(
     projectId: string,
     query: WorkflowListQuery = {},

@@ -145,6 +145,35 @@ afterEach(async () => {
 });
 
 describe("workflow HTTP routes", () => {
+  it("stores groups with revision conflicts and validates membership", async () => {
+    const path = "/api/projects/proj-1/workflow-groups";
+    const first = await json<{
+      etag: string;
+      document: {
+        version: 1;
+        groups: { id: string; name: string }[];
+        memberships: Record<string, string>;
+      };
+    }>("GET", path);
+    expect(first.status).toBe(200);
+    const doc = {
+      ...first.body.document,
+      groups: [{ id: "grp_0123456789abcdef01234567", name: "PR Review" }],
+    };
+    const saved = await json<typeof first.body>("PUT", path, doc, {
+      "If-Match": `"${first.body.etag}"`,
+    });
+    expect(saved.status).toBe(200);
+    const conflict = await json("PUT", path, doc, { "If-Match": `"${first.body.etag}"` });
+    expect(conflict.status).toBe(409);
+    const bad = await json(
+      "PUT",
+      path,
+      { ...doc, memberships: { missing: doc.groups[0]?.id } },
+      { "If-Match": `"${saved.body.etag}"` },
+    );
+    expect(bad.status).toBe(404);
+  });
   it("creates, reads, lists, validates and saves with strong ETags", async () => {
     const created = await json<WorkflowDocumentResponse>("POST", "/api/projects/proj-1/workflows", {
       name: "HTTP Flow",

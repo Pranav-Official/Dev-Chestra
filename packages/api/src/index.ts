@@ -32,4 +32,5 @@ export * from "./sse.js";
 export * from "./view.js";
 export * from "./workflow-client.js";
 export * from "./workflow-dto.js";
+export * from "./workflow-groups.js";
 export * from "./workspace-dto.js";

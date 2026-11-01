@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError, api } from "../src/api/client.js";
 import { workflowApi } from "../src/editor/api/workflowApi.js";
 import { ProjectRunsPage } from "../src/pages/ProjectRunsPage.js";
+import { WorkflowsPage } from "../src/pages/WorkflowsPage.js";
 import { Sidebar } from "../src/shell/Sidebar.js";
 import { WorkspaceActions } from "../src/ui/WorkspaceActions.js";
 
@@ -60,6 +61,96 @@ function mount(content: React.ReactNode, path = "/p/p1/workflows") {
 }
 
 describe("workspace navigation and cleanup", () => {
+  it("bounds sidebar workflow loading and links to the complete project list", async () => {
+    vi.spyOn(api, "getWorkflowGroups").mockResolvedValue({
+      document: { version: 1, groups: [], memberships: {} },
+      etag: "a".repeat(64),
+    });
+    vi.spyOn(api, "projectRunSummaries").mockResolvedValue({ items: [], nextCursor: null });
+    const list = vi.spyOn(workflowApi, "list").mockResolvedValue({
+      items: [
+        {
+          id: "wf",
+          name: "Workflow",
+          description: null,
+          relativeFile: "wf.json",
+          etag: "etag",
+          updatedAt: 0,
+        },
+      ],
+      nextCursor: "next-page",
+    });
+    mount(<Sidebar />);
+    const link = await screen.findByRole("link", { name: "View all workflows" });
+    expect(link).toHaveAttribute("href", "/p/p1/workflows");
+    expect(list).toHaveBeenCalledTimes(1);
+    expect(list).toHaveBeenCalledWith(
+      "p1",
+      { limit: 200 },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+  it("keeps the project page complete while the sidebar uses a bounded cache", async () => {
+    vi.spyOn(api, "getWorkflowGroups").mockResolvedValue({
+      document: { version: 1, groups: [], memberships: {} },
+      etag: "a".repeat(64),
+    });
+    vi.spyOn(api, "projectRunSummaries").mockResolvedValue({ items: [], nextCursor: null });
+    const list = vi.spyOn(workflowApi, "list").mockImplementation(async (_project, query) => ({
+      items: [
+        {
+          id: query?.cursor ? "second" : "first",
+          name: query?.cursor ? "Second" : "First",
+          description: null,
+          relativeFile: "workflow.json",
+          etag: "etag",
+          updatedAt: 0,
+        },
+      ],
+      nextCursor: query?.cursor ? null : "next-page",
+    }));
+    mount(
+      <>
+        <Sidebar />
+        <Routes>
+          <Route path="/p/:pid/workflows" element={<WorkflowsPage />} />
+        </Routes>
+      </>,
+    );
+    expect(await screen.findByTestId("workflow-row-second")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "View all workflows" })).toBeInTheDocument();
+    expect(list.mock.calls.filter((call) => call[1]?.cursor === "next-page")).toHaveLength(1);
+  });
+
+  it("shows grouped workflows and their runs under a collapsible group", async () => {
+    const id = "grp_0123456789abcdef01234567";
+    vi.spyOn(api, "getWorkflowGroups").mockResolvedValue({
+      document: { version: 1, groups: [{ id, name: "PR Review" }], memberships: { wf: id } },
+      etag: "a".repeat(64),
+    });
+    vi.spyOn(api, "projectRunSummaries").mockResolvedValue({ items: [run], nextCursor: null });
+    vi.spyOn(workflowApi, "list").mockResolvedValue({
+      items: [
+        {
+          id: "wf",
+          name: "Workflow",
+          description: null,
+          relativeFile: "wf.json",
+          etag: "etag",
+          updatedAt: 0,
+        },
+      ],
+      nextCursor: null,
+    });
+    mount(<Sidebar />);
+    const group = await screen.findByRole("button", { name: "Toggle PR Review" });
+    expect(screen.getByRole("button", { name: "Toggle Workflow" })).toBeVisible();
+    fireEvent.click(group);
+    expect(screen.queryByRole("button", { name: "Toggle Workflow" })).toBeNull();
+    fireEvent.click(group);
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Workflow" }));
+    expect(await screen.findByRole("link", { name: /Run #7/ })).toBeVisible();
+  });
   it("uses independent summaries and separates accessible disclosures/actions from links", async () => {
     const global = vi.spyOn(api, "listRuns");
     const summaries = vi

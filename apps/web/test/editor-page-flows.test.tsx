@@ -112,6 +112,29 @@ afterEach(() => {
 });
 
 describe("WorkflowsPage", () => {
+  it("creates a group and moves a workflow into it", async () => {
+    vi.spyOn(api, "bootstrap").mockResolvedValue(bootstrap());
+    vi.spyOn(workflowApi, "list").mockResolvedValue({ items: [ITEM], nextCursor: null });
+    const initial = {
+      document: { version: 1 as const, groups: [], memberships: {} },
+      etag: "a".repeat(64),
+    };
+    vi.spyOn(api, "getWorkflowGroups").mockResolvedValue(initial);
+    const save = vi
+      .spyOn(api, "saveWorkflowGroups")
+      .mockImplementation(async (_project, document) => ({ document, etag: "b".repeat(64) }));
+    renderWorkflows();
+    fireEvent.click(await screen.findByRole("button", { name: "New group" }));
+    fireEvent.change(screen.getByLabelText("Group name"), { target: { value: "PR Review" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText("PR Review (0)");
+    const select = screen.getByRole("combobox", { name: "Group for demo" });
+    const groupId = save.mock.calls[0]?.[1].groups[0]?.id;
+    expect(groupId).toBeDefined();
+    fireEvent.change(select, { target: { value: groupId } });
+    await screen.findByText("PR Review (1)");
+    expect(save.mock.calls[1]?.[1].memberships.demo).toBe(groupId);
+  });
   it("creates a blank workflow from the fresh-project empty state and opens the editor", async () => {
     vi.spyOn(api, "bootstrap").mockResolvedValue(bootstrap());
     vi.spyOn(workflowApi, "list").mockResolvedValue({ items: [], nextCursor: null });

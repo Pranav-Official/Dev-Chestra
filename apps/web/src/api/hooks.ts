@@ -12,17 +12,44 @@ export const queryKeys = {
   runsFor: (projectId: string) => ["runs", projectId] as const,
   execution: (runId: string, path: string) => ["execution", runId, path] as const,
   transcript: (runId: string, path: string) => ["transcript", runId, path] as const,
+  groups: (projectId: string) => ["workflow-groups", projectId] as const,
   workflows: (projectId: string) => ["workflows", projectId] as const,
+  sidebarWorkflows: (projectId: string) => ["workflows", projectId, "sidebar"] as const,
   workflow: (projectId: string, workflowId: string) => ["workflow", projectId, workflowId] as const,
   approvals: ["approvals"] as const,
   providers: ["providers"] as const,
   providerStatuses: ["providerStatuses"] as const,
 };
 
+export async function listAllWorkflows(projectId: string, signal: AbortSignal) {
+  const items: import("@devchestra/api").WorkflowListItem[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await workflowApi.list(
+      projectId,
+      { limit: 200, ...(cursor === undefined ? {} : { cursor }) },
+      { signal },
+    );
+    items.push(...page.items);
+    cursor = page.nextCursor ?? undefined;
+  } while (cursor !== undefined);
+  return { items, nextCursor: null };
+}
+
+export function useWorkflowGroups(projectId: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.groups(projectId),
+    queryFn: ({ signal }) => api.getWorkflowGroups(projectId, { signal }),
+    enabled: enabled && projectId !== "",
+    staleTime: 5_000,
+    retry: false,
+  });
+}
+
 export function useProjectWorkflows(projectId: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.workflows(projectId),
-    queryFn: ({ signal }) => workflowApi.list(projectId, { limit: 200 }, { signal }),
+    queryFn: ({ signal }) => listAllWorkflows(projectId, signal),
     enabled: enabled && projectId !== "",
     staleTime: 5_000,
     retry: (failureCount, error) => {
