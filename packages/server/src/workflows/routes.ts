@@ -5,6 +5,7 @@ import {
   startWorkflowRunRequestSchema,
   validateWorkflowRequestSchema,
   type WorkflowDocumentResponse,
+  workflowGroupsDocumentSchema,
 } from "@devchestra/api";
 import type { JsonObject } from "@devchestra/core";
 import type { Context, Hono } from "hono";
@@ -20,6 +21,7 @@ import { readJsonObject } from "../browser/security.js";
 import { assertProjectPathAllowed } from "../browser/workflow.js";
 import { normalizeRunWorkspace, validateRunWorkspace } from "../browser/workspaces.js";
 import { DevChestraError, errorBody } from "../errors.js";
+import { readWorkflowGroups, saveWorkflowGroups } from "./groups.js";
 import { parseIfMatch, quoteEtag } from "./io.js";
 import type {
   ManagedWorkflowService,
@@ -102,6 +104,23 @@ export function mountWorkflowRoutes(app: Hono, deps: WorkflowRouteDeps): void {
     if (found === null) return errorResponse(404, "Project not found.");
     return found;
   };
+
+  app.get("/api/projects/:pid/workflow-groups", async (c) => {
+    const found = await project(c.req.param("pid"));
+    if (found instanceof Response) return found;
+    return c.json(readWorkflowGroups(toProject(found), deps.dataDir));
+  });
+
+  app.put("/api/projects/:pid/workflow-groups", async (c) => {
+    const found = await project(c.req.param("pid"));
+    if (found instanceof Response) return found;
+    const raw = await readJsonObject(c, { maxBytes: MAX_WORKFLOW_JSON_BYTES });
+    const parsed = workflowGroupsDocumentSchema.safeParse(raw);
+    if (!parsed.success)
+      return c.json(errorBody("E_VALIDATION", "Workflow groups are invalid."), 400);
+    const etag = parseIfMatch(c.req.header("If-Match"));
+    return c.json(await saveWorkflowGroups(toProject(found), deps.dataDir, parsed.data, etag));
+  });
 
   app.get("/api/projects/:pid/workflows", async (c) => {
     const found = await project(c.req.param("pid"));
@@ -194,6 +213,22 @@ export function mountWorkflowRoutes(app: Hono, deps: WorkflowRouteDeps): void {
     const expected = parseIfMatch(c.req.header("if-match"));
     try {
       await deps.service.remove(toProject(found), c.req.param("wid"), expected);
+      // Deletion has already succeeded; stale metadata is harmless if cleanup races or fails.
+      try {
+        const current = readWorkflowGroups(toProject(found), deps.dataDir);
+        const memberships = { ...current.document.memberships };
+        if (memberships[c.req.param("wid")] !== undefined) {
+          delete memberships[c.req.param("wid")];
+          await saveWorkflowGroups(
+            toProject(found),
+            deps.dataDir,
+            { ...current.document, memberships },
+            current.etag,
+          );
+        }
+      } catch {
+        /* Preserve the successful workflow deletion. */
+      }
       return c.body(null, 204);
     } catch (error) {
       if (isConflict(error)) return conflictResponse(c, error);

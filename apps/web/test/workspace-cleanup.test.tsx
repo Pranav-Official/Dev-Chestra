@@ -60,6 +60,35 @@ function mount(content: React.ReactNode, path = "/p/p1/workflows") {
 }
 
 describe("workspace navigation and cleanup", () => {
+  it("shows grouped workflows and their runs under a collapsible group", async () => {
+    const id = "grp_0123456789abcdef01234567";
+    vi.spyOn(api, "getWorkflowGroups").mockResolvedValue({
+      document: { version: 1, groups: [{ id, name: "PR Review" }], memberships: { wf: id } },
+      etag: "a".repeat(64),
+    });
+    vi.spyOn(api, "projectRunSummaries").mockResolvedValue({ items: [run], nextCursor: null });
+    vi.spyOn(workflowApi, "list").mockResolvedValue({
+      items: [
+        {
+          id: "wf",
+          name: "Workflow",
+          description: null,
+          relativeFile: "wf.json",
+          etag: "etag",
+          updatedAt: 0,
+        },
+      ],
+      nextCursor: null,
+    });
+    mount(<Sidebar />);
+    const group = await screen.findByRole("button", { name: "Toggle PR Review" });
+    expect(screen.getByRole("button", { name: "Toggle Workflow" })).toBeVisible();
+    fireEvent.click(group);
+    expect(screen.queryByRole("button", { name: "Toggle Workflow" })).toBeNull();
+    fireEvent.click(group);
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Workflow" }));
+    expect(await screen.findByRole("link", { name: /Run #7/ })).toBeVisible();
+  });
   it("uses independent summaries and separates accessible disclosures/actions from links", async () => {
     const global = vi.spyOn(api, "listRuns");
     const summaries = vi

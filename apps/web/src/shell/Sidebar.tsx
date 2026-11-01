@@ -12,9 +12,8 @@ import {
 import { useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { api, classifyError } from "../api/client.js";
-import { queryKeys, useBootstrap } from "../api/hooks.js";
+import { listAllWorkflows, queryKeys, useBootstrap } from "../api/hooks.js";
 import type { RunSummary } from "../api/types.js";
-import { workflowApi } from "../editor/api/workflowApi.js";
 import { SETTINGS_SECTIONS, settingsPath } from "../pages/settings/sections.js";
 import { statusLabel } from "../ui/StatusPill.js";
 import { WorkspaceActions } from "../ui/WorkspaceActions.js";
@@ -83,13 +82,30 @@ export function Sidebar() {
       else next.add(key);
       return next;
     });
+  const [closedGroups, setClosedGroups] = useState<Set<string>>(new Set());
+  const toggleGroup = (key: string) =>
+    setClosedGroups((old) => {
+      const next = new Set(old);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   const failure = bootstrap.error ? classifyError(bootstrap.error) : null;
   const projects = bootstrap.data?.projects ?? [];
   const workflowQueries = useQueries({
     queries: projects.map((project) => ({
       queryKey: queryKeys.workflows(project.id),
+      queryFn: ({ signal }: { signal: AbortSignal }) => listAllWorkflows(project.id, signal),
+      enabled: !project.missing,
+      staleTime: 5_000,
+      retry: false as const,
+    })),
+  });
+  const groupQueries = useQueries({
+    queries: projects.map((project) => ({
+      queryKey: queryKeys.groups(project.id),
       queryFn: ({ signal }: { signal: AbortSignal }) =>
-        workflowApi.list(project.id, { limit: 200 }, { signal }),
+        api.getWorkflowGroups(project.id, { signal }),
       enabled: !project.missing,
       staleTime: 5_000,
       retry: false as const,
@@ -200,81 +216,127 @@ export function Sidebar() {
                     </button>
                   </p>
                 ) : null}
-                {[...workflows.values()]
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map((workflow) => {
-                    const key = `${project.id}-${workflow.id}`;
-                    const editorPath = `/p/${project.id}/w/${workflow.id}`;
-                    const historyPath = `/p/${project.id}/runs?workflow=${encodeURIComponent(workflow.id)}`;
-                    const expanded = openWorkflows.has(key);
-                    const selected = workflow.managed
-                      ? location.pathname === editorPath
-                      : location.pathname + location.search === historyPath;
-                    return (
-                      <div key={workflow.id}>
-                        <div className="nav-tree-row nav-workflow-row">
-                          {disclosure(workflow.name, expanded, `nav-${key}`, () =>
-                            toggleWorkflow(key),
+                {groupQueries[index]?.isError ? (
+                  <p role="status" className="faint">
+                    Groups unavailable.{" "}
+                    <button type="button" onClick={() => void groupQueries[index]?.refetch()}>
+                      Retry
+                    </button>
+                  </p>
+                ) : null}
+                {[
+                  ...(groupQueries[index]?.data?.document.groups ?? [])
+                    .slice()
+                    .sort((a, b) => a.name.localeCompare(b.name)),
+                  { id: "", name: "Ungrouped" },
+                ].map((group) => {
+                  const key = `${project.id}:${group.id}`;
+                  const members = [...workflows.values()]
+                    .filter((workflow) => {
+                      const membership = workflow.managed
+                        ? groupQueries[index]?.data?.document.memberships[workflow.id]
+                        : undefined;
+                      const valid = (groupQueries[index]?.data?.document.groups ?? []).some(
+                        (g) => g.id === membership,
+                      );
+                      return (valid ? membership : "") === group.id;
+                    })
+                    .sort((a, b) => a.name.localeCompare(b.name));
+                  return (
+                    <div key={group.id || "ungrouped"}>
+                      {group.id ? (
+                        <div className="nav-tree-row nav-project-row">
+                          {disclosure(group.name, !closedGroups.has(key), `nav-group-${key}`, () =>
+                            toggleGroup(key),
                           )}
-                          <Link
-                            to={workflow.managed ? editorPath : historyPath}
-                            className={`nav-item${selected ? " active" : ""}`}
-                            aria-current={selected ? "page" : undefined}
-                            title={
-                              workflow.managed
-                                ? `Open workflow editor: ${workflow.name}`
-                                : `${workflow.name} — history only`
-                            }
-                            aria-label={
-                              workflow.managed
-                                ? `Open workflow editor: ${workflow.name}`
-                                : undefined
-                            }
-                          >
-                            <GitBranch size={13} aria-hidden="true" />
-                            <span className="nm">{workflow.name}</span>
-                          </Link>
-                          <WorkspaceActions
-                            projectId={project.id}
-                            workflowId={workflow.id}
-                            name={workflow.name}
-                          />
+                          <span className="nav-item">
+                            <Folder size={15} aria-hidden="true" />
+                            <span className="nm">{group.name}</span>
+                          </span>
                         </div>
-                        <div className="nav-run-group" id={`nav-${key}`} hidden={!expanded}>
-                          {workflow.runs.map((run) => {
-                            const runPath = `/p/${project.id}/r/${run.id}`;
-                            const selectedRun =
-                              location.pathname === runPath ||
-                              location.pathname.startsWith(`${runPath}/`);
-                            return (
-                              <div className="nav-tree-row nav-run-row" key={run.id}>
+                      ) : null}
+                      <div
+                        id={`nav-group-${key}`}
+                        className={group.id ? "nav-kids" : undefined}
+                        hidden={group.id !== "" && closedGroups.has(key)}
+                      >
+                        {members.map((workflow) => {
+                          const key = `${project.id}-${workflow.id}`;
+                          const editorPath = `/p/${project.id}/w/${workflow.id}`;
+                          const historyPath = `/p/${project.id}/runs?workflow=${encodeURIComponent(workflow.id)}`;
+                          const expanded = openWorkflows.has(key);
+                          const selected = workflow.managed
+                            ? location.pathname === editorPath
+                            : location.pathname + location.search === historyPath;
+                          return (
+                            <div key={workflow.id}>
+                              <div className="nav-tree-row nav-workflow-row">
+                                {disclosure(workflow.name, expanded, `nav-${key}`, () =>
+                                  toggleWorkflow(key),
+                                )}
                                 <Link
-                                  to={runPath}
-                                  className={`nav-item${selectedRun ? " active" : ""}`}
-                                  aria-current={selectedRun ? "page" : undefined}
-                                  title={`Run #${run.runNumber} — ${statusLabel(run.status)}`}
+                                  to={workflow.managed ? editorPath : historyPath}
+                                  className={`nav-item${selected ? " active" : ""}`}
+                                  aria-current={selected ? "page" : undefined}
+                                  title={
+                                    workflow.managed
+                                      ? `Open workflow editor: ${workflow.name}`
+                                      : `${workflow.name} — history only`
+                                  }
+                                  aria-label={
+                                    workflow.managed
+                                      ? `Open workflow editor: ${workflow.name}`
+                                      : undefined
+                                  }
                                 >
-                                  <span aria-hidden="true">↳</span>
-                                  <span className="nm">Run #{run.runNumber}</span>
-                                  <span
-                                    className={`status-icon ${run.status}`}
-                                    role="img"
-                                    aria-label={statusLabel(run.status)}
-                                  >
-                                    ●
-                                  </span>
+                                  <GitBranch size={13} aria-hidden="true" />
+                                  <span className="nm">{workflow.name}</span>
                                 </Link>
-                                <WorkspaceActions projectId={project.id} run={run} />
+                                <WorkspaceActions
+                                  projectId={project.id}
+                                  workflowId={workflow.id}
+                                  name={workflow.name}
+                                />
                               </div>
-                            );
-                          })}
-                          <Link className="nav-item nav-view-all" to={historyPath}>
-                            View all runs
-                          </Link>
-                        </div>
+                              <div className="nav-run-group" id={`nav-${key}`} hidden={!expanded}>
+                                {workflow.runs.map((run) => {
+                                  const runPath = `/p/${project.id}/r/${run.id}`;
+                                  const selectedRun =
+                                    location.pathname === runPath ||
+                                    location.pathname.startsWith(`${runPath}/`);
+                                  return (
+                                    <div className="nav-tree-row nav-run-row" key={run.id}>
+                                      <Link
+                                        to={runPath}
+                                        className={`nav-item${selectedRun ? " active" : ""}`}
+                                        aria-current={selectedRun ? "page" : undefined}
+                                        title={`Run #${run.runNumber} — ${statusLabel(run.status)}`}
+                                      >
+                                        <span aria-hidden="true">↳</span>
+                                        <span className="nm">Run #{run.runNumber}</span>
+                                        <span
+                                          className={`status-icon ${run.status}`}
+                                          role="img"
+                                          aria-label={statusLabel(run.status)}
+                                        >
+                                          ●
+                                        </span>
+                                      </Link>
+                                      <WorkspaceActions projectId={project.id} run={run} />
+                                    </div>
+                                  );
+                                })}
+                                <Link className="nav-item nav-view-all" to={historyPath}>
+                                  View all runs
+                                </Link>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    );
-                  })}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );
