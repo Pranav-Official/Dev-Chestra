@@ -47,8 +47,8 @@ const INVALID: WebhookTriggerStatus = {
   ],
 };
 
-const FIRST_SECRETS = { bearerToken: "dcwh_first", signingSecret: "dcws_first" };
-const ROTATED_SECRETS = { bearerToken: "dcwh_rotated", signingSecret: "dcws_rotated" };
+const FIRST_SECRET = "0123456789abcdef0123456789abcdef01234567";
+const ROTATED_SECRET = "fedcba9876543210fedcba9876543210fedcba98";
 
 function renderControl(overrides: Partial<ComponentProps<typeof WebhookTriggerControl>> = {}) {
   const client = new QueryClient({
@@ -119,19 +119,19 @@ describe("WebhookTriggerControl chip", () => {
 });
 
 describe("WebhookTriggerControl arming", () => {
-  it("arms through the client and shows the secrets dialog once", async () => {
+  it("arms through the client and shows the secret dialog once", async () => {
     let armed = false;
     vi.spyOn(api, "getWebhookTrigger").mockImplementation(async () => (armed ? ARMED : OFF));
-    // The first arm creates the secrets; a later arm reuses them, so the server returns none.
+    // The first arm creates the secret; a later arm reuses it, so the server returns none.
     const arm = vi
       .spyOn(api, "armWebhookTrigger")
       .mockImplementationOnce(async () => {
         armed = true;
-        return { status: ARMED, secrets: FIRST_SECRETS };
+        return { status: ARMED, secret: FIRST_SECRET };
       })
       .mockImplementationOnce(async () => {
         armed = true;
-        return { status: ARMED, secrets: null };
+        return { status: ARMED, secret: null };
       });
     const disarm = vi.spyOn(api, "disarmWebhookTrigger").mockImplementation(async () => {
       armed = false;
@@ -145,16 +145,17 @@ describe("WebhookTriggerControl arming", () => {
 
     await waitFor(() => expect(arm).toHaveBeenCalledWith("p1", "demo"));
     await waitFor(() => expect(isOpen("webhook-secrets-dialog")).toBe(true));
-    expect(screen.getByTestId("webhook-secret-bearer")).toHaveValue("dcwh_first");
-    expect(screen.getByTestId("webhook-secret-signing")).toHaveValue("dcws_first");
-    expect(screen.getByText("They are shown once and will not be shown again.")).toBeVisible();
+    expect(screen.getByTestId("webhook-secret")).toHaveValue(FIRST_SECRET);
+    expect(
+      screen.getByText("Shown once. Enter these values in GitHub's webhook form."),
+    ).toBeVisible();
     expect(isOpen("webhook-trigger-dialog")).toBe(false);
 
     fireEvent.click(
       within(screen.getByTestId("webhook-secrets-dialog")).getByRole("button", { name: "Done" }),
     );
     await waitFor(() => expect(isOpen("webhook-secrets-dialog")).toBe(false));
-    expect(screen.queryByTestId("webhook-secret-bearer")).toBeNull();
+    expect(screen.queryByTestId("webhook-secret")).toBeNull();
 
     panel = await openPanel("current");
     fireEvent.click(within(panel).getByRole("button", { name: "Disarm webhook" }));
@@ -167,7 +168,7 @@ describe("WebhookTriggerControl arming", () => {
       expect(screen.getByTestId("webhook-trigger-chip")).toHaveAttribute("data-state", "current"),
     );
     expect(isOpen("webhook-secrets-dialog")).toBe(false);
-    expect(screen.queryByTestId("webhook-secret-bearer")).toBeNull();
+    expect(screen.queryByTestId("webhook-secret")).toBeNull();
   });
 
   it("disarms through the client", async () => {
@@ -260,27 +261,25 @@ describe("WebhookTriggerControl after arming", () => {
     expect(alert).toHaveTextContent("Parameter name 'a-b' is not allowed.");
   });
 
-  it("rotates secrets only after confirmation and shows the new ones once", async () => {
+  it("rotates the secret only after confirmation and shows the new one once", async () => {
     vi.spyOn(api, "getWebhookTrigger").mockResolvedValue(ARMED);
     const rotate = vi
       .spyOn(api, "rotateWebhookTrigger")
-      .mockResolvedValue({ status: ARMED, secrets: ROTATED_SECRETS });
+      .mockResolvedValue({ status: ARMED, secret: ROTATED_SECRET });
     renderControl();
     const panel = await openPanel("current");
 
-    fireEvent.click(within(panel).getByRole("button", { name: "Rotate secrets" }));
-    const confirm = await screen.findByRole("dialog", { name: "Rotate webhook secrets?" });
+    fireEvent.click(within(panel).getByRole("button", { name: "Rotate secret" }));
+    const confirm = await screen.findByRole("dialog", { name: "Rotate the webhook secret?" });
     expect(
-      within(confirm).getByText(
-        /The current bearer token and signing secret stop working immediately/u,
-      ),
+      within(confirm).getByText(/The current secret stops working immediately/u),
     ).toBeVisible();
     expect(rotate).not.toHaveBeenCalled();
 
-    fireEvent.click(within(confirm).getByRole("button", { name: "Rotate secrets" }));
+    fireEvent.click(within(confirm).getByRole("button", { name: "Rotate secret" }));
     await waitFor(() => expect(rotate).toHaveBeenCalledWith("p1", "demo"));
     await waitFor(() => expect(isOpen("webhook-secrets-dialog")).toBe(true));
-    expect(screen.getByTestId("webhook-secret-bearer")).toHaveValue("dcwh_rotated");
+    expect(screen.getByTestId("webhook-secret")).toHaveValue(ROTATED_SECRET);
   });
 
   it("copies the delivery URL", async () => {

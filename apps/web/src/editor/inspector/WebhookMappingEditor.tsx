@@ -197,7 +197,11 @@ function MappingRow({
               aria-invalid={pathError ? true : undefined}
               data-testid={`inspector-webhook-mapping-${index}-path`}
               value={bodyPath}
-              onChange={(event) => onPath(`${BODY_PREFIX}${event.currentTarget.value}`)}
+              // Paths never contain whitespace, so a stray or pasted space is removed here
+              // rather than left to fail validation as "body. name".
+              onChange={(event) =>
+                onPath(`${BODY_PREFIX}${event.currentTarget.value.replace(/\s+/gu, "")}`)
+              }
             />
           </span>
         ) : (

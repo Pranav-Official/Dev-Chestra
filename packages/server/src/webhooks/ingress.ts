@@ -43,7 +43,6 @@ export function mountWebhookIngress(app: Hono, deps: WebhookIngressDeps): void {
     try {
       const outcome = await service.deliver(runtime, {
         rawBody,
-        authorization: c.req.header("authorization"),
         signatures: [c.req.header("x-hub-signature-256"), c.req.header("x-devchestra-signature")],
         deliveryId: firstDeliveryId(c),
         headers,

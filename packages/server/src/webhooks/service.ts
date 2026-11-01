@@ -4,7 +4,6 @@ import type {
   RunWorkspaceSelection,
   WebhookDeliveryResponse,
   WebhookIssue,
-  WebhookSecrets,
   WebhookSettings,
   WebhookTriggerResponse,
   WebhookTriggerStatus,
@@ -30,11 +29,9 @@ import type {
 } from "../workflows/service.js";
 import type { BrowserWebhookPorts, WebhookRunDelivery, WebhookRunLaunch } from "./ports.js";
 import {
-  bearerFromAuthorization,
   digestEquals,
   hmacSha256Hex,
   isDeliveryId,
-  newBearerToken,
   newHookId,
   newSigningSecret,
   sha256Hex,
@@ -59,7 +56,6 @@ export interface WebhookServiceDeps {
 /** Raw facts about one delivery, as read by the ingress route. Never logged. */
 export interface WebhookDeliveryInput {
   readonly rawBody: Uint8Array;
-  readonly authorization: string | undefined;
   /** Raw values of the accepted signature headers, in the order they were checked. */
   readonly signatures: readonly (string | undefined)[];
   /** First present delivery-ID header value, if any. */
@@ -175,19 +171,17 @@ export class WebhookService {
       const frozen = await this.#frozen(project, workflowId, document);
       const existing = this.#store.webhooks.trigger(project.id, workflowId);
       let hookId: string;
-      let secrets: WebhookSecrets | null = null;
+      // The secret is generated and returned once, when the hook is first created.
+      let secret: string | null = null;
       if (existing === null) {
         hookId = newHookId();
-        const bearerToken = newBearerToken();
-        const signingSecret = newSigningSecret();
+        secret = newSigningSecret();
         this.#store.webhooks.create({
           hookId,
           projectId: project.id,
           workflowId,
-          tokenHash: sha256Hex(bearerToken),
-          signingSecret,
+          signingSecret: secret,
         });
-        secrets = { bearerToken, signingSecret };
       } else {
         hookId = existing.hookId;
       }
@@ -197,7 +191,7 @@ export class WebhookService {
         snapshotRaw: document.text,
         bundle: frozen.bundle,
       });
-      return { status: await this.status(project, workflowId, origin), secrets };
+      return { status: await this.status(project, workflowId, origin), secret };
     });
   }
 
@@ -212,7 +206,7 @@ export class WebhookService {
     return this.status(project, workflowId, origin);
   }
 
-  /** Replaces the credentials. Old credentials stop working when this returns. */
+  /** Replaces the secret. The old secret stops verifying when this returns. */
   async rotate(
     project: WorkflowProject,
     workflowId: string,
@@ -222,11 +216,9 @@ export class WebhookService {
     if (trigger === null) {
       throw new DevChestraError("E_NOT_FOUND", "No webhook trigger exists for this workflow.");
     }
-    const bearerToken = newBearerToken();
-    const signingSecret = newSigningSecret();
-    this.#store.webhooks.rotateCredentials(trigger.hookId, sha256Hex(bearerToken), signingSecret);
-    const secrets: WebhookSecrets = { bearerToken, signingSecret };
-    return { status: await this.status(project, workflowId, origin), secrets };
+    const secret = newSigningSecret();
+    this.#store.webhooks.rotateCredentials(trigger.hookId, secret);
+    return { status: await this.status(project, workflowId, origin), secret };
   }
 
   /** Re-freezes an armed trigger from the saved files. Keeps the old revision on failure. */
@@ -575,21 +567,18 @@ function executionLimits(): ExecutionSettingsResponse["limits"] {
   return { maxConcurrentRuns: bounds("maxConcurrentRuns"), maxQueueDepth: bounds("maxQueueDepth") };
 }
 
-/** Bearer OR a valid HMAC over the raw body. Every credential is checked in constant time. */
+/**
+ * A valid HMAC-SHA256 of the raw body, keyed by the trigger's secret, in one of the
+ * accepted signature headers. This is the only credential a sender needs (GitHub's
+ * `X-Hub-Signature-256`). The comparison is constant-time.
+ */
 function authenticates(runtime: TriggerRuntime, input: WebhookDeliveryInput): boolean {
-  let accepted = false;
-  const bearer = bearerFromAuthorization(input.authorization);
-  if (bearer !== null && digestEquals(sha256Hex(bearer), runtime.tokenHash)) accepted = true;
   const provided = input.signatures
     .map((value) => signatureFromHeader(value))
     .filter((value): value is string => value !== null);
-  if (provided.length > 0) {
-    const expected = hmacSha256Hex(runtime.signingSecret, input.rawBody);
-    for (const candidate of provided) {
-      if (digestEquals(candidate, expected)) accepted = true;
-    }
-  }
-  return accepted;
+  if (provided.length === 0) return false;
+  const expected = hmacSha256Hex(runtime.signingSecret, input.rawBody);
+  return provided.some((candidate) => digestEquals(candidate, expected));
 }
 
 function parseObjectBody(raw: Uint8Array): Record<string, unknown> {

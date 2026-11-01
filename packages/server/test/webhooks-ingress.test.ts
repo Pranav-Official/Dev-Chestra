@@ -15,6 +15,8 @@ import {
 } from "./webhooks-harness.js";
 
 const VALID = JSON.stringify({ issue: { title: "Crash on start" } });
+/** Well formed, but never issued by any trigger. */
+const WRONG_SECRET = "f".repeat(40);
 
 let h: Harness;
 
@@ -32,16 +34,13 @@ afterEach(() => {
   closeAllHarnesses();
 });
 
-function bearer(token: string | null): Record<string, string> {
-  return token === null ? {} : { authorization: `Bearer ${token}` };
-}
-
 describe("public webhook ingress: authentication", () => {
-  it("accepts a valid bearer, queues a new-worktree run and never echoes the token", async () => {
+  it("accepts a valid HMAC signature, queues a new-worktree run and never echoes the secret", async () => {
     const armed = await armHook(h);
     const res = await deliver(h, armed.hookId, {
       body: VALID,
-      headers: { ...bearer(armed.bearerToken), "x-github-delivery": "gh-1" },
+      secret: armed.secret,
+      headers: { "x-github-delivery": "gh-1" },
     });
     expect(res.status).toBe(202);
     expect(res.json).toMatchObject({ duplicate: false, status: "queued" });
@@ -50,13 +49,12 @@ describe("public webhook ingress: authentication", () => {
     expect(h.launches).toHaveLength(1);
     expect(h.launches[0]?.workspace).toEqual({ mode: "new-worktree" });
     expect(h.launches[0]?.params).toEqual({ title: "Crash on start" });
-    expect(res.text).not.toContain(armed.bearerToken ?? "");
-    expect(res.text).not.toContain(armed.signingSecret ?? "");
+    expect(res.text).not.toContain(armed.secret ?? "");
   });
 
   it("accepts a valid HMAC over the raw body", async () => {
     const armed = await armHook(h);
-    const signature = createHmac("sha256", armed.signingSecret ?? "")
+    const signature = createHmac("sha256", armed.secret ?? "")
       .update(VALID)
       .digest("hex");
     const res = await deliver(h, armed.hookId, {
@@ -68,7 +66,7 @@ describe("public webhook ingress: authentication", () => {
 
   it("accepts the DevChestra signature header as well", async () => {
     const armed = await armHook(h);
-    const signature = createHmac("sha256", armed.signingSecret ?? "")
+    const signature = createHmac("sha256", armed.secret ?? "")
       .update(VALID)
       .digest("hex");
     const res = await deliver(h, armed.hookId, {
@@ -78,15 +76,23 @@ describe("public webhook ingress: authentication", () => {
     expect(res.status).toBe(202);
   });
 
-  it("refuses a wrong bearer with a generic 401 that does not echo it", async () => {
+  it("does not accept the secret as a bearer token, since only the HMAC authenticates", async () => {
     const armed = await armHook(h);
     const res = await deliver(h, armed.hookId, {
       body: VALID,
-      headers: bearer("dcwh_not-the-token"),
+      headers: { authorization: `Bearer ${armed.secret ?? ""}` },
     });
     expect(res.status).toBe(401);
     expect(errorCode(res)).toBe("E_AUTH");
-    expect(res.text).not.toContain("dcwh_not-the-token");
+    expect(h.launches).toHaveLength(0);
+  });
+
+  it("refuses a wrong secret with a generic 401 that does not echo it", async () => {
+    const armed = await armHook(h);
+    const res = await deliver(h, armed.hookId, { body: VALID, secret: WRONG_SECRET });
+    expect(res.status).toBe(401);
+    expect(errorCode(res)).toBe("E_AUTH");
+    expect(res.text).not.toContain(WRONG_SECRET);
     expect(h.launches).toHaveLength(0);
   });
 
@@ -97,7 +103,7 @@ describe("public webhook ingress: authentication", () => {
       headers: { "x-hub-signature-256": "sha256=00" },
     });
     expect(wrong.status).toBe(401);
-    const otherBody = createHmac("sha256", armed.signingSecret ?? "")
+    const otherBody = createHmac("sha256", armed.secret ?? "")
       .update("{}")
       .digest("hex");
     const mismatch = await deliver(h, armed.hookId, {
@@ -118,7 +124,7 @@ describe("public webhook ingress: authentication", () => {
     await armHook(h);
     const unknown = await deliver(h, "whk_AAAAAAAAAAAAAAAAAAAAAA", {
       body: VALID,
-      headers: bearer("dcwh_anything"),
+      secret: WRONG_SECRET,
     });
     expect(unknown.status).toBe(404);
     expect(errorCode(unknown)).toBe("E_NOT_FOUND");
@@ -131,7 +137,7 @@ describe("public webhook ingress: authentication", () => {
     await api(h, "POST", `/api/projects/${PROJECT_ID}/workflows/${WORKFLOW_ID}/webhook/disarm`);
     const res = await deliver(h, armed.hookId, {
       body: "{this is not json",
-      headers: bearer(armed.bearerToken),
+      secret: armed.secret,
     });
     expect(res.status).toBe(409);
     expect(errorReason(res)).toBe("disarmed");
@@ -141,7 +147,7 @@ describe("public webhook ingress: authentication", () => {
   it("checks credentials before the armed state", async () => {
     const armed = await armHook(h);
     await api(h, "POST", `/api/projects/${PROJECT_ID}/workflows/${WORKFLOW_ID}/webhook/disarm`);
-    const res = await deliver(h, armed.hookId, { body: VALID, headers: bearer("dcwh_wrong") });
+    const res = await deliver(h, armed.hookId, { body: VALID, secret: WRONG_SECRET });
     expect(res.status).toBe(401);
   });
 });
@@ -150,7 +156,7 @@ describe("public webhook ingress: body and parameters", () => {
   it("refuses a body over 1 MiB with 413 and launches nothing", async () => {
     const armed = await armHook(h);
     const big = new Uint8Array(1024 * 1024 + 1).fill(0x20);
-    const res = await deliver(h, armed.hookId, { body: big, headers: bearer(armed.bearerToken) });
+    const res = await deliver(h, armed.hookId, { body: big, secret: armed.secret });
     expect(res.status).toBe(413);
     expect(errorCode(res)).toBe("E_PAYLOAD_TOO_LARGE");
     expect(h.launches).toHaveLength(0);
@@ -158,16 +164,10 @@ describe("public webhook ingress: body and parameters", () => {
 
   it("answers 400 for invalid JSON and for a non-object JSON body", async () => {
     const armed = await armHook(h);
-    const invalid = await deliver(h, armed.hookId, {
-      body: "{nope",
-      headers: bearer(armed.bearerToken),
-    });
+    const invalid = await deliver(h, armed.hookId, { body: "{nope", secret: armed.secret });
     expect(invalid.status).toBe(400);
     expect(errorCode(invalid)).toBe("E_VALIDATION");
-    const array = await deliver(h, armed.hookId, {
-      body: "[1, 2]",
-      headers: bearer(armed.bearerToken),
-    });
+    const array = await deliver(h, armed.hookId, { body: "[1, 2]", secret: armed.secret });
     expect(array.status).toBe(400);
   });
 
@@ -175,7 +175,7 @@ describe("public webhook ingress: body and parameters", () => {
     const armed = await armHook(h);
     const res = await deliver(h, armed.hookId, {
       body: JSON.stringify({ issue: "no title here" }),
-      headers: bearer(armed.bearerToken),
+      secret: armed.secret,
     });
     expect(res.status).toBe(400);
     const details = (res.json as { error: { details?: { issues?: unknown[] } } }).error.details;
@@ -187,21 +187,16 @@ describe("public webhook ingress: body and parameters", () => {
     const armed = await armHook(h);
     const res = await deliver(h, armed.hookId, {
       body: VALID,
-      headers: { ...bearer(armed.bearerToken), "x-github-delivery": "has spaces and /slashes" },
+      secret: armed.secret,
+      headers: { "x-github-delivery": "has spaces and /slashes" },
     });
     expect(res.status).toBe(400);
   });
 
   it("does not dedupe deliveries that carry no delivery ID", async () => {
     const armed = await armHook(h);
-    const first = await deliver(h, armed.hookId, {
-      body: VALID,
-      headers: bearer(armed.bearerToken),
-    });
-    const second = await deliver(h, armed.hookId, {
-      body: VALID,
-      headers: bearer(armed.bearerToken),
-    });
+    const first = await deliver(h, armed.hookId, { body: VALID, secret: armed.secret });
+    const second = await deliver(h, armed.hookId, { body: VALID, secret: armed.secret });
     expect(first.status).toBe(202);
     expect(second.status).toBe(202);
     expect((first.json as { runId: string }).runId).not.toBe(
@@ -213,18 +208,23 @@ describe("public webhook ingress: body and parameters", () => {
 describe("public webhook ingress: deduplication and capacity", () => {
   it("returns the original run for a repeated delivery and 409 for a different payload", async () => {
     const armed = await armHook(h);
-    const headers = { ...bearer(armed.bearerToken), "x-github-delivery": "gh-1" };
-    const first = await deliver(h, armed.hookId, { body: VALID, headers });
+    const headers = { "x-github-delivery": "gh-1" };
+    const first = await deliver(h, armed.hookId, { body: VALID, secret: armed.secret, headers });
     expect(first.status).toBe(202);
     const runId = (first.json as { runId: string }).runId;
 
-    const duplicate = await deliver(h, armed.hookId, { body: VALID, headers });
+    const duplicate = await deliver(h, armed.hookId, {
+      body: VALID,
+      secret: armed.secret,
+      headers,
+    });
     expect(duplicate.status).toBe(200);
     expect(duplicate.json).toMatchObject({ runId, duplicate: true });
     expect(h.store.runs.listQueued()).toHaveLength(1);
 
     const conflict = await deliver(h, armed.hookId, {
       body: JSON.stringify({ issue: { title: "Different" } }),
+      secret: armed.secret,
       headers,
     });
     expect(conflict.status).toBe(409);
@@ -235,16 +235,10 @@ describe("public webhook ingress: deduplication and capacity", () => {
     h = fresh({ maxQueueDepth: 10 });
     const armed = await armHook(h);
     for (let index = 0; index < 10; index += 1) {
-      const accepted = await deliver(h, armed.hookId, {
-        body: VALID,
-        headers: bearer(armed.bearerToken),
-      });
+      const accepted = await deliver(h, armed.hookId, { body: VALID, secret: armed.secret });
       expect(accepted.status).toBe(202);
     }
-    const full = await deliver(h, armed.hookId, {
-      body: VALID,
-      headers: bearer(armed.bearerToken),
-    });
+    const full = await deliver(h, armed.hookId, { body: VALID, secret: armed.secret });
     expect(full.status).toBe(503);
     expect(errorCode(full)).toBe("E_QUEUE_FULL");
     expect(full.headers.get("retry-after")).toBe("30");
@@ -254,7 +248,7 @@ describe("public webhook ingress: deduplication and capacity", () => {
   it("refuses delivery when the project is not a Git repository", async () => {
     const armed = await armHook(h);
     h.git = false;
-    const res = await deliver(h, armed.hookId, { body: VALID, headers: bearer(armed.bearerToken) });
+    const res = await deliver(h, armed.hookId, { body: VALID, secret: armed.secret });
     expect(res.status).toBe(409);
     expect(errorReason(res)).toBe("project_not_git");
     expect(h.launches).toHaveLength(0);
@@ -263,17 +257,11 @@ describe("public webhook ingress: deduplication and capacity", () => {
   it("maps other engine refusals through the API error table", async () => {
     const armed = await armHook(h);
     h.failLaunchWith("E_BUDGET");
-    const budget = await deliver(h, armed.hookId, {
-      body: VALID,
-      headers: bearer(armed.bearerToken),
-    });
+    const budget = await deliver(h, armed.hookId, { body: VALID, secret: armed.secret });
     expect(budget.status).toBe(409);
     expect(errorCode(budget)).toBe("E_BUDGET");
     h.failLaunchWith("E_NOT_FOUND");
-    const missing = await deliver(h, armed.hookId, {
-      body: VALID,
-      headers: bearer(armed.bearerToken),
-    });
+    const missing = await deliver(h, armed.hookId, { body: VALID, secret: armed.secret });
     expect(missing.status).toBe(404);
     expect(errorCode(missing)).toBe("E_NOT_FOUND");
     h.failLaunchWith(null);
@@ -286,8 +274,9 @@ describe("public webhook ingress: transport", () => {
     const armed = await armHook(h);
     const res = await deliver(h, armed.hookId, {
       body: VALID,
+      secret: armed.secret,
       host: "evil.example:1",
-      headers: { ...bearer(armed.bearerToken), Origin: "http://evil.example" },
+      headers: { Origin: "http://evil.example" },
     });
     expect(res.status).toBe(202);
     expect(res.headers.get("cache-control")).toBe("no-store");

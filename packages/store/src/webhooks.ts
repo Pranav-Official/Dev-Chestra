@@ -22,7 +22,6 @@ export interface TriggerRecord {
 
 /** Trigger state an accepted delivery runs against. Never returned to the browser. */
 export interface TriggerRuntime extends TriggerRecord {
-  tokenHash: string;
   signingSecret: string;
   snapshot: unknown;
   snapshotRaw: string | null;
@@ -40,7 +39,6 @@ export interface CreateTriggerInput {
   hookId: string;
   projectId: string;
   workflowId: string;
-  tokenHash: string;
   signingSecret: string;
 }
 
@@ -57,7 +55,6 @@ interface TriggerRow {
   project_id: string;
   workflow_id: string;
   armed: number;
-  token_hash: string;
   signing_secret: string;
   armed_revision: string | null;
   armed_snapshot_json: string | null;
@@ -70,7 +67,7 @@ interface TriggerRow {
   updated_at: number;
 }
 
-const TRIGGER_COLUMNS = `id, project_id, workflow_id, armed, token_hash, signing_secret,
+const TRIGGER_COLUMNS = `id, project_id, workflow_id, armed, signing_secret,
   armed_revision, armed_snapshot_json, armed_snapshot_raw, armed_bundle_json, armed_at,
   refresh_error, last_delivery_at, created_at, updated_at`;
 
@@ -92,7 +89,6 @@ function mapTrigger(row: TriggerRow): TriggerRecord {
 function mapRuntime(row: TriggerRow): TriggerRuntime {
   return {
     ...mapTrigger(row),
-    tokenHash: row.token_hash,
     signingSecret: row.signing_secret,
     snapshot: row.armed_snapshot_json === null ? null : parseJson(row.armed_snapshot_json),
     snapshotRaw: row.armed_snapshot_raw,
@@ -134,18 +130,10 @@ export function createTrigger(runtime: Runtime, input: CreateTriggerInput): void
   runtime.db
     .prepare(
       `INSERT INTO workflow_triggers
-         (id, project_id, workflow_id, armed, token_hash, signing_secret, created_at, updated_at)
-       VALUES (?, ?, ?, 0, ?, ?, ?, ?)`,
+         (id, project_id, workflow_id, armed, signing_secret, created_at, updated_at)
+       VALUES (?, ?, ?, 0, ?, ?, ?)`,
     )
-    .run(
-      input.hookId,
-      input.projectId,
-      input.workflowId,
-      input.tokenHash,
-      input.signingSecret,
-      at,
-      at,
-    );
+    .run(input.hookId, input.projectId, input.workflowId, input.signingSecret, at, at);
 }
 
 export function armTrigger(runtime: Runtime, hookId: string, input: ArmTriggerInput): void {
@@ -212,17 +200,15 @@ export function disarmProjectTriggers(runtime: Runtime, projectId: string): void
     .run(now(runtime), projectId);
 }
 
+/** Replaces the one credential. The old secret stops verifying at once. */
 export function rotateTriggerCredentials(
   runtime: Runtime,
   hookId: string,
-  tokenHash: string,
   signingSecret: string,
 ): void {
   runtime.db
-    .prepare(
-      "UPDATE workflow_triggers SET token_hash = ?, signing_secret = ?, updated_at = ? WHERE id = ?",
-    )
-    .run(tokenHash, signingSecret, now(runtime), hookId);
+    .prepare("UPDATE workflow_triggers SET signing_secret = ?, updated_at = ? WHERE id = ?")
+    .run(signingSecret, now(runtime), hookId);
 }
 
 export function setTriggerRefreshError(

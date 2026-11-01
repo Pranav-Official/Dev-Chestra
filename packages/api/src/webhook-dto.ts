@@ -40,16 +40,17 @@ export const webhookTriggerStatusSchema = strict({
 });
 export type WebhookTriggerStatus = z.infer<typeof webhookTriggerStatusSchema>;
 
-export const webhookSecretsSchema = strict({
-  bearerToken: z.string(),
-  signingSecret: z.string(),
-});
-export type WebhookSecrets = z.infer<typeof webhookSecretsSchema>;
+/**
+ * The one credential a sender needs: the value typed into the sender's secret field
+ * (GitHub's "Secret"). It is 40 lowercase hex characters, the form GitHub's
+ * documentation suggests (`SecureRandom.hex(20)`).
+ */
+export const webhookSecretSchema = z.string().regex(/^[0-9a-f]{40}$/u);
 
 export const webhookTriggerResponseSchema = strict({
   status: webhookTriggerStatusSchema,
-  /** Plaintext credentials. Present only in the response that created or rotated them. */
-  secrets: webhookSecretsSchema.nullable(),
+  /** Present only in the response that created or rotated the secret. Shown once. */
+  secret: webhookSecretSchema.nullable(),
 });
 export type WebhookTriggerResponse = z.infer<typeof webhookTriggerResponseSchema>;
 

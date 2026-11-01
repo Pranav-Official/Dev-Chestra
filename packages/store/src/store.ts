@@ -233,7 +233,7 @@ export interface WebhooksApi {
   arm(hookId: string, input: ArmTriggerInput): void;
   replaceRevision(hookId: string, expectedRevision: string, input: ArmTriggerInput): boolean;
   disarm(hookId: string): void;
-  rotateCredentials(hookId: string, tokenHash: string, signingSecret: string): void;
+  rotateCredentials(hookId: string, signingSecret: string): void;
   setRefreshError(hookId: string, message: string | null): void;
   claimDelivery(input: WebhookClaimInput): WebhookClaim;
   bindDelivery(hookId: string, deliveryId: string, runId: string): void;
@@ -524,8 +524,8 @@ export class Store {
       replaceRevision: (hookId, expectedRevision, input) =>
         this.tx(() => replaceArmedRevision(this.#runtime, hookId, expectedRevision, input)),
       disarm: (hookId) => this.tx(() => disarmTrigger(this.#runtime, hookId)),
-      rotateCredentials: (hookId, tokenHash, signingSecret) =>
-        this.tx(() => rotateTriggerCredentials(this.#runtime, hookId, tokenHash, signingSecret)),
+      rotateCredentials: (hookId, signingSecret) =>
+        this.tx(() => rotateTriggerCredentials(this.#runtime, hookId, signingSecret)),
       setRefreshError: (hookId, message) =>
         this.tx(() => setTriggerRefreshError(this.#runtime, hookId, message)),
       claimDelivery: (input) => this.tx(() => claimDelivery(this.#runtime, input)),

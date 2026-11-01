@@ -28,14 +28,22 @@ describe("webhook DTOs", () => {
     expect(webhookTriggerStatusSchema.safeParse({ ...status, token: "leak" }).success).toBe(false);
   });
 
-  it("returns secrets only through the arm and rotate response shape", () => {
-    const withSecrets = {
-      status,
-      secrets: { bearerToken: "dcwh_x", signingSecret: "dcws_y" },
-    };
-    expect(webhookTriggerResponseSchema.safeParse(withSecrets).success).toBe(true);
-    expect(webhookTriggerResponseSchema.safeParse({ status, secrets: null }).success).toBe(true);
-    expect(webhookTriggerStatusSchema.safeParse(withSecrets).success).toBe(false);
+  it("returns the secret only through the arm and rotate response shape", () => {
+    const secret = "0123456789abcdef0123456789abcdef01234567";
+    const withSecret = { status, secret };
+    expect(webhookTriggerResponseSchema.safeParse(withSecret).success).toBe(true);
+    expect(webhookTriggerResponseSchema.safeParse({ status, secret: null }).success).toBe(true);
+    expect(webhookTriggerStatusSchema.safeParse(withSecret).success).toBe(false);
+  });
+
+  it("accepts only the 40-character hex secret GitHub's documentation suggests", () => {
+    const wrap = (secret: string) => ({ status, secret });
+    expect(webhookTriggerResponseSchema.safeParse(wrap("dcws_" + "a".repeat(43))).success).toBe(
+      false,
+    );
+    expect(webhookTriggerResponseSchema.safeParse(wrap("A".repeat(40))).success).toBe(false);
+    expect(webhookTriggerResponseSchema.safeParse(wrap("f".repeat(39))).success).toBe(false);
+    expect(webhookTriggerResponseSchema.safeParse(wrap("f".repeat(40))).success).toBe(true);
   });
 
   it("bounds execution settings to the documented ranges", () => {

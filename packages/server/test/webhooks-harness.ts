@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -308,6 +309,11 @@ export async function api(
 export interface DeliveryOptions {
   readonly body: string | Uint8Array;
   readonly headers?: Record<string, string>;
+  /**
+   * Signs the exact body bytes with this secret, as GitHub does, and sends the result
+   * in `X-Hub-Signature-256`. Omit it to send the delivery unsigned.
+   */
+  readonly secret?: string | null;
   /** Pass null to omit the Host header entirely. */
   readonly host?: string | null;
 }
@@ -318,6 +324,11 @@ export async function deliver(h: Harness, hookId: string, options: DeliveryOptio
     "Content-Type": "application/json",
     ...(options.headers ?? {}),
   };
+  if (options.secret !== undefined && options.secret !== null) {
+    const bytes = typeof options.body === "string" ? Buffer.from(options.body) : options.body;
+    headers["x-hub-signature-256"] =
+      `sha256=${createHmac("sha256", options.secret).update(bytes).digest("hex")}`;
+  }
   if (options.host !== null) headers.Host = options.host ?? HOST;
   const response = await h.app.request(`${ORIGIN}/webhooks/${hookId}`, {
     method: "POST",
@@ -343,8 +354,8 @@ export function errorReason(res: Res): string | undefined {
 /** Arms `WORKFLOW_ID` through the management route and returns the response body. */
 export async function armHook(h: Harness): Promise<{
   hookId: string;
-  bearerToken: string | null;
-  signingSecret: string | null;
+  /** The one secret, present only when this arm created the hook. */
+  secret: string | null;
   status: { state: string; hookId: string; url: string | null; armedRevision: string | null };
 }> {
   const res = await api(
@@ -355,12 +366,7 @@ export async function armHook(h: Harness): Promise<{
   if (res.status !== 200) throw new Error(`arm failed: ${res.status} ${res.text}`);
   const body = res.json as {
     status: { hookId: string; state: string; url: string | null; armedRevision: string | null };
-    secrets: { bearerToken: string; signingSecret: string } | null;
+    secret: string | null;
   };
-  return {
-    hookId: body.status.hookId,
-    bearerToken: body.secrets?.bearerToken ?? null,
-    signingSecret: body.secrets?.signingSecret ?? null,
-    status: body.status,
-  };
+  return { hookId: body.status.hookId, secret: body.secret, status: body.status };
 }

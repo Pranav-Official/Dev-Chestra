@@ -1,9 +1,4 @@
-import type {
-  WebhookIssue,
-  WebhookSecrets,
-  WebhookTriggerState,
-  WebhookTriggerStatus,
-} from "@devchestra/api";
+import type { WebhookIssue, WebhookTriggerState, WebhookTriggerStatus } from "@devchestra/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, RefreshCw, Webhook } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
@@ -22,7 +17,7 @@ import "../../styles/editor-webhook.css";
 import { ConfirmDialog } from "../controls/ConfirmDialog.js";
 import { Dialog } from "../controls/Dialog.js";
 import { CopyField } from "./CopyField.js";
-import { WebhookSecretsDialog } from "./WebhookSecretsDialog.js";
+import { type WebhookReveal, WebhookSecretsDialog } from "./WebhookSecretsDialog.js";
 
 const DESCRIPTION =
   "Deliveries from an HTTP sender can start this workflow. Manual runs stay available whether or not the trigger is armed.";
@@ -111,7 +106,7 @@ export function WebhookTriggerControl({
   const refresh = useRefreshWebhookTrigger(projectId, workflowId);
   const [open, setOpen] = useState(false);
   const [confirmRotate, setConfirmRotate] = useState(false);
-  const [secrets, setSecrets] = useState<WebhookSecrets | null>(null);
+  const [reveal, setReveal] = useState<WebhookReveal | null>(null);
   const armHintId = useId();
 
   const lastRevision = useRef(savedRevision);
@@ -132,14 +127,15 @@ export function WebhookTriggerControl({
           : "Turn on Accept webhook triggers in the Start node, then save."));
   const armDisabled = arm.isPending || armHint !== null || status === undefined;
 
-  // Credentials appear once. They leave component state when the dialog closes,
-  // and the mutation cache is reset so the plaintext is not kept there either.
-  const showSecrets = (next: WebhookSecrets): void => {
+  // The secret appears once. It leaves component state when the dialog closes, and
+  // the mutation cache is reset so the plaintext is not kept there either. The URL
+  // comes from the same response, because the cached status may not have it yet.
+  const showReveal = (next: WebhookReveal): void => {
     setOpen(false);
-    setSecrets(next);
+    setReveal(next);
   };
-  const closeSecrets = (): void => {
-    setSecrets(null);
+  const closeReveal = (): void => {
+    setReveal(null);
     arm.reset();
     rotate.reset();
   };
@@ -147,14 +143,18 @@ export function WebhookTriggerControl({
   const armNow = (): void => {
     arm.mutate(undefined, {
       onSuccess: (response) => {
-        if (response.secrets !== null) showSecrets(response.secrets);
+        if (response.secret !== null) {
+          showReveal({ secret: response.secret, url: response.status.url });
+        }
       },
     });
   };
   const rotateNow = (): void => {
     rotate.mutate(undefined, {
       onSuccess: (response) => {
-        if (response.secrets !== null) showSecrets(response.secrets);
+        if (response.secret !== null) {
+          showReveal({ secret: response.secret, url: response.status.url });
+        }
       },
       onSettled: () => setConfirmRotate(false),
     });
@@ -295,9 +295,8 @@ export function WebhookTriggerControl({
                     testId="webhook-url"
                   />
                   <p className="faint">
-                    POST a JSON object. Authenticate with the bearer token, or sign the raw body
-                    with the signing secret (HMAC-SHA256 in X-Hub-Signature-256 or
-                    X-DevChestra-Signature). Either one alone is accepted.
+                    POST a JSON object signed with the secret: send the HMAC-SHA256 of the raw body
+                    in X-Hub-Signature-256, the header GitHub uses.
                   </p>
                 </section>
               )}
@@ -318,10 +317,9 @@ export function WebhookTriggerControl({
               {status.hookId === null ? null : (
                 <div className="webhook-rotate">
                   <div>
-                    <b>Secrets</b>
+                    <b>Secret</b>
                     <p className="faint">
-                      Rotating issues a new bearer token and signing secret. The current ones stop
-                      working at once.
+                      Rotating issues a new secret. The current one stops working at once.
                     </p>
                   </div>
                   <button
@@ -330,7 +328,7 @@ export function WebhookTriggerControl({
                     onClick={() => setConfirmRotate(true)}
                     disabled={rotate.isPending}
                   >
-                    Rotate secrets
+                    Rotate secret
                   </button>
                 </div>
               )}
@@ -341,16 +339,16 @@ export function WebhookTriggerControl({
 
       <ConfirmDialog
         open={confirmRotate}
-        title="Rotate webhook secrets?"
-        message="The current bearer token and signing secret stop working immediately. Update every sender before its next delivery."
-        confirmLabel="Rotate secrets"
+        title="Rotate the webhook secret?"
+        message="The current secret stops working immediately. Update the Secret field in GitHub before its next delivery."
+        confirmLabel="Rotate secret"
         danger
         busy={rotate.isPending}
         onCancel={() => setConfirmRotate(false)}
         onConfirm={rotateNow}
       />
 
-      <WebhookSecretsDialog secrets={secrets} onClose={closeSecrets} />
+      <WebhookSecretsDialog reveal={reveal} onClose={closeReveal} />
     </>
   );
 }

@@ -74,12 +74,12 @@ function armInput(revision: string) {
 describe("schema migration 0011", () => {
   it("is registered and applied with the webhook tables and queue index", () => {
     const { store, dir } = setup();
-    expect(MIGRATIONS.at(-1)?.version).toBe(11);
+    expect(MIGRATIONS.at(-1)?.version).toBe(12);
     store.close();
     const db = new Database(join(dir, "devchestra.db"), { readonly: true });
     try {
       const version = db.pragma("user_version", { simple: true });
-      expect(version).toBe(11);
+      expect(version).toBe(12);
       const tables = db
         .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
         .all()
@@ -161,7 +161,6 @@ describe("workflow triggers", () => {
       hookId: "whk_1",
       projectId: "p",
       workflowId: "wf",
-      tokenHash: "tok",
       signingSecret: "sec",
     });
     expect(store.webhooks.trigger("p", "wf")?.armed).toBe(false);
@@ -171,7 +170,6 @@ describe("workflow triggers", () => {
     expect(armed?.armed).toBe(true);
     expect(armed?.armedRevision).toBe("rev-1");
     expect(armed?.bundle).toEqual({ child: { ...SNAPSHOT, id: "child" } });
-    expect(armed?.tokenHash).toBe("tok");
 
     expect(store.webhooks.replaceRevision("whk_1", "stale", armInput("rev-2"))).toBe(false);
     expect(store.webhooks.replaceRevision("whk_1", "rev-1", armInput("rev-2"))).toBe(true);
@@ -184,7 +182,6 @@ describe("workflow triggers", () => {
       hookId: "whk_2",
       projectId: "p",
       workflowId: "wf",
-      tokenHash: "tok",
       signingSecret: "sec",
     });
     store.webhooks.arm("whk_2", armInput("rev-1"));
@@ -204,7 +201,6 @@ describe("workflow triggers", () => {
         hookId,
         projectId: "p",
         workflowId,
-        tokenHash: "t",
         signingSecret: "s",
       });
       store.webhooks.arm(hookId, armInput("rev"));
@@ -220,15 +216,13 @@ describe("workflow triggers", () => {
       hookId: "whk_3",
       projectId: "p",
       workflowId: "wf",
-      tokenHash: "old",
       signingSecret: "old-secret",
     });
     store.webhooks.arm("whk_3", armInput("rev-1"));
     store.webhooks.setRefreshError("whk_3", "child invalid");
     expect(store.webhooks.trigger("p", "wf")?.refreshError).toBe("child invalid");
-    store.webhooks.rotateCredentials("whk_3", "new", "new-secret");
+    store.webhooks.rotateCredentials("whk_3", "new-secret");
     const runtime = store.webhooks.runtimeFor("whk_3");
-    expect(runtime?.tokenHash).toBe("new");
     expect(runtime?.signingSecret).toBe("new-secret");
     expect(runtime?.armedRevision).toBe("rev-1");
     expect(store.webhooks.signingSecrets()).toContain("new-secret");
@@ -241,7 +235,6 @@ describe("webhook delivery claims", () => {
       hookId: "whk_d",
       projectId: "p",
       workflowId: "wf",
-      tokenHash: "t",
       signingSecret: "s",
     });
     store.webhooks.arm("whk_d", armInput("rev-1"));
@@ -310,7 +303,6 @@ describe("bounded retention of delivery claims", () => {
       hookId: "whk_s",
       projectId: "p",
       workflowId: "wf",
-      tokenHash: "t",
       signingSecret: "s",
     });
     store.webhooks.arm("whk_s", armInput("rev-1"));
@@ -331,7 +323,6 @@ describe("delivery claims and the disarm cutoff", () => {
       hookId: "whk_t",
       projectId: "p",
       workflowId: "wf",
-      tokenHash: "t",
       signingSecret: "s",
     });
     store.webhooks.arm("whk_t", armInput("rev-1"));

@@ -95,6 +95,23 @@ describe("start node webhook trigger", () => {
     );
   });
 
+  it("drops spaces typed or pasted into a body path, so a stray space cannot break the mapping", async () => {
+    render(
+      <Harness
+        initial={startNode({ webhook: { enabled: true, paramMapping: { topic: "body.topic" } } })}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Body path for mapping 1"), {
+      target: { value: " data . subject " },
+    });
+    await waitFor(() =>
+      expect(latest()).toEqual({
+        webhook: { enabled: true, paramMapping: { topic: "body.data.subject" } },
+      }),
+    );
+  });
+
   it("maps a row to a header from the fixed allowlist", async () => {
     render(
       <Harness

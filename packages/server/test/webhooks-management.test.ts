@@ -118,10 +118,7 @@ describe("webhook status", () => {
     expect(body.state).toBe("invalid");
     expect(body.issues.length).toBeGreaterThan(0);
     expect(body.hookId).toBe(armed.hookId);
-    const delivered = await deliver(h, armed.hookId, {
-      body: VALID,
-      headers: { authorization: `Bearer ${armed.bearerToken}` },
-    });
+    const delivered = await deliver(h, armed.hookId, { body: VALID, secret: armed.secret });
     expect(delivered.status).toBe(202);
   });
 
@@ -175,15 +172,12 @@ describe("arming", () => {
     expect((await status()).armed).toBe(false);
   });
 
-  it("returns the secrets once, keeps the hook id on re-arm, and reports current", async () => {
+  it("returns the secret once, keeps the hook id on re-arm, and reports current", async () => {
     const first = await api(h, "POST", `${BASE}/arm`);
     expect(first.status).toBe(200);
-    const body = first.json as {
-      status: StatusBody;
-      secrets: { bearerToken: string; signingSecret: string } | null;
-    };
-    expect(body.secrets?.bearerToken.startsWith("dcwh_")).toBe(true);
-    expect(body.secrets?.signingSecret.startsWith("dcws_")).toBe(true);
+    const body = first.json as { status: StatusBody; secret: string | null };
+    // GitHub's documented shape: 40 hex characters (SecureRandom.hex(20)).
+    expect(body.secret).toMatch(/^[0-9a-f]{40}$/);
     expect(body.status).toMatchObject({ armed: true, state: "current" });
     expect(body.status.hookId).toMatch(/^whk_/);
     expect(body.status.url).toBe(`${ORIGIN}/webhooks/${body.status.hookId}`);
@@ -191,15 +185,14 @@ describe("arming", () => {
 
     const again = await api(h, "POST", `${BASE}/arm`);
     expect(again.status).toBe(200);
-    const second = again.json as { status: StatusBody; secrets: unknown };
-    expect(second.secrets).toBeNull();
+    const second = again.json as { status: StatusBody; secret: unknown };
+    expect(second.secret).toBeNull();
     expect(second.status.hookId).toBe(body.status.hookId);
     expect(second.status.state).toBe("current");
 
-    // Secrets are never part of later status reads.
+    // The secret is never part of later status reads.
     const read = await api(h, "GET", BASE);
-    expect(read.text).not.toContain(body.secrets?.bearerToken ?? "");
-    expect(read.text).not.toContain(body.secrets?.signingSecret ?? "");
+    expect(read.text).not.toContain(body.secret ?? "");
   });
 
   it("uses the configured public base URL in copyable URLs", async () => {
@@ -231,32 +224,23 @@ describe("arming", () => {
     expect(again.status).toBe(200);
     const rearmed = await armHook(h);
     expect(rearmed.hookId).toBe(armed.hookId);
-    expect(rearmed.bearerToken).toBeNull();
+    expect(rearmed.secret).toBeNull();
   });
 });
 
 describe("credentials", () => {
-  it("rotation invalidates the old bearer token at once", async () => {
+  it("rotation invalidates the old secret at once", async () => {
     const armed = await armHook(h);
     const rotated = await api(h, "POST", `${BASE}/rotate`);
     expect(rotated.status).toBe(200);
-    const secrets = (
-      rotated.json as {
-        secrets: { bearerToken: string; signingSecret: string };
-      }
-    ).secrets;
-    expect(secrets.bearerToken).not.toBe(armed.bearerToken);
+    const secret = (rotated.json as { secret: string }).secret;
+    expect(secret).toMatch(/^[0-9a-f]{40}$/);
+    expect(secret).not.toBe(armed.secret);
 
-    const old = await deliver(h, armed.hookId, {
-      body: VALID,
-      headers: { authorization: `Bearer ${armed.bearerToken}` },
-    });
+    const old = await deliver(h, armed.hookId, { body: VALID, secret: armed.secret });
     expect(old.status).toBe(401);
 
-    const fresh = await deliver(h, armed.hookId, {
-      body: VALID,
-      headers: { authorization: `Bearer ${secrets.bearerToken}` },
-    });
+    const fresh = await deliver(h, armed.hookId, { body: VALID, secret });
     expect(fresh.status).toBe(202);
   });
 
