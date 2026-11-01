@@ -365,3 +365,28 @@
   background: var(--red-soft);
   color: var(--red);
 }
+
+.ed-node-provider {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--text-3);
+}
+
+.ed-node-provider svg {
+  flex: none;
+  color: currentColor;
+}
+
+.ed-node-provider.is-off {
+  opacity: 0.6;
+}
+
+.ed-node-provider-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--amber);
+}
