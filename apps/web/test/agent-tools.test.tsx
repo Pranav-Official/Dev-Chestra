@@ -278,9 +278,7 @@ describe("Agent form Tools placement", () => {
       mcpServers: [{ name: "docs", scope: "project" }],
     };
     render(<Inspector node={node} issues={[]} onPatch={onPatch} />);
-    fireEvent.change(screen.getByTestId("inspector-agent-cli"), {
-      target: { value: "claude-code" },
-    });
+    fireEvent.click(screen.getByTestId("inspector-agent-cli-claude-code"));
     expect(onPatch).toHaveBeenCalledTimes(1);
     expect(onPatch).toHaveBeenCalledWith("node-agent", {
       cli: "claude-code",

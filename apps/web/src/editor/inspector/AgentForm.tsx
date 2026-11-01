@@ -8,6 +8,7 @@ import { AgentTools } from "./AgentTools.js";
 import { describedBy, Field } from "./fields/fields.js";
 import { fieldIssue } from "./issues.js";
 import { useAvailableClis } from "./model/useAvailableClis.js";
+import { ProviderChips } from "./ProviderChips.js";
 import { InspectorSection } from "./Section.js";
 import { SchemaEditor } from "./schema/SchemaEditor.js";
 import type { FormProps } from "./types.js";
@@ -30,25 +31,33 @@ export function AgentForm({
       </InspectorSection>
       <InspectorSection sectionKey="agent:agent" title="Model">
         <div className="inspector-stack">
-          <Field id="inspector-agent-cli" label="CLI" required error={cliIssue}>
-            <select
-              id="inspector-agent-cli"
-              className="inspector-input"
-              data-testid="inspector-agent-cli"
+          <Field id="inspector-agent-cli" label="Provider" required error={cliIssue}>
+            <ProviderChips
+              clis={clis}
               value={node.cli}
-              aria-invalid={cliIssue ? true : undefined}
-              aria-describedby={describedBy("inspector-agent-cli", undefined, cliIssue)}
-              onChange={(event) => {
-                const next = event.currentTarget.value as AgentNode["cli"];
+              invalid={cliIssue !== null}
+              describedBy={describedBy("inspector-agent-cli", undefined, cliIssue)}
+              onSelect={(next) => {
                 if (next !== node.cli) onPatch({ cli: next, model: undefined });
               }}
-            >
-              {clis.map((cli) => (
-                <option key={cli.id} value={cli.id}>
-                  {cli.label}
-                </option>
-              ))}
-            </select>
+            />
+            {selected?.enabled === false ? (
+              <p className="inspector-help" role="status" data-testid="inspector-agent-cli-off">
+                {selected.label} is turned off. Runs that use this node are blocked. Turn it on in{" "}
+                <a
+                  href={
+                    projectId === undefined
+                      ? "/settings/providers"
+                      : `/p/${projectId}/settings/providers`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Settings
+                </a>
+                , or pick another provider.
+              </p>
+            ) : null}
           </Field>
           <AgentModelField
             key={`${node.id}:${node.cli}`}

@@ -1,6 +1,9 @@
+import type { AgentNode } from "@devchestra/schema";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { api } from "../src/api/client.js";
+import { AgentForm } from "../src/editor/inspector/AgentForm.js";
 import type { AvailableCli } from "../src/editor/inspector/model/useAvailableClis.js";
 import { ProviderChips } from "../src/editor/inspector/ProviderChips.js";
 
@@ -115,5 +118,41 @@ describe("ProviderChips", () => {
     for (const element of chips) {
       expect(element.querySelector("svg")).not.toBeNull();
     }
+  });
+});
+
+describe("AgentForm provider switch", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("explains the block and links to Settings when the node's provider is turned off", async () => {
+    vi.spyOn(api, "listClis").mockResolvedValue({
+      clis: [
+        { id: "claude-code", label: "Claude Code", experimental: false, enabled: true },
+        { id: "codex", label: "Codex", experimental: false, enabled: false },
+      ],
+    });
+    const node: AgentNode = {
+      id: "node-agent",
+      type: "agent",
+      name: "Research",
+      cli: "codex",
+      prompt: "Find the facts.",
+      output: { type: "object", properties: {}, additionalProperties: false },
+      permissions: { network: false, write: ["workspace"] },
+      workspace: { mode: "scratch" },
+      limits: { timeoutMin: 30, validationRetries: 2, crashRetries: 1 },
+    };
+    render(<AgentForm node={node} issues={[]} onPatch={vi.fn()} projectId="p1" />);
+
+    const notice = await screen.findByTestId("inspector-agent-cli-off");
+    expect(notice).toHaveTextContent(
+      "Codex is turned off. Runs that use this node are blocked. Turn it on in Settings, or pick another provider.",
+    );
+    const link = notice.querySelector("a");
+    expect(link).toHaveAttribute("href", "/p/p1/settings/providers");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(screen.getByTestId("inspector-agent-cli-codex")).toHaveAttribute("aria-checked", "true");
   });
 });
