@@ -25,7 +25,6 @@ import {
   replaceManagedFile,
 } from "./io.js";
 import { withProjectLock } from "./lock.js";
-import { ensureProjectSkill } from "./skill.js";
 
 export interface WorkflowProject {
   id: string;
@@ -62,6 +61,7 @@ export interface CreateWorkflowInput {
   name: string;
   id?: string;
   template?: "blank" | "linear" | "linear-fake";
+  workflow?: WorkflowFile;
 }
 
 export interface SaveWorkflowInput {
@@ -139,8 +139,6 @@ export class ManagedWorkflowService {
     if (paths === null) {
       throw new DevChestraError("E_NOT_FOUND", "The project has no managed workflows yet.");
     }
-    // Backfill for projects registered before the guide existed; no-op when present.
-    if (create) ensureProjectSkill(root);
     return paths;
   }
 
@@ -246,6 +244,17 @@ export class ManagedWorkflowService {
     project: WorkflowProject,
     input: CreateWorkflowInput,
   ): Promise<WorkflowDocumentView> {
+    if (
+      input.workflow !== undefined &&
+      (input.workflow.id !== input.id ||
+        input.workflow.name !== input.name ||
+        input.template !== undefined)
+    ) {
+      throw new DevChestraError(
+        "E_VALIDATION",
+        "Workflow id and name must match the create request; template cannot be combined with workflow.",
+      );
+    }
     const paths = this.#paths(project, true);
     const explicitId = input.id === undefined ? null : assertWorkflowId(input.id);
     const template = input.template ?? "blank";
@@ -255,7 +264,8 @@ export class ManagedWorkflowService {
       for (let attempt = 0; attempt < attempts; attempt += 1) {
         const id = attempt === 0 ? baseId : `${baseId.slice(0, 60)}-${attempt + 1}`;
         const file =
-          template === "blank" ? blankTemplate(id, input.name) : linearTemplate(id, input.name);
+          input.workflow ??
+          (template === "blank" ? blankTemplate(id, input.name) : linearTemplate(id, input.name));
         const text = serializeOrThrow(file);
         assertSize(text);
         try {

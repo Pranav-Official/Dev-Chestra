@@ -1,16 +1,6 @@
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { projectSkillTemplate } from "@devchestra/server";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { CliOptions } from "../src/args.js";
 import { executeRun } from "../src/commands.js";
@@ -72,24 +62,12 @@ afterEach(() => {
 });
 
 describe("devchestra run registers the project implicitly", () => {
-  it("seeds .devchestra/skill.md, then preserves an edit on the next run", async () => {
+  it("does not create a skill file and preserves an existing one", async () => {
     expect(existsSync(skill())).toBe(false);
     await expect(executeRun(options(), dataDir)).resolves.toBe(0);
-    expect(readFileSync(skill()).equals(projectSkillTemplate())).toBe(true);
-
+    expect(existsSync(skill())).toBe(false);
     writeFileSync(skill(), "# my edit\n");
     await expect(executeRun(options(), dataDir)).resolves.toBe(0);
     expect(readFileSync(skill(), "utf8")).toBe("# my edit\n");
-  }, 30_000);
-
-  it("rejects a symlinked guide before starting the run", async () => {
-    const target = join(root, "elsewhere.md");
-    writeFileSync(target, "outside");
-    symlinkSync(target, skill());
-    await expect(executeRun(options(), dataDir)).rejects.toMatchObject({
-      code: "E_FORBIDDEN_PATH",
-    });
-    expect(readFileSync(target, "utf8")).toBe("outside");
-    expect(lstatSync(skill()).isSymbolicLink()).toBe(true);
   }, 30_000);
 });

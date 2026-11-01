@@ -89,7 +89,7 @@ export interface BrowserWiring {
   instanceId: string;
   version: string;
   port: number;
-  webRoot: string;
+  webRoot?: string;
 }
 
 export interface BrowserListener {
@@ -188,7 +188,7 @@ async function defaultBrowserFactory(wiring: BrowserWiring): Promise<BrowserList
     instanceId: wiring.instanceId,
     version: wiring.version,
     port: wiring.port,
-    webRoot: wiring.webRoot,
+    ...(wiring.webRoot === undefined ? {} : { webRoot: wiring.webRoot }),
   });
   const closed = new Promise<void>((resolveClose) => {
     running.server.once("close", () => {
@@ -531,7 +531,7 @@ export async function executeStart(
     if (prior.status !== "missing") {
       await clearServerMetadata(dataDir);
     }
-    const webRoot = await resolveWebRoot(deps.webRoot);
+    const webRoot = options.headless ? undefined : await resolveWebRoot(deps.webRoot);
 
     gateway = await startGateway(store);
     const fakeScript = await loadFakeScript(options.fakeScript);
@@ -553,7 +553,7 @@ export async function executeStart(
         sessionToken,
         instanceId,
         version,
-        webRoot,
+        ...(webRoot === undefined ? {} : { webRoot }),
       },
       options.port,
     );

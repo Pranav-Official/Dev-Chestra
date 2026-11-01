@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@devchestra/adapters": "workspace:*",
+    "@devchestra/api": "workspace:*",
     "@devchestra/core": "workspace:*",
     "@devchestra/decisions": "workspace:*",
     "@devchestra/engine": "workspace:*",

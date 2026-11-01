@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 import { resolve } from "node:path";
+import { ApiError } from "@devchestra/api";
+import { projectSkillTemplate } from "@devchestra/server";
+import { executeAgentCommands } from "./agent-commands.js";
 import { type CliOptions, HELP, parseArgs, UsageError } from "./args.js";
 import { executeResume, executeRun } from "./commands.js";
 import { printDoctor, runDoctor } from "./doctor.js";
@@ -15,6 +18,47 @@ function versionLine(): string {
 }
 
 async function main(): Promise<number> {
+  const argv = process.argv.slice(2);
+  if (argv[0] === "capabilities") {
+    process.stdout.write(
+      `${JSON.stringify({ version: 1, groups: ["project", "workflow", "run", "approval", "providers"], nodes: ["start", "agent", "shell", "gate", "join", "approval", "decision", "loop", "foreach", "workflow", "end"], headlessServer: true, workflowSchemaCommand: false, serverUncertainShellRetry: false, budgetEnforcement: false })}\n`,
+    );
+    return 0;
+  }
+  if (argv[0] === "skill") {
+    process.stdout.write(projectSkillTemplate());
+    return 0;
+  }
+  const agentGroups = ["project", "workflow", "approval", "providers"];
+  const runActions = [
+    "start",
+    "list",
+    "show",
+    "watch",
+    "events",
+    "execution",
+    "transcript",
+    "output",
+    "children",
+    "usage",
+    "cancel",
+    "resume",
+  ];
+  if (
+    agentGroups.includes(argv[0] ?? "") ||
+    (argv[0] === "run" && runActions.includes(argv[1] ?? ""))
+  ) {
+    try {
+      return await executeAgentCommands(argv);
+    } catch (error) {
+      const safe =
+        error instanceof ApiError
+          ? { code: error.code, message: error.message, details: error.details }
+          : safeError(error);
+      process.stderr.write(`${JSON.stringify({ error: safe })}\n`);
+      return error instanceof ApiError && error.status < 500 ? 4 : exitCodeForError(error);
+    }
+  }
   let options: CliOptions;
   try {
     options = parseArgs(process.argv.slice(2));
@@ -31,7 +75,11 @@ async function main(): Promise<number> {
     return 0;
   }
   if (options.command === "version") {
-    process.stdout.write(`${versionLine()}\n`);
+    process.stdout.write(
+      options.json
+        ? `${JSON.stringify({ version: VERSION, node: process.versions.node })}\n`
+        : `${versionLine()}\n`,
+    );
     return 0;
   }
 

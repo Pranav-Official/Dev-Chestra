@@ -32,6 +32,7 @@ export interface CliOptions {
   fakeScript?: string;
   port?: number;
   noOpen: boolean;
+  headless?: boolean;
   printUrl: boolean;
   /** Stop only: stop even with active runs, and SIGKILL if the server will not exit. */
   force?: boolean;
@@ -128,6 +129,11 @@ export function parseArgs(argv: string[]): CliOptions {
         ...(options.deprecatedFlags ?? []),
         "--allow-experimental-adapters",
       ];
+      continue;
+    }
+    if (arg === "--headless") {
+      options.headless = true;
+      options.noOpen = true;
       continue;
     }
     if (arg === "--no-open") {
@@ -313,7 +319,7 @@ export function parseArgs(argv: string[]): CliOptions {
     throw new UsageError("--fake-script is only valid with start, run or resume.");
   }
   if (
-    (options.port !== undefined || options.noOpen || options.printUrl) &&
+    (options.port !== undefined || options.noOpen || options.printUrl || options.headless) &&
     options.command !== "start"
   ) {
     throw new UsageError("--port, --no-open and --print-url are only valid with start.");
@@ -331,9 +337,13 @@ Usage:
   devchestra status [--data-dir <dir>] [--json]
   devchestra doctor [--data-dir <dir>] [--json] [--probe-decisions]
   devchestra version
+  devchestra skill
+  devchestra capabilities --json
+  devchestra project|workflow|run|approval|providers --help
 
 Options:
   --port N                    Start only: 0 = ephemeral; on EADDRINUSE retries ephemeral
+  --headless                  Start only: serve API without requiring web assets
   --no-open                   Start only: do not open the browser
   --print-url                 Start only: print the tokenised launch URL once
   --param k=v                 Run only: start parameter (repeatable; JSON parsed)
