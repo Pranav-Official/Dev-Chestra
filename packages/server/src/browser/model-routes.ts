@@ -16,7 +16,7 @@ export interface ModelRouteDeps {
   validate: (name: string, value: unknown) => void;
 }
 
-function rejectsQuery(c: Context): boolean {
+export function rejectsQuery(c: Context): boolean {
   return new URL(c.req.url).search !== "";
 }
 
@@ -25,7 +25,7 @@ function rejectsQuery(c: Context): boolean {
  * Content-Length (chunked transfer). Read the actual stream, bounded by a short
  * timer, rather than trusting the header alone.
  */
-async function hasRequestBody(c: Context): Promise<boolean> {
+export async function hasRequestBody(c: Context): Promise<boolean> {
   const declared = c.req.header("content-length");
   if (declared !== undefined && declared !== "") {
     const length = Number(declared);
