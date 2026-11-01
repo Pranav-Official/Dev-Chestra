@@ -48,6 +48,12 @@ import type {
 /** Fallback shutdown deadline when neither `stop({ graceMs })` nor `shutdownGraceMs` sets one. */
 const DEFAULT_SHUTDOWN_GRACE_MS = 30_000;
 
+/**
+ * How long a queued run may wait for a workspace another lineage holds before it fails
+ * with E_LOCKED. The wait is in memory, so a restarted engine starts it again.
+ */
+export const WORKSPACE_WAIT_MS = 10 * 60 * 1000;
+
 interface ActiveEntry {
   readonly state: ActiveRunState;
   readonly done: Promise<RunOutcome>;
@@ -88,6 +94,8 @@ export class LinearEngine implements Engine {
   #ready: ReadyDrive[] = [];
   /** Completions for queued top-level runs, settled when their drive ends or they are cancelled. */
   readonly #queuedWaiters = new Map<string, Deferred<RunOutcome>>();
+  /** Queued runs blocked by a workspace, with the timer that fails them at the bound. */
+  readonly #workspaceWaits = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(deps: EngineDeps) {
     this.#ctx = new EngineContext(deps);
@@ -149,6 +157,8 @@ export class LinearEngine implements Engine {
     // callers get the current outcome now rather than waiting for a slot.
     const waiting = new Set([...this.#queuedWaiters.keys(), ...this.#ready.map((e) => e.runId)]);
     for (const runId of waiting) this.#settleQueued(runId);
+    for (const timer of this.#workspaceWaits.values()) clearTimeout(timer);
+    this.#workspaceWaits.clear();
     const entries = [...this.#active.values()];
     for (const entry of entries) {
       entry.state.reason = "shutdown";
@@ -260,7 +270,8 @@ export class LinearEngine implements Engine {
         this.#assertAdapters(plan);
         this.#assertBundleAdapters(bundle);
         const delivery = input.delivery;
-        if (delivery !== undefined && delivery.deliveryId !== undefined) {
+        let claimKey: string | undefined;
+        if (delivery !== undefined) {
           // Dedupe first: a retry of an accepted delivery returns its run even if the
           // trigger was disarmed afterwards. Disarm and claim share this transaction.
           const claim = this.#ctx.store.webhooks.claimDelivery({
@@ -269,8 +280,7 @@ export class LinearEngine implements Engine {
             fingerprint: delivery.fingerprint,
           });
           if (claim.kind === "duplicate") return { runId: claim.runId, duplicate: true };
-        }
-        if (delivery !== undefined) {
+          claimKey = claim.key;
           this.#ctx.store.webhooks.assertArmedRevision(delivery.hookId, delivery.armedRevision);
         }
         // Queued, not started: workspace ownership is checked when a slot is granted.
@@ -278,8 +288,8 @@ export class LinearEngine implements Engine {
         if (!made.duplicate && Object.keys(bundle).length > 0) {
           void this.#ctx.store.workflowCalls.putBundle(made.runId, bundle, workflowHash);
         }
-        if (delivery?.deliveryId !== undefined) {
-          this.#ctx.store.webhooks.bindDelivery(delivery.hookId, delivery.deliveryId, made.runId);
+        if (delivery !== undefined && claimKey !== undefined) {
+          this.#ctx.store.webhooks.bindDelivery(delivery.hookId, claimKey, made.runId);
         }
         return { runId: made.runId, duplicate: made.duplicate };
       });
@@ -686,12 +696,17 @@ export class LinearEngine implements Engine {
           this.#ctx.append(run.id, "", "run.started", "engine", {});
         });
       } catch (error) {
-        // A workspace still owned by a parked or running lineage keeps the run queued.
-        if (error instanceof DevChestraError && error.code === "E_LOCKED") continue;
+        // A workspace still owned by a parked or running lineage keeps the run queued,
+        // up to the bound. Other refusals fail the run at once.
+        if (error instanceof DevChestraError && error.code === "E_LOCKED") {
+          this.#holdForWorkspace(run.id);
+          continue;
+        }
         this.#ctx.failRun(run.id, toDevChestraError(error, "E_WORKSPACE"));
         this.#settleQueued(run.id);
         continue;
       }
+      this.#releaseWorkspaceWait(run.id);
       const waiter = this.#queuedWaiters.get(run.id);
       this.#queuedWaiters.delete(run.id);
       this.#dispatch(run.id, {}, false, waiter);
@@ -710,11 +725,41 @@ export class LinearEngine implements Engine {
 
   /** Settles any completion waiting on this run with its current outcome. */
   #settleQueued(runId: string): void {
+    this.#releaseWorkspaceWait(runId);
     const pending = this.#ready.find((entry) => entry.runId === runId);
     this.#ready = this.#ready.filter((entry) => entry.runId !== runId);
     const waiter = this.#queuedWaiters.get(runId) ?? pending?.waiter;
     this.#queuedWaiters.delete(runId);
     waiter?.resolve(this.#ctx.outcome(runId));
+  }
+
+  /**
+   * Records that a queued run is blocked by a workspace, once per wait, and arms the timer
+   * that fails it when the bound passes. A pump re-checks the workspace; it does not re-arm.
+   */
+  #holdForWorkspace(runId: string): void {
+    if (this.#workspaceWaits.has(runId)) return;
+    this.#ctx.append(runId, "", "run.workspace_waiting", "engine", {});
+    const timer = setTimeout(() => {
+      this.#workspaceWaits.delete(runId);
+      this.#ctx.failRun(
+        runId,
+        new DevChestraError(
+          "E_LOCKED",
+          `Run waited ${WORKSPACE_WAIT_MS / 60_000} minutes for its workspace; no run released it.`,
+        ),
+      );
+      this.#settleQueued(runId);
+      this.#pump();
+    }, WORKSPACE_WAIT_MS);
+    this.#workspaceWaits.set(runId, timer);
+  }
+
+  #releaseWorkspaceWait(runId: string): void {
+    const timer = this.#workspaceWaits.get(runId);
+    if (timer === undefined) return;
+    clearTimeout(timer);
+    this.#workspaceWaits.delete(runId);
   }
 
   #limit(): number {

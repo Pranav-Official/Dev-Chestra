@@ -74,17 +74,22 @@ function armInput(revision: string) {
 describe("schema migration 0011", () => {
   it("is registered and applied with the webhook tables and queue index", () => {
     const { store, dir } = setup();
-    expect(MIGRATIONS.at(-1)?.version).toBe(12);
+    expect(MIGRATIONS.at(-1)?.version).toBe(13);
     store.close();
     const db = new Database(join(dir, "devchestra.db"), { readonly: true });
     try {
       const version = db.pragma("user_version", { simple: true });
-      expect(version).toBe(12);
+      expect(version).toBe(13);
       const tables = db
         .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
         .all()
         .map((row) => (row as { name: string }).name);
       expect(tables).toEqual(expect.arrayContaining(["workflow_triggers", "webhook_deliveries"]));
+      const indexes = db
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'index'")
+        .all()
+        .map((row) => (row as { name: string }).name);
+      expect(indexes).toContain("webhook_deliveries_fingerprint");
     } finally {
       db.close();
     }
@@ -251,7 +256,7 @@ describe("webhook delivery claims", () => {
       deliveryId: "d-1",
       fingerprint: "fp",
     });
-    expect(first).toEqual({ kind: "claimed" });
+    expect(first).toEqual({ kind: "claimed", key: "d-1" });
     const run = store.runs.enqueue(runInput());
     store.webhooks.bindDelivery("whk_d", "d-1", run.runId);
 
@@ -282,7 +287,7 @@ describe("webhook delivery claims", () => {
     expect(store.webhooks.pruneExpiredDeliveries(10)).toBe(1);
     expect(
       store.webhooks.claimDelivery({ hookId: "whk_d", deliveryId: "old", fingerprint: "other" }),
-    ).toEqual({ kind: "claimed" });
+    ).toEqual({ kind: "claimed", key: "old" });
   });
 
   it("keeps a claim that is still inside the retention window", () => {
@@ -342,7 +347,7 @@ describe("delivery claims and the disarm cutoff", () => {
     store.webhooks.arm("whk_t", armInput("rev-1"));
     expect(
       store.webhooks.claimDelivery({ hookId: "whk_t", deliveryId: "late", fingerprint: "fp" }),
-    ).toEqual({ kind: "claimed" });
+    ).toEqual({ kind: "claimed", key: "late" });
   });
 });
 

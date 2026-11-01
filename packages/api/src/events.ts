@@ -80,6 +80,7 @@ const runCreatedPayloadSchema = strict({
 });
 
 const runStartedPayloadSchema = strict({});
+const runWorkspaceWaitingPayloadSchema = strict({});
 
 const runPausedPayloadSchema = strict({
   reason: runPauseReasonSchema,
@@ -484,6 +485,7 @@ export const eventPayloadSchemas = {
   ...extendedEventPayloadSchemas,
   "run.created": runCreatedPayloadSchema,
   "run.started": runStartedPayloadSchema,
+  "run.workspace_waiting": runWorkspaceWaitingPayloadSchema,
   "run.paused": runPausedPayloadSchema,
   "run.resumed": runResumedPayloadSchema,
   "run.cancelled": runCancelledPayloadSchema,

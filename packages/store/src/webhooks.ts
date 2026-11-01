@@ -52,11 +52,21 @@ export interface CreateTriggerInput {
 
 export interface WebhookClaimInput {
   hookId: string;
-  deliveryId: string;
+  /** The provider's delivery ID, when the request carried one. */
+  deliveryId?: string | undefined;
   fingerprint: string;
 }
 
-export type WebhookClaim = { kind: "claimed" } | { kind: "duplicate"; runId: string };
+/** `key` is the stored claim key, which the run is bound to once it exists. */
+export type WebhookClaim = { kind: "claimed"; key: string } | { kind: "duplicate"; runId: string };
+
+/**
+ * Stored key for a delivery that carried no provider ID. The space makes it fail the
+ * provider ID pattern, so it can never equal a real delivery ID.
+ */
+function noIdKey(fingerprint: string): string {
+  return `no-id ${fingerprint}`;
+}
 
 interface TriggerRow {
   id: string;
@@ -270,56 +280,75 @@ export function assertArmedRevision(runtime: Runtime, hookId: string, revision: 
   }
 }
 
+type ClaimRow = { fingerprint: string; run_id: string | null; created_at: number };
+
+function duplicateOf(row: ClaimRow): WebhookClaim {
+  if (row.run_id === null) fail("E_INTERNAL", "Stored webhook delivery has no run");
+  return { kind: "duplicate", runId: row.run_id };
+}
+
 /**
- * Claims a delivery ID for this hook. Inside the caller's transaction a repeat
- * with the same fingerprint returns the run it created; a different payload
- * under the same ID is a conflict. Expired claims are reclaimed.
+ * Claims one delivery for this hook, inside the caller's transaction. Three outcomes:
+ *
+ * - The provider ID was seen within the window: the same payload returns the run it
+ *   created, and a different payload is a conflict.
+ * - The body was seen within the window under any ID, or with none: the replay returns
+ *   the run it created. A provider retry with a new ID, or a captured request resent
+ *   without one, therefore cannot start a second run.
+ * - Otherwise the delivery is claimed, and the caller binds its run to the returned key.
+ *
+ * Expired claims are reclaimed.
  */
 export function claimDelivery(runtime: Runtime, input: WebhookClaimInput): WebhookClaim {
   const at = now(runtime);
   const cutoff = at - WEBHOOK_DELIVERY_RETENTION_MS;
-  const existing = runtime.db
+  const key = input.deliveryId ?? noIdKey(input.fingerprint);
+  const sameKey = runtime.db
     .prepare(
       "SELECT fingerprint, run_id, created_at FROM webhook_deliveries WHERE hook_id = ? AND delivery_id = ?",
     )
-    .get(input.hookId, input.deliveryId) as
-    | { fingerprint: string; run_id: string | null; created_at: number }
-    | undefined;
-  if (existing !== undefined && existing.created_at >= cutoff) {
-    if (existing.fingerprint !== input.fingerprint) {
+    .get(input.hookId, key) as ClaimRow | undefined;
+  if (sameKey !== undefined && sameKey.created_at >= cutoff) {
+    if (input.deliveryId !== undefined && sameKey.fingerprint !== input.fingerprint) {
       fail("E_CONFLICT", "This delivery ID was already used for a different payload", {
         reason: "delivery_conflict",
       });
     }
-    if (existing.run_id === null) fail("E_INTERNAL", "Stored webhook delivery has no run");
-    return { kind: "duplicate", runId: existing.run_id };
+    return duplicateOf(sameKey);
   }
-  if (existing !== undefined) {
+  if (sameKey !== undefined) {
     runtime.db
       .prepare("DELETE FROM webhook_deliveries WHERE hook_id = ? AND delivery_id = ?")
-      .run(input.hookId, input.deliveryId);
+      .run(input.hookId, key);
   }
+  const replay = runtime.db
+    .prepare(
+      `SELECT fingerprint, run_id, created_at FROM webhook_deliveries
+       WHERE hook_id = ? AND fingerprint = ? AND created_at >= ? LIMIT 1`,
+    )
+    .get(input.hookId, input.fingerprint, cutoff) as ClaimRow | undefined;
+  if (replay !== undefined) return duplicateOf(replay);
   runtime.db
     .prepare(
       `INSERT INTO webhook_deliveries (hook_id, delivery_id, fingerprint, run_id, created_at)
        VALUES (?, ?, ?, NULL, ?)`,
     )
-    .run(input.hookId, input.deliveryId, input.fingerprint, at);
+    .run(input.hookId, key, input.fingerprint, at);
   // Each new claim sweeps a small batch of expired rows, so the table stays bounded
   // without a timer. The sweep runs in the caller's transaction.
   pruneExpiredDeliveries(runtime, DELIVERY_PRUNE_BATCH);
-  return { kind: "claimed" };
+  return { kind: "claimed", key };
 }
 
 export function bindDeliveryRun(
   runtime: Runtime,
   hookId: string,
-  deliveryId: string,
+  key: string,
   runId: string,
 ): void {
   runtime.db
     .prepare("UPDATE webhook_deliveries SET run_id = ? WHERE hook_id = ? AND delivery_id = ?")
-    .run(runId, hookId, deliveryId);
+    .run(runId, hookId, key);
   runtime.db
     .prepare("UPDATE workflow_triggers SET last_delivery_at = ? WHERE id = ?")
     .run(now(runtime), hookId);

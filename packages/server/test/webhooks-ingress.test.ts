@@ -193,15 +193,35 @@ describe("public webhook ingress: body and parameters", () => {
     expect(res.status).toBe(400);
   });
 
-  it("does not dedupe deliveries that carry no delivery ID", async () => {
+  it("treats a replay of the same body as a duplicate, under a new delivery ID or with none", async () => {
     const armed = await armHook(h);
-    const first = await deliver(h, armed.hookId, { body: VALID, secret: armed.secret });
-    const second = await deliver(h, armed.hookId, { body: VALID, secret: armed.secret });
+    const first = await deliver(h, armed.hookId, {
+      body: VALID,
+      secret: armed.secret,
+      headers: { "x-github-delivery": "gh-a" },
+    });
     expect(first.status).toBe(202);
-    expect(second.status).toBe(202);
-    expect((first.json as { runId: string }).runId).not.toBe(
-      (second.json as { runId: string }).runId,
-    );
+    const runId = (first.json as { runId: string }).runId;
+
+    const newId = await deliver(h, armed.hookId, {
+      body: VALID,
+      secret: armed.secret,
+      headers: { "x-github-delivery": "gh-b" },
+    });
+    expect(newId.status).toBe(200);
+    expect(newId.json).toMatchObject({ runId, duplicate: true });
+
+    const noId = await deliver(h, armed.hookId, { body: VALID, secret: armed.secret });
+    expect(noId.status).toBe(200);
+    expect(noId.json).toMatchObject({ runId, duplicate: true });
+    expect(h.store.runs.listQueued()).toHaveLength(1);
+
+    const other = await deliver(h, armed.hookId, {
+      body: JSON.stringify({ issue: { title: "Different" } }),
+      secret: armed.secret,
+    });
+    expect(other.status).toBe(202);
+    expect((other.json as { runId: string }).runId).not.toBe(runId);
   });
 });
 
@@ -235,10 +255,14 @@ describe("public webhook ingress: deduplication and capacity", () => {
     h = fresh({ maxQueueDepth: 10 });
     const armed = await armHook(h);
     for (let index = 0; index < 10; index += 1) {
-      const accepted = await deliver(h, armed.hookId, { body: VALID, secret: armed.secret });
+      const body = JSON.stringify({ issue: { title: `Crash ${index}` } });
+      const accepted = await deliver(h, armed.hookId, { body, secret: armed.secret });
       expect(accepted.status).toBe(202);
     }
-    const full = await deliver(h, armed.hookId, { body: VALID, secret: armed.secret });
+    const full = await deliver(h, armed.hookId, {
+      body: JSON.stringify({ issue: { title: "Overflow" } }),
+      secret: armed.secret,
+    });
     expect(full.status).toBe(503);
     expect(errorCode(full)).toBe("E_QUEUE_FULL");
     expect(full.headers.get("retry-after")).toBe("30");

@@ -142,15 +142,13 @@ export function createHarness(options: HarnessOptions = {}): Harness {
         }
         return store.tx(() => {
           const delivery = command.delivery;
-          if (delivery.deliveryId !== undefined) {
-            const claim = store.webhooks.claimDelivery({
-              hookId: delivery.hookId,
-              deliveryId: delivery.deliveryId,
-              fingerprint: delivery.fingerprint,
-            });
-            if (claim.kind === "duplicate") {
-              return { runId: claim.runId, duplicate: true, completion: Promise.resolve() };
-            }
+          const claim = store.webhooks.claimDelivery({
+            hookId: delivery.hookId,
+            deliveryId: delivery.deliveryId,
+            fingerprint: delivery.fingerprint,
+          });
+          if (claim.kind === "duplicate") {
+            return { runId: claim.runId, duplicate: true, completion: Promise.resolve() };
           }
           store.webhooks.assertArmedRevision(delivery.hookId, delivery.armedRevision);
           const made = store.runs.enqueue({
@@ -162,9 +160,7 @@ export function createHarness(options: HarnessOptions = {}): Harness {
             params: command.params,
             workspace: { selection: command.workspace, projectRoot: projectPath },
           });
-          if (delivery.deliveryId !== undefined) {
-            store.webhooks.bindDelivery(delivery.hookId, delivery.deliveryId, made.runId);
-          }
+          store.webhooks.bindDelivery(delivery.hookId, claim.key, made.runId);
           return {
             runId: made.runId,
             duplicate: made.duplicate,

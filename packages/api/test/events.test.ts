@@ -101,6 +101,7 @@ const samples = {
     kind: "run",
   },
   "run.started": {},
+  "run.workspace_waiting": {},
   "run.paused": { reason: "quota", detail: "window", path: "agent" },
   "run.resumed": { reason: "user" },
   "run.cancelled": { by: "user" },
