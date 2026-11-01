@@ -17,7 +17,7 @@ import type {
   StartNode,
   WorkflowNode,
 } from "./types.js";
-import { MCP_SCOPES, PROD_CLIS, type ValidationContext } from "./types.js";
+import { MCP_SCOPES, PROD_CLI_LABELS, PROD_CLIS, type ValidationContext } from "./types.js";
 import { validateApproval } from "./validate-approval.js";
 import { validateDecision } from "./validate-decision.js";
 import {
@@ -233,6 +233,18 @@ export function validateSingleNode(
           ),
         );
       }
+    }
+    if (ctx.disabledClis?.includes(agent.cli)) {
+      const label = PROD_CLI_LABELS[agent.cli] ?? agent.cli;
+      addWarning(
+        issue(
+          "warning",
+          "W_CLI_DISABLED",
+          `Provider '${label}' is turned off in Settings > Providers. Runs that use this node are blocked.`,
+          `${pointer}/cli`,
+          node.id,
+        ),
+      );
     }
 
     if (agent.prompt !== undefined && agent.promptFile !== undefined) {

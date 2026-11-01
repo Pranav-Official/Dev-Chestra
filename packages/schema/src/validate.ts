@@ -172,6 +172,7 @@ export function validateWorkflow(
       validateLoopForWorkflow(node, pointer, allowed, addError, addWarning, undefined, {
         fileId: file.id,
         ...(ctx.projectKind === undefined ? {} : { projectKind: ctx.projectKind }),
+        ...(ctx.disabledClis === undefined ? {} : { disabledClis: ctx.disabledClis }),
       });
       continue;
     }
@@ -179,6 +180,7 @@ export function validateWorkflow(
       validateForEachForWorkflow(node, pointer, allowed, addError, addWarning, undefined, {
         fileId: file.id,
         ...(ctx.projectKind === undefined ? {} : { projectKind: ctx.projectKind }),
+        ...(ctx.disabledClis === undefined ? {} : { disabledClis: ctx.disabledClis }),
       });
       continue;
     }
