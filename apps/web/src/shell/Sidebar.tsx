@@ -15,6 +15,7 @@ import { api, classifyError } from "../api/client.js";
 import { queryKeys, useBootstrap } from "../api/hooks.js";
 import type { RunSummary } from "../api/types.js";
 import { workflowApi } from "../editor/api/workflowApi.js";
+import { SETTINGS_SECTIONS, settingsPath } from "../pages/settings/sections.js";
 import { statusLabel } from "../ui/StatusPill.js";
 import { WorkspaceActions } from "../ui/WorkspaceActions.js";
 
@@ -28,9 +29,7 @@ interface WorkflowNav {
 function SettingsMenu() {
   const menu = useRef<HTMLDetailsElement>(null);
   const location = useLocation();
-  const match = location.pathname.match(/^\/p\/([^/]+)/);
-  const usagePath = match ? `/p/${match[1]}/settings/usage` : "/settings/usage";
-  const active = location.pathname.endsWith("/settings/usage");
+  const pid = location.pathname.match(/^\/p\/([^/]+)/)?.[1];
   return (
     <details
       className="workspace-menu workspace-menu-up"
@@ -46,15 +45,18 @@ function SettingsMenu() {
         <Settings size={15} aria-hidden="true" />
       </summary>
       <div className="workspace-menu-items">
-        <Link
-          to={usagePath}
-          aria-current={active ? "page" : undefined}
-          onClick={() => {
-            if (menu.current) menu.current.open = false;
-          }}
-        >
-          Usage
-        </Link>
+        {SETTINGS_SECTIONS.map((entry) => (
+          <Link
+            key={entry.id}
+            to={settingsPath(pid, entry.id)}
+            aria-current={location.pathname.endsWith(`/settings/${entry.id}`) ? "page" : undefined}
+            onClick={() => {
+              if (menu.current) menu.current.open = false;
+            }}
+          >
+            {entry.label}
+          </Link>
+        ))}
       </div>
     </details>
   );
