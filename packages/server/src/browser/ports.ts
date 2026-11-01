@@ -319,6 +319,13 @@ export interface BrowserModelCatalogPort {
   close?(): void | Promise<void>;
 }
 
+/** Global per-provider on/off switch, composed by the CLI from the store. */
+export interface BrowserProviderSettingsPort {
+  list(): { cli: string; enabled: boolean }[];
+  setEnabled(cli: string, enabled: boolean): void;
+  disabled(): ReadonlySet<string>;
+}
+
 /** Read-only MCP server discovery, composed by the CLI outside the server. */
 export interface BrowserMcpServersPort {
   list(projectId: string, cli: CatalogCli): Promise<CliMcpServers>;

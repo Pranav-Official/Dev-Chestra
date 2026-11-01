@@ -170,6 +170,12 @@ async function defaultBrowserFactory(wiring: BrowserWiring): Promise<BrowserList
     store: createStoreQueryPort(wiring.store),
     controller: wiring.controller,
     modelCatalog: wiring.modelCatalog,
+    providerSettings: {
+      list: () =>
+        wiring.store.providerSettings.list().map(({ cli, enabled }) => ({ cli, enabled })),
+      setEnabled: (cli, enabled) => wiring.store.providerSettings.setEnabled(cli, enabled),
+      disabled: () => wiring.store.providerSettings.disabled(),
+    },
     mcpServers: createMcpServersPort({
       getProjectDir: (projectId) => wiring.store.projects.get(projectId)?.path ?? null,
     }),

@@ -5,6 +5,7 @@ export { betterSqliteDriver } from "./driver-better-sqlite3.js";
 export type { ForeachItem, ForeachItemRef, ForeachSource, ForeachSourceMeta } from "./foreach.js";
 export { FOREACH_MAX_ITEMS } from "./foreach.js";
 export { hashJsonSync } from "./hash.js";
+export type { ProviderSettingRecord } from "./provider-settings.js";
 export type { ChildLink, RunBundle } from "./run-children.js";
 export type { SecretFinding } from "./secrets.js";
 export { redactJson, SecretRegistry } from "./secrets.js";
@@ -18,6 +19,7 @@ export type {
   OutputsApi,
   ProcessesApi,
   ProjectsApi,
+  ProviderSettingsApi,
   RecoveryApi,
   RoutingApi,
   RunsApi,

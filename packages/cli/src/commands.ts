@@ -91,6 +91,7 @@ export function createCliEngine(
     mcpShimEntry: SHIM_ENTRY,
     env: process.env,
     allowExperimentalClis: [...PROD_CLIS],
+    isCliEnabled: (cli) => !store.providerSettings.disabled().has(cli),
     extraEnvNames: ["FAKE_AGENT_CHECKPOINT"],
     validateOutput: (schema, value) => outputValidator.compile(schema).validate(value),
     // Secrets come from process.env then a cwd `.env` (loadDecisionSecrets

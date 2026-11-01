@@ -9,11 +9,13 @@ import {
 import type { JsonObject } from "@devchestra/core";
 import type { Context, Hono } from "hono";
 import type {
+  BrowserProviderSettingsPort,
   BrowserQueryPort,
   BrowserRunControllerPort,
   BrowserWorkspacePort,
   ProjectView,
 } from "../browser/ports.js";
+import { disabledClisRequired, providersOffResponse } from "../browser/provider-guard.js";
 import { readJsonObject } from "../browser/security.js";
 import { assertProjectPathAllowed } from "../browser/workflow.js";
 import { normalizeRunWorkspace, validateRunWorkspace } from "../browser/workspaces.js";
@@ -38,6 +40,7 @@ export interface WorkflowRouteDeps {
   service: ManagedWorkflowService;
   dataDir: string;
   workspaceService?: BrowserWorkspacePort;
+  providerSettings?: BrowserProviderSettingsPort;
   validate: (name: string, value: unknown) => void;
 }
 
@@ -238,6 +241,10 @@ export function mountWorkflowRoutes(app: Hono, deps: WorkflowRouteDeps): void {
     } catch (error) {
       if (isConflict(error)) return conflictResponse(c, error);
       throw error;
+    }
+    if (deps.providerSettings !== undefined) {
+      const off = disabledClisRequired(snapshot.snapshot, deps.providerSettings.disabled());
+      if (off.length > 0) return c.json(providersOffResponse(off), 409);
     }
     let root: string;
     try {
