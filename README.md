@@ -7,7 +7,7 @@
 
 Conduct your coding agents like an orchestra.
 
-DevChestra is a local workflow builder for headless coding agents. You drag a few boxes on a canvas, hit Run, and watch Claude, Codex, OpenCode, or Pi do the work in order — with branches, loops, and human check-ins where you want them.
+DevChestra is a local workflow builder for headless coding agents. Draw a workflow on the canvas or have your coding agent create one through the CLI, then watch Claude, Codex, OpenCode, or Pi do the work — with branches, loops, and human check-ins where you want them.
 
 It's not another agent to babysit. It's the stage your agents play on.
 
@@ -19,13 +19,25 @@ Above: a real DevChestra workflow that routes a PR review by risk, with a separa
 
 Pasting the same instructions into chat every time and hoping the agent does it the same way? That's the problem. Chat is vibes: same prompt, different tools, different order, different day.
 
-DevChestra makes the boring parts deterministic. You draw the process once — who runs, what tools and MCPs they get, what they're allowed to touch, what they must hand back, what happens next — and it runs that way every time. The agents still improvise inside their box (they're LLMs, after all), but the orchestration around them doesn't.
+DevChestra makes the boring parts deterministic. You build the process once — who runs, what tools and MCPs they get, what they're allowed to touch, what they must hand back, what happens next — and it runs that way every time. The agents still improvise inside their box (they're LLMs, after all), but the orchestration around them doesn't.
 
 Research, then rank. Draft, then review. Write code, run tests, fix what broke. No babysitting prompts, no pasting output from one chat into the next.
 
+## What can you build?
+
+We built a PR review workflow that routes changes by risk and sends follow-up work down its own path. That's one way to put the pieces together. A few others:
+
+- **Bug triage to PR** — reproduce the issue, investigate, implement a fix, run tests, and ask for a review before opening a PR.
+- **Ticket to PR** — turn a Linear or GitHub ticket into a plan, implementation, tests, and a PR, with a human check-in along the way.
+- **User flow testing** — walk through a product flow, check the UI, capture what broke, and send failures back for a fix and another test.
+- **Lead research** — find potential leads, check them against your criteria, and hand a structured list to a person for review.
+- **Content pipeline** — research a topic, draft, edit, check against a brief, and get approval before publishing.
+
+The workflow decides the order, handoffs, branches, and review points. The agents do the work inside each step, using the tools and access you give them.
+
 ## What you build with
 
-Everything starts from the Add node menu. Ten nodes, that's the whole vocabulary:
+The canvas and CLI use the same workflow vocabulary:
 
 ![Available nodes](assets/images/nodes.png)
 
@@ -52,10 +64,11 @@ End — finish the run.
 ## How a run feels
 
 1. Register your project once by pointing DevChestra at a folder.
-2. Draw your workflow. No JSON, the editor saves and validates as you go.
-3. Press Run. Pick where it runs — your project folder as-is, an existing worktree, or a fresh worktree per run — then follow along live with events and transcripts.
+2. Build a workflow on the canvas, or ask your coding agent to create and validate one through the CLI.
+3. Start a run in the editor or from the CLI. Pick where it runs — your project folder as-is, an existing worktree, or a fresh worktree per run.
+4. Follow events and transcripts in the editor, or let your agent watch the run, inspect errors and usage, and bring human review gates back to you through the CLI.
 
-If two people edit the same workflow, DevChestra catches the conflict instead of silently overwriting.
+The CLI speaks JSON, so an agent can start a run, check its status, and reconnect to watch it without keeping the editor open. If two people edit the same workflow, DevChestra catches the conflict instead of silently overwriting.
 
 Agents automatically receive what came before them, so a plain prompt like "sort by total stars, descending" just works. No template syntax required unless you want it.
 
@@ -78,14 +91,24 @@ pnpm build
 pnpm devchestra start
 ```
 
-To run a workflow straight from the terminal:
+Prefer to work through your coding agent? Start DevChestra without the browser:
 
 ```sh
-pnpm devchestra run examples/linear-codex.json \
-  --project . \
-  --param topic=devchestra \
-  --json
+devchestra start --headless
 ```
+
+In another terminal, run `devchestra skill` to print the guide your agent can use to create, validate, run, and monitor workflows. Then ask it something like "build a workflow that runs the linter, then asks me before fixing anything." It can use the CLI to manage the workflow and follow a run when you ask it to start one.
+
+You can use the same commands yourself. Here, `workflow.json` contains a workflow with the ID `my-workflow`:
+
+```sh
+devchestra project add /path/to/project
+devchestra workflow create --project /path/to/project --file workflow.json
+devchestra run start my-workflow --project /path/to/project
+devchestra run watch <run-id> --jsonl
+```
+
+See the [CLI guide](packages/cli/README.md) for validation, approvals, recovery, and the rest of the commands.
 
 Works with the CLIs you already signed in to: Claude Code, Codex, OpenCode, and Pi. DevChestra never asks for their keys, it just uses what's there.
 
@@ -93,9 +116,7 @@ Decision nodes are the one exception — they need their own keys. Copy `.env.ex
 
 ## It lives where you already work
 
-Run `devchestra skill` to print the installed agent guide. It explains how to author, run, and monitor workflows from the CLI without the graphical interface. Existing project-local skill files are left untouched.
-
-So you don't learn a new tool. You just tell your agent "add a workflow that lints, then asks me before fixing," and it draws the boxes for you. Rerun it, share it, version it like code.
+Use the canvas when you want to see the whole process. Use the CLI when you're working with an agent in your terminal or IDE. Either way, workflows live in your project, ready to rerun, share, and version like code.
 
 Local-first, single user, your files stay yours. No cloud account, no queue, no sandbox magic — steps run with your normal permissions in the workspace you chose.
 
