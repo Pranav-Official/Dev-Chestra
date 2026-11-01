@@ -1,4 +1,4 @@
-import type { RunWorkspaceSelection } from "@devchestra/api";
+import { isApiError, type RunWorkspaceSelection } from "@devchestra/api";
 import {
   type ValidationReport,
   validateParams,
@@ -6,7 +6,7 @@ import {
   type WorkflowParam,
 } from "@devchestra/schema";
 import { AlertTriangle, ArrowLeft, Play, ShieldAlert, TerminalSquare } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { describeWorkflowError, workflowApi } from "../api/workflowApi.js";
 import { Dialog } from "./Dialog.js";
 import { RunWorkspaceChoice } from "./RunWorkspaceChoice.js";
@@ -66,7 +66,7 @@ export function RunDialog({
   const [values, setValues] = useState<Record<string, ParamValue>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [step, setStep] = useState<"params" | "review">("params");
-  const [failure, setFailure] = useState<string | null>(null);
+  const [failure, setFailure] = useState<ReactNode>(null);
   const [pending, setPending] = useState(false);
   const [workspace, setWorkspace] = useState<RunWorkspaceSelection>({ mode: "project" });
   const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
@@ -202,7 +202,22 @@ export function RunDialog({
       );
       onStarted(result.runId);
     } catch (error) {
-      setFailure(describeWorkflowError(error));
+      setFailure(
+        isApiError(error) && error.code === "E_CLI_DISABLED" ? (
+          <>
+            {error.message}{" "}
+            <a
+              href={`/p/${projectId}/settings/providers`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open Providers settings
+            </a>
+          </>
+        ) : (
+          describeWorkflowError(error)
+        ),
+      );
       setPending(false);
       pendingRef.current = false;
     }

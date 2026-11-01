@@ -1,4 +1,4 @@
-import type { ProjectWorkspacesResponse } from "@devchestra/api";
+import { ApiError, type ProjectWorkspacesResponse } from "@devchestra/api";
 import type { RunId } from "@devchestra/core";
 import type { ValidationReport, WorkflowFile } from "@devchestra/schema";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -339,6 +339,23 @@ describe("RunDialog", () => {
     const firstOptions = start.mock.calls[0]?.[3];
     const secondOptions = start.mock.calls[1]?.[3];
     expect(firstOptions?.idempotencyKey).toBe(secondOptions?.idempotencyKey);
+  });
+
+  it("explains a turned-off provider and links to Providers settings", async () => {
+    vi.spyOn(workflowApi, "start").mockRejectedValueOnce(
+      new ApiError("E_CLI_DISABLED", "Provider 'Codex' is turned off.", 409),
+    );
+    renderDialog();
+
+    fireEvent.click(screen.getByRole("button", { name: "Review and run" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start run" }));
+
+    const error = await screen.findByTestId("run-error");
+    expect(error).toHaveTextContent("Provider 'Codex' is turned off.");
+    const link = screen.getByRole("link", { name: "Open Providers settings" });
+    expect(link).toHaveAttribute("href", "/p/p1/settings/providers");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(error).toContainElement(link);
   });
 
   it("waits for save preparation and does not start when it fails", async () => {
