@@ -12,8 +12,9 @@ import {
 import { useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { api, classifyError } from "../api/client.js";
-import { listAllWorkflows, queryKeys, useBootstrap } from "../api/hooks.js";
+import { queryKeys, useBootstrap } from "../api/hooks.js";
 import type { RunSummary } from "../api/types.js";
+import { workflowApi } from "../editor/api/workflowApi.js";
 import { SETTINGS_SECTIONS, settingsPath } from "../pages/settings/sections.js";
 import { statusLabel } from "../ui/StatusPill.js";
 import { WorkspaceActions } from "../ui/WorkspaceActions.js";
@@ -94,8 +95,9 @@ export function Sidebar() {
   const projects = bootstrap.data?.projects ?? [];
   const workflowQueries = useQueries({
     queries: projects.map((project) => ({
-      queryKey: queryKeys.workflows(project.id),
-      queryFn: ({ signal }: { signal: AbortSignal }) => listAllWorkflows(project.id, signal),
+      queryKey: queryKeys.sidebarWorkflows(project.id),
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        workflowApi.list(project.id, { limit: 200 }, { signal }),
       enabled: !project.missing,
       staleTime: 5_000,
       retry: false as const,
@@ -281,7 +283,9 @@ export function Sidebar() {
                                   title={
                                     workflow.managed
                                       ? `Open workflow editor: ${workflow.name}`
-                                      : `${workflow.name} — history only`
+                                      : workflowQueries[index]?.data?.nextCursor
+                                        ? `${workflow.name} — run history`
+                                        : `${workflow.name} — history only`
                                   }
                                   aria-label={
                                     workflow.managed
@@ -337,6 +341,11 @@ export function Sidebar() {
                     </div>
                   );
                 })}
+                {workflowQueries[index]?.data?.nextCursor ? (
+                  <Link className="nav-item nav-view-all" to={projectPath}>
+                    View all workflows
+                  </Link>
+                ) : null}
               </div>
             </div>
           );

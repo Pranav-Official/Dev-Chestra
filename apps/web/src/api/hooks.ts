@@ -14,6 +14,7 @@ export const queryKeys = {
   transcript: (runId: string, path: string) => ["transcript", runId, path] as const,
   groups: (projectId: string) => ["workflow-groups", projectId] as const,
   workflows: (projectId: string) => ["workflows", projectId] as const,
+  sidebarWorkflows: (projectId: string) => ["workflows", projectId, "sidebar"] as const,
   workflow: (projectId: string, workflowId: string) => ["workflow", projectId, workflowId] as const,
   approvals: ["approvals"] as const,
   providers: ["providers"] as const,
