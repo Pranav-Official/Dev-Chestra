@@ -205,6 +205,20 @@ describe("provider on/off gate", () => {
     expect(s.workspace.acquire).toBe(0);
   });
 
+  it("re-checks when the run is created, so a provider turned off mid-launch leaves no run", async () => {
+    // Enabled for the preflight check, turned off by the time the run would be inserted
+    // (the freeze and hash steps in between are async).
+    let calls = 0;
+    const s = setup({ isCliEnabled: () => ++calls === 1 });
+    const launched = await s.engine.launch(input(flatWorkflow("codex"), "disabled-test"));
+    expect(launched.ok).toBe(false);
+    if (launched.ok) throw new Error("expected E_CLI_DISABLED refusal");
+    expect(launched.error.code).toBe("E_CLI_DISABLED");
+    expect(calls).toBeGreaterThanOrEqual(2);
+    expect(s.store.runs.list({ limit: 100 }).items).toHaveLength(0);
+    expect(s.workspace.acquire).toBe(0);
+  });
+
   it("lets an enabled provider run while another one is disabled", async () => {
     const s = setup({ isCliEnabled: (cli) => cli !== "codex" });
     const launched = await s.engine.launch(input(flatWorkflow("claude-code"), "disabled-test"));
