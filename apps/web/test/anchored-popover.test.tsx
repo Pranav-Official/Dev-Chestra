@@ -46,6 +46,15 @@ describe("placeAnchored", () => {
     expect(p.top).toBeLessThan(700);
   });
 
+  it("flips above instead of squeezing when less than minHeight is free below", () => {
+    const anchor = rect({ left: 20, right: 220, top: 640, bottom: 670, width: 200 });
+    const squeezed = placeAnchored(anchor, 1000, 860, { ...opts, height: 150 });
+    expect(squeezed.top).toBeGreaterThan(640);
+    const flipped = placeAnchored(anchor, 1000, 860, { ...opts, height: 150, minHeight: 280 });
+    expect(flipped.top).toBeLessThan(640);
+    expect(flipped.maxHeight).toBeGreaterThanOrEqual(280);
+  });
+
   it("clamps to the viewport horizontally", () => {
     const p = placeAnchored(
       rect({ left: 900, right: 980, top: 10, bottom: 40, width: 80 }),

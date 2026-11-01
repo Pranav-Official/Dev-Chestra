@@ -19,6 +19,8 @@ export interface PlaceAnchoredOptions {
   /** Preferred width; the popover is at least as wide as the anchor. */
   minWidth: number;
   maxHeight: number;
+  /** Height the popover wants at least; below this much free room it flips above instead of squeezing. */
+  minHeight?: number;
   /** Measured popover height, when known, so the flip decision uses the real size. */
   height?: number | undefined;
   /** Which anchor edge the popover lines up with. */
@@ -42,7 +44,10 @@ export function placeAnchored(
   const left = Math.max(margin, Math.min(wantedLeft, vw - width - margin));
   const below = vh - anchor.bottom - margin * 2;
   const above = anchor.top - margin * 2;
-  const h = Math.min(options.height ?? options.maxHeight, options.maxHeight);
+  const h = Math.min(
+    Math.max(options.height ?? options.maxHeight, options.minHeight ?? 0),
+    options.maxHeight,
+  );
   const flip = below < h && above > below;
   const maxHeight = Math.max(120, Math.min(options.maxHeight, flip ? above : below));
   const top = flip
@@ -76,7 +81,7 @@ export function useAnchoredPopover({
   ...place
 }: UseAnchoredPopoverOptions): { style: CSSProperties } {
   const [placement, setPlacement] = useState<AnchoredPlacement | null>(null);
-  const { minWidth, maxHeight, align, margin, gap } = place;
+  const { minWidth, maxHeight, minHeight, align, margin, gap } = place;
 
   const reposition = useCallback(() => {
     const anchor = anchorRef.current;
@@ -93,11 +98,12 @@ export function useAnchoredPopover({
           height: popRef.current?.offsetHeight,
           ...(align === undefined ? {} : { align }),
           ...(margin === undefined ? {} : { margin }),
+          ...(minHeight === undefined ? {} : { minHeight }),
           ...(gap === undefined ? {} : { gap }),
         },
       ),
     );
-  }, [anchorRef, popRef, minWidth, maxHeight, align, margin, gap]);
+  }, [anchorRef, popRef, minWidth, maxHeight, minHeight, align, margin, gap]);
 
   useLayoutEffect(() => {
     if (!open) {

@@ -1051,6 +1051,22 @@ describe("static serving", () => {
     expect(leak.status).toBe(404);
     const spa = await h.app.request(url("/p/proj-1/runs"), { headers: cookieHeaders() });
     expect(await spa.text()).toContain("APP");
+    for (const path of [
+      "/settings",
+      "/settings/providers",
+      "/settings/usage",
+      "/p/proj-1/settings",
+      "/p/proj-1/settings/providers",
+      "/p/proj-1/settings/usage",
+    ]) {
+      const settings = await h.app.request(url(path), { headers: cookieHeaders() });
+      expect(settings.status, path).toBe(200);
+      expect(await settings.text()).toContain("APP");
+    }
+    const unknownSettings = await h.app.request(url("/settings/nope"), {
+      headers: cookieHeaders(),
+    });
+    expect(unknownSettings.status).toBe(404);
     const unknown = await h.app.request(url("/not-an-app-route"));
     expect(unknown.status).toBe(404);
   });

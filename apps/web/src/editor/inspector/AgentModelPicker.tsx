@@ -234,6 +234,7 @@ export function AgentModelPicker({
     popRef,
     minWidth: 340,
     maxHeight: 420,
+    minHeight: 280,
   });
 
   useEffect(() => {

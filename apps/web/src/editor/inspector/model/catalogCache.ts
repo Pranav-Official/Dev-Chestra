@@ -10,6 +10,8 @@ export interface CatalogEntry {
   inflight: Promise<void> | null;
   controller: AbortController | null;
   sequence: number;
+  /** Set once the one automatic discovery for an empty server cache has been started. */
+  autoDiscovered: boolean;
 }
 
 export interface CatalogRequest {
@@ -30,6 +32,7 @@ export const IDLE_ENTRY: CatalogEntry = {
   inflight: null,
   controller: null,
   sequence: 0,
+  autoDiscovered: false,
 };
 
 const entries = new Map<string, CatalogEntry>();
@@ -128,6 +131,12 @@ export function startRequest(key: string, mode: "load" | "refresh", request: Cat
           controller: null,
           inflight: null,
         });
+        // The server's GET only reads its cache; discovery runs on refresh. When nothing has
+        // been cached yet, discover once automatically instead of showing a failure.
+        if (mode === "load" && !getEntry(key).autoDiscovered && nothingCachedYet(catalog)) {
+          update(key, { autoDiscovered: true });
+          startRequest(key, "refresh", request);
+        }
       },
       (error: unknown) => fail(error, timedOut),
     )
@@ -135,6 +144,15 @@ export function startRequest(key: string, mode: "load" | "refresh", request: Cat
       if (timer !== undefined) clearTimeout(timer);
     });
   update(key, { inflight: settled });
+}
+
+function nothingCachedYet(catalog: CliModelCatalog): boolean {
+  return (
+    catalog.status === "unavailable" &&
+    catalog.fetchedAt === null &&
+    catalog.items.length === 0 &&
+    catalog.source === "none"
+  );
 }
 
 // Called when the last subscriber for a key leaves: drop the request and ignore its late reply.

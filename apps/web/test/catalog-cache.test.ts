@@ -82,6 +82,48 @@ describe("shared model catalog cache", () => {
     expect(fake.get).toHaveBeenCalledTimes(1);
   });
 
+  it("discovers once, automatically, when the server has nothing cached yet", async () => {
+    const empty: CliModelCatalog = {
+      ...catalog("codex"),
+      status: "unavailable",
+      source: "none",
+      cliVersion: null,
+      items: [],
+      fetchedAt: null,
+      expiresAt: null,
+      message: "No model catalog is cached yet.",
+    };
+    const fake = fakeClient();
+    fake.get.mockResolvedValue(empty);
+    fake.refresh.mockResolvedValue(catalog("codex"));
+    const first = openCatalog(fake.client);
+    await waitFor(() => expect(first.result.current.catalog?.status).toBe("ready"));
+    expect(fake.get).toHaveBeenCalledTimes(1);
+    expect(fake.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not loop when automatic discovery is also empty", async () => {
+    const empty: CliModelCatalog = {
+      ...catalog("codex"),
+      status: "unavailable",
+      source: "none",
+      cliVersion: null,
+      items: [],
+      fetchedAt: null,
+      expiresAt: null,
+    };
+    const fake = fakeClient();
+    fake.get.mockResolvedValue(empty);
+    fake.refresh.mockResolvedValue(empty);
+    const first = openCatalog(fake.client);
+    await waitFor(() => expect(fake.refresh).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(first.result.current.loading).toBe("idle"));
+    first.unmount();
+    openCatalog(fake.client);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(fake.refresh).toHaveBeenCalledTimes(1);
+  });
+
   it("makes one request when two nodes open at the same time", async () => {
     const fake = fakeClient();
     const pending = deferred<CliModelCatalog>();
