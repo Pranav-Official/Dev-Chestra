@@ -66,11 +66,9 @@ function modelRequests(calls: ApiCall[]): ApiCall[] {
 }
 
 async function openPicker(page: Page): Promise<void> {
-  const combo = page.getByTestId("inspector-agent-model-picker");
-  await combo.click();
   const list = page.getByTestId("inspector-agent-model-listbox");
   if (!(await list.isVisible().catch(() => false))) {
-    await combo.press("ArrowDown");
+    await page.getByTestId("inspector-agent-model-trigger").click();
   }
   await list.waitFor({ state: "visible", timeout: 10_000 });
 }
@@ -83,8 +81,12 @@ async function closePicker(page: Page): Promise<void> {
     .catch(() => undefined);
 }
 
+/** The id span is absent when the label already is the id, so fall back to the label. */
 async function selectedId(page: Page): Promise<string> {
-  return ((await page.getByTestId("inspector-agent-model-selected-id").textContent()) ?? "").trim();
+  const id = page.getByTestId("inspector-agent-model-selected-id");
+  const source =
+    (await id.count()) > 0 ? id : page.getByTestId("inspector-agent-model-selected-label");
+  return ((await source.textContent()) ?? "").trim();
 }
 
 async function noModel(page: Page): Promise<boolean> {
@@ -96,16 +98,54 @@ async function statusText(page: Page): Promise<string> {
   return ((await page.getByTestId("inspector-agent-model-status").textContent()) ?? "").trim();
 }
 
-async function messageText(page: Page): Promise<string> {
+async function statusTitle(page: Page): Promise<string> {
+  return (await page.getByTestId("inspector-agent-model-status").getAttribute("title")) ?? "";
+}
+
+async function messageTitle(page: Page): Promise<string> {
+  return (await page.getByTestId("inspector-agent-model-message").getAttribute("title")) ?? "";
+}
+
+async function bannerText(page: Page): Promise<string> {
   return ((await page.getByTestId("inspector-agent-model-message").textContent()) ?? "").trim();
 }
 
-async function sourceText(page: Page): Promise<string> {
-  return ((await page.getByTestId("inspector-agent-model-source").textContent()) ?? "").trim();
+async function waitBanner(page: Page, pattern: RegExp, timeout = 10_000): Promise<void> {
+  await page.waitForFunction(
+    (source) => {
+      const text =
+        document.querySelector('[data-testid="inspector-agent-model-message"]')?.textContent ?? "";
+      return new RegExp(source, "i").test(text);
+    },
+    pattern.source,
+    { timeout },
+  );
 }
 
-async function countText(page: Page): Promise<string> {
-  return ((await page.getByTestId("inspector-agent-model-count").textContent()) ?? "").trim();
+async function waitFooter(page: Page, pattern: RegExp, timeout = 20_000): Promise<void> {
+  await page.waitForFunction(
+    (source) => {
+      const text =
+        document.querySelector('[data-testid="inspector-agent-model-status"]')?.textContent ?? "";
+      return new RegExp(source, "i").test(text);
+    },
+    pattern.source,
+    { timeout },
+  );
+}
+
+/** Either the catalog loaded (footer count) or a banner explains why it did not. */
+async function waitSettled(page: Page, timeout = 20_000): Promise<void> {
+  await page.waitForFunction(
+    () => {
+      const footer =
+        document.querySelector('[data-testid="inspector-agent-model-status"]')?.textContent ?? "";
+      const banner = document.querySelector('[data-testid="inspector-agent-model-message"]');
+      return !/Loading|Refreshing/.test(footer) && (banner !== null || /models?/.test(footer));
+    },
+    undefined,
+    { timeout },
+  );
 }
 
 async function optionTexts(page: Page): Promise<string[]> {
@@ -135,18 +175,6 @@ async function typeQuery(page: Page, query: string): Promise<void> {
   await sleep(120);
 }
 
-async function waitStatus(page: Page, pattern: RegExp, timeout = 20_000): Promise<void> {
-  await page.waitForFunction(
-    (source) => {
-      const text =
-        document.querySelector('[data-testid="inspector-agent-model-status"]')?.textContent ?? "";
-      return new RegExp(source, "i").test(text);
-    },
-    pattern.source,
-    { timeout },
-  );
-}
-
 async function agentModel(
   http: DevChestraHttp,
   projectId: string,
@@ -160,21 +188,23 @@ async function agentModel(
 }
 
 async function setCli(page: Page, cli: "codex" | "claude-code" | "fake"): Promise<void> {
-  await page.getByTestId("inspector-agent-cli").selectOption(cli);
+  await page.getByTestId(`inspector-agent-cli-${cli}`).click();
   await sleep(150);
 }
 
 async function setCustomModel(page: Page, model: string): Promise<void> {
   await openPicker(page);
-  await page.getByTestId("inspector-agent-model-custom-input").fill(model);
-  await page.getByTestId("inspector-agent-model-use-custom").click();
+  await page.getByTestId("inspector-agent-model-picker").fill(model);
+  await page.getByTestId("inspector-agent-model-custom-option").click();
   await sleep(150);
 }
 
 async function axePicker(page: Page): Promise<{ serious: number; total: number }> {
   await injectAxe(page);
   const result = await page.evaluate(async () => {
-    const container = document.querySelector('[data-testid="inspector-agent-model-field"]');
+    const container =
+      document.querySelector('[data-testid="inspector-agent-model-popover"]') ??
+      document.querySelector('[data-testid="inspector-agent-model-field"]');
     const axe = (
       window as unknown as {
         axe?: { run: (root: unknown) => Promise<{ violations: unknown[] }> };
@@ -241,33 +271,27 @@ export async function runClaudeBrowserScenario(): Promise<ClaudeBrowserEvidence>
     calls.length = 0;
     await stub.resetLog();
     await openPicker(page);
-    await waitStatus(page, /unavailable/i);
+    await waitBanner(page, /couldn't load/i);
     const coldCalls = modelRequests(calls);
     const coldLoadGetOnly =
       coldCalls.every((call) => call.method === "GET") &&
       !coldCalls.some((call) => call.method === "POST");
     const coldLoadNoSpawn = (await stub.discoverySpawns("claude")).length === 0;
-    assert.match(await statusText(page), /unavailable/iu);
-    assert.match(await messageText(page), /No model catalog is cached yet/iu);
-    assert.match(await sourceText(page), /source: none/iu);
-    assert.match(await countText(page), /0 of 0/u);
+    assert.match(await bannerText(page), /couldn't load/iu);
+    assert.match(await messageTitle(page), /No model catalog is cached yet/iu);
+    assert.match(await statusTitle(page), /source: none/iu);
+    assert.match(await statusText(page), /^0 models/u);
     assert.ok(await page.getByTestId("inspector-agent-model-default").isVisible());
-    for (const id of [
-      "inspector-agent-model-custom-input",
-      "inspector-agent-model-refresh",
-      "inspector-agent-model-status",
-      "inspector-agent-model-source",
-      "inspector-agent-model-count",
-    ]) {
+    for (const id of ["inspector-agent-model-refresh", "inspector-agent-model-status"]) {
       assert.ok(await page.getByTestId(id).isVisible(), `${id} must stay visible while open`);
       await page.getByTestId(id).click({ trial: true, timeout: 5_000 });
     }
     const loadButton = page.getByTestId("inspector-agent-model-refresh");
-    assert.match((await loadButton.textContent()) ?? "", /(load|refresh) models/iu);
+    assert.equal(await loadButton.getAttribute("aria-label"), "Refresh models");
 
     calls.length = 0;
     await loadButton.click();
-    await waitStatus(page, /ready/i);
+    await waitFooter(page, /\d+ models?/u);
     await stub.waitFor(
       "Claude discovery child",
       async () => ((await stub.discoverySpawns("claude")).length >= 1 ? true : null),
@@ -301,9 +325,9 @@ export async function runClaudeBrowserScenario(): Promise<ClaudeBrowserEvidence>
       undefined,
       { timeout: 10_000 },
     );
-    const sourceClaudeSdk = /claude-sdk/u.test(await sourceText(page));
-    assert.ok(sourceClaudeSdk, `source must be claude-sdk, got ${await sourceText(page)}`);
-    assert.match(await countText(page), /3 of 3/u);
+    const sourceClaudeSdk = /claude-sdk/u.test(await statusTitle(page));
+    assert.ok(sourceClaudeSdk, `source must be claude-sdk, got ${await statusTitle(page)}`);
+    assert.match(await statusText(page), /\b3 models\b/u);
     const texts = await optionTexts(page);
     const ids = await optionIds(page);
     assert.deepEqual(ids, [baseId, punctId, unicodeId]);
@@ -420,7 +444,7 @@ export async function runClaudeBrowserScenario(): Promise<ClaudeBrowserEvidence>
       async () => ((await stub.rpcs("codex")).length >= 5 ? true : null),
       20_000,
     );
-    await waitStatus(page, /ready/i);
+    await waitFooter(page, /\d+ models?/u);
     await closePicker(page);
 
     await stub.setControl({ claude: { nonce, delayMs: 900 } });
@@ -431,7 +455,7 @@ export async function runClaudeBrowserScenario(): Promise<ClaudeBrowserEvidence>
     await setCli(page, "codex");
     await sleep(2_500);
     await openPicker(page);
-    await waitStatus(page, /ready|stale|unavailable/i);
+    await waitSettled(page);
     const fencedOptions = await optionTexts(page);
     const fencedIds = await optionIds(page);
     const crossCliFenced =
@@ -442,7 +466,9 @@ export async function runClaudeBrowserScenario(): Promise<ClaudeBrowserEvidence>
 
     await setCli(page, "claude-code");
     await waitSaved(page);
-    await setCustomModel(page, punctId);
+    await openPicker(page);
+    await typeQuery(page, punctId);
+    await page.getByTestId("inspector-agent-model-option-0").click();
     await waitSaved(page);
     assert.equal(await agentModel(http, project.id, workflowId), punctId);
     const discoveryBeforeRun = (await stub.discoverySpawns("claude")).length;
@@ -488,7 +514,7 @@ export async function runClaudeBrowserScenario(): Promise<ClaudeBrowserEvidence>
     await selectNode(page, "agent");
     await openPicker(page);
     const axeLight = await axePicker(page);
-    await page.getByTestId("inspector-agent-model-field").screenshot({ path: inspector });
+    await page.getByTestId("inspector-agent-model-popover").screenshot({ path: inspector });
     await page.screenshot({ path: light, fullPage: true });
 
     await themeTo(page, "dark");

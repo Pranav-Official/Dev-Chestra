@@ -166,14 +166,15 @@ describe("WorkflowEditor", () => {
     renderEditor(vi.fn(), AGENT_FILE);
 
     fireEvent.click(await screen.findByTestId("ed-node-agent"));
-    const picker = await screen.findByTestId("inspector-agent-model-picker");
+    const trigger = await screen.findByTestId("inspector-agent-model-trigger");
     expect(get).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
 
-    fireEvent.focus(picker);
+    fireEvent.click(trigger);
     await waitFor(() =>
       expect(get).toHaveBeenCalledWith("p1", "codex", { signal: expect.any(AbortSignal) }),
     );
+    const picker = await screen.findByTestId("inspector-agent-model-picker");
     expect(refresh).not.toHaveBeenCalled();
 
     fireEvent.change(picker, { target: { value: "gpt" } });
