@@ -1,4 +1,9 @@
-import { type ValidationReport, validateWorkflow, type WorkflowFile } from "@devchestra/schema";
+import {
+  type ValidationContext,
+  type ValidationReport,
+  validateWorkflow,
+  type WorkflowFile,
+} from "@devchestra/schema";
 import { useEffect, useRef, useState } from "react";
 import { createValidationClient, type ValidationClient } from "../model/validation.js";
 
@@ -13,7 +18,11 @@ function workerAvailable(): boolean {
   return typeof globalThis.Worker === "function";
 }
 
-export function useEditorValidation(file: WorkflowFile, revision: number): EditorValidation {
+export function useEditorValidation(
+  file: WorkflowFile,
+  revision: number,
+  disabledClis: readonly string[] = [],
+): EditorValidation {
   const [state, setState] = useState<{ report: ValidationReport | null; revision: number }>({
     report: null,
     revision: -1,
@@ -36,17 +45,21 @@ export function useEditorValidation(file: WorkflowFile, revision: number): Edito
     };
   }, []);
 
+  // A string key, so a new array with the same ids does not re-validate. CLI ids have no commas.
+  const disabledKey = disabledClis.join(",");
+
   useEffect(() => {
+    const ctx: ValidationContext = { disabledClis: disabledKey.split(",").filter(Boolean) };
     const client = clientRef.current;
     if (client !== null) {
-      client.validate(file, revision);
+      client.validate(file, revision, ctx);
       return;
     }
     if (workerAvailable()) return;
     // jsdom/no-Worker fallback only; the browser path never validates on the main thread.
-    const report = validateWorkflow(file);
+    const report = validateWorkflow(file, ctx);
     setState((previous) => (revision >= previous.revision ? { report, revision } : previous));
-  }, [file, revision]);
+  }, [file, revision, disabledKey]);
 
   return {
     report: state.report,
