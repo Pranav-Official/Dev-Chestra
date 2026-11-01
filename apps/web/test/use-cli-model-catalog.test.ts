@@ -1,11 +1,12 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   CatalogCli,
   CliModelCatalog,
   CliModelCatalogClient,
   CliModelRequestOptions,
 } from "../src/editor/inspector/model/catalog.js";
+import { clearCliModelCatalogCache } from "../src/editor/inspector/model/catalogCache.js";
 import { useCliModelCatalog } from "../src/editor/inspector/model/useCliModelCatalog.js";
 
 function catalog(cli: CatalogCli, projectId = "p1"): CliModelCatalog {
@@ -62,6 +63,10 @@ function hanging(options: CliModelRequestOptions | undefined): Promise<CliModelC
 }
 
 describe("useCliModelCatalog", () => {
+  beforeEach(() => {
+    clearCliModelCatalogCache();
+  });
+
   it("loads only when opened and refreshes only on explicit action", async () => {
     const fake = fakeClient();
     fake.get.mockResolvedValue(catalog("codex"));
@@ -70,7 +75,6 @@ describe("useCliModelCatalog", () => {
         useCliModelCatalog({
           projectId: "p1",
           cli: "codex",
-          nodeId: "n1",
           open: props.open,
           client: fake.client,
         }),
@@ -105,7 +109,6 @@ describe("useCliModelCatalog", () => {
         useCliModelCatalog({
           projectId: "p1",
           cli: props.cli,
-          nodeId: "n1",
           open: true,
           client: fake.client,
         }),
@@ -127,7 +130,7 @@ describe("useCliModelCatalog", () => {
     expect(result.current.catalog?.cli).toBe("claude-code");
   });
 
-  it("fences late responses across project and node keys", async () => {
+  it("fences late responses across project keys", async () => {
     const fake = fakeClient();
     const first = deferred<CliModelCatalog>();
     const second = deferred<CliModelCatalog>();
@@ -135,18 +138,17 @@ describe("useCliModelCatalog", () => {
       project === "p1" ? first.promise : second.promise,
     );
     const { result, rerender } = renderHook(
-      (props: { projectId: string; nodeId: string }) =>
+      (props: { projectId: string }) =>
         useCliModelCatalog({
           projectId: props.projectId,
           cli: "codex",
-          nodeId: props.nodeId,
           open: true,
           client: fake.client,
         }),
-      { initialProps: { projectId: "p1", nodeId: "n1" } },
+      { initialProps: { projectId: "p1" } },
     );
 
-    rerender({ projectId: "p2", nodeId: "n2" });
+    rerender({ projectId: "p2" });
     await waitFor(() => expect(fake.get).toHaveBeenCalledTimes(2));
     await act(async () => {
       second.resolve(catalog("codex", "p2"));
@@ -170,7 +172,6 @@ describe("useCliModelCatalog", () => {
       useCliModelCatalog({
         projectId: "p1",
         cli: "codex",
-        nodeId: "n1",
         open: true,
         client: fake.client,
       }),
@@ -190,7 +191,6 @@ describe("useCliModelCatalog", () => {
       useCliModelCatalog({
         projectId: "p1",
         cli: "codex",
-        nodeId: "n1",
         open: true,
         client: fake.client,
         loadTimeoutMs: 20,
@@ -210,7 +210,6 @@ describe("useCliModelCatalog", () => {
       useCliModelCatalog({
         projectId: "p1",
         cli: "codex",
-        nodeId: "n1",
         open: true,
         client: fake.client,
       }),
@@ -219,7 +218,7 @@ describe("useCliModelCatalog", () => {
     expect(result.current.loading).toBe("idle");
   });
 
-  it("keeps a closed refresh pending visible and aborts it when the node key changes", async () => {
+  it("keeps a closed refresh pending visible and aborts it when the CLI key changes", async () => {
     const fake = fakeClient();
     fake.get.mockResolvedValue(catalog("codex"));
     let signal: AbortSignal | undefined;
@@ -234,20 +233,19 @@ describe("useCliModelCatalog", () => {
       });
     });
     const { result, rerender } = renderHook(
-      (props: { nodeId: string }) =>
+      (props: { cli: CatalogCli }) =>
         useCliModelCatalog({
           projectId: "p1",
-          cli: "codex",
-          nodeId: props.nodeId,
+          cli: props.cli,
           open: false,
           client: fake.client,
         }),
-      { initialProps: { nodeId: "n1" } },
+      { initialProps: { cli: "codex" as CatalogCli } },
     );
 
     act(() => result.current.refresh());
     expect(result.current.loading).toBe("refresh");
-    rerender({ nodeId: "n2" });
+    rerender({ cli: "claude-code" });
     expect(signal?.aborted).toBe(true);
     expect(aborted).toHaveBeenCalledTimes(1);
     expect(result.current.loading).toBe("idle");
@@ -262,7 +260,6 @@ describe("useCliModelCatalog", () => {
       useCliModelCatalog({
         projectId: "p1",
         cli: "codex",
-        nodeId: "n1",
         open: true,
         client: fake.client,
         refreshTimeoutMs: 20,
@@ -288,7 +285,6 @@ describe("useCliModelCatalog", () => {
       useCliModelCatalog({
         projectId: undefined,
         cli: "codex",
-        nodeId: "n1",
         open: true,
         client: fake.client,
       }),
