@@ -47,6 +47,7 @@ function Location() {
 }
 function mount(content: React.ReactNode, path = "/p/p1/workflows") {
   vi.spyOn(api, "bootstrap").mockResolvedValue(bootstrap);
+  if (!vi.isMockFunction(api.listRuns)) vi.spyOn(api, "listRuns").mockResolvedValue({ items: [], nextCursor: null });
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -83,6 +84,7 @@ describe("workspace navigation and cleanup", () => {
     mount(<Sidebar />);
     const link = await screen.findByRole("link", { name: "View all workflows" });
     expect(link).toHaveAttribute("href", "/p/p1/workflows");
+    expect(screen.queryByRole("region", { name: "Currently running" })).toBeNull();
     expect(list).toHaveBeenCalledTimes(1);
     expect(list).toHaveBeenCalledWith(
       "p1",
@@ -151,6 +153,26 @@ describe("workspace navigation and cleanup", () => {
     fireEvent.click(screen.getByRole("button", { name: "Toggle Workflow" }));
     expect(await screen.findByRole("link", { name: /Run #7/ })).toBeVisible();
   });
+  it("shows active workflows and distinguishes their runs from completed runs", async () => {
+    vi.spyOn(api, "getWorkflowGroups").mockResolvedValue({ document: { version: 1, groups: [], memberships: {} }, etag: "a".repeat(64) });
+    vi.spyOn(api, "projectRunSummaries").mockResolvedValue({ items: [{ ...run, id: "01ARZ3NDEKTSV4RRFFQ69G5FAW" as RunId, runNumber: 8, status: "running" }, run], nextCursor: null });
+    vi.spyOn(workflowApi, "list").mockResolvedValue({ items: [{ id: "wf", name: "Workflow", description: null, relativeFile: "wf.json", etag: "etag", updatedAt: 0 }], nextCursor: null });
+    mount(<Sidebar />);
+    expect(await screen.findByRole("link", { name: /Workflow — 1 active run/ })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Workflow" }));
+    expect(within(screen.getByRole("link", { name: /Run #8/ })).getByRole("img", { name: "Running" })).toBeVisible();
+    expect(within(screen.getByRole("link", { name: /Run #7/ })).getByRole("img", { name: "Succeeded" })).toBeVisible();
+  });
+  it("shows running runs above projects", async () => {
+    vi.spyOn(api, "getWorkflowGroups").mockResolvedValue({ document: { version: 1, groups: [], memberships: {} }, etag: "a".repeat(64) });
+    vi.spyOn(api, "projectRunSummaries").mockResolvedValue({ items: [], nextCursor: null });
+    vi.spyOn(workflowApi, "list").mockResolvedValue({ items: [], nextCursor: null });
+    vi.spyOn(api, "listRuns").mockResolvedValue({ items: [{ ...run, status: "running" }], nextCursor: null });
+    const view = mount(<Sidebar />);
+    const section = await screen.findByRole("region", { name: "Currently running" });
+    expect(within(section).getByRole("link", { name: /Workflow.*Project.*Run #7/ })).toHaveAttribute("href", `/p/p1/r/${run.id}`);
+    view.unmount();
+  });
   it("uses independent summaries and separates accessible disclosures/actions from links", async () => {
     const global = vi.spyOn(api, "listRuns");
     const summaries = vi
@@ -176,7 +198,7 @@ describe("workspace navigation and cleanup", () => {
       "p1",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
-    expect(global).not.toHaveBeenCalled();
+    expect(global).toHaveBeenCalledWith({ status: "running", limit: 100 }, expect.objectContaining({ signal: expect.any(AbortSignal) }));
     expect(rendered.container.querySelector("a button, a summary")).toBeNull();
     // Projects open by default; workflows open only when the user asks.
     expect(screen.getByRole("button", { name: "Toggle Project" })).toHaveAttribute(

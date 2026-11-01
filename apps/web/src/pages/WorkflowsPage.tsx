@@ -8,6 +8,9 @@ import {
   FolderGit2,
   Link2,
   Trash2,
+  ChevronDown,
+  Workflow,
+  MoreHorizontal,
 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -208,7 +211,7 @@ export function WorkflowsPage() {
           {!project.missing ? (
             <>
               {groups.data ? (
-                <div className="row" style={{ margin: "16px 0", flexWrap: "wrap", gap: 8 }}>
+                <div className="workflow-toolbar"><div><h2>Workflow library</h2><p>Organize the workflows in this project.</p></div><span className="sp" />
                   <GroupControls projectId={pid} groups={groups.data} />
                 </div>
               ) : groups.isError ? (
@@ -242,93 +245,20 @@ export function WorkflowsPage() {
                   </EmptyState>
                 </div>
               ) : (
-                <div>
+                <div className="workflow-library">
                   {[
-                    ...(groups.data?.document.groups ?? [])
-                      .slice()
-                      .sort((a, b) => a.name.localeCompare(b.name))
-                      .map((g) => ({ id: g.id, name: g.name })),
+                    ...(groups.data?.document.groups ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)),
                     { id: "", name: "Ungrouped" },
-                  ].map((group) => (
-                    <details className="card" key={group.id || "ungrouped"} open>
-                      <summary style={{ padding: 16, cursor: "pointer" }}>
-                        {group.name} (
-                        {
-                          (workflows.data?.items ?? []).filter(
-                            (item) =>
-                              (groups.data?.document.memberships[item.id] ?? "") === group.id,
-                          ).length
-                        }
-                        )
-                      </summary>
-                      <table className="table">
-                        <thead>
-                          <tr>
-                            <th>Workflow</th>
-                            <th>File</th>
-                            <th>Validation</th>
-                            <th>Updated</th>
-                            <th>
-                              <span className="sr-only">Actions</span>
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {workflows.data?.items
-                            .filter(
-                              (item) =>
-                                (groups.data?.document.memberships[item.id] ?? "") === group.id,
-                            )
-                            .map((item) => (
-                              <tr key={item.id} data-testid={`workflow-row-${item.id}`}>
-                                <td>
-                                  <Link to={`/p/${pid}/w/${item.id}`} style={{ fontWeight: 600 }}>
-                                    {item.name}
-                                  </Link>
-                                  <div className="faint mono">{item.id}</div>
-                                  {groups.data && groups.data.document.groups.length > 0 ? (
-                                    <GroupSelect
-                                      projectId={pid}
-                                      workflowId={item.id}
-                                      groups={groups.data}
-                                    />
-                                  ) : null}
-                                  {item.description === null ? null : (
-                                    <div className="muted">{item.description}</div>
-                                  )}
-                                </td>
-                                <td className="mono muted">{item.relativeFile}</td>
-                                <td>
-                                  <ValidationStatus item={item} />
-                                </td>
-                                <td className="muted">{formatTime(item.updatedAt)}</td>
-                                <td>
-                                  <div
-                                    className="row"
-                                    style={{ gap: 6, justifyContent: "flex-end" }}
-                                  >
-                                    <Link className="btn sm" to={`/p/${pid}/w/${item.id}`}>
-                                      Open
-                                    </Link>
-                                    <button
-                                      type="button"
-                                      className="btn sm ghost"
-                                      aria-label={`Delete workflow ${item.name}`}
-                                      onClick={() => {
-                                        setDeleteError(null);
-                                        setDeleting(item);
-                                      }}
-                                    >
-                                      <Trash2 size={13} aria-hidden="true" />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
-                    </details>
-                  ))}
+                  ].map((group) => {
+                    const items = (workflows.data?.items ?? []).filter((item) => (groups.data?.document.memberships[item.id] ?? "") === group.id);
+                    return <section className="workflow-group" key={group.id || "ungrouped"}>
+                      <details open><summary className="workflow-group-heading"><ChevronDown className="workflow-chevron" size={16} aria-hidden="true" /><span className="workflow-group-name">{group.name} ({items.length})</span></summary>
+                        <div className="workflow-items">{items.length === 0 ? <p className="workflow-group-empty">No workflows in this group yet.</p> : items.map((item) => <article className="workflow-item" key={item.id} data-testid={`workflow-row-${item.id}`}>
+                          <div className="workflow-item-icon"><Workflow size={17} aria-hidden="true" /></div><div className="workflow-item-main"><Link className="workflow-item-title" to={`/p/${pid}/w/${item.id}`}>{item.name}</Link>{item.description ? <p className="workflow-description">{item.description}</p> : null}<div className="workflow-meta"><span className="mono" title={item.relativeFile}>{item.relativeFile}</span><span>Updated {formatTime(item.updatedAt)}</span></div></div>
+                          <div className="workflow-item-status"><ValidationStatus item={item} /></div><div className="workflow-item-actions"><details className="workflow-actions-menu"><summary aria-label={`Actions for ${item.name}`}><MoreHorizontal size={18} aria-hidden="true" /></summary><div className="workflow-actions-popover">{groups.data && groups.data.document.groups.length > 0 ? <GroupSelect projectId={pid} workflowId={item.id} groups={groups.data} /> : null}<button type="button" className="workflow-menu-delete" onClick={() => { setDeleteError(null); setDeleting(item); }}><Trash2 size={14} aria-hidden="true" /> Delete workflow</button></div></details></div>
+                        </article>)}</div></details>{group.id && groups.data ? <GroupControls projectId={pid} groups={groups.data} groupId={group.id} /> : null}
+                    </section>;
+                  })}
                 </div>
               )}
               {workflows.data !== undefined && workflows.data.nextCursor !== null ? (
