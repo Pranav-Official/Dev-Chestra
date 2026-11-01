@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 import { resolve } from "node:path";
-import { ApiError } from "@devchestra/api";
+import { ApiError, ApiTransportError } from "@devchestra/api";
 import { projectSkillTemplate } from "@devchestra/server";
-import { executeAgentCommands } from "./agent-commands.js";
+import {
+  AgentCommandError,
+  AgentUsageError,
+  capabilities,
+  executeAgentCommands,
+} from "./agent-commands.js";
 import { type CliOptions, HELP, parseArgs, UsageError } from "./args.js";
 import { executeResume, executeRun } from "./commands.js";
 import { printDoctor, runDoctor } from "./doctor.js";
@@ -20,16 +25,14 @@ function versionLine(): string {
 async function main(): Promise<number> {
   const argv = process.argv.slice(2);
   if (argv[0] === "capabilities") {
-    process.stdout.write(
-      `${JSON.stringify({ version: 1, groups: ["project", "workflow", "run", "approval", "providers"], nodes: ["start", "agent", "shell", "gate", "join", "approval", "decision", "loop", "foreach", "workflow", "end"], headlessServer: true, workflowSchemaCommand: false, serverUncertainShellRetry: false, budgetEnforcement: false })}\n`,
-    );
+    process.stdout.write(`${JSON.stringify(capabilities())}\n`);
     return 0;
   }
   if (argv[0] === "skill") {
     process.stdout.write(projectSkillTemplate());
     return 0;
   }
-  const agentGroups = ["project", "workflow", "approval", "providers"];
+  const agentGroups = ["project", "workflow", "approval", "providers", "gate", "decision"];
   const runActions = [
     "start",
     "list",
@@ -37,9 +40,13 @@ async function main(): Promise<number> {
     "watch",
     "events",
     "execution",
+    "context",
+    "archive",
+    "restore",
     "transcript",
     "output",
     "children",
+    "foreach",
     "usage",
     "cancel",
     "resume",
@@ -51,12 +58,40 @@ async function main(): Promise<number> {
     try {
       return await executeAgentCommands(argv);
     } catch (error) {
-      const safe =
-        error instanceof ApiError
-          ? { code: error.code, message: error.message, details: error.details }
-          : safeError(error);
-      process.stderr.write(`${JSON.stringify({ error: safe })}\n`);
-      return error instanceof ApiError && error.status < 500 ? 4 : exitCodeForError(error);
+      const code =
+        error instanceof AgentCommandError
+          ? error.code
+          : error instanceof ApiError
+            ? error.code
+            : error instanceof AgentUsageError ||
+                error instanceof SyntaxError ||
+                (error instanceof Error && error.name === "ZodError")
+              ? "E_VALIDATION"
+              : error instanceof ApiTransportError
+                ? "E_TRANSPORT"
+                : error instanceof Error && error.name === "AbortError"
+                  ? "E_TIMEOUT"
+                  : safeError(error).code;
+      const message = error instanceof Error ? error.message : String(error);
+      const retryable =
+        error instanceof AgentCommandError
+          ? error.retryable
+          : error instanceof ApiTransportError ||
+            (error instanceof ApiError && error.status >= 500);
+      const details =
+        error instanceof ApiError || error instanceof AgentCommandError ? error.details : undefined;
+      const hint =
+        error instanceof AgentCommandError
+          ? error.hint
+          : code === "E_TRANSPORT"
+            ? "Inspect the run and reconnect using the last event ID."
+            : code === "E_TIMEOUT"
+              ? "Inspect the run or reconnect with a longer timeout."
+              : undefined;
+      process.stderr.write(
+        `${JSON.stringify({ contractVersion: 1, error: { code, message, ...(details === undefined ? {} : { details }), retryable, ...(hint === undefined ? {} : { hint }) } })}\n`,
+      );
+      return code === "E_VALIDATION" || (error instanceof ApiError && error.status < 500) ? 4 : 1;
     }
   }
   let options: CliOptions;
@@ -77,7 +112,7 @@ async function main(): Promise<number> {
   if (options.command === "version") {
     process.stdout.write(
       options.json
-        ? `${JSON.stringify({ version: VERSION, node: process.versions.node })}\n`
+        ? `${JSON.stringify({ contractVersion: 1, version: VERSION, node: process.versions.node })}\n`
         : `${versionLine()}\n`,
     );
     return 0;

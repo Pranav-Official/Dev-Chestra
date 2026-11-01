@@ -295,7 +295,10 @@ export interface BrowserWorkspacePort {
 export interface BrowserRunControllerPort {
   startRun(input: StartRunCommand): Promise<StartRunResponse> | StartRunResponse;
   cancelRun(runId: string): Promise<CommandResponse> | CommandResponse;
-  resumeRun(runId: string): Promise<CommandResponse> | CommandResponse;
+  resumeRun(
+    runId: string,
+    request?: import("@devchestra/api").ResumeRunRequest,
+  ): Promise<CommandResponse> | CommandResponse;
   resolveApproval(input: {
     runId: string;
     path: string;

@@ -59,7 +59,10 @@ const DEFAULT_WEB_ROOT = join(REPO_ROOT, "apps/web/dist");
 export interface BrowserRunController {
   startRun(input: StartRunCommand): Promise<StartRunResponse>;
   cancelRun(runId: string): Promise<CommandResponse>;
-  resumeRun(runId: string): Promise<CommandResponse>;
+  resumeRun(
+    runId: string,
+    request?: import("@devchestra/api").ResumeRunRequest,
+  ): Promise<CommandResponse>;
   resolveApproval(input: {
     runId: string;
     path: string;
@@ -322,8 +325,14 @@ function controllerFor(
       );
       return { runId: runId as RunId, status: record.status as RunStatus };
     },
-    async resumeRun(runId) {
-      const launched = await engine.launchResume(runId);
+    async resumeRun(runId, request) {
+      const fence = request?.uncertaintyFence;
+      const launched = await engine.launchResume(
+        runId,
+        fence === undefined
+          ? {}
+          : { allowUncertainSideEffectRetry: true, approvedBy: "user", uncertaintyFence: fence },
+      );
       if (!launched.ok) throw launched.error;
       observe(runId, launched.value.completion);
       return { runId: runId as RunId, status: statusOf(runId, "paused") };

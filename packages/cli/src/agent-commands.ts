@@ -1,7 +1,14 @@
 import { readFile, realpath } from "node:fs/promises";
 import { resolve } from "node:path";
-import { ApiClient, type CatalogCli } from "@devchestra/api";
-import { parseWorkflow, type WorkflowFile } from "@devchestra/schema";
+import {
+  ApiClient,
+  ApiTransportError,
+  type CatalogCli,
+  type DecisionTestRequest,
+  type GateTestRequest,
+  type WorkflowGroupsDocument,
+} from "@devchestra/api";
+import { parseWorkflow, type WorkflowFile, workflowJsonSchema } from "@devchestra/schema";
 import { defaultDataDir } from "./data-dir.js";
 import { attachToServer, readServerMetadata } from "./server-metadata.js";
 
@@ -14,11 +21,239 @@ const HELP = `Agent CLI (all commands return JSON; watch returns JSONL):
 Use --data-dir DIR to select the server. FILE may be - for stdin.
 `;
 
+type CommandSpec = { min: number; max: number; flags: string[]; description: string };
+const common = ["data-dir", "json"];
+const pageFlags = ["cursor", "limit"];
+export const COMMANDS: Record<string, CommandSpec> = {
+  "project list": { min: 0, max: 0, flags: pageFlags, description: "List registered projects" },
+  "project add": { min: 1, max: 1, flags: [], description: "Register a project" },
+  "project show": {
+    min: 0,
+    max: 1,
+    flags: ["project"],
+    description: "Inspect a project and its workspaces",
+  },
+  "workflow schema": { min: 0, max: 0, flags: [], description: "Print the structural JSON schema" },
+  "workflow list": {
+    min: 0,
+    max: 0,
+    flags: ["project", ...pageFlags],
+    description: "List workflows",
+  },
+  "workflow show": {
+    min: 1,
+    max: 1,
+    flags: ["project"],
+    description: "Inspect a workflow and revision",
+  },
+  "workflow validate": {
+    min: 0,
+    max: 0,
+    flags: ["project", "file"],
+    description: "Validate a workflow document",
+  },
+  "workflow create": {
+    min: 0,
+    max: 0,
+    flags: ["project", "file"],
+    description: "Create a workflow",
+  },
+  "workflow update": {
+    min: 1,
+    max: 1,
+    flags: ["project", "file", "if-match"],
+    description: "Update a workflow with revision fence",
+  },
+  "workflow delete": {
+    min: 1,
+    max: 1,
+    flags: ["project", "if-match"],
+    description: "Delete a workflow with revision fence",
+  },
+  "workflow groups-show": {
+    min: 0,
+    max: 0,
+    flags: ["project"],
+    description: "Show workflow groups",
+  },
+  "workflow groups-update": {
+    min: 0,
+    max: 0,
+    flags: ["project", "file", "if-match"],
+    description: "Save workflow groups with revision fence",
+  },
+  "gate test": {
+    min: 0,
+    max: 0,
+    flags: ["project", "file"],
+    description: "Preview a gate without starting a run",
+  },
+  "decision test": {
+    min: 0,
+    max: 0,
+    flags: ["project", "file"],
+    description: "Test a decision provider (makes a live paid request)",
+  },
+  "run start": {
+    min: 1,
+    max: 1,
+    flags: [
+      "project",
+      "params-file",
+      "param",
+      "workspace",
+      "worktree-path",
+      "idempotency-key",
+      "if-match",
+    ],
+    description: "Start a durable run",
+  },
+  "run list": { min: 0, max: 0, flags: ["project", ...pageFlags], description: "List runs" },
+  "run show": { min: 1, max: 1, flags: [], description: "Inspect a run" },
+  "run events": { min: 1, max: 1, flags: ["after", "limit"], description: "Page run events" },
+  "run execution": { min: 1, max: 1, flags: ["path"], description: "Inspect an execution" },
+  "run transcript": {
+    min: 1,
+    max: 1,
+    flags: ["path", ...pageFlags],
+    description: "Page an execution transcript",
+  },
+  "run output": { min: 2, max: 2, flags: [], description: "Inspect an output preview" },
+  "run children": { min: 1, max: 1, flags: pageFlags, description: "List child runs" },
+  "run foreach": {
+    min: 1,
+    max: 1,
+    flags: ["source", ...pageFlags],
+    description: "List foreach items",
+  },
+  "run usage": { min: 1, max: 1, flags: [], description: "Inspect execution usage" },
+  "run cancel": { min: 1, max: 1, flags: [], description: "Cancel a run" },
+  "run resume": {
+    min: 1,
+    max: 1,
+    flags: [
+      "retry-uncertain-shell",
+      "path",
+      "expected-attempt",
+      "expected-generation",
+      "expected-event-id",
+    ],
+    description:
+      "Resume a run; retrying an uncertain shell requires explicit authorization and a fence",
+  },
+  "run watch": {
+    min: 1,
+    max: 1,
+    flags: ["jsonl", "after", "timeout", "until"],
+    description: "Stream run state and events",
+  },
+  "approval list": {
+    min: 0,
+    max: 0,
+    flags: ["run", "project", ...pageFlags],
+    description: "List approvals",
+  },
+  "approval show": { min: 1, max: 1, flags: ["path"], description: "Inspect an approval" },
+  "approval resolve": {
+    min: 1,
+    max: 1,
+    flags: ["path", "decision", "request-id", "expected-attempt", "expected-generation", "note"],
+    description: "Resolve a fenced approval",
+  },
+  "providers list": { min: 0, max: 0, flags: [], description: "List providers and readiness" },
+  "providers models": {
+    min: 0,
+    max: 0,
+    flags: ["project", "cli"],
+    description: "List provider models",
+  },
+  "providers mcp": {
+    min: 0,
+    max: 0,
+    flags: ["project", "cli"],
+    description: "List configured MCP servers",
+  },
+};
+Object.assign(COMMANDS, {
+  "project remove": { min: 1, max: 1, flags: [], description: "Remove a project registration" },
+  "project relink": { min: 1, max: 1, flags: ["path"], description: "Relink a project path" },
+  "run context": { min: 1, max: 1, flags: pageFlags, description: "Page run context" },
+  "run archive": { min: 1, max: 1, flags: [], description: "Archive a run" },
+  "run restore": { min: 1, max: 1, flags: [], description: "Restore an archived run" },
+  "providers refresh-models": {
+    min: 0,
+    max: 0,
+    flags: ["project", "cli"],
+    description: "Refresh provider model discovery",
+  },
+  "providers probe": { min: 0, max: 0, flags: ["cli"], description: "Probe provider status" },
+  "providers enable": { min: 0, max: 0, flags: ["cli"], description: "Enable a provider" },
+  "providers disable": { min: 0, max: 0, flags: ["cli"], description: "Disable a provider" },
+} satisfies Record<string, CommandSpec>);
+export function capabilities(): unknown {
+  return {
+    contractVersion: 1,
+    commands: Object.entries(COMMANDS).map(([name, spec]) => ({
+      name: name.replace("groups-", "groups "),
+      ...spec,
+      flags: [...common, ...spec.flags],
+    })),
+    nodes: [
+      "start",
+      "agent",
+      "shell",
+      "gate",
+      "join",
+      "approval",
+      "decision",
+      "loop",
+      "foreach",
+      "workflow",
+      "end",
+    ],
+    workspaceModes: ["project", "new-worktree", "existing-worktree"],
+    headlessServer: true,
+    budgetEnforcement: false,
+    schemaIsStructural: true,
+  };
+}
+export class AgentUsageError extends Error {}
+export class AgentCommandError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+    readonly retryable: boolean,
+    readonly details?: unknown,
+    readonly hint?: string,
+  ) {
+    super(message);
+  }
+}
+function validateCommand(positional: string[], flags: Flags): void {
+  const name = positional.slice(0, 2).join(" ");
+  const spec = COMMANDS[name];
+  if (!spec) throw new AgentUsageError(`Unknown command: ${name}`);
+  const count = positional.length - 2;
+  if (count < spec.min || count > spec.max)
+    throw new AgentUsageError(`Wrong number of arguments for ${name}`);
+  for (const flag of Object.keys(flags))
+    if (![...common, ...spec.flags, "help"].includes(flag))
+      throw new AgentUsageError(`--${flag} is not valid for ${name}`);
+  if (
+    flags["retry-uncertain-shell"] !== true &&
+    ["path", "expected-attempt", "expected-generation", "expected-event-id"].some(
+      (key) => flags[key] !== undefined,
+    ) &&
+    name === "run resume"
+  )
+    throw new AgentUsageError("Retry fence requires --retry-uncertain-shell");
+}
+
 type Flags = Record<string, string | boolean | string[]>;
 function parse(args: string[]): { positional: string[]; flags: Flags } {
   const positional: string[] = [];
   const flags: Flags = {};
-  const switches = new Set(["json", "jsonl", "help"]);
+  const switches = new Set(["json", "jsonl", "help", "retry-uncertain-shell"]);
   const values = new Set([
     "data-dir",
     "project",
@@ -42,6 +277,11 @@ function parse(args: string[]): { positional: string[]; flags: Flags } {
     "cli",
     "timeout",
     "until",
+    "source",
+    "status",
+    "workflow",
+    "archived",
+    "expected-event-id",
   ]);
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -55,12 +295,13 @@ function parse(args: string[]): { positional: string[]; flags: Flags } {
       flags[key] = true;
       continue;
     }
-    if (!values.has(key)) throw new Error(`Unknown option: ${arg}`);
+    if (!values.has(key)) throw new AgentUsageError(`Unknown option: ${arg}`);
     const value = args[++i];
-    if (value === undefined || value.startsWith("--")) throw new Error(`${arg} requires a value`);
+    if (value === undefined || value.startsWith("--"))
+      throw new AgentUsageError(`${arg} requires a value`);
     if (key === "param")
       flags[key] = [...(Array.isArray(flags[key]) ? (flags[key] as string[]) : []), value];
-    else if (flags[key] !== undefined) throw new Error(`${arg} supplied more than once`);
+    else if (flags[key] !== undefined) throw new AgentUsageError(`${arg} supplied more than once`);
     else flags[key] = value;
   }
   return { positional, flags };
@@ -70,14 +311,14 @@ function value(flags: Flags, key: string): string | undefined {
   return typeof v === "string" ? v : undefined;
 }
 function required(v: string | undefined, name: string): string {
-  if (!v) throw new Error(`${name} is required`);
+  if (!v) throw new AgentUsageError(`${name} is required`);
   return v;
 }
 function numberFlag(flags: Flags, key: string): number | undefined {
   const raw = value(flags, key);
   if (raw === undefined) return undefined;
   if (!/^\d+$/.test(raw) || !Number.isSafeInteger(Number(raw)))
-    throw new Error(`--${key} must be a nonnegative integer`);
+    throw new AgentUsageError(`--${key} must be a nonnegative integer`);
   return Number(raw);
 }
 async function readInput(file: string): Promise<unknown> {
@@ -102,7 +343,11 @@ async function workflow(flags: Flags): Promise<WorkflowFile> {
   return parsed.value;
 }
 function print(result: unknown): void {
-  process.stdout.write(`${JSON.stringify(result)}\n`);
+  const record =
+    typeof result === "object" && result !== null && !Array.isArray(result)
+      ? { contractVersion: 1, ...result }
+      : { contractVersion: 1, data: result };
+  process.stdout.write(`${JSON.stringify(record)}\n`);
 }
 async function projectId(client: ApiClient, raw: string): Promise<string> {
   let cursor: string | undefined;
@@ -138,15 +383,43 @@ const stopped = (status: string): boolean =>
 
 export async function executeAgentCommands(argv: string[]): Promise<number> {
   const { positional, flags } = parse(argv);
+  if (positional[0] === "workflow" && positional[1] === "groups" && positional[2])
+    positional.splice(1, 2, `groups-${positional[2]}`);
   const [group, action, id, extra] = positional;
   if (flags.help || !group || !action) {
-    process.stdout.write(HELP);
+    const matches = Object.entries(COMMANDS).filter(
+      ([name]) => !group || name.startsWith(`${group} `),
+    );
+    process.stdout.write(
+      HELP +
+        "\n" +
+        matches
+          .map(
+            ([name, spec]) =>
+              `  ${name.replace("groups-", "groups ")}: ${spec.description} [${[...common, ...spec.flags].map((flag) => `--${flag}`).join(" ")}]`,
+          )
+          .join("\n") +
+        "\n",
+    );
+    return 0;
+  }
+  validateCommand(positional, flags);
+  if (group === "workflow" && action === "schema") {
+    print({
+      schema: workflowJsonSchema(),
+      schemaVersion: 1,
+      semanticValidation: "Run workflow validate for graph and project rules.",
+    });
     return 0;
   }
   const metadata = await readServerMetadata(resolve(value(flags, "data-dir") ?? defaultDataDir()));
   if (metadata.status !== "valid")
-    throw new Error(
-      "No usable server metadata; start the server with `devchestra start --headless`.",
+    throw new AgentCommandError(
+      "E_SERVER_UNAVAILABLE",
+      "No usable server metadata.",
+      true,
+      undefined,
+      "Start the server with devchestra start --headless.",
     );
   await attachToServer(metadata.value, { allowHeadless: true });
   const client = new ApiClient({
@@ -168,6 +441,12 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
     if (action === "list") result = await client.listProjects(page);
     else if (action === "add")
       result = await client.registerProject({ path: resolve(required(id, "project path")) });
+    else if (action === "remove")
+      result = await client.removeProject(await projectId(client, required(id, "project")));
+    else if (action === "relink")
+      result = await client.relinkProject(await projectId(client, required(id, "project")), {
+        path: resolve(path()),
+      });
     else if (action === "show") {
       const p = await projectId(client, required(id ?? value(flags, "project"), "project"));
       result = {
@@ -178,6 +457,13 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
   } else if (group === "workflow") {
     const p = await pid();
     if (action === "list") result = await client.listWorkflows(p, page);
+    else if (action === "groups-show") result = await client.getWorkflowGroups(p);
+    else if (action === "groups-update")
+      result = await client.saveWorkflowGroups(
+        p,
+        (await readInput(required(value(flags, "file"), "--file"))) as WorkflowGroupsDocument,
+        required(value(flags, "if-match"), "--if-match"),
+      );
     else if (action === "show") result = await client.getWorkflow(p, required(id, "workflow ID"));
     else if (action === "validate") {
       const wf = await workflow(flags);
@@ -213,6 +499,16 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
       );
       result = { ok: true };
     } else throw new Error(`Unknown workflow action: ${action}`);
+  } else if (group === "gate" && action === "test") {
+    result = await client.testGate(
+      await pid(),
+      (await readInput(required(value(flags, "file"), "--file"))) as GateTestRequest,
+    );
+  } else if (group === "decision" && action === "test") {
+    result = await client.testDecision(
+      await pid(),
+      (await readInput(required(value(flags, "file"), "--file"))) as DecisionTestRequest,
+    );
   } else if (group === "run") {
     if (action === "start") {
       const p = await pid();
@@ -221,11 +517,11 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
         ? await readInput(required(value(flags, "params-file"), "--params-file"))
         : {};
       if (typeof paramsRaw !== "object" || paramsRaw === null || Array.isArray(paramsRaw))
-        throw new Error("Parameters must be a JSON object");
+        throw new AgentUsageError("Parameters must be a JSON object");
       const params = { ...paramsRaw } as Record<string, import("@devchestra/core").JsonValue>;
       for (const param of (flags.param as string[] | undefined) ?? []) {
         const at = param.indexOf("=");
-        if (at < 1) throw new Error("--param requires key=value");
+        if (at < 1) throw new AgentUsageError("--param requires key=value");
         const raw = param.slice(at + 1);
         try {
           params[param.slice(0, at)] = JSON.parse(raw);
@@ -235,9 +531,9 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
       }
       const mode = value(flags, "workspace") ?? "project";
       if (!["project", "new-worktree", "existing-worktree"].includes(mode))
-        throw new Error("Invalid workspace mode");
+        throw new AgentUsageError("Invalid workspace mode");
       if (mode !== "existing-worktree" && value(flags, "worktree-path"))
-        throw new Error("--worktree-path requires existing-worktree mode");
+        throw new AgentUsageError("--worktree-path requires existing-worktree mode");
       const workspace =
         mode === "existing-worktree"
           ? ({ mode, path: required(value(flags, "worktree-path"), "--worktree-path") } as const)
@@ -255,6 +551,13 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
       result = await client.listRuns({
         ...page,
         ...(value(flags, "project") ? { project: await pid() } : {}),
+        ...(value(flags, "workflow") ? { workflow: value(flags, "workflow") } : {}),
+        ...(value(flags, "status")
+          ? { status: value(flags, "status") as import("@devchestra/core").RunStatus }
+          : {}),
+        ...(value(flags, "archived")
+          ? { archived: value(flags, "archived") as "true" | "false" }
+          : {}),
       });
     else if (action === "show") result = await client.getRun(runId());
     else if (action === "events")
@@ -264,35 +567,64 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
           : { after: numberFlag(flags, "after") ?? 0 }),
         ...(page.limit === undefined ? {} : { limit: page.limit }),
       });
+    else if (action === "context") result = await client.getRunContext(runId(), page);
+    else if (action === "archive") result = await client.setRunArchived(runId(), true);
+    else if (action === "restore") result = await client.setRunArchived(runId(), false);
     else if (action === "execution") result = await client.getExecution(runId(), path());
     else if (action === "transcript")
       result = await client.getExecutionTranscript(runId(), path(), page);
     else if (action === "output")
       result = await client.getRunOutput(runId(), required(extra, "output ID"));
     else if (action === "children") result = await client.listRunChildren(runId(), page);
+    else if (action === "foreach")
+      result = await client.listForeachItems(
+        runId(),
+        required(value(flags, "source"), "--source"),
+        page,
+      );
     else if (action === "usage") {
       const detail = await client.getRun(runId());
-      const executions = await Promise.all(
-        Object.keys(detail.view.executions).map(async (executionPath) => {
-          const execution = await client.getExecution(runId(), executionPath);
-          return { path: executionPath, usage: execution.usage };
-        }),
-      );
-      result = { runId: runId(), budget: detail.view.budget, executions };
+      const executions = [];
+      for (const executionPath of Object.keys(detail.view.executions)) {
+        const execution = await client.getExecution(runId(), executionPath);
+        executions.push({ path: executionPath, usage: execution.usage, scope: "current_attempt" });
+      }
+      result = {
+        runId: runId(),
+        budget: detail.view.budget,
+        executions,
+        note: "Per-execution figures are for the current attempt; missing provider reports are not zero cost.",
+      };
     } else if (action === "cancel") result = await client.cancelRun(runId());
-    else if (action === "resume") result = await client.resumeRun(runId());
-    else if (action === "watch") {
+    else if (action === "resume") {
+      const fence =
+        flags["retry-uncertain-shell"] === true
+          ? {
+              path: path(),
+              attempt: numberFlag(flags, "expected-attempt") ?? 0,
+              generation: numberFlag(flags, "expected-generation") ?? 0,
+              eventId: numberFlag(flags, "expected-event-id") ?? -1,
+            }
+          : undefined;
+      result = await client.resumeRun(
+        runId(),
+        {},
+        fence === undefined ? undefined : { uncertaintyFence: fence },
+      );
+    } else if (action === "watch") {
       const after = numberFlag(flags, "after");
       const timeout = numberFlag(flags, "timeout");
+      let lastEventId = after;
       const controller = new AbortController();
       const timer =
         timeout === undefined ? undefined : setTimeout(() => controller.abort(), timeout * 1000);
       const until = value(flags, "until") ?? "action";
       if (!["action", "terminal"].includes(until))
-        throw new Error("--until must be action or terminal");
+        throw new AgentUsageError("--until must be action or terminal");
       try {
-        const initial = await client.getRun(runId());
+        const initial = await client.getRun(runId(), { signal: controller.signal });
         let cursor = after ?? initial.watermark;
+        if (after === undefined) lastEventId = initial.watermark;
         if (after === undefined)
           print({
             event: "snapshot",
@@ -301,12 +633,19 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
         else {
           let hasMore = true;
           while (hasMore) {
-            const page = await client.listRunEvents(runId(), {
-              after: cursor,
-              upTo: initial.watermark,
-              limit: 200,
-            });
-            for (const event of page.events) print({ event: "run", id: event.id, data: event });
+            const page = await client.listRunEvents(
+              runId(),
+              {
+                after: cursor,
+                upTo: initial.watermark,
+                limit: 200,
+              },
+              { signal: controller.signal },
+            );
+            for (const event of page.events) {
+              print({ event: "run", id: event.id, data: event });
+              lastEventId = event.id;
+            }
             cursor = page.nextAfter;
             hasMore = page.hasMore;
           }
@@ -325,16 +664,47 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
         )) {
           print(message);
           if (message.event === "overflow")
-            throw new Error(`Stream overflow; reconnect with --after ${message.data.lastEventId}`);
+            throw new AgentCommandError(
+              "E_STREAM_OVERFLOW",
+              "Stream overflow.",
+              true,
+              { lastEventId: message.data.lastEventId },
+              "Reconnect with --after using lastEventId.",
+            );
+          if (message.event === "run") lastEventId = message.id;
           if (message.event === "run") {
-            const detail = await client.getRun(runId());
+            const detail = await client.getRun(runId(), { signal: controller.signal });
             if (message.id >= detail.watermark && shouldStop(detail.view.status)) {
               print({ event: "state", data: detail.view });
               return exitFor(detail.view.status);
             }
           }
         }
-        throw new Error("Run stream disconnected; reconnect using the last event ID");
+        throw new AgentCommandError(
+          "E_STREAM_DISCONNECTED",
+          "Run stream disconnected.",
+          true,
+          { lastEventId },
+          "Inspect the run and reconnect with --after using lastEventId.",
+        );
+      } catch (error) {
+        if (error instanceof ApiTransportError)
+          throw new AgentCommandError(
+            "E_STREAM_DISCONNECTED",
+            "Run stream disconnected.",
+            true,
+            { lastEventId },
+            "Inspect the run and reconnect with --after using lastEventId.",
+          );
+        if (controller.signal.aborted)
+          throw new AgentCommandError(
+            "E_TIMEOUT",
+            "Watch timed out.",
+            true,
+            { lastEventId },
+            "Inspect the run and reconnect with --after using lastEventId.",
+          );
+        throw error;
       } finally {
         if (timer) clearTimeout(timer);
         controller.abort();
@@ -352,7 +722,7 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
     else if (action === "resolve") {
       const decision = required(value(flags, "decision"), "--decision");
       if (decision !== "approve" && decision !== "reject")
-        throw new Error("--decision must be approve or reject");
+        throw new AgentUsageError("--decision must be approve or reject");
       result = await client.resolveApproval(runId(), path(), {
         decision,
         requestId: required(value(flags, "request-id"), "--request-id"),
@@ -375,6 +745,17 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
         await pid(),
         required(value(flags, "cli"), "--cli") as CatalogCli,
       );
+    else if (action === "refresh-models")
+      result = await client.refreshCliModels(
+        await pid(),
+        required(value(flags, "cli"), "--cli") as CatalogCli,
+      );
+    else if (action === "probe")
+      result = await client.probeCli(required(value(flags, "cli"), "--cli") as CatalogCli);
+    else if (action === "enable" || action === "disable")
+      result = await client.setCliEnabled(required(value(flags, "cli"), "--cli") as CatalogCli, {
+        enabled: action === "enable",
+      });
     else if (action === "mcp")
       result = await client.getCliMcpServers(
         await pid(),

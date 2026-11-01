@@ -510,12 +510,16 @@ export class ApiClientBase {
     );
   }
 
-  resumeRun(runId: string, options: ApiRequestOptions = {}): Promise<CommandResponse> {
+  resumeRun(
+    runId: string,
+    options: ApiRequestOptions = {},
+    body?: import("./dto.js").ResumeRunRequest,
+  ): Promise<CommandResponse> {
     return this.request(
       "POST",
       ["runs", runId, "resume"],
       commandResponseSchema,
-      this.req(options, { mutation: true }),
+      this.req(options, { mutation: true, ...(body === undefined ? {} : { body }) }),
     );
   }
 

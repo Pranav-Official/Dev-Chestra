@@ -71,9 +71,57 @@ describe.skipIf(!existsSync(main))("agent CLI lifecycle", () => {
       });
       return { code: result.status, out: result.stdout, err: result.stderr };
     }
+    const schema = run("workflow", "schema");
+    expect(schema.code, schema.err).toBe(0);
+    expect(JSON.parse(schema.out)).toMatchObject({
+      contractVersion: 1,
+      schemaVersion: 1,
+      schema: { type: "object" },
+    });
+    const invalidFlag = run("project", "list", "--file", file);
+    expect(invalidFlag.code).toBe(4);
+    expect(JSON.parse(invalidFlag.err)).toMatchObject({
+      contractVersion: 1,
+      error: { code: "E_VALIDATION", retryable: false },
+    });
     expect(run("project", "add", project).code).toBe(0);
     expect(existsSync(join(project, ".devchestra", "skill.md"))).toBe(false);
     expect(run("workflow", "validate", "--project", project, "--file", file).code).toBe(0);
+    const groupView = JSON.parse(run("workflow", "groups", "show", "--project", project).out);
+    const groupFile = join(root, "groups.json");
+    writeFileSync(groupFile, JSON.stringify(groupView.document));
+    expect(
+      run(
+        "workflow",
+        "groups",
+        "update",
+        "--project",
+        project,
+        "--file",
+        groupFile,
+        "--if-match",
+        groupView.etag,
+      ).code,
+    ).toBe(0);
+    const gateFile = join(root, "gate.json");
+    writeFileSync(
+      gateFile,
+      JSON.stringify({
+        gate: {
+          id: "gate",
+          type: "gate",
+          name: "Gate",
+          branches: [
+            { id: "yes", when: "true" },
+            { id: "other", otherwise: true },
+          ],
+        },
+        scope: {},
+      }),
+    );
+    const gate = run("gate", "test", "--project", project, "--file", gateFile);
+    expect(gate.code, gate.err).toBe(0);
+    expect(JSON.parse(gate.out)).toMatchObject({ contractVersion: 1, branch: "yes" });
     const created = run("workflow", "create", "--project", project, "--file", file);
     expect(created.code, created.err).toBe(0);
     expect(run("workflow", "create", "--project", project, "--file", file).code).toBe(4);
@@ -104,6 +152,13 @@ describe.skipIf(!existsSync(main))("agent CLI lifecycle", () => {
     expect(JSON.parse(duplicate.out)).toMatchObject({ runId: id, duplicate: true });
     const watch = run("run", "watch", id, "--timeout", "10");
     expect(watch.code, watch.err).toBe(5);
+    const timeout = run("run", "watch", id, "--until", "terminal", "--timeout", "1");
+    expect(timeout.code).toBe(1);
+    expect(JSON.parse(timeout.err)).toMatchObject({
+      contractVersion: 1,
+      error: { code: "E_TIMEOUT", retryable: true },
+    });
+    expect(JSON.parse(run("run", "show", id).out).view.status).toBe("waiting_approval");
     const detail = JSON.parse(run("approval", "list", "--run", id).out).items[0];
     const args = [
       "approval",
@@ -135,8 +190,120 @@ describe.skipIf(!existsSync(main))("agent CLI lifecycle", () => {
     );
     expect(replay.code, replay.err).toBe(0);
     expect(replay.out).toContain('"type":"run.completed"');
+    const firstPage = JSON.parse(run("run", "events", id, "--limit", "2").out);
+    expect(firstPage.events).toHaveLength(2);
+    expect(firstPage.hasMore).toBe(true);
+    const nextPage = JSON.parse(
+      run("run", "events", id, "--after", String(firstPage.nextAfter), "--limit", "2").out,
+    );
+    expect(nextPage.events[0].id).toBeGreaterThan(firstPage.events[1].id);
+    expect(JSON.parse(timeout.err).error.details.lastEventId).toBeGreaterThan(0);
     expect(JSON.parse(run("run", "show", id).out).view.status).toBe("succeeded");
+    const second = JSON.parse(run("run", "start", "review", "--project", project).out)
+      .runId as string;
+    expect(run("run", "watch", second, "--timeout", "10").code).toBe(5);
+    expect(run("run", "cancel", second).code).toBe(0);
+    const cancelled = run("run", "watch", second, "--timeout", "10");
+    expect(cancelled.code, cancelled.err).toBe(3);
+    expect(JSON.parse(run("run", "show", second).out).view.status).toBe("cancelled");
     expect(readFileSync(file, "utf8")).toContain('"id":"review"');
     expect(run("stop", "--force").code).toBe(0);
+  }, 60_000);
+  it("fences uncertain shell retry across server restart", async () => {
+    const root = mkdtempSync(join(tmpdir(), "devchestra-recovery-e2e-"));
+    dirs.push(root);
+    const project = join(root, "project"),
+      data = join(root, "data"),
+      file = join(root, "workflow.json");
+    mkdirSync(project);
+    writeFileSync(
+      file,
+      JSON.stringify({
+        schemaVersion: 1,
+        id: "recover",
+        name: "Recover",
+        graph: {
+          nodes: [
+            { id: "start", type: "start", name: "Start", params: [] },
+            { id: "hold", type: "shell", name: "Hold", command: "sleep 2", timeoutMin: 1 },
+            { id: "end", type: "end", name: "End", status: "success", result: "{}" },
+          ],
+          edges: [
+            { id: "a", from: "start", to: "hold" },
+            { id: "b", from: "hold", to: "end" },
+          ],
+        },
+      }),
+    );
+    const startServer = async () => {
+      const server = spawn(
+        process.execPath,
+        [main, "start", "--headless", "--data-dir", data, "--port", "0"],
+        { stdio: ["ignore", "pipe", "pipe"] },
+      );
+      servers.push(server);
+      await new Promise<void>((done, fail) => {
+        const timer = setTimeout(() => fail(new Error("server did not start")), 20_000);
+        server.stdout?.on("data", (chunk: Buffer) => {
+          if (chunk.toString().includes("devchestra.ready")) {
+            clearTimeout(timer);
+            done();
+          }
+        });
+        server.once("exit", () => {
+          clearTimeout(timer);
+          fail(new Error("server exited before ready"));
+        });
+      });
+    };
+    const run = (...args: string[]) => {
+      const r = spawnSync(process.execPath, [main, ...args, "--data-dir", data], {
+        encoding: "utf8",
+        timeout: 20_000,
+      });
+      return { code: r.status, out: r.stdout, err: r.stderr };
+    };
+    await startServer();
+    expect(run("project", "add", project).code).toBe(0);
+    expect(run("workflow", "create", "--project", project, "--file", file).code).toBe(0);
+    const started = run("run", "start", "recover", "--project", project);
+    expect(started.code, started.err).toBe(0);
+    const runId = JSON.parse(started.out).runId as string;
+    let active = false;
+    for (let n = 0; n < 30 && !active; n++) {
+      const shown = run("run", "show", runId);
+      active = JSON.parse(shown.out).view.executions.hold?.status === "running";
+      if (!active) await new Promise((resolveWait) => setTimeout(resolveWait, 30));
+    }
+    expect(active).toBe(true);
+    expect(run("stop", "--force").code).toBe(0);
+    await startServer();
+    const shown = JSON.parse(run("run", "show", runId).out);
+    expect(shown.view).toMatchObject({ status: "paused", pauseReason: "uncertain_side_effect" });
+    const execution = shown.view.executions.hold;
+    expect(run("run", "resume", runId).code).toBe(4);
+    const fence = [
+      "run",
+      "resume",
+      runId,
+      "--retry-uncertain-shell",
+      "--path",
+      "hold",
+      "--expected-attempt",
+      String(execution.attempt),
+      "--expected-generation",
+      String(execution.generation),
+      "--expected-event-id",
+      String(shown.watermark),
+    ];
+    const stale = [...fence];
+    stale[stale.indexOf("--expected-generation") + 1] = String(execution.generation + 1);
+    expect(run(...stale).code).toBe(4);
+    const resumed = run(...fence);
+    expect(resumed.code, resumed.err).toBe(0);
+    const watched = run("run", "watch", runId, "--timeout", "10");
+    expect(watched.code, watched.err).toBe(0);
+    expect(JSON.parse(run("run", "show", runId).out).view.status).toBe("succeeded");
+    expect(run("stop").code).toBe(0);
   }, 60_000);
 });
