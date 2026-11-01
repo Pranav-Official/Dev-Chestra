@@ -23,6 +23,7 @@ import type {
 import {
   createBrowserStream,
   createMcpServersPort,
+  createProviderStatusService,
   createStoreQueryPort,
   DevChestraError as ServerDevChestraError,
   startBrowserServer,
@@ -170,6 +171,7 @@ async function defaultBrowserFactory(wiring: BrowserWiring): Promise<BrowserList
     store: createStoreQueryPort(wiring.store),
     controller: wiring.controller,
     modelCatalog: wiring.modelCatalog,
+    providerStatus: createProviderStatusService(),
     providerSettings: {
       list: () =>
         wiring.store.providerSettings.list().map(({ cli, enabled }) => ({ cli, enabled })),

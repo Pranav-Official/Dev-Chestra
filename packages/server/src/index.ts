@@ -37,6 +37,10 @@ export type {
   WorkspaceView,
 } from "./browser/ports.js";
 export {
+  createProviderStatusService,
+  type ProviderStatusService,
+} from "./browser/provider-status.js";
+export {
   type BrowserServerDeps,
   type RunningBrowserServer,
   startBrowserServer,

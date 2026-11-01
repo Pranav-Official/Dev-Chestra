@@ -311,6 +311,7 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
     controller: deps.controller,
     dataDir,
     ...(deps.workspaceService === undefined ? {} : { workspaceService: deps.workspaceService }),
+    ...(deps.providerSettings === undefined ? {} : { providerSettings: deps.providerSettings }),
     validate,
   });
   mountModelRoutes(app, {
@@ -340,6 +341,7 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
       }),
     dataDir,
     ...(deps.workspaceService === undefined ? {} : { workspaceService: deps.workspaceService }),
+    ...(deps.providerSettings === undefined ? {} : { providerSettings: deps.providerSettings }),
     validate,
   });
 
