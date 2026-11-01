@@ -13,6 +13,7 @@ import {
 } from "@devchestra/core";
 import { isProdCliId, resolveParams } from "@devchestra/schema";
 import type { CreateRunInput, CreateRunResult, RunRecord } from "@devchestra/store";
+import { cliDisabledError } from "./agent-preflight.js";
 import {
   consumeStaleWakesForWaiting,
   consumeWakesForTerminal,
@@ -471,6 +472,7 @@ export class LinearEngine implements Engine {
           details: { cli },
         });
       }
+      if (this.#ctx.deps.isCliEnabled?.(cli) === false) throw cliDisabledError(cli);
       const provider = getProvider(cli);
       if (provider.experimental) {
         const allowed = this.#ctx.deps.allowExperimentalClis ?? [];

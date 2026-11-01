@@ -6,6 +6,7 @@ import {
   isProdCliId,
 } from "@devchestra/adapters";
 import { DevChestraError } from "@devchestra/core";
+import { PROD_CLI_LABELS } from "@devchestra/schema";
 import type { EngineContext } from "./context.js";
 import type { PlanNode } from "./graph-plan.js";
 
@@ -14,6 +15,16 @@ import type { PlanNode } from "./graph-plan.js";
 export function readCliId(value: unknown): CliId {
   if (isCliId(value)) return value;
   throw new DevChestraError("E_CLI_MISSING", `Adapter '${String(value)}' is not available`);
+}
+
+/** A provider the user turned off in Settings. Refused before any durable work. */
+export function cliDisabledError(cli: CliId): DevChestraError {
+  const label = isProdCliId(cli) ? PROD_CLI_LABELS[cli] : cli;
+  return new DevChestraError(
+    "E_CLI_DISABLED",
+    `${label} is turned off. Turn it on in Settings > Providers.`,
+    { details: { cli } },
+  );
 }
 
 export interface AgentAdapter {
@@ -29,6 +40,7 @@ export interface AgentAdapter {
  */
 export function resolveAgentAdapter(ctx: EngineContext, node: PlanNode): AgentAdapter {
   const provider = getProvider(readCliId(node.raw.cli));
+  if (ctx.deps.isCliEnabled?.(provider.id) === false) throw cliDisabledError(provider.id);
   const adapter = ctx.deps.adapters.get(provider.id);
   if (provider.experimental) {
     const allowed = ctx.deps.allowExperimentalClis ?? [];

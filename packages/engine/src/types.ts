@@ -1,4 +1,4 @@
-import type { AdapterRegistry, ResolvedMcpServer, RunRequest } from "@devchestra/adapters";
+import type { AdapterRegistry, CliId, ResolvedMcpServer, RunRequest } from "@devchestra/adapters";
 import type {
   Clock,
   DevChestraError,
@@ -137,6 +137,8 @@ export interface EngineDeps {
   readonly env?: NodeJS.ProcessEnv;
   /** Caller-owned opt-in for unverified real CLI profiles. Fake is test-only behind DEVCHESTRA_ALLOW_FAKE. */
   readonly allowExperimentalClis?: readonly ProdCliId[];
+  /** Provider on/off switch from Settings. Absent means every CLI is enabled. */
+  readonly isCliEnabled?: (cli: CliId) => boolean;
   readonly prompts?: Readonly<Record<string, string>>;
   /** Explicit non-secret env names the caller wants preserved (e.g. fake fixture path). */
   readonly extraEnvNames?: readonly string[];
