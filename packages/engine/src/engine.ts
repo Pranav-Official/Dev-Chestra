@@ -256,6 +256,29 @@ export class LinearEngine implements Engine {
       if (isTerminal(run.status as RunStatus)) {
         throw new DevChestraError("E_CONFLICT", `Run ${runId} is already ${run.status}`);
       }
+      if (options.uncertaintyFence !== undefined) {
+        const view = this.#ctx.store.view.get(runId as RunId);
+        const fence = options.uncertaintyFence;
+        const execution = view.executions[fence.path];
+        const interruptedShells = Object.values(view.executions).filter(
+          (item) => item.kind === "shell" && item.status === "interrupted",
+        );
+        if (
+          interruptedShells.length !== 1 ||
+          view.status !== "paused" ||
+          view.pauseReason !== "uncertain_side_effect" ||
+          (view.pausePath !== fence.path && view.pausePath !== "" && view.pausePath !== null) ||
+          view.lastEventId !== fence.eventId ||
+          execution?.attempt !== fence.attempt ||
+          execution.generation !== fence.generation ||
+          execution.status !== "interrupted"
+        ) {
+          throw new DevChestraError(
+            "E_CONFLICT",
+            "The uncertain shell pause has changed; inspect the run again before retrying.",
+          );
+        }
+      }
       const active = this.#active.get(runId);
       if (active !== undefined) {
         if (active.state.reason === "shutdown") {

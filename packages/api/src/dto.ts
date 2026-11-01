@@ -685,3 +685,14 @@ export const usageQuerySchema = strict({
 });
 
 export type UsageQuery = z.infer<typeof usageQuerySchema>;
+
+/** Acknowledgement is fenced to the exact interrupted shell and run watermark. */
+export const resumeRunRequestSchema = strict({
+  uncertaintyFence: strict({
+    path: z.string().min(1),
+    attempt: z.number().int().positive(),
+    generation: z.number().int().positive(),
+    eventId: z.number().int().nonnegative(),
+  }).optional(),
+});
+export type ResumeRunRequest = z.infer<typeof resumeRunRequestSchema>;

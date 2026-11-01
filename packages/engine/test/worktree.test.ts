@@ -394,7 +394,28 @@ describe("run-level workspaces", () => {
 
     const resumedEngine = engineFor(store, dataDir, port);
     await resumedEngine.start();
-    const resumed = await resumedEngine.resume(runId, { allowUncertainSideEffectRetry: true });
+    const pausedView = store.view.get(runId as never);
+    const interrupted = pausedView.executions.hold;
+    expect(interrupted?.status).toBe("interrupted");
+    if (!interrupted) throw new Error("missing interrupted shell");
+    const fence = {
+      path: "hold",
+      attempt: interrupted.attempt,
+      generation: interrupted.generation,
+      eventId: pausedView.lastEventId,
+    };
+    const denied = await resumedEngine.launchResume(runId);
+    expect(denied.ok).toBe(false);
+    const stale = await resumedEngine.launchResume(runId, {
+      allowUncertainSideEffectRetry: true,
+      uncertaintyFence: { ...fence, generation: fence.generation + 1 },
+    });
+    expect(stale.ok).toBe(false);
+    const resumed = await resumedEngine.resume(runId, {
+      allowUncertainSideEffectRetry: true,
+      approvedBy: "tester",
+      uncertaintyFence: fence,
+    });
     expect(resumed.ok).toBe(true);
     if (!resumed.ok) throw resumed.error;
     expect(resumed.value.status).toBe("succeeded");

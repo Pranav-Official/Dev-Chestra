@@ -84,7 +84,7 @@ function setup(options: { isCliEnabled?: (cli: CliId) => boolean } = {}): Setup 
     mcpShimEntry: join(dataDir, "unused-shim.js"),
     env: process.env,
     maxNodeTimeoutMs: 15_000,
-    validateOutput: () => ok({ ok: true }),
+    validateOutput: () => ({ ok: true }),
     ...(options.isCliEnabled === undefined ? {} : { isCliEnabled: options.isCliEnabled }),
   };
   const engine = createEngine(deps);

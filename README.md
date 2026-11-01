@@ -93,7 +93,7 @@ Decision nodes are the one exception — they need their own keys. Copy `.env.ex
 
 ## It lives where you already work
 
-Registering a project drops a `.devchestra/skill.md` file into your repo. It's a plain-English guide that teaches *your* agent — whatever lives in your REPL or IDE — how to write valid workflows for your project.
+Run `devchestra skill` to print the installed agent guide. It explains how to author, run, and monitor workflows from the CLI without the graphical interface. Existing project-local skill files are left untouched.
 
 So you don't learn a new tool. You just tell your agent "add a workflow that lints, then asks me before fixing," and it draws the boxes for you. Rerun it, share it, version it like code.
 

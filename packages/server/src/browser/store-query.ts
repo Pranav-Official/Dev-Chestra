@@ -18,7 +18,6 @@ import type {
   RunSummary as StoreRunSummary,
 } from "@devchestra/store";
 import { DevChestraError } from "../errors.js";
-import { ensureProjectSkill } from "../workflows/skill.js";
 import type {
   BrowserQueryPort,
   EventPage,
@@ -221,9 +220,6 @@ export function createStoreQueryPort(store: Store): BrowserQueryPort {
     },
     getProject,
     registerProject(input: RegisterProjectCommand): ProjectView {
-      // Seed (or backfill) the agent guide before touching the registry, so a path
-      // that cannot hold it is rejected instead of being half-registered.
-      ensureProjectSkill(input.path);
       const existing = store.projects.findByPath(input.path);
       if (existing !== null) {
         store.projects.ensure({
@@ -246,7 +242,6 @@ export function createStoreQueryPort(store: Store): BrowserQueryPort {
       return toProject(record);
     },
     relinkProject(input: RelinkProjectCommand): ProjectView {
-      ensureProjectSkill(input.path);
       const record = store.projects.relink({
         projectId: input.projectId,
         path: input.path,

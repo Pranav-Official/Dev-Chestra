@@ -59,7 +59,10 @@ const DEFAULT_WEB_ROOT = join(REPO_ROOT, "apps/web/dist");
 export interface BrowserRunController {
   startRun(input: StartRunCommand): Promise<StartRunResponse>;
   cancelRun(runId: string): Promise<CommandResponse>;
-  resumeRun(runId: string): Promise<CommandResponse>;
+  resumeRun(
+    runId: string,
+    request?: import("@devchestra/api").ResumeRunRequest,
+  ): Promise<CommandResponse>;
   resolveApproval(input: {
     runId: string;
     path: string;
@@ -89,7 +92,7 @@ export interface BrowserWiring {
   instanceId: string;
   version: string;
   port: number;
-  webRoot: string;
+  webRoot?: string;
 }
 
 export interface BrowserListener {
@@ -188,7 +191,7 @@ async function defaultBrowserFactory(wiring: BrowserWiring): Promise<BrowserList
     instanceId: wiring.instanceId,
     version: wiring.version,
     port: wiring.port,
-    webRoot: wiring.webRoot,
+    ...(wiring.webRoot === undefined ? {} : { webRoot: wiring.webRoot }),
   });
   const closed = new Promise<void>((resolveClose) => {
     running.server.once("close", () => {
@@ -322,8 +325,14 @@ function controllerFor(
       );
       return { runId: runId as RunId, status: record.status as RunStatus };
     },
-    async resumeRun(runId) {
-      const launched = await engine.launchResume(runId);
+    async resumeRun(runId, request) {
+      const fence = request?.uncertaintyFence;
+      const launched = await engine.launchResume(
+        runId,
+        fence === undefined
+          ? {}
+          : { allowUncertainSideEffectRetry: true, approvedBy: "user", uncertaintyFence: fence },
+      );
       if (!launched.ok) throw launched.error;
       observe(runId, launched.value.completion);
       return { runId: runId as RunId, status: statusOf(runId, "paused") };
@@ -531,7 +540,7 @@ export async function executeStart(
     if (prior.status !== "missing") {
       await clearServerMetadata(dataDir);
     }
-    const webRoot = await resolveWebRoot(deps.webRoot);
+    const webRoot = options.headless ? undefined : await resolveWebRoot(deps.webRoot);
 
     gateway = await startGateway(store);
     const fakeScript = await loadFakeScript(options.fakeScript);
@@ -553,7 +562,7 @@ export async function executeStart(
         sessionToken,
         instanceId,
         version,
-        webRoot,
+        ...(webRoot === undefined ? {} : { webRoot }),
       },
       options.port,
     );

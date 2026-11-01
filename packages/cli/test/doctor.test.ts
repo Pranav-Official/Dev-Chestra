@@ -29,22 +29,11 @@ describe("devchestra doctor decision providers", () => {
     const dir = mkdtempSync(join(tmpdir(), "devchestra-doctor-dec-"));
     try {
       const sentinel = `sentinel-${Date.now()}-key`;
-      const previous = process.env.TYPESAFE_API_KEY;
-      process.env.TYPESAFE_API_KEY = sentinel;
-      // Keep Cloudflare vars absent so both states appear.
-      const prevAccount = process.env.CLOUDFLARE_ACCOUNT_ID;
-      const prevToken = process.env.CLOUDFLARE_AUTH_TOKEN;
-      delete process.env.CLOUDFLARE_ACCOUNT_ID;
-      delete process.env.CLOUDFLARE_AUTH_TOKEN;
-      let result: DoctorResult;
-      try {
-        result = await runDoctor(join(dir, "data"));
-      } finally {
-        if (previous === undefined) delete process.env.TYPESAFE_API_KEY;
-        else process.env.TYPESAFE_API_KEY = previous;
-        if (prevAccount !== undefined) process.env.CLOUDFLARE_ACCOUNT_ID = prevAccount;
-        if (prevToken !== undefined) process.env.CLOUDFLARE_AUTH_TOKEN = prevToken;
-      }
+      const decisions = createDecisionService({
+        env: { TYPESAFE_API_KEY: sentinel },
+        dotenvPath: null,
+      });
+      const result: DoctorResult = await runDoctor(join(dir, "data"), { decisions });
       const names = result.checks.map((check) => check.name);
       expect(names).toContain("decision-typesafe-jev");
       expect(names).toContain("decision-cloudflare-clef");

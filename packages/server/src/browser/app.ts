@@ -1,6 +1,7 @@
 import { realpathSync, statSync } from "node:fs";
 import {
   type ErrorResponse,
+  resumeRunRequestSchema,
   runContextQuerySchema,
   runEventsQuerySchema,
   runListQuerySchema,
@@ -581,8 +582,9 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
     if (isTerminalRunStatus(run.status)) {
       return c.json(errorBody("E_CONFLICT", `Run ${runId} is already ${run.status}.`), 409);
     }
-    await readOptionalJson(c);
-    const result = await deps.controller.resumeRun(runId);
+    const request = resumeRunRequestSchema.safeParse(await readOptionalJson(c));
+    if (!request.success) return c.json(errorBody("E_VALIDATION", "Invalid resume request."), 400);
+    const result = await deps.controller.resumeRun(runId, request.data);
     const response = { runId: result.runId, status: ensureRunStatus(result.status) };
     validate("CommandResponse", response);
     return json(c, response, 202);

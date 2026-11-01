@@ -161,6 +161,9 @@ importers:
       '@devchestra/adapters':
         specifier: workspace:*
         version: link:../adapters
+      '@devchestra/api':
+        specifier: workspace:*
+        version: link:../api
       '@devchestra/core':
         specifier: workspace:*
         version: link:../core

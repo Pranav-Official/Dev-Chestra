@@ -207,6 +207,12 @@ export interface LaunchResult {
 export interface ResumeOptions {
   readonly allowUncertainSideEffectRetry?: boolean;
   readonly approvedBy?: string;
+  readonly uncertaintyFence?: {
+    path: string;
+    attempt: number;
+    generation: number;
+    eventId: number;
+  };
 }
 
 export interface Engine {

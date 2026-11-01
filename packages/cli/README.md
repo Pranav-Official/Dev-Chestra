@@ -1,93 +1,37 @@
-# @devchestra/cli — P1 headless runner
+# DevChestra CLI
 
-Native Windows support is experimental on `spike/windows-native`. Windows uses
-`%LOCALAPPDATA%\devchestra` for data, PowerShell for shell nodes, and a local
-authenticated pipe for graceful `stop`.
+The CLI supports both a durable server-backed interface for agents and the existing embedded runner. Node 22 or newer is required. `--data-dir` defaults to `DEVCHESTRA_DATA_DIR`, then the platform data directory.
 
-Built binary: `packages/cli/dist/main.js` (`devchestra`). The root scripts forward:
+Start the local API without a browser or web build in a long-lived terminal:
 
 ```sh
-pnpm devchestra start --data-dir <dir> [--port N] [--no-open] [--print-url] [options]
-pnpm devchestra run <workflow.json> --project <dir> --data-dir <dir> [options]
-pnpm devchestra resume <runId> --data-dir <dir> [options]
-pnpm devchestra doctor --data-dir <dir> [--json]
-pnpm devchestra version
+devchestra start --headless
 ```
 
-`--data-dir` is required in this milestone. There is no default config and no `~/.devchestra` fallback.
-
-## Browser server (`devchestra start`)
-
-The long-lived listener binds loopback only and serves the browser API plus the built web app at `apps/web/dist`. A missing web build is a startup error; run `pnpm build` first. `--port 0` is ephemeral; an omitted port scans 4821..4890 and falls back to ephemeral. On EADDRINUSE the listener retries ephemerally and reports the actual port.
-
-`--no-open` suppresses the browser; `--print-url` prints the tokenised bootstrap URL once. No token appears in logs, errors or `devchestra` argv.
-
-`<dataDir>/server.json` is written atomically with mode `0600`; a newly created data directory is `0700`:
-
-```json
-{"version":"0.1.0","pid":123,"pidStart":"linux:...","port":4821,"token":"<32 random bytes base64url>","instanceId":"<16 random bytes base64url>","startedAt":1790000000000}
-```
-
-One machine-readable `devchestra.ready` NDJSON line (no token) is printed after the listener and metadata are ready. A second `devchestra start` attaches only when the lock owner, `pidStart`, metadata owner and `/api/health` instance identity all match; it never mints a second token or overwrites live metadata. A lock held with unverifiable metadata exits 4.
-
-SIGINT/SIGTERM close HTTP/SSE first, then `engine.stop` (pausing active runs for manual resume), then gateway/store and the lock. Clean shutdown removes only this process's `server.json`. Startup recovery never auto-resumes or dispatches a run, and browser startup never starts work.
-
-## Linear example (needs a signed-in provider CLI)
+Run `devchestra skill` for the bundled workflow authoring and CLI guide. Existing project-local `.devchestra/skill.md` files are left untouched and may be out of date. `devchestra project --help` lists the agent command groups.
 
 ```sh
-tmp=$(mktemp -d)
-mkdir -p "$tmp/project" "$tmp/data"
-cp examples/linear-codex.json "$tmp/project/workflow.json"
-cat > "$tmp/script.json" <<'JSON'
-[{"type":"submit","output":{"summary":"A short note.","points":["one","two"]}}]
-JSON
-pnpm devchestra run workflow.json \
-  --project "$tmp/project" \
-  --data-dir "$tmp/data" \
-  --param topic=orchestration \
-  --json
+devchestra project add /path/to/project
+devchestra workflow validate --project /path/to/project --file workflow.json
+devchestra workflow create --project /path/to/project --file workflow.json
+devchestra run start my-workflow --project /path/to/project --idempotency-key my-request
+devchestra run watch <run-id> --jsonl
 ```
 
-The workflow path must resolve inside `--project`. Supported agent CLIs are `claude-code`, `codex`, `opencode` and `pi` (registry-backed; see `GET /api/clis`) and are official (no opt-in flag). The fake CLI is test-only behind `DEVCHESTRA_ALLOW_FAKE=1`; its script is an explicit caller fixture, never read from workflow `cliOptions`.
+Commands produce JSON; watch produces JSONL. `--file -` reads stdin. Run start takes `--params-file`, repeatable `--param key=value`, `--workspace project|new-worktree|existing-worktree` and `--worktree-path`. For a lost start response, retry with the same idempotency key and workflow ETag (`--if-match`). The server checks the saved workflow revision before idempotency lookup, so an edit in the meantime can produce a conflict; inspect the run list instead of starting again with a new key. `workflow show` returns an ETag, which is required by `workflow update` and `workflow delete` to prevent overwriting concurrent edits.
 
-## Stopping and checking the server
+The server owns the run, so disconnecting the watcher leaves it running. `run show`, `run events`, `run execution`, `run transcript`, `run output`, `run children` and `run usage` expose persisted information. `run watch --after <event-id>` replays events after that cursor and continues live; event IDs can have gaps. Watch stops at a terminal state or a human-action state by default; `--until terminal` keeps watching through pauses and `--timeout <seconds>` bounds the wait. Exit codes for watch are 0 succeeded, 1 failed or disconnected, 2 rejected, 3 cancelled and 5 paused or awaiting approval. Inspection commands return success when the inspection succeeds, even if the run failed.
 
-```sh
-devchestra status            # running? url, uptime, active runs; exit 0 if running, 1 if not
-devchestra stop              # graceful stop (SIGTERM); refuses while runs are active
-devchestra stop --force      # stop anyway; SIGKILL if it will not exit within --timeout (default 15s)
-```
+Use `approval list --run <id>` and `approval show <id> --path <path>` to inspect a review. Once the user has made a decision, submit it using `approval resolve <id> --path <path> --decision approve|reject --request-id <id> --expected-attempt <n> --expected-generation <n>`. The request identity prevents a stale approval from resolving a newer request. Run `run cancel` or `run resume` when appropriate. Editing a workflow does not change an existing run's frozen snapshot.
 
-Both read the server record in the data dir and verify the recorded process is really the DevChestra server
-(pid and start time) before signalling it, so a recycled pid is never touched. `stop` also clears a leftover
-record after a crash or reboot. Add `--json` for machine-readable output.
+The server binds loopback only and stores owner-only server metadata in the data directory. `devchestra status` reports its status; `devchestra stop` gracefully stops it and refuses while runs are active unless `--force` is provided. Server shutdown pauses active work; startup does not automatically resume it. The embedded `devchestra run <workflow.json> --project <dir> --json` and `devchestra resume <run-id>` commands remain available, and still require exclusive ownership of the data directory. Their `--json` output is the existing NDJSON event stream and summary.
 
-## Options
+Budget enforcement is not supported by the embedded runner. Provider usage can be missing or estimated; a numeric zero alone does not establish that no cost was incurred. An uncertain shell effect requires inspection and explicit authorization before retrying; embedded resume provides `--retry-uncertain-shell`.
 
-- `--param k=v` — repeatable; JSON scalars/objects are parsed, otherwise the value is a string.
-- `--json` — NDJSON of **all** persisted `EventEnvelope`s, then one `{type:"summary",...}` line.
-- `--embedded` — accepted; this milestone is always in-process.
-- `--non-interactive` — accepted; the CLI never prompts.
-- `--retry-uncertain-shell` — resume only; explicit user approval to retry an interrupted shell that may have had external effects. Without it, an uncertain shell pause exits 5 and is not replayed.
-- `--allow-experimental-adapters` — deprecated and ignored; all adapters are official.
-- `--fake-script <file>` — test-only fake-agent script for start/run/resume (requires `DEVCHESTRA_ALLOW_FAKE=1`). For `start` it applies to every fake-agent run launched through the API; browser requests cannot inject a script.
-- `--force` / `--timeout <secs>` — stop only: stop despite active runs and SIGKILL if the server will not exit; seconds to wait for a clean exit (default 15).
-- `--budget-usd N` — rejected in P1; budgets are not enforced by the linear runner.
+### Agent contract and recovery
 
-## Exit codes
+The agent command contract is version 1. Each finite response and each JSONL stream item contains `contractVersion: 1`; errors on stderr include `error.code`, `message`, `retryable` and optional `details` and `hint`. An agent should reject unknown major contract versions. Inspection command success describes the command, not whether the run succeeded. Use `devchestra capabilities --json` for commands and flags; `devchestra workflow schema --json` returns the structural JSON Schema without a server. Graph and project rules require `workflow validate`.
 
-`0` succeeded, `1` failed/interrupted, `2` rejected, `3` cancelled, `4` usage/validation/conflict, `5` waiting for a human (uncertain shell or approval), `6` budget/quota stop.
+`workflow groups show` and `workflow groups update` read or replace grouping metadata with `--if-match`. `gate test --file <json>` previews a gate without a run. `decision test --file <json>` makes a live model request and can incur cost. `run foreach <run-id> --source <node-id>` pages iteration references. Lists return the underlying API cursor; execution usage represents the current attempt and a `costSource` of `none` means cost is unavailable, not free.
 
-## Recovery
-
-The CLI takes an atomic `devchestra.lock` under the data dir with a token-named owner file containing pid + boot/start identity. A stale lock is reclaimed only when every owner is provably dead; an unknown or unreadable owner fails closed. `doctor` never reclaims a lock.
-
-On SIGINT/SIGTERM the CLI calls `engine.stop()` (resumable shutdown). A hard `SIGKILL` leaves the run recoverable:
-
-```sh
-pnpm devchestra resume <runId> --data-dir "$tmp/data" --json
-```
-
-## P1 limits
-
-`start → agent → shell → end`, scratch workspaces only, claude-code/codex/opencode/pi adapters (real ones unverified; fake is test-only behind `DEVCHESTRA_ALLOW_FAKE=1`), read-only browser viewer via `devchestra start` when the web app is built, no approval command, no budget enforcement, no worktrees/project writes.
+When `run show` reports `uncertain_side_effect`, inspect the interrupted shell and its side effects. After the user explicitly authorizes retry, use `run resume <run-id> --retry-uncertain-shell --path <path> --expected-attempt <n> --expected-generation <n> --expected-event-id <watermark>`. Take the fields from the same `run show` response: execution path/attempt/generation and `watermark`. A stale fence is rejected. If several shell executions are interrupted, this recovery path refuses the request instead of authorizing them all. An accepted retry is recorded by the engine. `run watch` reports timeout and overflow with a last emitted event cursor where available; inspect the run and reconnect using `--after`.

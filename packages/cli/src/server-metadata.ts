@@ -226,6 +226,7 @@ export async function attachToServer(
     timeoutMs?: number;
     identity?: (pid: number) => string | null;
     alive?: (pid: number) => boolean;
+    allowHeadless?: boolean;
   } = {},
 ): Promise<void> {
   if (
@@ -262,7 +263,7 @@ export async function attachToServer(
       "The running server identity does not match server.json",
     );
   }
-  if (payload.webReady === false) {
+  if (payload.webReady === false && options.allowHeadless !== true) {
     throw new DevChestraError("E_CONFLICT", "The running server is not serving the web app");
   }
 }

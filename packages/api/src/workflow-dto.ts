@@ -81,12 +81,14 @@ export interface CreateWorkflowRequest {
   name: string;
   id?: string;
   template?: WorkflowTemplate;
+  workflow?: WorkflowFile;
 }
 
 export const createWorkflowRequestSchema = strict({
   name: z.string().trim().min(1).max(200),
   id: workflowFileIdSchema.optional(),
   template: workflowTemplateSchema.optional(),
+  workflow: workflowDraftSchema.optional(),
 }) as unknown as z.ZodType<CreateWorkflowRequest>;
 
 export interface SaveWorkflowRequest {

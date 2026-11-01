@@ -11,6 +11,7 @@ export type {
   AttemptView,
   BrowserMcpServersPort,
   BrowserModelCatalogPort,
+  BrowserProviderSettingsPort,
   BrowserQueryPort,
   BrowserRunControllerPort,
   BrowserStreamPort,

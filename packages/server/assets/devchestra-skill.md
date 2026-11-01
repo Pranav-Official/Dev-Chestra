@@ -1,14 +1,14 @@
 # DevChestra workflow authoring guide
 
-This file was created by DevChestra when this project was registered. It is written for a coding agent that has been asked to **create or edit a DevChestra workflow in this project**. It is self-contained: everything you need to write a valid workflow file is below. DevChestra never overwrites this file, so edit it freely to add project-specific conventions. Delete it and re-register the project to get a fresh copy.
+This guide is printed by `devchestra skill` and describes the installed version. It is for agents creating, running, and monitoring DevChestra workflows. Project-specific conventions belong in the project’s own agent instructions.
 
 Rules in this guide were checked against the DevChestra schema, validator and engine at the time it was written. If a validator message disagrees with this text, the validator wins; fix the workflow and tell the user about the discrepancy.
 
 ## 1. Scope and hard rules
 
 - A workflow is **one JSON file**: `.devchestra/workflows/<id>.json`, where `<id>` equals the `id` field inside the file.
-- Your job is to write or edit that file (and only that file) and then **stop**. Do **not** run the workflow unless the user explicitly asked you to run it. Real agent nodes use the user's signed-in CLI accounts, can cost money, and can edit project files.
-- Do not invent CLI subcommands, flags, node fields or node types. The only commands this guide uses are listed in section 14.
+- Do **not** run the workflow unless the user explicitly asked you to run it. Real agent nodes use the user's signed-in CLI accounts, can cost money, and can edit project files.
+- Do not invent CLI subcommands, flags, node fields or node types. Use the CLI commands documented in sections 14 and CLI lifecycle.
 - Unknown keys are rejected everywhere (the parser is strict). Nodes have **no** `description` field; only the workflow itself does.
 - JSON only: no comments, no trailing commas. Use 2-space indentation and end the file with a newline.
 - The file must be at most 1 MiB.
@@ -959,20 +959,8 @@ Workflow `budget` and `supervisor`; node `supervise` other than `default`; node 
 2. Look at existing files in `.devchestra/workflows/` and match their conventions. Do not overwrite another workflow.
 3. Choose the id, then sketch the graph: one start, the nodes, the edges, the ends. Prefer the smallest graph that does the job (an agent for judgement, a shell step for deterministic commands, a gate for branching on facts, a loop only when repetition is truly needed).
 4. Write `.devchestra/workflows/<id>.json` with the structure above, `ui` coordinates, least-privilege permissions, and tight output schemas.
-5. **Validate before anything else.** There is no standalone validate command, so use these, in order:
-   - Re-check the file against the checklist below.
-   - Ask the user to open the workflow in the DevChestra editor (start it with `devchestra start`; the Workflows tab lists every file with a validation summary, and the editor shows the validation result). The server also exposes `POST /api/projects/:projectId/workflows/:workflowId/validate`.
-   - A workflow that parses but fails validation can be saved and listed but **cannot run**.
-6. Stop. Tell the user the file path, what the workflow does, its parameters, which permissions/network/MCP choices you made, whether it edits project files, and how to run it. **Do not run it yourself** unless they asked.
-
-How the user runs a workflow (from the project directory; this uses real agent CLIs and may cost money):
-
-```text
-devchestra run .devchestra/workflows/<id>.json --project . --param name=value
-devchestra run .devchestra/workflows/<id>.json --project . --workspace new-worktree
-```
-
-`--workspace` accepts `project` (default), `new-worktree` or `existing-worktree` (with `--worktree-path <dir>`). Parameter values are parsed as JSON when possible, else used as strings. Do not run `devchestra run` against a data directory that a live `devchestra start` server is using; start runs from the browser's Run dialog instead. `devchestra --help` lists the other commands (`start`, `stop`, `status`, `resume`, `doctor`).
+5. Validate with `devchestra workflow validate --project <project> --file <file>`, then create or update it using the CLI lifecycle below.
+6. Tell the user what the workflow does, its parameters and permissions. Run it only when the user asked for execution.
 
 ### Pre-flight checklist
 
@@ -991,3 +979,20 @@ devchestra run .devchestra/workflows/<id>.json --project . --workspace new-workt
 - [ ] Child workflows: `workflowId` matches managed id rules, `inputs` are bare expressions over call-site ancestors, plain edge = success and `.failed` wired for failures, no live runs during authoring.
 - [ ] Every node has `ui` coordinates.
 - [ ] The JSON is valid (no comments or trailing commas) and under 1 MiB.
+
+
+## CLI lifecycle
+
+Start a local API server with `devchestra start --headless` in a persistent process. Register with `devchestra project add <path>`, then use `devchestra workflow validate --project <path> --file <file>` and `devchestra workflow create --project <path> --file <file>`. `--file -` reads stdin. For edits, use `workflow show` to obtain the ETag and pass it to `workflow update <id> --if-match <etag>`.
+
+Run a saved workflow with `devchestra run start <id> --project <path> --idempotency-key <unique-key>`, retain its run ID, then use `devchestra run watch <run-id> --jsonl`. The server owns the run, so disconnecting the watcher does not cancel it. On a lost start response, reuse the same key and revision; if the workflow was edited meanwhile, the server may return a revision conflict, so inspect the run list before another start. Reconnect using `--after <event-id>`. Inspect with `run show`, `run events`, `run execution --path <path>`, `run transcript --path <path>`, and `run output`. `run cancel` and `run resume` act on existing runs. A workflow edit does not alter an existing run's frozen snapshot; start a new run for the updated workflow.
+
+For human review, use `approval list --run <run-id>` and `approval show <run-id> --path <path>`, present the request to the user, and resolve only with their authorized decision. Pass the returned request ID, attempt, and generation to `approval resolve` with `--request-id`, `--expected-attempt`, `--expected-generation`, and `--decision approve|reject`. Never infer approval. For uncertain shell side effects, inspect the effects and require explicit authorization before retrying.
+
+Agent commands print JSON, and watch prints JSONL. Use `devchestra project --help` for the command overview. Usage data is only as complete as the providers report; do not infer that missing cost information means a run is free.
+
+## Discovery, tests, and uncertain-shell recovery
+
+`devchestra capabilities --json` enumerates commands and flags. `devchestra workflow schema --json` returns the structural schema; `workflow validate` remains authoritative for graph, expression and project rules. Agent command JSON and JSONL messages carry `contractVersion: 1`; structured errors are on stderr. `workflow groups show` and `workflow groups update` manage group metadata with an ETag. `gate test --project <project> --file <json>` previews routing without a run. `decision test` makes a live provider call and may cost money; use it only when authorized. `run foreach <run-id> --source <node-id>` lists item references.
+
+When a run has an uncertain shell side effect, inspect `run show` and the interrupted execution, assess external effects and obtain the user's explicit authorization. Then submit `run resume <run-id> --retry-uncertain-shell --path <execution-path> --expected-attempt <attempt> --expected-generation <generation> --expected-event-id <watermark>`. Use values from the same run snapshot; do not reuse a stale acknowledgement. If several shells are interrupted, the server refuses this retry until a safe targeted recovery is supported. A watch disconnect or timeout is not a run failure: inspect the run and reconnect with its last emitted event ID. Per-execution usage is for the current attempt and missing cost reports do not mean zero cost.

@@ -353,6 +353,11 @@ const workflowSchema = z.strictObject({
   }),
 });
 
+/** Structural discovery only; semantic validation remains authoritative. */
+export function workflowJsonSchema(): Record<string, unknown> {
+  return z.toJSONSchema(workflowSchema, { io: "input", unrepresentable: "any" });
+}
+
 const SUPPORTED_NODE_TYPES = new Set([
   "start",
   "agent",
