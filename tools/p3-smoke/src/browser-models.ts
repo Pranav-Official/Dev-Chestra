@@ -68,11 +68,9 @@ function modelRequests(calls: ApiCall[]): ApiCall[] {
 }
 
 async function openPicker(page: Page): Promise<void> {
-  const combo = page.getByTestId("inspector-agent-model-picker");
-  await combo.click();
   const list = page.getByTestId("inspector-agent-model-listbox");
   if (!(await list.isVisible().catch(() => false))) {
-    await combo.press("ArrowDown");
+    await page.getByTestId("inspector-agent-model-trigger").click();
   }
   await list.waitFor({ state: "visible", timeout: 10_000 });
 }
@@ -85,8 +83,12 @@ async function closePicker(page: Page): Promise<void> {
     .catch(() => undefined);
 }
 
+/** The id span is absent when the label already is the id, so fall back to the label. */
 async function selectedId(page: Page): Promise<string> {
-  return ((await page.getByTestId("inspector-agent-model-selected-id").textContent()) ?? "").trim();
+  const id = page.getByTestId("inspector-agent-model-selected-id");
+  const source =
+    (await id.count()) > 0 ? id : page.getByTestId("inspector-agent-model-selected-label");
+  return ((await source.textContent()) ?? "").trim();
 }
 
 async function assertReachable(page: Page, testId: string): Promise<void> {
@@ -95,11 +97,47 @@ async function assertReachable(page: Page, testId: string): Promise<void> {
 
 async function noModel(page: Page): Promise<boolean> {
   const value = await selectedId(page);
-  return value === "" || /cli default|no model override/iu.test(value);
+  return value === "" || /cli default|no model override|own default/iu.test(value);
 }
 
 async function statusText(page: Page): Promise<string> {
   return ((await page.getByTestId("inspector-agent-model-status").textContent()) ?? "").trim();
+}
+
+async function statusTitle(page: Page): Promise<string> {
+  return (await page.getByTestId("inspector-agent-model-status").getAttribute("title")) ?? "";
+}
+
+async function messageTitle(page: Page): Promise<string> {
+  return (await page.getByTestId("inspector-agent-model-message").getAttribute("title")) ?? "";
+}
+
+async function bannerText(page: Page): Promise<string> {
+  return ((await page.getByTestId("inspector-agent-model-message").textContent()) ?? "").trim();
+}
+
+async function waitBanner(page: Page, pattern: RegExp, timeout = 10_000): Promise<void> {
+  await page.waitForFunction(
+    (source) => {
+      const text =
+        document.querySelector('[data-testid="inspector-agent-model-message"]')?.textContent ?? "";
+      return new RegExp(source, "i").test(text);
+    },
+    pattern.source,
+    { timeout },
+  );
+}
+
+async function waitFooter(page: Page, pattern: RegExp, timeout = 20_000): Promise<void> {
+  await page.waitForFunction(
+    (source) => {
+      const text =
+        document.querySelector('[data-testid="inspector-agent-model-status"]')?.textContent ?? "";
+      return new RegExp(source, "i").test(text);
+    },
+    pattern.source,
+    { timeout },
+  );
 }
 
 async function optionTexts(page: Page): Promise<string[]> {
@@ -130,21 +168,23 @@ async function agentModel(
 }
 
 async function setCli(page: Page, cli: "codex" | "claude-code" | "fake"): Promise<void> {
-  await page.getByTestId("inspector-agent-cli").selectOption(cli);
+  await page.getByTestId(`inspector-agent-cli-${cli}`).click();
   await sleep(120);
 }
 
 async function setCustomModel(page: Page, model: string): Promise<void> {
   await openPicker(page);
-  await page.getByTestId("inspector-agent-model-custom-input").fill(model);
-  await page.getByTestId("inspector-agent-model-use-custom").click();
+  await page.getByTestId("inspector-agent-model-picker").fill(model);
+  await page.getByTestId("inspector-agent-model-custom-option").click();
   await sleep(120);
 }
 
 async function axePicker(page: Page): Promise<{ serious: number; total: number }> {
   await injectAxe(page);
   const result = await page.evaluate(async () => {
-    const container = document.querySelector('[data-testid="inspector-agent-model-field"]');
+    const container =
+      document.querySelector('[data-testid="inspector-agent-model-popover"]') ??
+      document.querySelector('[data-testid="inspector-agent-model-field"]');
     const axe = (
       window as unknown as {
         axe?: { run: (root: unknown) => Promise<{ violations: unknown[] }> };
@@ -206,35 +246,21 @@ export async function runModelBrowserScenario(): Promise<ModelBrowserEvidence> {
     calls.length = 0;
     await stub.resetLog();
     await openPicker(page);
-    await page.waitForFunction(
-      () => {
-        const text =
-          document.querySelector('[data-testid="inspector-agent-model-status"]')?.textContent ?? "";
-        return /unavailable|unsupported|stale|error/i.test(text);
-      },
-      undefined,
-      { timeout: 10_000 },
-    );
+    await waitBanner(page, /couldn't load|doesn't list|saved list/i);
     const coldCalls = modelRequests(calls);
     const coldOpenGetOnly =
       coldCalls.every((call) => call.method === "GET") &&
       !coldCalls.some((call) => call.method === "POST");
     const coldOpenNoSpawn = (await stub.spawns()).length === 0;
-    assert.match(await statusText(page), /unavailable|unsupported|not loaded/iu);
+    assert.match(await bannerText(page), /couldn't load|doesn't list|saved list/iu);
     assert.ok(await page.getByTestId("inspector-agent-model-default").isVisible());
-    for (const id of [
-      "inspector-agent-model-custom-input",
-      "inspector-agent-model-refresh",
-      "inspector-agent-model-status",
-      "inspector-agent-model-source",
-      "inspector-agent-model-count",
-    ]) {
+    for (const id of ["inspector-agent-model-refresh", "inspector-agent-model-status"]) {
       assert.ok(await page.getByTestId(id).isVisible(), `${id} must stay visible while open`);
       await assertReachable(page, id);
     }
-    await page.getByTestId("inspector-agent-model-custom-input").fill("probe");
-    await assertReachable(page, "inspector-agent-model-use-custom");
-    await page.getByTestId("inspector-agent-model-custom-input").fill("");
+    await typeQuery(page, "probe");
+    await assertReachable(page, "inspector-agent-model-custom-option");
+    await typeQuery(page, "");
 
     const beforeTyping = await agentModel(http, project.id, workflowId);
     await typeQuery(page, "gpt61");
@@ -251,15 +277,7 @@ export async function runModelBrowserScenario(): Promise<ModelBrowserEvidence> {
       async () => ((await stub.rpcs("codex")).length >= 5 ? true : null),
       20_000,
     );
-    await page.waitForFunction(
-      () => {
-        const text =
-          document.querySelector('[data-testid="inspector-agent-model-status"]')?.textContent ?? "";
-        return /ready/i.test(text);
-      },
-      undefined,
-      { timeout: 20_000 },
-    );
+    await waitFooter(page, /\d+ models?/u);
     await openPicker(page);
     const refreshCalls = modelRequests(calls);
     const refreshPostOnly =
@@ -272,14 +290,8 @@ export async function runModelBrowserScenario(): Promise<ModelBrowserEvidence> {
       methods.filter((method) => method === "model/list").length >= 2 &&
       methods.every((method) => !/^(thread|turn|account|config|session)\//u.test(method));
     const noClaudeSpawn = (await stub.spawns("claude")).length === 0;
-    const countText = (
-      (await page.getByTestId("inspector-agent-model-count").textContent()) ?? ""
-    ).trim();
-    const sourceText = (
-      (await page.getByTestId("inspector-agent-model-source").textContent()) ?? ""
-    ).trim();
-    assert.match(countText, /6/u);
-    assert.match(sourceText, /codex-app-server/iu);
+    assert.match(await statusText(page), /\b6 models\b/u);
+    assert.match(await statusTitle(page), /codex-app-server/iu);
     assert.ok((await optionTexts(page)).length >= 6);
 
     await typeQuery(page, "terra");
@@ -333,23 +345,14 @@ export async function runModelBrowserScenario(): Promise<ModelBrowserEvidence> {
     await waitSaved(page);
     const clearedOnCli = await noModel(page);
     await openPicker(page);
-    await page.waitForFunction(
-      () => {
-        const text =
-          document.querySelector('[data-testid="inspector-agent-model-status"]')?.textContent ?? "";
-        return /unsupported|unavailable|not supported/i.test(text);
-      },
-      undefined,
-      { timeout: 10_000 },
-    );
-    const claudeStatus = await statusText(page);
-    const claudeMessage =
-      (await page.getByTestId("inspector-agent-model-message").textContent()) ?? "";
+    await waitBanner(page, /couldn't load|doesn't list|saved list/i);
+    const claudeStatus = await bannerText(page);
+    const claudeMessage = await messageTitle(page);
     const claudeOptions = await optionTexts(page);
     const claudeColdSpawn = (await stub.discoverySpawns("claude")).length === 0;
     await closePicker(page);
     const claudeColdUnavailable =
-      /unavailable/iu.test(claudeStatus) &&
+      /couldn't load/iu.test(claudeStatus) &&
       /No model catalog is cached yet/u.test(claudeMessage) &&
       claudeColdSpawn &&
       !claudeOptions.some((text) => /sonnet|opus|haiku/iu.test(text));
@@ -357,11 +360,12 @@ export async function runModelBrowserScenario(): Promise<ModelBrowserEvidence> {
     await page
       .waitForFunction(
         () => {
-          const cli = (
-            document.querySelector(
-              '[data-testid="inspector-agent-cli"]',
-            ) as HTMLSelectElement | null
-          )?.value;
+          const cli =
+            document
+              .querySelector('[data-testid="inspector-agent-cli-codex"]')
+              ?.getAttribute("aria-checked") === "true"
+              ? "codex"
+              : undefined;
           const model =
             document.querySelector('[data-testid="inspector-agent-model-selected-id"]')
               ?.textContent ?? "";
@@ -371,7 +375,10 @@ export async function runModelBrowserScenario(): Promise<ModelBrowserEvidence> {
         { timeout: 5_000 },
       )
       .catch(() => undefined);
-    const cliAfterUndo = await page.getByTestId("inspector-agent-cli").inputValue();
+    const cliAfterUndo =
+      (await page.getByTestId("inspector-agent-cli-codex").getAttribute("aria-checked")) === "true"
+        ? "codex"
+        : "other";
     const modelAfterUndo = await selectedId(page);
     const cliChangeOneUndo =
       cliAfterUndo === "codex" &&
@@ -395,18 +402,10 @@ export async function runModelBrowserScenario(): Promise<ModelBrowserEvidence> {
     await setCli(page, "claude-code");
     await sleep(2_500);
     await openPicker(page);
-    await page.waitForFunction(
-      () => {
-        const text =
-          document.querySelector('[data-testid="inspector-agent-model-status"]')?.textContent ?? "";
-        return /unavailable|unsupported|stale|error/i.test(text);
-      },
-      undefined,
-      { timeout: 10_000 },
-    );
+    await waitBanner(page, /couldn't load|doesn't list|saved list/i);
     const fencedOptions = await optionTexts(page);
     const crossCliFenced =
-      /unsupported|not supported|unavailable/iu.test(await statusText(page)) &&
+      /couldn't load|doesn't list|saved list/iu.test(await bannerText(page)) &&
       !fencedOptions.some((text) => /Alpha Exact|Terra 6.1|Mini Four/u.test(text));
     await stub.setControl({ delayMs: 0 });
     await setCli(page, "codex");
@@ -483,7 +482,7 @@ export async function runModelBrowserScenario(): Promise<ModelBrowserEvidence> {
     await selectNode(page, "agent");
     await openPicker(page);
     const axeLight = await axePicker(page);
-    await page.getByTestId("inspector-agent-model-field").screenshot({ path: inspector });
+    await page.getByTestId("inspector-agent-model-popover").screenshot({ path: inspector });
     await page.screenshot({ path: light, fullPage: true });
 
     await themeTo(page, "dark");
