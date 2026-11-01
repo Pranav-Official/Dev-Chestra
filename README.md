@@ -1,4 +1,9 @@
-# DevChestra
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/images/logo-lockup-light.svg">
+    <img alt="DevChestra" src="assets/images/logo-lockup.svg" width="300">
+  </picture>
+</h1>
 
 Conduct your coding agents like an orchestra.
 
@@ -6,9 +11,9 @@ DevChestra is a local workflow builder for headless coding agents. You drag a fe
 
 It's not another agent to babysit. It's the stage your agents play on.
 
-![DevChestra workflow editor](assets/images/editor.png)
+![DevChestra workflow editor](assets/images/workflow-router.png)
 
-Above: a real workflow in DevChestra. Start with a parameter, hand it to two agents in sequence, then finish. Runs, transcripts, and replay live in the same window.
+Above: a real DevChestra workflow that routes a PR review by risk, with a separate follow-up path. Runs, transcripts, and replay live in the same window.
 
 ## Why it's nice
 

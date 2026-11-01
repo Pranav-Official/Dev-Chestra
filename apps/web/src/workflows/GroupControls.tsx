@@ -1,6 +1,7 @@
 import type { WorkflowGroupsDocument, WorkflowGroupsResponse } from "@devchestra/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { FolderPlus, MoreHorizontal } from "lucide-react";
 import { api, classifyError } from "../api/client.js";
 import { queryKeys } from "../api/hooks.js";
 import { Dialog } from "../editor/controls/Dialog.js";
@@ -8,9 +9,11 @@ import { Dialog } from "../editor/controls/Dialog.js";
 export function GroupControls({
   projectId,
   groups,
+  groupId,
 }: {
   projectId: string;
   groups: WorkflowGroupsResponse;
+  groupId?: string;
 }) {
   const client = useQueryClient();
   const [editing, setEditing] = useState<string | null>(null);
@@ -60,27 +63,11 @@ export function GroupControls({
   };
   return (
     <>
-      <button className="btn sm" type="button" onClick={() => open("new")}>
-        New group
-      </button>
-      {groups.document.groups.map((g) => (
-        <span key={g.id} className="row" style={{ display: "inline-flex", gap: 4, marginLeft: 8 }}>
-          <span>{g.name}</span>
-          <button className="btn sm" type="button" onClick={() => open(g.id)}>
-            Rename
-          </button>
-          <button
-            className="btn sm"
-            type="button"
-            onClick={() => {
-              setDeleting(g.id);
-              setError(null);
-            }}
-          >
-            Delete
-          </button>
-        </span>
-      ))}
+      {groupId === undefined ? (
+        <button className="workflow-new-group" type="button" onClick={() => open("new")}><FolderPlus size={15} aria-hidden="true" /> New group</button>
+      ) : (
+        <details className="workflow-group-menu"><summary aria-label={`Manage ${groups.document.groups.find((g) => g.id === groupId)?.name ?? "group"}`}><MoreHorizontal size={18} aria-hidden="true" /></summary><div className="workflow-menu-popover"><button type="button" onClick={() => open(groupId)}>Rename group</button><button type="button" onClick={() => { setDeleting(groupId); setError(null); }}>Delete group</button></div></details>
+      )}
       <Dialog
         open={editing !== null}
         title={editing === "new" ? "New group" : "Rename group"}
@@ -179,8 +166,8 @@ export function GroupSelect({
   };
   return (
     <>
-      <select
-        className="input"
+      <label className="workflow-move"><span>Move to</span><select
+        className="workflow-move-select"
         aria-label={`Group for ${workflowId}`}
         value={groups.document.memberships[workflowId] ?? ""}
         disabled={pending}
@@ -192,7 +179,7 @@ export function GroupSelect({
             {g.name}
           </option>
         ))}
-      </select>
+      </select></label>
       {error && <span role="alert">{error}</span>}
     </>
   );

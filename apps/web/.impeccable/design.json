@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-01T09:59:45.646Z",
+  "title": "Design System: DevChestra",
+  "extensions": {
+    "shadows": [
+      {
+        "name": "small",
+        "value": "0 1px 2px rgba(15, 23, 42, 0.06)",
+        "purpose": "Light-theme controls and canvas elements"
+      },
+      {
+        "name": "medium",
+        "value": "0 4px 14px rgba(15, 23, 42, 0.1)",
+        "purpose": "Light-theme floating surfaces"
+      },
+      {
+        "name": "dark-medium",
+        "value": "0 8px 24px rgba(0, 0, 0, 0.45)",
+        "purpose": "Dark-theme floating surfaces"
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sidebar-narrow",
+        "value": "900px"
+      },
+      {
+        "name": "sidebar-hidden",
+        "value": "720px"
+      },
+      {
+        "name": "compact-topbar",
+        "value": "560px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Default button",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "Default button",
+      "html": "<button class=\"ds-button\">Run workflow</button>",
+      "css": ".ds-button{display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:var(--radius);font:500 13px var(--font);box-shadow:var(--shadow-sm);cursor:pointer}.ds-button:hover{background:var(--bg-muted)}.ds-button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}"
+    },
+    {
+      "name": "Ghost button",
+      "kind": "button",
+      "description": "Ghost button",
+      "html": "<button class=\"ds-ghost\">Cancel</button>",
+      "css": ".ds-ghost{height:28px;padding:0 10px;border:1px solid transparent;background:transparent;color:var(--text);border-radius:var(--radius);font:500 13px var(--font);cursor:pointer}.ds-ghost:hover{background:var(--bg-muted)}.ds-ghost:focus-visible{outline:2px solid var(--accent);outline-offset:1px}"
+    },
+    {
+      "name": "Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Input",
+      "html": "<input class=\"ds-input\" placeholder=\"Workflow name\">",
+      "css": ".ds-input{height:28px;padding:0 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text);font:13px var(--font)}.ds-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}"
+    },
+    {
+      "name": "Navigation item",
+      "kind": "nav",
+      "description": "Navigation item",
+      "html": "<a class=\"ds-nav\" href=\"#\">Workflows</a>",
+      "css": ".ds-nav{display:flex;align-items:center;min-height:28px;padding:0 8px;border-radius:var(--radius);background:var(--accent-soft);color:var(--accent);box-shadow:inset 2px 0 0 var(--accent);font:500 13px var(--font);text-decoration:none}.ds-nav:hover{color:var(--text)}.ds-nav:focus-visible{outline:2px solid var(--accent);outline-offset:1px}"
+    },
+    {
+      "name": "Selected chip",
+      "kind": "chip",
+      "description": "Selected chip",
+      "html": "<button class=\"ds-chip\">Selected</button>",
+      "css": ".ds-chip{height:22px;padding:0 8px;border:1px solid var(--accent-border);border-radius:5px;background:var(--accent-soft);color:var(--accent);font:12px var(--font);cursor:pointer}.ds-chip:hover{border-color:var(--border-strong)}.ds-chip:focus-visible{outline:2px solid var(--accent);outline-offset:1px}"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Card",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-head\">Workflow</div><div class=\"ds-card-body\">Ready to run</div></div>",
+      "css": ".ds-card{border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--bg);color:var(--text);font:13px var(--font)}.ds-card-head{padding:11px 14px;border-bottom:1px solid var(--border);font-weight:600}.ds-card-body{padding:14px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Workflow Workbench",
+    "overview": "The interface is clear, restrained, and task-focused. Compact controls, quiet surfaces, and consistent alignment keep attention on workflows and their state. The existing implementation treats color as a functional signal and uses small changes in border, background, and weight to distinguish levels of information.",
+    "keyCharacteristics": [
+      "Compact application density with a persistent workspace shell.",
+      "Cool neutral surfaces with an indigo accent and semantic status colors.",
+      "Bordered panels and precise controls, with shadows reserved for selected surfaces.",
+      "Light and dark themes with shared semantic roles."
+    ],
+    "rules": [],
+    "dos": [
+      "Do use semantic theme variables so both light and dark modes retain their intended roles.",
+      "Do make focus, selection, status, and disabled states visible.",
+      "Do respect reduced-motion preferences, as the existing styles do."
+    ],
+    "donts": [
+      "Don't rely on color alone to communicate status or selection.",
+      "Don't replace compact, bordered application surfaces with decorative elevation without a specific reason."
+    ]
+  }
+}

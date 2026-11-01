@@ -159,7 +159,8 @@ describe("WorkflowsPage", () => {
 
     renderWorkflows();
     expect(await screen.findByTestId("workflow-row-demo")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Delete workflow Demo" }));
+    fireEvent.click(screen.getByLabelText("Actions for Demo"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete workflow" }));
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 
     await waitFor(() => expect(remove).toHaveBeenCalledWith("p1", "demo", '"e1"'));
