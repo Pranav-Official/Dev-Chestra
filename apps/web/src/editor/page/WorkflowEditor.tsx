@@ -22,6 +22,7 @@ import { useAvailableClis } from "../inspector/model/useAvailableClis.js";
 import type { BufferValidity } from "../inspector/types.js";
 import { createEditorModel } from "../model/index.js";
 import type { CommandOutcome } from "../model/types.js";
+import { WebhookTriggerControl } from "../webhook/WebhookTriggerControl.js";
 import { EditorHeader } from "./EditorHeader.js";
 import { useEditorValidation } from "./useEditorValidation.js";
 
@@ -262,6 +263,14 @@ export function WorkflowEditor({
   const issues: readonly Issue[] = validation.report
     ? [...validation.report.errors, ...validation.report.warnings]
     : [];
+  // Arming reads the saved file, so it waits for a clean save; the server still validates.
+  const armBlockedReason = isDirty(autosave)
+    ? "Save your changes first. Arming uses the saved file."
+    : buffer.valid === false
+      ? "Fix the invalid form first, then save."
+      : validation.report?.ok === false
+        ? "Fix the validation errors first, then save."
+        : null;
 
   return (
     <div className="editor-page" data-testid="editor-page" data-workflow-id={workflowId}>
@@ -295,6 +304,14 @@ export function WorkflowEditor({
         onRedo={redo}
         onSave={() => void save()}
         onRun={() => setRunOpen(true)}
+        webhook={
+          <WebhookTriggerControl
+            projectId={pid}
+            workflowId={workflowId}
+            savedRevision={autosave.savedRevision}
+            armBlockedReason={armBlockedReason}
+          />
+        }
       />
 
       {autosave.status === "conflict" ? (

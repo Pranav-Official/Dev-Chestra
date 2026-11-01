@@ -20,6 +20,10 @@ import { type Context, Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { DevChestraError, errorBody } from "../errors.js";
+import { mountWebhookIngress } from "../webhooks/ingress.js";
+import type { BrowserWebhookPorts } from "../webhooks/ports.js";
+import { mountWebhookRoutes } from "../webhooks/routes.js";
+import { WebhookService } from "../webhooks/service.js";
 import { mountWorkflowRoutes } from "../workflows/routes.js";
 import { ManagedWorkflowService } from "../workflows/service.js";
 import { mountApprovalRoutes } from "./approval-routes.js";
@@ -112,6 +116,11 @@ export interface BrowserAppDeps {
    * stand-in-backed service.
    */
   decisions?: DecisionService;
+  /**
+   * Webhook triggers: store, engine launch and transitive freeze, composed by the
+   * CLI. When absent, the webhook routes answer 501 and every hook is unknown.
+   */
+  webhooks?: BrowserWebhookPorts;
 }
 
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
@@ -184,8 +193,31 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
     deps.validateResponses ?? process.env.NODE_ENV !== "production",
     deps.responseValidator,
   );
+  const workflowService =
+    deps.workflowService ??
+    new ManagedWorkflowService({
+      dataDir,
+      ...(deps.providers === undefined ? {} : { providers: deps.providers }),
+    });
+  const webhookService =
+    deps.webhooks === undefined
+      ? null
+      : new WebhookService({
+          ports: deps.webhooks,
+          workflows: workflowService,
+          dataDir,
+          getProject: (projectId) => deps.store.getProject(projectId),
+          getRunStatus: async (runId) => (await deps.store.getRun(runId))?.status ?? null,
+          ...(deps.workspaceService === undefined
+            ? {}
+            : { workspaceService: deps.workspaceService }),
+        });
 
   const app = new Hono();
+
+  // The public delivery route is mounted before the guards below, which only
+  // run for handlers registered after them. A webhook has no session or Origin.
+  mountWebhookIngress(app, { service: webhookService, validate });
 
   app.use("*", securityHeaders());
   app.use("*", hostGuard(port));
@@ -334,17 +366,14 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
   mountWorkflowRoutes(app, {
     store: deps.store,
     controller: deps.controller,
-    service:
-      deps.workflowService ??
-      new ManagedWorkflowService({
-        dataDir,
-        ...(deps.providers === undefined ? {} : { providers: deps.providers }),
-      }),
+    service: workflowService,
     dataDir,
     ...(deps.workspaceService === undefined ? {} : { workspaceService: deps.workspaceService }),
     ...(deps.providerSettings === undefined ? {} : { providerSettings: deps.providerSettings }),
+    ...(webhookService === null ? {} : { webhooks: webhookService }),
     validate,
   });
+  mountWebhookRoutes(app, { store: deps.store, service: webhookService, validate });
 
   app.get("/api/runs", async (c) => {
     const query = runListQuerySchema.safeParse({

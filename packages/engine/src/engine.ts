@@ -12,7 +12,7 @@ import {
   type RoutingView,
 } from "@devchestra/core";
 import { isProdCliId, resolveParams } from "@devchestra/schema";
-import type { CreateRunInput, CreateRunResult, RunRecord } from "@devchestra/store";
+import type { CreateRunInput, RunRecord } from "@devchestra/store";
 import { cliDisabledError } from "./agent-preflight.js";
 import {
   consumeStaleWakesForWaiting,
@@ -53,12 +53,41 @@ interface ActiveEntry {
   readonly done: Promise<RunOutcome>;
 }
 
+interface Deferred<T> {
+  readonly promise: Promise<T>;
+  readonly resolve: (value: T) => void;
+}
+
+/** A resume (approval or explicit) that is waiting for an execution slot. */
+interface ReadyDrive {
+  readonly runId: string;
+  readonly options: ResumeOptions;
+  readonly resume: boolean;
+  readonly waiter: Deferred<RunOutcome>;
+}
+
+function deferred<T>(): Deferred<T> {
+  let resolve: (value: T) => void = () => undefined;
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
 export class LinearEngine implements Engine {
   readonly #ctx: EngineContext;
   readonly #active = new Map<string, ActiveEntry>();
   #started = false;
   #stopping = false;
   #busUnsub: (() => void) | null = null;
+  /** Root run ids holding an execution slot. A slot covers a top-level run and its child runs. */
+  readonly #slots = new Set<string>();
+  /** Active drives per slot root. The slot frees when the last of them settles. */
+  readonly #slotDrives = new Map<string, number>();
+  /** Resumes waiting for a slot, in arrival order. Queued new runs live in the store. */
+  #ready: ReadyDrive[] = [];
+  /** Completions for queued top-level runs, settled when their drive ends or they are cancelled. */
+  readonly #queuedWaiters = new Map<string, Deferred<RunOutcome>>();
 
   constructor(deps: EngineDeps) {
     this.#ctx = new EngineContext(deps);
@@ -68,10 +97,8 @@ export class LinearEngine implements Engine {
     if (this.#started) return;
     this.#registerEnvSecrets();
     await recoverAll(this.#ctx);
-    reconcileApprovalWakes(
-      this.#ctx,
-      this.#active,
-      (id, opts, resume) => void this.#drive(id, opts as never, resume),
+    reconcileApprovalWakes(this.#ctx, this.#active, (id, opts, resume) =>
+      this.#requestDriveDetached(id, opts as ResumeOptions, resume),
     );
     this.#busUnsub = this.#ctx.store.bus.subscribe((envelope: EventEnvelope) => {
       if (envelope.type !== "approval.resolved") return;
@@ -87,15 +114,21 @@ export class LinearEngine implements Engine {
           reconcileApprovalWakesForRun(
             this.#ctx,
             this.#active,
-            (id, opts, r) => void this.#drive(id, opts as never, r),
+            (id, opts, r) => this.#requestDriveDetached(id, opts as ResumeOptions, r),
             runId,
           ),
         );
         return;
       }
-      void this.#drive(runId, {}, true).catch(() => undefined);
+      this.#requestDriveDetached(runId, {}, true);
     });
     this.#started = true;
+    this.#pump();
+  }
+
+  /** Re-runs queue scheduling, e.g. after the concurrency limit changes. */
+  pumpQueue(): void {
+    if (this.#started) this.#pump();
   }
 
   /**
@@ -112,6 +145,10 @@ export class LinearEngine implements Engine {
       this.#busUnsub();
       this.#busUnsub = null;
     }
+    // Queued runs stay queued in the store and start on the next engine. Their
+    // callers get the current outcome now rather than waiting for a slot.
+    const waiting = new Set([...this.#queuedWaiters.keys(), ...this.#ready.map((e) => e.runId)]);
+    for (const runId of waiting) this.#settleQueued(runId);
     const entries = [...this.#active.values()];
     for (const entry of entries) {
       entry.state.reason = "shutdown";
@@ -215,31 +252,42 @@ export class LinearEngine implements Engine {
         workspace: { selection, projectRoot: project.path },
         ...(input.idempotency === undefined ? {} : { idempotency: input.idempotency }),
       };
-      const created: CreateRunResult = this.#ctx.store.tx(() => {
+      const created = this.#ctx.store.tx(() => {
         // A provider may have been turned off while the async freeze and hash steps above
         // ran. tx() is a synchronous BEGIN IMMEDIATE and provider-setting writes take the
         // same lock, so checking here makes a disable win over an overlapping launch (even
         // from another process) and nothing is persisted when it does.
         this.#assertAdapters(plan);
         this.#assertBundleAdapters(bundle);
-        const created = this.#ctx.store.runs.create(createInput);
-        if (!created.duplicate) {
-          if (Object.keys(bundle).length > 0) {
-            void this.#ctx.store.workflowCalls.putBundle(created.runId, bundle, workflowHash);
-          }
-          assertLoopWorkspaceAvailable(
-            this.#ctx.run(created.runId),
-            this.#ctx.store.runs.listActive(),
-            (a, b) => this.#lineageRelated(a, b),
-          );
+        const delivery = input.delivery;
+        if (delivery !== undefined && delivery.deliveryId !== undefined) {
+          // Dedupe first: a retry of an accepted delivery returns its run even if the
+          // trigger was disarmed afterwards. Disarm and claim share this transaction.
+          const claim = this.#ctx.store.webhooks.claimDelivery({
+            hookId: delivery.hookId,
+            deliveryId: delivery.deliveryId,
+            fingerprint: delivery.fingerprint,
+          });
+          if (claim.kind === "duplicate") return { runId: claim.runId, duplicate: true };
         }
-        return created;
+        if (delivery !== undefined) {
+          this.#ctx.store.webhooks.assertArmedRevision(delivery.hookId, delivery.armedRevision);
+        }
+        // Queued, not started: workspace ownership is checked when a slot is granted.
+        const made = this.#ctx.store.runs.enqueue(createInput);
+        if (!made.duplicate && Object.keys(bundle).length > 0) {
+          void this.#ctx.store.workflowCalls.putBundle(made.runId, bundle, workflowHash);
+        }
+        if (delivery?.deliveryId !== undefined) {
+          this.#ctx.store.webhooks.bindDelivery(delivery.hookId, delivery.deliveryId, made.runId);
+        }
+        return { runId: made.runId, duplicate: made.duplicate };
       });
-      const duplicate = created.duplicate;
-      const completion = duplicate
+      const completion = created.duplicate
         ? this.#duplicateCompletion(created.runId)
-        : this.#drive(created.runId, {}, false);
-      return ok({ runId: created.runId, duplicate, completion });
+        : this.#awaitQueued(created.runId);
+      if (!created.duplicate) this.#pump();
+      return ok({ runId: created.runId, duplicate: created.duplicate, completion });
     } catch (error) {
       return err(toDevChestraError(error));
     }
@@ -286,6 +334,12 @@ export class LinearEngine implements Engine {
         }
         return ok({ runId, duplicate: false, completion: active.done });
       }
+      if (run.status === "queued") {
+        // Register the waiter before pumping: the pump may start this run immediately.
+        const completion = this.#awaitQueued(runId);
+        this.#pump();
+        return ok({ runId, duplicate: false, completion });
+      }
       if (run.status === "paused") {
         if (run.pauseReason === "uncertain_side_effect") {
           if (options.allowUncertainSideEffectRetry !== true) {
@@ -304,7 +358,7 @@ export class LinearEngine implements Engine {
           );
         }
       }
-      return ok({ runId, duplicate: false, completion: this.#drive(runId, options, true) });
+      return ok({ runId, duplicate: false, completion: this.#requestDrive(runId, options, true) });
     } catch (error) {
       return err(toDevChestraError(error));
     }
@@ -450,6 +504,9 @@ export class LinearEngine implements Engine {
         );
       }
       this.#ctx.append(runId, "", "run.cancelled", "user", { by: "user" });
+      this.#settleQueued(runId);
+      // A parked cancel releases its workspace without a drive ending, so pump here.
+      this.#pump();
       return ok(undefined);
     } catch (error) {
       return err(toDevChestraError(error));
@@ -476,6 +533,10 @@ export class LinearEngine implements Engine {
       if (/(API_KEY|AUTH_TOKEN|_TOKEN|SECRET)$/.test(key)) {
         this.#ctx.store.security.registerSecret(value, key);
       }
+    }
+    // Webhook signing secrets are recoverable by design, so they are redacted the same way.
+    for (const secret of this.#ctx.store.webhooks.signingSecrets()) {
+      this.#ctx.store.security.registerSecret(secret, "webhook_signing_secret");
     }
   }
 
@@ -551,9 +612,140 @@ export class LinearEngine implements Engine {
     return active !== undefined ? active.done : Promise.resolve(this.#ctx.outcome(runId));
   }
 
+  /**
+   * Every top-level start or resume goes through here. The request joins `#ready`
+   * behind any earlier waiters and `#pump` starts the oldest one that fits: a
+   * lineage that already holds a slot, or any run while a slot is free. The
+   * returned promise settles with the drive.
+   */
+  #requestDrive(runId: string, options: ResumeOptions = {}, resume = false): Promise<RunOutcome> {
+    const active = this.#active.get(runId);
+    if (active !== undefined) return active.done;
+    const waiting = this.#ready.find((entry) => entry.runId === runId);
+    if (waiting !== undefined) return waiting.waiter.promise;
+    const waiter = deferred<RunOutcome>();
+    this.#ready.push({ runId, options, resume, waiter });
+    this.#pump();
+    return waiter.promise;
+  }
+
+  #requestDriveDetached(runId: string, options: ResumeOptions = {}, resume = false): void {
+    void this.#requestDrive(runId, options, resume).catch(() => undefined);
+  }
+
+  #dispatch(
+    runId: string,
+    options: ResumeOptions,
+    resume: boolean,
+    waiter?: Deferred<RunOutcome>,
+  ): Promise<RunOutcome> {
+    this.#slots.add(this.#rootOf(runId));
+    const done = this.#drive(runId, options, resume);
+    if (waiter !== undefined) void done.then(waiter.resolve);
+    return done;
+  }
+
+  /** Starts ready resumes, then queued runs, while slots are free. */
+  #pump(): void {
+    if (this.#stopping) return;
+    let progressed = true;
+    while (progressed) {
+      progressed = this.#dispatchReady() || this.#dispatchQueued();
+    }
+  }
+
+  #dispatchReady(): boolean {
+    const limit = this.#limit();
+    const index = this.#ready.findIndex(
+      (entry) => this.#slots.has(this.#rootOf(entry.runId)) || this.#slots.size < limit,
+    );
+    if (index < 0) return false;
+    const [entry] = this.#ready.splice(index, 1);
+    if (entry === undefined) return false;
+    const active = this.#active.get(entry.runId);
+    if (active !== undefined) void active.done.then(entry.waiter.resolve);
+    else this.#dispatch(entry.runId, entry.options, entry.resume, entry.waiter);
+    return true;
+  }
+
+  /**
+   * Oldest queued top-level run that fits. Its workspace is checked here, not at
+   * enqueue, so queued runs never fail each other with E_LOCKED while waiting.
+   */
+  #dispatchQueued(): boolean {
+    if (this.#slots.size >= this.#limit()) return false;
+    const started = this.#ctx.store.runs.listActive().filter((run) => run.status !== "queued");
+    for (const run of this.#ctx.store.runs.listQueued()) {
+      if (this.#active.has(run.id)) continue;
+      try {
+        this.#ctx.store.tx(() => {
+          assertLoopWorkspaceAvailable(run, started, (a, b) => this.#lineageRelated(a, b));
+          this.#ctx.append(run.id, "", "run.started", "engine", {});
+        });
+      } catch (error) {
+        // A workspace still owned by a parked or running lineage keeps the run queued.
+        if (error instanceof DevChestraError && error.code === "E_LOCKED") continue;
+        this.#ctx.failRun(run.id, toDevChestraError(error, "E_WORKSPACE"));
+        this.#settleQueued(run.id);
+        continue;
+      }
+      const waiter = this.#queuedWaiters.get(run.id);
+      this.#queuedWaiters.delete(run.id);
+      this.#dispatch(run.id, {}, false, waiter);
+      return true;
+    }
+    return false;
+  }
+
+  #awaitQueued(runId: string): Promise<RunOutcome> {
+    const existing = this.#queuedWaiters.get(runId);
+    if (existing !== undefined) return existing.promise;
+    const waiter = deferred<RunOutcome>();
+    this.#queuedWaiters.set(runId, waiter);
+    return waiter.promise;
+  }
+
+  /** Settles any completion waiting on this run with its current outcome. */
+  #settleQueued(runId: string): void {
+    const pending = this.#ready.find((entry) => entry.runId === runId);
+    this.#ready = this.#ready.filter((entry) => entry.runId !== runId);
+    const waiter = this.#queuedWaiters.get(runId) ?? pending?.waiter;
+    this.#queuedWaiters.delete(runId);
+    waiter?.resolve(this.#ctx.outcome(runId));
+  }
+
+  #limit(): number {
+    return this.#ctx.store.executionSettings.get().maxConcurrentRuns;
+  }
+
+  /** The top-level ancestor of a run. Its slot covers the whole lineage. */
+  #rootOf(runId: string): string {
+    const seen = new Set<string>();
+    let current = runId;
+    for (;;) {
+      const link = this.#ctx.store.workflowCalls.getParent(current);
+      if (link === null || seen.has(current)) return current;
+      seen.add(current);
+      current = link.parentRunId as string;
+    }
+  }
+
+  #releaseSlot(root: string): void {
+    const remaining = (this.#slotDrives.get(root) ?? 1) - 1;
+    if (remaining > 0) {
+      this.#slotDrives.set(root, remaining);
+      return;
+    }
+    this.#slotDrives.delete(root);
+    this.#slots.delete(root);
+  }
+
   #drive(runId: string, options: ResumeOptions = {}, resume = false): Promise<RunOutcome> {
     const existing = this.#active.get(runId);
     if (existing !== undefined) return existing.done;
+    const root = this.#rootOf(runId);
+    this.#slotDrives.set(root, (this.#slotDrives.get(root) ?? 0) + 1);
+    this.#slots.add(root);
     const state: ActiveRunState = { abort: new AbortController(), reason: null, tokens: new Set() };
     if (options.allowUncertainSideEffectRetry === true) {
       state.overrideApprovedBy = options.approvedBy ?? "user";
@@ -571,22 +763,27 @@ export class LinearEngine implements Engine {
     this.#active.set(runId, entry);
     return done.finally(() => {
       this.#active.delete(runId);
-      if (!this.#stopping) {
-        const wakes = this.#ctx.store.approvals.listOutstandingWakes(runId as RunId);
-        if (wakes.length === 0) return;
-        const view = this.#ctx.store.view.get(runId as RunId);
-        if (view.status !== "running") return;
-        if (Object.values(view.executions).some((e) => e.status === "interrupted")) return;
-        if (Object.values(view.executions).some((e) => e.status === "waiting_approval")) return;
-        const applicable = wakes.some(
-          (w) =>
-            view.executions[w.path]?.status === "succeeded" &&
-            view.executions[w.path]?.approvalDecision?.decision !== undefined,
-        );
-        if (!applicable) return;
-        void this.#drive(runId, {}, true).catch(() => undefined);
-      }
+      this.#releaseSlot(root);
+      if (!this.#stopping) this.#wakeIfApplicable(runId);
+      this.#pump();
     });
+  }
+
+  /** A parked run whose approval was resolved resumes through the scheduler. */
+  #wakeIfApplicable(runId: string): void {
+    const wakes = this.#ctx.store.approvals.listOutstandingWakes(runId as RunId);
+    if (wakes.length === 0) return;
+    const view = this.#ctx.store.view.get(runId as RunId);
+    if (view.status !== "running") return;
+    if (Object.values(view.executions).some((e) => e.status === "interrupted")) return;
+    if (Object.values(view.executions).some((e) => e.status === "waiting_approval")) return;
+    const applicable = wakes.some(
+      (w) =>
+        view.executions[w.path]?.status === "succeeded" &&
+        view.executions[w.path]?.approvalDecision?.decision !== undefined,
+    );
+    if (!applicable) return;
+    this.#requestDriveDetached(runId, {}, true);
   }
 
   async #driveInner(runId: string, active: ActiveRunState, resume: boolean): Promise<RunOutcome> {

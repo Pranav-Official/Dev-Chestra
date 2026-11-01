@@ -298,8 +298,9 @@ describe("bounded loops", () => {
     if (!launched.ok) throw launched.error;
     await launched.value.completion;
     const conflicting = await engine.launch(input(snapshot()));
-    expect(conflicting.ok).toBe(false);
-    if (!conflicting.ok) expect(conflicting.error.code).toBe("E_LOCKED");
+    // The parked lineage owns the exclusive workspace, so the second run waits in the queue.
+    if (!conflicting.ok) throw conflicting.error;
+    expect(store.runs.get(conflicting.value.runId as never)?.status).toBe("queued");
     const cancelled = await engine.cancel(launched.value.runId);
     expect(cancelled.ok).toBe(true);
     const view = store.view.get(launched.value.runId as never);
@@ -307,6 +308,8 @@ describe("bounded loops", () => {
     expect(view.executions.refine?.status).toBe("cancelled");
     expect(view.executions["refine#1/review"]?.status).toBe("cancelled");
     expect(view.executions["refine#2/start"]).toBeUndefined();
+    // Releasing the workspace starts the waiting run, which then finishes on its own.
+    expect((await conflicting.value.completion).status).toBe("succeeded");
     const released = await engine.run(input(snapshot({ until: "true" })));
     if (!released.ok) throw released.error;
     expect(released.value.status).toBe("succeeded");

@@ -183,6 +183,17 @@ export interface StartRunInput {
   readonly idempotency?: RunIdempotency;
   /** Frozen transitive child workflow snapshots (id -> NormalizedWorkflow). Composed by server/CLI or the engine freeze walker. */
   readonly workflowDependencies?: Readonly<Record<string, unknown>>;
+  /** Set for webhook deliveries: claimed and armed-checked in the run's transaction. */
+  readonly delivery?: WebhookDeliveryClaim;
+}
+
+/** Identifies one webhook delivery and the armed revision the caller froze it against. */
+export interface WebhookDeliveryClaim {
+  readonly hookId: string;
+  /** Absent when the provider sent no delivery ID: no deduplication, but the armed check still runs. */
+  readonly deliveryId?: string;
+  readonly fingerprint: string;
+  readonly armedRevision: string;
 }
 
 export interface RunOutcome {
@@ -223,8 +234,13 @@ export interface Engine {
    * a drive is still settling; late outcomes resolve in the background.
    */
   stop(options?: { graceMs?: number }): Promise<void>;
-  /** Durable create + async dispatch; resolves before the run completes. */
+  /**
+   * Durable enqueue; resolves before the run starts. A queued run starts when a
+   * concurrency slot is free, and the completion settles when it finishes.
+   */
   launch(input: StartRunInput): Promise<Result<LaunchResult, DevChestraError>>;
+  /** Starts queued runs that fit under the current limit (call after it changes). */
+  pumpQueue(): void;
   /** Durable resume + async dispatch; resolves before the run completes. */
   launchResume(
     runId: string,

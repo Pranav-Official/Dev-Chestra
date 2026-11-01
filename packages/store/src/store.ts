@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { chmodSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import {
   type Clock,
@@ -30,6 +30,14 @@ import {
 import type { SqliteDb } from "./driver.js";
 import { betterSqliteDriver } from "./driver-better-sqlite3.js";
 import { appendEvents, type ListEventsOptions } from "./events.js";
+import {
+  type ExecutionSettings,
+  getExecutionSettings,
+  getWebhookSettings,
+  setExecutionSettings,
+  setWebhookSettings,
+  type WebhookSettings,
+} from "./execution-settings.js";
 import {
   beginInvocation,
   completeExecution,
@@ -90,7 +98,7 @@ import {
   listChildLinks,
   putRunBundle,
 } from "./run-children.js";
-import { createRun, getRun, listActiveRuns } from "./runs.js";
+import { createRun, getRun, listActiveRuns, listQueuedRuns } from "./runs.js";
 import { now, type Runtime } from "./runtime.js";
 import { type SecretFinding, SecretRegistry } from "./secrets.js";
 import {
@@ -160,6 +168,28 @@ import type {
 import { getUsageSummary } from "./usage.js";
 import { fail } from "./util.js";
 import {
+  type ArmTriggerInput,
+  armTrigger,
+  assertArmedRevision,
+  bindDeliveryRun,
+  type CreateTriggerInput,
+  claimDelivery,
+  createTrigger,
+  disarmProjectTriggers,
+  disarmTrigger,
+  getTrigger,
+  getTriggerRuntime,
+  listTriggerSecrets,
+  pruneExpiredDeliveries,
+  replaceArmedRevision,
+  rotateTriggerCredentials,
+  setTriggerRefreshError,
+  type TriggerRecord,
+  type TriggerRuntime,
+  type WebhookClaim,
+  type WebhookClaimInput,
+} from "./webhooks.js";
+import {
   recordForeachItemDecided,
   recordForeachStarted,
   recordWorkflowCompleted,
@@ -181,8 +211,42 @@ export interface ProviderSettingsApi {
   disabled(): ReadonlySet<string>;
 }
 
+export interface ExecutionSettingsApi {
+  get(): ExecutionSettings;
+  set(input: ExecutionSettings): ExecutionSettings;
+}
+
+export interface WebhookSettingsApi {
+  get(): WebhookSettings;
+  set(input: WebhookSettings): WebhookSettings;
+}
+
+/**
+ * Webhook trigger state. Writes run inside the caller's transaction when they
+ * are part of a delivery, so a disarm and a delivery claim cannot interleave.
+ */
+export interface WebhooksApi {
+  trigger(projectId: string, workflowId: string): TriggerRecord | null;
+  /** Includes credentials and the armed bundle. Never serialize the result. */
+  runtimeFor(hookId: string): TriggerRuntime | null;
+  create(input: CreateTriggerInput): void;
+  arm(hookId: string, input: ArmTriggerInput): void;
+  replaceRevision(hookId: string, expectedRevision: string, input: ArmTriggerInput): boolean;
+  disarm(hookId: string): void;
+  rotateCredentials(hookId: string, tokenHash: string, signingSecret: string): void;
+  setRefreshError(hookId: string, message: string | null): void;
+  claimDelivery(input: WebhookClaimInput): WebhookClaim;
+  bindDelivery(hookId: string, deliveryId: string, runId: string): void;
+  assertArmedRevision(hookId: string, revision: string): void;
+  pruneExpiredDeliveries(limit: number): number;
+  signingSecrets(): string[];
+}
+
 export interface RunsApi {
   create(input: CreateRunInput): CreateRunResult;
+  /** Top-level launch: records `run.created` only and waits for an execution slot. */
+  enqueue(input: CreateRunInput): CreateRunResult;
+  listQueued(): RunRecord[];
   setArchived(runId: RunId, archived: boolean): void;
   archiveWorkflow(projectId: string, workflowId: string): void;
   workflowSummaries(projectId: string): RunSummary[];
@@ -352,10 +416,28 @@ export interface SecurityApi {
  * @devchestra/store owns the only SQLite connection. Every write goes through tx();
  * appendEvents is the only writer of run_views/executions/run status.
  */
+/**
+ * The database holds recoverable webhook signing secrets, so on POSIX it stays
+ * readable only by its owner. Files SQLite has not created yet are skipped.
+ */
+function restrictDatabaseFile(file: string): void {
+  if (process.platform === "win32") return;
+  for (const path of [file, `${file}-wal`, `${file}-shm`]) {
+    try {
+      chmodSync(path, 0o600);
+    } catch {
+      // Not created yet, or not ours to change. The data directory is still 0700.
+    }
+  }
+}
+
 export class Store {
   readonly bus = new EventBus();
   readonly projects: ProjectsApi;
   readonly providerSettings: ProviderSettingsApi;
+  readonly executionSettings: ExecutionSettingsApi;
+  readonly webhookSettings: WebhookSettingsApi;
+  readonly webhooks: WebhooksApi;
   readonly runs: RunsApi;
   readonly executions: ExecutionsApi;
   readonly processes: ProcessesApi;
@@ -392,6 +474,7 @@ export class Store {
       poisoned: false,
       poisonError: undefined,
     };
+    if (options.file !== ":memory:") restrictDatabaseFile(options.file);
     try {
       this.#configure(this.#runtime.db);
       applyMigrations(this.#runtime.db, clock.now());
@@ -402,18 +485,57 @@ export class Store {
     }
 
     this.projects = {
-      remove: (projectId) => this.tx(() => removeProject(this.#runtime, projectId)),
+      // Removing or relinking a project disarms its webhook triggers in the same
+      // transaction, so a trigger never runs against a different directory.
+      remove: (projectId) =>
+        this.tx(() => {
+          disarmProjectTriggers(this.#runtime, projectId);
+          return removeProject(this.#runtime, projectId);
+        }),
       ensure: (input) => this.tx(() => ensureProject(this.#runtime, input)),
       list: () => listProjects(this.#runtime),
       get: (projectId) => getProject(this.#runtime, projectId),
       findByPath: (path) => findProjectByPath(this.#runtime, path),
-      relink: (input) => this.tx(() => relinkProject(this.#runtime, input)),
+      relink: (input) =>
+        this.tx(() => {
+          disarmProjectTriggers(this.#runtime, input.projectId);
+          return relinkProject(this.#runtime, input);
+        }),
     };
     this.providerSettings = {
       list: () => listProviderSettings(this.#runtime),
       setEnabled: (cli, enabled) =>
         this.tx(() => setProviderEnabled(this.#runtime, cli, enabled, now(this.#runtime))),
       disabled: () => disabledClis(this.#runtime),
+    };
+    this.executionSettings = {
+      get: () => getExecutionSettings(this.#runtime),
+      set: (input) => this.tx(() => setExecutionSettings(this.#runtime, input)),
+    };
+    this.webhookSettings = {
+      get: () => getWebhookSettings(this.#runtime),
+      set: (input) => this.tx(() => setWebhookSettings(this.#runtime, input)),
+    };
+    this.webhooks = {
+      trigger: (projectId, workflowId) => getTrigger(this.#runtime, projectId, workflowId),
+      runtimeFor: (hookId) => getTriggerRuntime(this.#runtime, hookId),
+      create: (input) => this.tx(() => createTrigger(this.#runtime, input)),
+      arm: (hookId, input) => this.tx(() => armTrigger(this.#runtime, hookId, input)),
+      replaceRevision: (hookId, expectedRevision, input) =>
+        this.tx(() => replaceArmedRevision(this.#runtime, hookId, expectedRevision, input)),
+      disarm: (hookId) => this.tx(() => disarmTrigger(this.#runtime, hookId)),
+      rotateCredentials: (hookId, tokenHash, signingSecret) =>
+        this.tx(() => rotateTriggerCredentials(this.#runtime, hookId, tokenHash, signingSecret)),
+      setRefreshError: (hookId, message) =>
+        this.tx(() => setTriggerRefreshError(this.#runtime, hookId, message)),
+      claimDelivery: (input) => this.tx(() => claimDelivery(this.#runtime, input)),
+      bindDelivery: (hookId, deliveryId, runId) =>
+        this.tx(() => bindDeliveryRun(this.#runtime, hookId, deliveryId, runId)),
+      assertArmedRevision: (hookId, revision) =>
+        assertArmedRevision(this.#runtime, hookId, revision),
+      pruneExpiredDeliveries: (limit) =>
+        this.tx(() => pruneExpiredDeliveries(this.#runtime, limit)),
+      signingSecrets: () => listTriggerSecrets(this.#runtime),
     };
     this.runs = {
       setArchived: (runId, archived) =>
@@ -422,6 +544,8 @@ export class Store {
         this.tx(() => archiveWorkflowRuns(this.#runtime, projectId, workflowId)),
       workflowSummaries: (projectId) => workflowRunSummaries(this.#runtime, projectId),
       create: (input) => this.tx(() => createRun(this.#runtime, input)),
+      enqueue: (input) => this.tx(() => createRun(this.#runtime, input, { queued: true })),
+      listQueued: () => listQueuedRuns(this.#runtime),
       get: (runId) => getRun(this.#runtime, runId),
       list: (filters) => listRuns(this.#runtime, filters),
       listActive: () => listActiveRuns(this.#runtime),

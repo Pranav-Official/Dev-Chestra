@@ -36,6 +36,14 @@ const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 500;
 const CURSOR = /^[A-Za-z0-9_-]{1,512}$/u;
 
+/** Best-effort hooks for webhook triggers. Both run after the file change has committed. */
+export interface WorkflowWebhookHooks {
+  /** Refreshes an armed trigger after a valid save. Must not throw. */
+  afterSave(project: WorkflowProject, workflowId: string): Promise<void>;
+  /** Disarms the trigger of a deleted workflow. Must not throw. */
+  afterDelete(project: WorkflowProject, workflowId: string): void;
+}
+
 export interface WorkflowRouteDeps {
   store: BrowserQueryPort;
   controller: BrowserRunControllerPort;
@@ -43,6 +51,7 @@ export interface WorkflowRouteDeps {
   dataDir: string;
   workspaceService?: BrowserWorkspacePort;
   providerSettings?: BrowserProviderSettingsPort;
+  webhooks?: WorkflowWebhookHooks;
   validate: (name: string, value: unknown) => void;
 }
 
@@ -200,6 +209,7 @@ export function mountWorkflowRoutes(app: Hono, deps: WorkflowRouteDeps): void {
         parsed.data.workflow,
         expected,
       );
+      await deps.webhooks?.afterSave(toProject(found), c.req.param("wid"));
       return documentResponse(deps, c, document);
     } catch (error) {
       if (isConflict(error)) return conflictResponse(c, error);
@@ -213,7 +223,12 @@ export function mountWorkflowRoutes(app: Hono, deps: WorkflowRouteDeps): void {
     const expected = parseIfMatch(c.req.header("if-match"));
     try {
       await deps.service.remove(toProject(found), c.req.param("wid"), expected);
-      // Deletion has already succeeded; stale metadata is harmless if cleanup races or fails.
+      // Deletion has already succeeded; neither hook below may change that response.
+      try {
+        deps.webhooks?.afterDelete(toProject(found), c.req.param("wid"));
+      } catch {
+        /* If the disarm failed, the trigger stays armed until someone disarms it explicitly. */
+      }
       try {
         const current = readWorkflowGroups(toProject(found), deps.dataDir);
         const memberships = { ...current.document.memberships };

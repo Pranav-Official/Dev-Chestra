@@ -139,10 +139,16 @@ const contextSchema = z.strictObject({
   workflow: z.enum(["none", "read", "readwrite"]),
 });
 
+const startWebhookSchema = z.strictObject({
+  enabled: z.boolean(),
+  paramMapping: z.record(z.string(), z.string()).optional(),
+});
+
 const startNodeSchema = z.strictObject({
   ...nodeBase,
   type: z.literal("start"),
   params: z.array(paramSchema),
+  webhook: startWebhookSchema.optional(),
 });
 
 const agentNodeSchema = z.strictObject({

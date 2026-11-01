@@ -28,6 +28,7 @@ import type {
   NormalizeOptions,
   ShellNode,
   StartNode,
+  StartWebhookConfig,
   WorkflowFile,
   WorkflowNode,
   WorkflowParam,
@@ -56,6 +57,14 @@ function normalizeStart(node: StartNode): NormalizedStartNode {
     supervise: "default",
     env: [],
     params: node.params.map(normalizeParam),
+    ...(node.webhook === undefined ? {} : { webhook: normalizeWebhook(node.webhook) }),
+  };
+}
+
+function normalizeWebhook(webhook: StartWebhookConfig): StartWebhookConfig {
+  return {
+    enabled: webhook.enabled,
+    ...(webhook.paramMapping === undefined ? {} : { paramMapping: { ...webhook.paramMapping } }),
   };
 }
 

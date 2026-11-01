@@ -78,6 +78,8 @@ const FIELD_PATHS = [
   "/nextState",
   "/until",
   "/body",
+  // Webhook mapping rows show their own E_WEBHOOK_* issues.
+  "/webhook/paramMapping/",
 ];
 
 function isShownByAField(issue: Issue): boolean {

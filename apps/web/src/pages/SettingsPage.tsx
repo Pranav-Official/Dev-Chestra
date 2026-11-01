@@ -1,8 +1,17 @@
+import type { ComponentType } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { Topbar } from "../shell/Topbar.js";
+import { ExecutionPanel } from "./settings/ExecutionPanel.js";
 import { ProvidersPanel } from "./settings/ProvidersPanel.js";
 import { SETTINGS_SECTIONS, settingsPath } from "./settings/sections.js";
 import { UsagePanel } from "./UsagePanel.js";
+
+/** One panel per registry id. A new section without an entry here fails the typecheck. */
+const PANELS: Record<(typeof SETTINGS_SECTIONS)[number]["id"], ComponentType> = {
+  providers: ProvidersPanel,
+  usage: UsagePanel,
+  execution: ExecutionPanel,
+};
 
 export function SettingsPage() {
   const { pid = "" } = useParams();
@@ -11,6 +20,7 @@ export function SettingsPage() {
   const active =
     SETTINGS_SECTIONS.find((entry) => location.pathname.endsWith(`/settings/${entry.id}`)) ??
     SETTINGS_SECTIONS[1];
+  const Panel = PANELS[active.id];
   const crumbs =
     pid !== ""
       ? [
@@ -28,7 +38,7 @@ export function SettingsPage() {
           <div className="page-head">
             <div className="grow">
               <h1>Settings</h1>
-              <p>Providers, token use and cost.</p>
+              <p>Providers, token use, cost and run execution.</p>
             </div>
           </div>
           <div className="row wrap" style={{ gap: 24, alignItems: "flex-start" }}>
@@ -56,7 +66,7 @@ export function SettingsPage() {
               aria-label={`${active.label} settings`}
               style={{ flex: "1 1 540px", minWidth: 0 }}
             >
-              {active.id === "providers" ? <ProvidersPanel /> : <UsagePanel />}
+              <Panel />
             </section>
           </div>
         </div>

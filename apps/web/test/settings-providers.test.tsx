@@ -171,7 +171,7 @@ describe("SettingsPage providers route", () => {
     expect(await screen.findByRole("heading", { name: "Providers" })).toBeInTheDocument();
     const nav = screen.getByRole("navigation", { name: "Settings sections" });
     const links = within(nav).getAllByRole("link");
-    expect(links.map((link) => link.textContent)).toEqual(["Providers", "Usage"]);
+    expect(links.map((link) => link.textContent)).toEqual(["Providers", "Usage", "Execution"]);
     expect(links[0]).toHaveAttribute("aria-current", "page");
     expect(links[1]).not.toHaveAttribute("aria-current");
   });

@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import {
   hashWorkflow,
   MAX_WORKFLOW_FILE_BYTES,
@@ -169,6 +170,15 @@ export class ManagedWorkflowService {
       relativeFile: file.relativeFile,
       validation,
     };
+  }
+
+  /**
+   * Runs `run` under the same per-project lock that serializes managed creates,
+   * saves and removals, so a webhook arm or refresh reads one consistent file.
+   * Do not call it from inside another `exclusive` run for the same project.
+   */
+  exclusive<T>(project: WorkflowProject, run: () => Promise<T>): Promise<T> {
+    return withProjectLock(realpathSync.native(this.#root(project)), run);
   }
 
   listPage(

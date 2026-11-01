@@ -18,6 +18,18 @@ import {
 } from "./gate-dto.js";
 import { etagSchema, quoteEtag } from "./primitives.js";
 import {
+  type ExecutionSettings,
+  type ExecutionSettingsResponse,
+  executionSettingsResponseSchema,
+  executionSettingsSchema,
+  type WebhookSettings,
+  type WebhookTriggerResponse,
+  type WebhookTriggerStatus,
+  webhookSettingsSchema,
+  webhookTriggerResponseSchema,
+  webhookTriggerStatusSchema,
+} from "./webhook-dto.js";
+import {
   type CreateWorkflowRequest,
   createWorkflowRequestSchema,
   type ForeachItemsResponse,
@@ -264,6 +276,110 @@ export class ApiClient extends ApiClientBase {
       "POST",
       ["projects", projectId, "decisions", "test"],
       decisionTestResultSchema,
+      this.req(options, { body: parsed, mutation: true }),
+    );
+  }
+
+  async getWebhookTrigger(
+    projectId: string,
+    workflowId: string,
+    options: ApiRequestOptions = {},
+  ): Promise<WebhookTriggerStatus> {
+    return this.request(
+      "GET",
+      ["projects", projectId, "workflows", workflowId, "webhook"],
+      webhookTriggerStatusSchema,
+      this.req(options),
+    );
+  }
+
+  async armWebhookTrigger(
+    projectId: string,
+    workflowId: string,
+    options: ApiRequestOptions = {},
+  ): Promise<WebhookTriggerResponse> {
+    return this.request(
+      "POST",
+      ["projects", projectId, "workflows", workflowId, "webhook", "arm"],
+      webhookTriggerResponseSchema,
+      this.req(options, { mutation: true }),
+    );
+  }
+
+  async disarmWebhookTrigger(
+    projectId: string,
+    workflowId: string,
+    options: ApiRequestOptions = {},
+  ): Promise<WebhookTriggerStatus> {
+    return this.request(
+      "POST",
+      ["projects", projectId, "workflows", workflowId, "webhook", "disarm"],
+      webhookTriggerStatusSchema,
+      this.req(options, { mutation: true }),
+    );
+  }
+
+  async rotateWebhookTrigger(
+    projectId: string,
+    workflowId: string,
+    options: ApiRequestOptions = {},
+  ): Promise<WebhookTriggerResponse> {
+    return this.request(
+      "POST",
+      ["projects", projectId, "workflows", workflowId, "webhook", "rotate"],
+      webhookTriggerResponseSchema,
+      this.req(options, { mutation: true }),
+    );
+  }
+
+  async refreshWebhookTrigger(
+    projectId: string,
+    workflowId: string,
+    options: ApiRequestOptions = {},
+  ): Promise<WebhookTriggerStatus> {
+    return this.request(
+      "POST",
+      ["projects", projectId, "workflows", workflowId, "webhook", "refresh"],
+      webhookTriggerStatusSchema,
+      this.req(options, { mutation: true }),
+    );
+  }
+
+  async getExecutionSettings(options: ApiRequestOptions = {}): Promise<ExecutionSettingsResponse> {
+    return this.request(
+      "GET",
+      ["settings", "execution"],
+      executionSettingsResponseSchema,
+      this.req(options),
+    );
+  }
+
+  async saveExecutionSettings(
+    body: ExecutionSettings,
+    options: ApiRequestOptions = {},
+  ): Promise<ExecutionSettingsResponse> {
+    const parsed = executionSettingsSchema.parse(body);
+    return this.request(
+      "PUT",
+      ["settings", "execution"],
+      executionSettingsResponseSchema,
+      this.req(options, { body: parsed, mutation: true }),
+    );
+  }
+
+  async getWebhookSettings(options: ApiRequestOptions = {}): Promise<WebhookSettings> {
+    return this.request("GET", ["settings", "webhooks"], webhookSettingsSchema, this.req(options));
+  }
+
+  async saveWebhookSettings(
+    body: WebhookSettings,
+    options: ApiRequestOptions = {},
+  ): Promise<WebhookSettings> {
+    const parsed = webhookSettingsSchema.parse(body);
+    return this.request(
+      "PUT",
+      ["settings", "webhooks"],
+      webhookSettingsSchema,
       this.req(options, { body: parsed, mutation: true }),
     );
   }

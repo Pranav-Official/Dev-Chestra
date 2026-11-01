@@ -2,7 +2,7 @@ import type { DevChestraError } from "@devchestra/core";
 import { compileExpression } from "./expression.js";
 import { joinOutputIssues } from "./join.js";
 import { normalizeOutputSchema } from "./output-schema.js";
-import { validateParamDefinitions } from "./params.js";
+import { validateParamDefinitions, validateWebhookConfig } from "./params.js";
 import { compileTemplate } from "./template.js";
 import type {
   AgentNode,
@@ -205,6 +205,9 @@ export function validateSingleNode(
     const start = node as StartNode;
     const paramIssues = validateParamDefinitions(start.params, `${pointer}/params`, node.id);
     for (const paramIssue of paramIssues) addError(paramIssue);
+    for (const webhookIssue of validateWebhookConfig(start, `${pointer}/webhook`)) {
+      addError(webhookIssue);
+    }
     return;
   }
 

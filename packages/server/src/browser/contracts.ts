@@ -11,6 +11,7 @@ import {
   decisionTestResultSchema,
   eventPageResponseSchema,
   executionDetailResponseSchema,
+  executionSettingsResponseSchema,
   foreachItemsResponseSchema,
   gateTestResultSchema,
   healthResponseSchema,
@@ -27,6 +28,10 @@ import {
   transcriptPageResponseSchema,
   usageSummaryResponseSchema,
   validateWorkflowResponseSchema,
+  webhookDeliveryResponseSchema,
+  webhookSettingsSchema,
+  webhookTriggerResponseSchema,
+  webhookTriggerStatusSchema,
   workflowDocumentResponseSchema,
   workflowListResponseSchema,
 } from "@devchestra/api";
@@ -72,6 +77,11 @@ const RESPONSE_SCHEMAS: Readonly<Record<string, SafeSchema>> = {
   ApprovalResolveResponse: approvalResolveResponseSchema,
   RunChildrenResponse: runChildrenResponseSchema,
   ForeachItemsResponse: foreachItemsResponseSchema,
+  WebhookTriggerStatus: webhookTriggerStatusSchema,
+  WebhookTriggerResponse: webhookTriggerResponseSchema,
+  WebhookDeliveryResponse: webhookDeliveryResponseSchema,
+  ExecutionSettingsResponse: executionSettingsResponseSchema,
+  WebhookSettings: webhookSettingsSchema,
 } as unknown as Readonly<Record<string, SafeSchema>>;
 
 export function makeResponseValidator(

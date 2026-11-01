@@ -210,3 +210,133 @@ export function validateParams(source: ParamSource, input?: unknown): ParamValid
 export function resolveParams(source: ParamSource, input?: unknown): ParamValidation {
   return validateParams(source, input);
 }
+
+/**
+ * The only headers a webhook mapping may read. Authorization, cookies,
+ * signatures and other credential-bearing headers are never exposed.
+ */
+export const WEBHOOK_HEADER_ALLOWLIST: readonly string[] = [
+  "content-type",
+  "user-agent",
+  "x-github-delivery",
+  "x-github-event",
+  "x-gitlab-event",
+  "x-webhook-id",
+];
+
+const WEBHOOK_PATH_MAX = 256;
+const WEBHOOK_BODY_DEPTH_MAX = 8;
+const WEBHOOK_SEGMENT = /^[A-Za-z0-9_-]{1,64}$/;
+const WEBHOOK_INDEX = /^\d{1,6}$/;
+const UNSAFE_PATH_SEGMENTS = new Set(["__proto__", "constructor", "prototype"]);
+
+export type WebhookPath =
+  | { source: "body"; segments: readonly string[] }
+  | { source: "headers"; name: string };
+
+/**
+ * Parses `body.<key>[.<key|index>]...` or `headers.<allowlisted-name>`.
+ * Returns null for anything else, including unsafe object keys.
+ */
+export function parseWebhookPath(path: string): WebhookPath | null {
+  if (path.length === 0 || path.length > WEBHOOK_PATH_MAX) return null;
+  const [root, ...segments] = path.split(".");
+  if (root === "headers") {
+    const name = segments.length === 1 ? segments[0] : undefined;
+    if (name === undefined || !WEBHOOK_HEADER_ALLOWLIST.includes(name)) return null;
+    return { source: "headers", name };
+  }
+  if (root !== "body" || segments.length === 0 || segments.length > WEBHOOK_BODY_DEPTH_MAX) {
+    return null;
+  }
+  for (const segment of segments) {
+    if (!WEBHOOK_SEGMENT.test(segment) || UNSAFE_PATH_SEGMENTS.has(segment)) return null;
+  }
+  return { source: "body", segments };
+}
+
+/** Structural checks for a start node's webhook block. Reports in saved-file terms. */
+export function validateWebhookConfig(
+  start: {
+    id?: string;
+    params: readonly WorkflowParam[];
+    webhook?: { paramMapping?: Record<string, string> };
+  },
+  pointerBase: string,
+): Issue[] {
+  const mapping = start.webhook?.paramMapping;
+  if (mapping === undefined) return [];
+  const declared = new Set(start.params.map((param) => param.name));
+  const issues: Issue[] = [];
+  for (const [name, path] of Object.entries(mapping)) {
+    const pointer = `${pointerBase}/paramMapping/${name}`;
+    const nodeId = start.id;
+    const add = (code: string, message: string): void => {
+      issues.push({
+        ...error(code, message, pointer),
+        ...(nodeId === undefined ? {} : { nodeId }),
+      });
+    };
+    if (!declared.has(name)) {
+      add("E_WEBHOOK_MAPPING", `Webhook mapping targets undeclared parameter '${name}'.`);
+      continue;
+    }
+    const parsed = parseWebhookPath(path);
+    if (parsed === null) {
+      add(
+        "E_WEBHOOK_PATH",
+        `Webhook mapping for '${name}' must be body.<path> (up to ${WEBHOOK_BODY_DEPTH_MAX} segments) or headers.<allowlisted name>.`,
+      );
+    }
+  }
+  return issues;
+}
+
+/**
+ * Reads one webhook delivery into run parameters, then applies the same
+ * validation as a manual run. Only allowlisted headers are read. Null and
+ * missing values count as absent, so defaults and required checks still apply.
+ */
+export function resolveWebhookParams(
+  start: StartNode | NormalizedStartNode,
+  delivery: { body: unknown; headers: Readonly<Record<string, string | undefined>> },
+): ParamValidation {
+  const mapping = start.webhook?.paramMapping;
+  const raw: Record<string, unknown> = {};
+  for (const param of start.params) {
+    const path = mapping?.[param.name];
+    const value =
+      mapping === undefined
+        ? bodyKey(delivery.body, param.name)
+        : path === undefined
+          ? undefined
+          : readWebhookPath(delivery, path);
+    if (value !== undefined && value !== null) raw[param.name] = value;
+  }
+  return validateParams(start, raw);
+}
+
+function bodyKey(body: unknown, key: string): unknown {
+  return isRecord(body) && Object.hasOwn(body, key) ? body[key] : undefined;
+}
+
+function readWebhookPath(
+  delivery: { body: unknown; headers: Readonly<Record<string, string | undefined>> },
+  path: string,
+): unknown {
+  const parsed = parseWebhookPath(path);
+  if (parsed === null) return undefined;
+  if (parsed.source === "headers") return delivery.headers[parsed.name];
+  let current: unknown = delivery.body;
+  for (const segment of parsed.segments) {
+    if (Array.isArray(current)) {
+      if (!WEBHOOK_INDEX.test(segment)) return undefined;
+      current = current[Number(segment)];
+    } else if (isRecord(current) && Object.hasOwn(current, segment)) {
+      current = current[segment];
+    } else {
+      return undefined;
+    }
+  }
+  return current;
+}

@@ -2,6 +2,8 @@ export type { EventListener } from "./bus.js";
 export { EventBus } from "./bus.js";
 export type { SqliteDb, SqliteDriver, SqliteOpenOptions, SqliteStatement } from "./driver.js";
 export { betterSqliteDriver } from "./driver-better-sqlite3.js";
+export type { ExecutionSettings, WebhookSettings } from "./execution-settings.js";
+export { EXECUTION_LIMITS } from "./execution-settings.js";
 export type { ForeachItem, ForeachItemRef, ForeachSource, ForeachSourceMeta } from "./foreach.js";
 export { FOREACH_MAX_ITEMS } from "./foreach.js";
 export { hashJsonSync } from "./hash.js";
@@ -13,6 +15,7 @@ export type {
   ApprovalsApi,
   ContextCapturesApi,
   EventsApi,
+  ExecutionSettingsApi,
   ExecutionsApi,
   ForeachApi,
   LoopsApi,
@@ -27,6 +30,8 @@ export type {
   SubmissionsApi,
   UsageApi,
   ViewApi,
+  WebhookSettingsApi,
+  WebhooksApi,
   WorkflowCallsApi,
 } from "./store.js";
 export { openStore, Store } from "./store.js";
@@ -101,3 +106,12 @@ export type {
   UsageSummary,
   ValidSubmission,
 } from "./types.js";
+export type {
+  ArmTriggerInput,
+  CreateTriggerInput,
+  TriggerRecord,
+  TriggerRuntime,
+  WebhookClaim,
+  WebhookClaimInput,
+} from "./webhooks.js";
+export { WEBHOOK_DELIVERY_RETENTION_MS } from "./webhooks.js";

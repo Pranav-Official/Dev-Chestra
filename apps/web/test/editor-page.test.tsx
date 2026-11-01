@@ -1,6 +1,12 @@
-import type { CliModelCatalog, ProjectView, WorkflowDocumentResponse } from "@devchestra/api";
+import type {
+  CliModelCatalog,
+  ProjectView,
+  WebhookTriggerStatus,
+  WorkflowDocumentResponse,
+} from "@devchestra/api";
 import { ApiError } from "@devchestra/api";
 import type { ValidationReport, WorkflowFile } from "@devchestra/schema";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
@@ -109,7 +115,23 @@ function documentFor(etag: string, workflow = FILE): WorkflowDocumentResponse {
   };
 }
 
+const TRIGGER_OFF: WebhookTriggerStatus = {
+  supported: false,
+  armed: false,
+  state: "off",
+  hookId: null,
+  url: null,
+  armedRevision: null,
+  armedAt: null,
+  lastDeliveryAt: null,
+  refreshError: null,
+  issues: [],
+};
+
 function renderEditor(onReloaded = vi.fn(), workflow = FILE) {
+  // The header's webhook control reads react-query, as it does under the app's provider.
+  vi.spyOn(api, "getWebhookTrigger").mockResolvedValue(TRIGGER_OFF);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const router = createMemoryRouter(
     [
       {
@@ -130,7 +152,11 @@ function renderEditor(onReloaded = vi.fn(), workflow = FILE) {
     ],
     { initialEntries: ["/p/p1/w/demo"] },
   );
-  render(<RouterProvider router={router} />);
+  render(
+    <QueryClientProvider client={client}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  );
   return onReloaded;
 }
 

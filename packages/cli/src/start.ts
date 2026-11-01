@@ -16,6 +16,7 @@ import { createDecisionService } from "@devchestra/decisions";
 import type { Engine } from "@devchestra/engine";
 import type {
   BrowserModelCatalogPort,
+  BrowserWebhookPorts,
   CommandResponse,
   StartRunCommand,
   StartRunResponse,
@@ -49,6 +50,7 @@ import {
   type ServerMetadata,
   writeServerMetadata,
 } from "./server-metadata.js";
+import { createWebhookPorts } from "./webhook-wiring.js";
 import { listenWindowsControl } from "./windows-control.js";
 import { requireFakeScriptForFakeNodes } from "./workflow.js";
 import { createBrowserWorkspaceService } from "./workspace-service.js";
@@ -93,6 +95,8 @@ export interface BrowserWiring {
   version: string;
   port: number;
   webRoot?: string;
+  /** Webhook triggers: launch, queue pump and freeze ports over this engine and store. */
+  webhooks?: BrowserWebhookPorts;
 }
 
 export interface BrowserListener {
@@ -192,6 +196,7 @@ async function defaultBrowserFactory(wiring: BrowserWiring): Promise<BrowserList
     version: wiring.version,
     port: wiring.port,
     ...(wiring.webRoot === undefined ? {} : { webRoot: wiring.webRoot }),
+    ...(wiring.webhooks === undefined ? {} : { webhooks: wiring.webhooks }),
   });
   const closed = new Promise<void>((resolveClose) => {
     running.server.once("close", () => {
@@ -563,6 +568,7 @@ export async function executeStart(
         instanceId,
         version,
         ...(webRoot === undefined ? {} : { webRoot }),
+        webhooks: createWebhookPorts(store, engine),
       },
       options.port,
     );
