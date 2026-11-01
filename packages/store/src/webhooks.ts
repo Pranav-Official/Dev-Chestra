@@ -28,6 +28,14 @@ export interface TriggerRuntime extends TriggerRecord {
   bundle: Record<string, unknown>;
 }
 
+/** What the public ingress needs to authenticate a delivery. Loads no workflow data. */
+export interface TriggerAuth {
+  hookId: string;
+  armed: boolean;
+  armedRevision: string | null;
+  signingSecret: string;
+}
+
 export interface ArmTriggerInput {
   armedRevision: string;
   snapshot: unknown;
@@ -125,6 +133,22 @@ export function getTriggerRuntime(runtime: Runtime, hookId: string): TriggerRunt
   return row === null ? null : mapRuntime(row);
 }
 
+/** Auth-only read: the armed flag, the armed revision and the secret, without the snapshot. */
+export function getTriggerAuth(runtime: Runtime, hookId: string): TriggerAuth | null {
+  const row = runtime.db
+    .prepare("SELECT id, armed, armed_revision, signing_secret FROM workflow_triggers WHERE id = ?")
+    .get(hookId) as
+    | { id: string; armed: number; armed_revision: string | null; signing_secret: string }
+    | undefined;
+  if (row === undefined) return null;
+  return {
+    hookId: row.id,
+    armed: row.armed !== 0,
+    armedRevision: row.armed_revision,
+    signingSecret: row.signing_secret,
+  };
+}
+
 export function createTrigger(runtime: Runtime, input: CreateTriggerInput): void {
   const at = now(runtime);
   runtime.db
@@ -191,6 +215,14 @@ export function disarmTrigger(runtime: Runtime, hookId: string): void {
   runtime.db
     .prepare("UPDATE workflow_triggers SET armed = 0, updated_at = ? WHERE id = ?")
     .run(now(runtime), hookId);
+}
+
+/**
+ * Removes the trigger row, its hook ID and its secret. Delivery claims go with it
+ * (ON DELETE CASCADE), so a workflow recreated later gets a fresh hook and secret.
+ */
+export function deleteTrigger(runtime: Runtime, hookId: string): void {
+  runtime.db.prepare("DELETE FROM workflow_triggers WHERE id = ?").run(hookId);
 }
 
 /** Relink and removal both disarm: a trigger never runs against a different directory. */

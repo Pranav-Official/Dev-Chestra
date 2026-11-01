@@ -90,12 +90,15 @@ describe("schema migration 0011", () => {
     }
   });
 
-  it("restricts the database file to its owner on POSIX", () => {
+  it("restricts the database file and its WAL to the owner on POSIX", () => {
     if (process.platform === "win32") return;
     const { dir, store } = setup();
+    const file = join(dir, "devchestra.db");
+    // The WAL exists while the store is open, after configuration and migrations have written.
+    const wal = statSync(`${file}-wal`).mode & 0o777;
     store.close();
-    const mode = statSync(join(dir, "devchestra.db")).mode & 0o777;
-    expect(mode).toBe(0o600);
+    expect(statSync(file).mode & 0o777).toBe(0o600);
+    expect(wal).toBe(0o600);
   });
 });
 

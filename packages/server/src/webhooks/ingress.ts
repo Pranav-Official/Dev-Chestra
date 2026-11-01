@@ -26,9 +26,9 @@ export function mountWebhookIngress(app: Hono, deps: WebhookIngressDeps): void {
   app.post("/webhooks/:hookId", async (c) => {
     const service = deps.service;
     const hookId = c.req.param("hookId");
-    const runtime =
-      service !== null && HOOK_ID_PATTERN.test(hookId) ? service.runtimeFor(hookId) : null;
-    if (service === null || runtime === null) {
+    // Only the credentials are read here. The armed workflow loads after the signature checks.
+    const auth = service !== null && HOOK_ID_PATTERN.test(hookId) ? service.authFor(hookId) : null;
+    if (service === null || auth === null) {
       return reply(c, 404, errorBody("E_NOT_FOUND", "Not found."));
     }
     let rawBody: Uint8Array;
@@ -41,7 +41,7 @@ export function mountWebhookIngress(app: Hono, deps: WebhookIngressDeps): void {
       WEBHOOK_HEADER_ALLOWLIST.map((name) => [name, c.req.header(name)]),
     );
     try {
-      const outcome = await service.deliver(runtime, {
+      const outcome = await service.deliver(auth, {
         rawBody,
         signatures: [c.req.header("x-hub-signature-256"), c.req.header("x-devchestra-signature")],
         deliveryId: firstDeliveryId(c),

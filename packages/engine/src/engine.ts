@@ -678,6 +678,9 @@ export class LinearEngine implements Engine {
     for (const run of this.#ctx.store.runs.listQueued()) {
       if (this.#active.has(run.id)) continue;
       try {
+        // The check reads only the snapshot above, so a locked workspace opens no write
+        // transaction. The run is re-checked inside the transaction before it starts.
+        assertLoopWorkspaceAvailable(run, started, (a, b) => this.#lineageRelated(a, b));
         this.#ctx.store.tx(() => {
           assertLoopWorkspaceAvailable(run, started, (a, b) => this.#lineageRelated(a, b));
           this.#ctx.append(run.id, "", "run.started", "engine", {});

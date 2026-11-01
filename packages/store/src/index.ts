@@ -109,6 +109,7 @@ export type {
 export type {
   ArmTriggerInput,
   CreateTriggerInput,
+  TriggerAuth,
   TriggerRecord,
   TriggerRuntime,
   WebhookClaim,

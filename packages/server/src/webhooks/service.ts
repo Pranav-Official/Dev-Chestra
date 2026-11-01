@@ -17,7 +17,7 @@ import {
   type WorkflowFile,
   workflowNodes,
 } from "@devchestra/schema";
-import { EXECUTION_LIMITS, type TriggerRecord, type TriggerRuntime } from "@devchestra/store";
+import { EXECUTION_LIMITS, type TriggerAuth, type TriggerRecord } from "@devchestra/store";
 import type { BrowserWorkspacePort, ProjectView } from "../browser/ports.js";
 import { assertProjectPathAllowed } from "../browser/workflow.js";
 import { validateRunWorkspace } from "../browser/workspaces.js";
@@ -103,9 +103,9 @@ export class WebhookService {
     return this.#deps.ports.store;
   }
 
-  /** The trigger for a hook ID, including server-only credentials. Never serialize it. */
-  runtimeFor(hookId: string): TriggerRuntime | null {
-    return this.#store.webhooks.runtimeFor(hookId);
+  /** Credentials and armed state for a hook ID, read before the body. Never serialize it. */
+  authFor(hookId: string): TriggerAuth | null {
+    return this.#store.webhooks.authFor(hookId);
   }
 
   async status(
@@ -247,10 +247,13 @@ export class WebhookService {
     }
   }
 
-  /** A deleted workflow must not keep an armed hook running its last revision. */
+  /**
+   * A deleted workflow must not keep an armed hook running its last revision. The trigger
+   * row goes too, so its hook ID and secret stop working and a recreated workflow gets new ones.
+   */
   afterDelete(project: WorkflowProject, workflowId: string): void {
     const trigger = this.#store.webhooks.trigger(project.id, workflowId);
-    if (trigger?.armed === true) this.#store.webhooks.disarm(trigger.hookId);
+    if (trigger !== null) this.#store.webhooks.remove(trigger.hookId);
   }
 
   /**
@@ -258,12 +261,14 @@ export class WebhookService {
    * a disarmed hook is refused before its body is parsed. Refusals throw a
    * DevChestraError; other engine refusals are re-thrown for the ingress to map by code.
    */
-  async deliver(
-    runtime: TriggerRuntime,
-    input: WebhookDeliveryInput,
-  ): Promise<WebhookDeliveryOutcome> {
-    if (!authenticates(runtime, input)) {
+  async deliver(auth: TriggerAuth, input: WebhookDeliveryInput): Promise<WebhookDeliveryOutcome> {
+    if (!authenticates(auth, input)) {
       throw new DevChestraError("E_AUTH", "Webhook authentication failed.");
+    }
+    // The armed snapshot and bundle load only after the signature has verified.
+    const runtime = this.#store.webhooks.runtimeFor(auth.hookId);
+    if (runtime === null) {
+      throw new DevChestraError("E_NOT_FOUND", "Webhook trigger does not exist.");
     }
     if (!runtime.armed || runtime.armedRevision === null || runtime.snapshotRaw === null) {
       throw new DevChestraError("E_CONFLICT", "The webhook trigger is disarmed.", {
@@ -313,11 +318,12 @@ export class WebhookService {
     }
     // The ingress answers before the run finishes; a failed run must not surface as unhandled.
     void launch.completion.then(undefined, () => undefined);
+    // Launch may already have started the run, so report its current status, not the enqueue state.
+    const status = (await this.#deps.getRunStatus(launch.runId)) ?? "queued";
     if (launch.duplicate) {
-      const status = (await this.#deps.getRunStatus(launch.runId)) ?? "queued";
       return { status: 200, body: { runId: launch.runId, duplicate: true, status } };
     }
-    return { status: 202, body: { runId: launch.runId, duplicate: false, status: "queued" } };
+    return { status: 202, body: { runId: launch.runId, duplicate: false, status } };
   }
 
   executionSettings(): ExecutionSettingsResponse {
@@ -572,12 +578,12 @@ function executionLimits(): ExecutionSettingsResponse["limits"] {
  * accepted signature headers. This is the only credential a sender needs (GitHub's
  * `X-Hub-Signature-256`). The comparison is constant-time.
  */
-function authenticates(runtime: TriggerRuntime, input: WebhookDeliveryInput): boolean {
+function authenticates(auth: TriggerAuth, input: WebhookDeliveryInput): boolean {
   const provided = input.signatures
     .map((value) => signatureFromHeader(value))
     .filter((value): value is string => value !== null);
   if (provided.length === 0) return false;
-  const expected = hmacSha256Hex(runtime.signingSecret, input.rawBody);
+  const expected = hmacSha256Hex(auth.signingSecret, input.rawBody);
   return provided.some((candidate) => digestEquals(candidate, expected));
 }
 

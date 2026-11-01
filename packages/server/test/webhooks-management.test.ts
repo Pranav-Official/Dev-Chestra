@@ -294,15 +294,29 @@ describe("saves and deletes", () => {
     expect(recovered.refreshError).toBeNull();
   });
 
-  it("deleting an armed workflow disarms its trigger", async () => {
-    await armHook(h);
+  it("deleting an armed workflow removes its trigger, and the old hook and secret stop working", async () => {
+    const armed = await armHook(h);
     const etag = await etagOf(WORKFLOW_API);
     const removed = await api(h, "DELETE", WORKFLOW_API, undefined, { "If-Match": etag });
     expect(removed.status).toBe(204);
-    const body = await status();
-    expect(body.armed).toBe(false);
-    expect(body.state).toBe("off");
-    expect(body.hookId).not.toBeNull();
+    expect((await api(h, "GET", BASE)).status).toBe(404);
+    const old = await deliver(h, armed.hookId, { body: VALID, secret: armed.secret });
+    expect(old.status).toBe(404);
+  });
+
+  it("a workflow recreated after deletion arms with a new hook and a new secret", async () => {
+    const armed = await armHook(h);
+    const etag = await etagOf(WORKFLOW_API);
+    await api(h, "DELETE", WORKFLOW_API, undefined, { "If-Match": etag });
+    h.writeWorkflow(WORKFLOW_ID, hookWorkflow());
+    const again = await armHook(h);
+    expect(again.hookId).not.toBe(armed.hookId);
+    expect(again.secret).toMatch(/^[0-9a-f]{40}$/);
+    expect(again.secret).not.toBe(armed.secret);
+    const old = await deliver(h, armed.hookId, { body: VALID, secret: armed.secret });
+    expect(old.status).toBe(404);
+    const fresh = await deliver(h, again.hookId, { body: VALID, secret: again.secret ?? "" });
+    expect(fresh.status).toBe(202);
   });
 });
 

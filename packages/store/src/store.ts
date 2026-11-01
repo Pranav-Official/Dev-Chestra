@@ -175,15 +175,18 @@ import {
   type CreateTriggerInput,
   claimDelivery,
   createTrigger,
+  deleteTrigger,
   disarmProjectTriggers,
   disarmTrigger,
   getTrigger,
+  getTriggerAuth,
   getTriggerRuntime,
   listTriggerSecrets,
   pruneExpiredDeliveries,
   replaceArmedRevision,
   rotateTriggerCredentials,
   setTriggerRefreshError,
+  type TriggerAuth,
   type TriggerRecord,
   type TriggerRuntime,
   type WebhookClaim,
@@ -229,10 +232,14 @@ export interface WebhooksApi {
   trigger(projectId: string, workflowId: string): TriggerRecord | null;
   /** Includes credentials and the armed bundle. Never serialize the result. */
   runtimeFor(hookId: string): TriggerRuntime | null;
+  /** Credentials and armed state only, for authenticating a delivery before its bundle loads. */
+  authFor(hookId: string): TriggerAuth | null;
   create(input: CreateTriggerInput): void;
   arm(hookId: string, input: ArmTriggerInput): void;
   replaceRevision(hookId: string, expectedRevision: string, input: ArmTriggerInput): boolean;
   disarm(hookId: string): void;
+  /** Deletes the trigger row, which revokes its hook ID and secret for good. */
+  remove(hookId: string): void;
   rotateCredentials(hookId: string, signingSecret: string): void;
   setRefreshError(hookId: string, message: string | null): void;
   claimDelivery(input: WebhookClaimInput): WebhookClaim;
@@ -461,7 +468,9 @@ export class Store {
     const driver = options.driver ?? betterSqliteDriver;
     const clock: Clock = options.clock ?? systemClock;
     const idGen: IdGen = options.idGen ?? systemIds;
-    if (options.file !== ":memory:") mkdirSync(dirname(options.file), { recursive: true });
+    if (options.file !== ":memory:") {
+      mkdirSync(dirname(options.file), { recursive: true, mode: 0o700 });
+    }
     const secrets = new SecretRegistry(options.secrets ?? []);
     this.#runtime = {
       db: driver.open(options.file),
@@ -474,11 +483,13 @@ export class Store {
       poisoned: false,
       poisonError: undefined,
     };
-    if (options.file !== ":memory:") restrictDatabaseFile(options.file);
     try {
       this.#configure(this.#runtime.db);
       applyMigrations(this.#runtime.db, clock.now());
       this.#quickCheck(this.#runtime.db);
+      // WAL and shared-memory files exist only once the database is configured, so the
+      // mode is applied here, not before. The directory is already owner-only (0700).
+      if (options.file !== ":memory:") restrictDatabaseFile(options.file);
     } catch (error) {
       this.#runtime.db.close();
       throw error;
@@ -519,11 +530,13 @@ export class Store {
     this.webhooks = {
       trigger: (projectId, workflowId) => getTrigger(this.#runtime, projectId, workflowId),
       runtimeFor: (hookId) => getTriggerRuntime(this.#runtime, hookId),
+      authFor: (hookId) => getTriggerAuth(this.#runtime, hookId),
       create: (input) => this.tx(() => createTrigger(this.#runtime, input)),
       arm: (hookId, input) => this.tx(() => armTrigger(this.#runtime, hookId, input)),
       replaceRevision: (hookId, expectedRevision, input) =>
         this.tx(() => replaceArmedRevision(this.#runtime, hookId, expectedRevision, input)),
       disarm: (hookId) => this.tx(() => disarmTrigger(this.#runtime, hookId)),
+      remove: (hookId) => this.tx(() => deleteTrigger(this.#runtime, hookId)),
       rotateCredentials: (hookId, signingSecret) =>
         this.tx(() => rotateTriggerCredentials(this.#runtime, hookId, signingSecret)),
       setRefreshError: (hookId, message) =>
