@@ -1,13 +1,14 @@
 import type { AgentNode, Issue } from "@devchestra/schema";
+import { PROD_CLI_LABELS } from "@devchestra/schema";
 import { useState } from "react";
 import { AgentModelPicker } from "./AgentModelPicker.js";
 import { describedBy, Field } from "./fields/fields.js";
 import { fieldIssue } from "./issues.js";
+import { useAvailableClis } from "./model/useAvailableClis.js";
 import { useCliModelCatalog } from "./model/useCliModelCatalog.js";
 import type { PatchOf } from "./types.js";
 
-const HELP =
-  "Optional override from the selected CLI's runtime catalog. No override uses the CLI default. Advertised models do not prove account entitlement.";
+const HELP = "Optional. Leave on the default to use the provider's own model.";
 
 export function AgentModelField({
   node,
@@ -22,6 +23,8 @@ export function AgentModelField({
 }) {
   const [open, setOpen] = useState(false);
   const modelIssue = fieldIssue(issues, "/model");
+  const { clis } = useAvailableClis();
+  const cliLabel = clis.find((entry) => entry.id === node.cli)?.label ?? PROD_CLI_LABELS[node.cli];
   const { catalog, loading, error, refresh } = useCliModelCatalog({
     projectId,
     cli: node.cli,
@@ -33,6 +36,8 @@ export function AgentModelField({
     <Field id="inspector-agent-model" label="Model" help={HELP} error={modelIssue}>
       <AgentModelPicker
         id="inspector-agent-model"
+        cli={node.cli}
+        cliLabel={cliLabel}
         value={node.model}
         catalog={catalog}
         loading={loading}
