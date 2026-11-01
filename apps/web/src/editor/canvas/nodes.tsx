@@ -22,6 +22,8 @@ import {
   TerminalSquare,
 } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { ProviderIcon } from "../../ui/ProviderIcon.js";
+import { useProviderState } from "../../ui/providerState.js";
 
 export interface EditorNodeData extends Record<string, unknown> {
   node: WorkflowNode;
@@ -84,6 +86,13 @@ export function handleSignature(node: WorkflowNode): string | null {
       return _exhaustive;
     }
   }
+}
+
+/** Short model name for a node's meta line: no provider prefix, capped at 22 characters. */
+export function shortModel(model: string | undefined): string {
+  if (model === undefined || model === "") return "default";
+  const name = model.replace(/^[^/]+\//, "");
+  return name.length > 22 ? `${name.slice(0, 21)}…` : name;
 }
 
 export function subtitle(node: WorkflowNode): string {
@@ -177,6 +186,11 @@ export function EditorNodeView({ data, selected }: NodeProps<EditorFlowNode>) {
   const decision = !unsupported && node.type === "decision" ? node : null;
   const loop = !unsupported && node.type === "loop" ? node : null;
   const workflow = !unsupported && node.type === "workflow" ? node : null;
+  const agent = !unsupported && node.type === "agent" ? node : null;
+  const providers = useProviderState();
+  const providerOff = agent !== null && providers.isDisabled(agent.cli);
+  const agentTitle =
+    agent === null ? "" : `${subtitle(agent)}${providerOff ? " · turned off in Settings" : ""}`;
   return (
     <button
       type="button"
@@ -228,7 +242,23 @@ export function EditorNodeView({ data, selected }: NodeProps<EditorFlowNode>) {
       </div>
       <div className="ed-node-name">{node.name}</div>
       <div className="ed-node-meta" title={summary}>
-        {unsupported ? `Unsupported type '${node.type}'` : subtitle(node)}
+        {agent === null ? (
+          unsupported ? (
+            `Unsupported type '${node.type}'`
+          ) : (
+            subtitle(node)
+          )
+        ) : (
+          <span
+            className={providerOff ? "ed-node-provider is-off" : "ed-node-provider"}
+            title={agentTitle}
+          >
+            <ProviderIcon cli={agent.cli} size={12} />
+            {providerOff ? <span className="ed-node-provider-dot" aria-hidden="true" /> : null}
+            <span aria-hidden="true">{shortModel(agent.model)}</span>
+            <span className="sr-only">{agentTitle}</span>
+          </span>
+        )}
       </div>
       {gate === null ? null : (
         <div className="ed-node-handle-list" data-testid={`ed-gate-branches-${node.id}`}>

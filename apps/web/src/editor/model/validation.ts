@@ -1,5 +1,5 @@
 import { isRecord } from "@devchestra/core";
-import type { ValidationReport, WorkflowFile } from "@devchestra/schema";
+import type { ValidationContext, ValidationReport, WorkflowFile } from "@devchestra/schema";
 import { errorReport } from "./validation-report.js";
 
 export const VALIDATION_DEBOUNCE_MS = 150;
@@ -22,7 +22,7 @@ export interface ValidationClientOptions {
 }
 
 export interface ValidationClient {
-  validate(file: WorkflowFile, revision: number): void;
+  validate(file: WorkflowFile, revision: number, ctx?: ValidationContext): void;
   dispose(): void;
 }
 
@@ -73,7 +73,8 @@ export function createValidationClient(options: ValidationClientOptions): Valida
   let worker: ValidationWorkerLike | null = null;
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
-  let latest: { file: WorkflowFile; revision: number } | null = null;
+  let latest: { file: WorkflowFile; revision: number; ctx: ValidationContext | undefined } | null =
+    null;
   let latestRevision = -1;
   let lastDelivered = -1;
   let nextRequestId = 0;
@@ -145,7 +146,7 @@ export function createValidationClient(options: ValidationClientOptions): Valida
 
   function sendNow(): void {
     if (disposed || latest === null) return;
-    const { file, revision } = latest;
+    const { file, revision, ctx } = latest;
     if (revision < latestRevision) return;
 
     let serialized: string;
@@ -216,6 +217,7 @@ export function createValidationClient(options: ValidationClientOptions): Valida
         requestId: id,
         revision,
         file,
+        ...(ctx === undefined ? {} : { ctx }),
       });
     } catch (error) {
       clearTimeoutTimer();
@@ -232,7 +234,7 @@ export function createValidationClient(options: ValidationClientOptions): Valida
   }
 
   return {
-    validate(file, revision) {
+    validate(file, revision, ctx) {
       if (disposed || !Number.isSafeInteger(revision) || revision < 0) return;
       if (revision < latestRevision) {
         clearTimeoutTimer();
@@ -244,7 +246,7 @@ export function createValidationClient(options: ValidationClientOptions): Valida
         lastDelivered = -1;
         teardownWorker();
       }
-      latest = { file, revision };
+      latest = { file, revision, ctx };
       latestRevision = revision;
       if (debounceTimer !== null) clearTimeout(debounceTimer);
       if (debounceMs <= 0) {

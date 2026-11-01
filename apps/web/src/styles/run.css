@@ -480,7 +480,7 @@ button.event-row:hover {
 
 /* Structured JSON: highlighted tree, inline values, truncated previews, dialog body. */
 .json-tree {
-  font: 12.5px/1.55 var(--mono);
+  font: 12.5px / 1.55 var(--mono);
   color: var(--text);
   overflow-wrap: anywhere;
 }
@@ -619,4 +619,16 @@ button.event-row:hover {
 }
 .run-page .json-meta {
   margin: 0 0 6px;
+}
+
+.flow-node-provider {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  vertical-align: bottom;
+}
+
+.flow-node-provider svg {
+  flex: none;
 }

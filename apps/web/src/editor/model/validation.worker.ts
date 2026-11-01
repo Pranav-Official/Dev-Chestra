@@ -1,4 +1,9 @@
-import { parseWorkflow, validateWorkflow, type WorkflowFile } from "@devchestra/schema";
+import {
+  parseWorkflow,
+  type ValidationContext,
+  validateWorkflow,
+  type WorkflowFile,
+} from "@devchestra/schema";
 import { devchestraErrorReport } from "./validation-report.js";
 
 interface ValidateRequest {
@@ -6,6 +11,7 @@ interface ValidateRequest {
   requestId: number;
   revision: number;
   file: WorkflowFile;
+  ctx?: { disabledClis?: unknown };
 }
 
 interface WorkerScope {
@@ -27,6 +33,13 @@ function isRequest(value: unknown): value is ValidateRequest {
   );
 }
 
+/** Only a list of strings is accepted; anything else validates with no context. */
+function contextOf(request: ValidateRequest): ValidationContext {
+  const disabled = request.ctx?.disabledClis;
+  if (!Array.isArray(disabled)) return {};
+  return { disabledClis: disabled.filter((id): id is string => typeof id === "string") };
+}
+
 scope.onmessage = (event) => {
   const request = event.data;
   if (!isRequest(request)) return;
@@ -45,7 +58,7 @@ scope.onmessage = (event) => {
       type: "result",
       requestId: request.requestId,
       revision: request.revision,
-      report: validateWorkflow(parsed.value),
+      report: validateWorkflow(parsed.value, contextOf(request)),
     });
   } catch (error) {
     scope.postMessage({

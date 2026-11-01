@@ -166,7 +166,10 @@ export function defaultControllerBodyValidator(
     base,
     extraReferenced,
     fileId: opts?.fileId ?? "workflow",
-    ctx: { ...(opts?.projectKind === undefined ? {} : { projectKind: opts.projectKind }) },
+    ctx: {
+      ...(opts?.projectKind === undefined ? {} : { projectKind: opts.projectKind }),
+      ...(opts?.disabledClis === undefined ? {} : { disabledClis: opts.disabledClis }),
+    },
     addError,
     addWarning,
     addDevChestra: (error, p, n) => {

@@ -151,6 +151,7 @@ export interface ValidateLoopOptions {
   parentAllowed?: Iterable<string>;
   fileId?: string;
   projectKind?: ValidationContext["projectKind"];
+  disabledClis?: string[];
   validateBody?: LoopBodyValidator;
 }
 
@@ -344,7 +345,10 @@ function defaultBodyValidator(
     base,
     extraReferenced,
     fileId: opts?.fileId ?? "workflow",
-    ctx: { ...(opts?.projectKind === undefined ? {} : { projectKind: opts.projectKind }) },
+    ctx: {
+      ...(opts?.projectKind === undefined ? {} : { projectKind: opts.projectKind }),
+      ...(opts?.disabledClis === undefined ? {} : { disabledClis: opts.disabledClis }),
+    },
     addError,
     addWarning,
     addDevChestra: (error, p, n) => {
@@ -481,6 +485,7 @@ export function validateLoopForWorkflow(
     ...(validateBody === undefined ? {} : { validateBody }),
     ...(ctx?.fileId === undefined ? {} : { fileId: ctx.fileId }),
     ...(ctx?.projectKind === undefined ? {} : { projectKind: ctx.projectKind }),
+    ...(ctx?.disabledClis === undefined ? {} : { disabledClis: ctx.disabledClis }),
   });
   for (const item of issues) {
     if (item.severity === "error") addError(item);
