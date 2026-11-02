@@ -1,0 +1,88 @@
+/* Polling trigger control in the editor header and its dialog
+   (editor/poll/*.tsx). Mirrors src/styles/editor-webhook.css. */
+
+.poll-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.poll-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.poll-summary p {
+  margin: 0;
+  color: var(--text-2);
+}
+.poll-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.poll-hint {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.poll-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.poll-section h3 {
+  margin: 0;
+  font-size: 13px;
+}
+.poll-section p {
+  margin: 0;
+  font-size: 12.5px;
+}
+.poll-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+.poll-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 12.5px;
+}
+.poll-facts dt {
+  color: var(--text-3);
+}
+.poll-facts dd {
+  margin: 0;
+}
+.poll-interval {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.poll-interval .inspector-input {
+  width: 96px;
+}
+.poll-interval select {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+.poll-error {
+  margin: 0;
+  color: var(--red);
+  font-size: 12px;
+}
