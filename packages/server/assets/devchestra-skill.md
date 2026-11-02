@@ -212,6 +212,7 @@ Outputs are capped (see section 12) and every output is stored and scanned. For 
 - Param `type`: `string`, `number`, `boolean` or `enum`. `required` is required. `default` must match the type (finite number for `number`; for `enum`, one of `options`). Only `enum` may have `options`; they must be non-empty, unique, non-empty strings.
 - A run supplies a value for each parameter (CLI: `--param name=value`; the Run dialog in the browser). Unknown parameters are rejected, missing required ones without a default are rejected, defaults are applied.
 - Read parameters as `start.<name>`. Never put secrets in parameters; values are stored and scanned for secrets.
+- Timer and HTTP triggers are optional `start.polling` / `start.webhook` blocks (see section 7.12). When `polling` is declared, no param may be named `found` or `dedupeKey`.
 
 ### 7.2 `agent`
 
@@ -561,6 +562,38 @@ Operational rules:
 - `status`: `success`, `failed` or `rejected`. It is the run's final status.
 - `result`: non-empty bare expression over `start` and the end's ancestors; the run result is its value. Use an object constructor for structured results.
 - Give failure and rejection paths their own `end` with `status: "failed"` / `"rejected"` so the run's final status tells the truth.
+
+### 7.12 Start triggers (polling + webhook)
+
+Triggers are opt-in config on the `start` node, not graph nodes. A workflow starts manually by default; `polling` lets a timer probe start runs, `webhook` lets signed HTTP deliveries start runs. Both pin the armed revision: editing the workflow (or a called child) makes the trigger `stale` (refresh re-pins); an invalid saved workflow makes it `invalid` while the last valid revision keeps serving. Either block may be present with `enabled: false` while authoring. Triggers are armed and managed in the browser Trigger controls / API, not the agent CLI.
+
+```json fragment
+{
+  "id": "start",
+  "type": "start",
+  "name": "Start",
+  "ui": { "x": 80, "y": 160 },
+  "params": [{ "name": "pr_url", "type": "string", "required": true }],
+  "polling": {
+    "enabled": true,
+    "dedupe": true,
+    "workspace": "project",
+    "probe": {
+      "id": "probe",
+      "type": "shell",
+      "name": "Poll probe",
+      "command": "gh pr list --limit 1 --json url --jq .[0].url",
+      "timeoutMin": 10
+    }
+  },
+  "webhook": { "enabled": true, "paramMapping": { "pr_url": "body.pull_request.html_url" } }
+}
+```
+
+- `polling`: `{ enabled: boolean, probe: <full shell|agent node>, dedupe?: boolean (default true), workspace?: "project" | "worktree" (default "project") }`. `probe.id` must be `"probe"` when present. Shell probes omit engine-owned `workspace`/`allowFailure` (non-zero exit is always a probe failure); agent probes omit generated `output` plus `workspace`/`context`/`promptFile`, with `timeoutMin` under `limits`. Probe `command`/`prompt` must not contain `{{ }}`; agent prompt is at most 1 MiB. The engine prepends a read-only preamble describing the `{ found, params, dedupeKey? }` contract (`dedupeKey` at most 512 chars; params validate like a manual run).
+- Shell probe output: trimmed empty/`null` means nothing; a JSON object is the params object itself (only `{"found": false}` is accepted as an envelope); a bare scalar is accepted only with exactly one start param. Agent probe output is `{ "found": boolean, "params": { ... }, "dedupeKey"? }`.
+- Arm with `intervalSeconds` (shell 10-86400, agent 60-86400); `probe-now` is the safe dry run (never starts a run, never writes a dedupe claim). Dedupe skips results seen in the last 7 days. Five consecutive probe failures disarm automatically. `project` probes run at the registered root read-only; `worktree` uses a fresh worktree per tick.
+- `webhook`: `{ enabled: boolean, paramMapping?: Record<paramName, path> }`. Without a mapping, same-named top-level body keys fill params; with a mapping it is authoritative. Paths are `body.<key...>` (up to 8 segments, `[A-Za-z0-9_-]`, no `__proto__`/`constructor`/`prototype`) or `headers.<allowlisted-name>` (`content-type`, `user-agent`, `x-github-delivery`, `x-github-event`, `x-gitlab-event`, `x-webhook-id`). Null/missing values count as absent. Arming returns a delivery URL plus a 40-char hex secret (shown once) for the sender's secret field; deliveries carry HMAC-SHA256 in `X-Hub-Signature-256` (202 new run, 200 duplicate).
 
 ## 8. Agent, join and loop output schemas
 
@@ -990,6 +1023,8 @@ Run a saved workflow with `devchestra run start <id> --project <path> --idempote
 For human review, use `approval list --run <run-id>` and `approval show <run-id> --path <path>`, present the request to the user, and resolve only with their authorized decision. Pass the returned request ID, attempt, and generation to `approval resolve` with `--request-id`, `--expected-attempt`, `--expected-generation`, and `--decision approve|reject`. Never infer approval. For uncertain shell side effects, inspect the effects and require explicit authorization before retrying.
 
 Agent commands print JSON, and watch prints JSONL. Use `devchestra project --help` for the command overview. Usage data is only as complete as the providers report; do not infer that missing cost information means a run is free.
+
+Polling and webhook triggers are declared in the workflow file (section 7.12) but armed, refreshed, rotated, and probed in the browser Trigger controls / API. The agent CLI has no trigger commands.
 
 ## Discovery, tests, and uncertain-shell recovery
 

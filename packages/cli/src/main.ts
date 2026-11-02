@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { resolve } from "node:path";
 import { ApiError, ApiTransportError } from "@devchestra/api";
-import { projectSkillTemplate } from "@devchestra/server";
+import { isSkillName, projectSkillTemplate, skillMenu, skillTemplate } from "@devchestra/server";
 import {
   AgentCommandError,
   AgentUsageError,
@@ -29,7 +29,23 @@ async function main(): Promise<number> {
     return 0;
   }
   if (argv[0] === "skill") {
-    process.stdout.write(projectSkillTemplate());
+    const rest = argv.slice(1);
+    if (rest.length === 0 || rest[0] === "--help" || rest[0] === "-h") {
+      process.stdout.write(skillMenu());
+      return 0;
+    }
+    if (rest[0] === "--all") {
+      process.stdout.write(projectSkillTemplate());
+      return 0;
+    }
+    const name = rest[0] ?? "";
+    if (rest.length > 1 || !isSkillName(name)) {
+      process.stderr.write(
+        `devchestra: unknown skill '${name}'. Run 'devchestra skill' to list skills.\n`,
+      );
+      return 4;
+    }
+    process.stdout.write(skillTemplate(name));
     return 0;
   }
   const agentGroups = ["project", "workflow", "approval", "providers", "gate", "decision"];

@@ -10,11 +10,79 @@ export const PROJECT_SKILL_FILE = "skill.md";
 export const PROJECT_SKILL_RELATIVE_FILE = `.devchestra/${PROJECT_SKILL_FILE}`;
 
 /**
- * The guide ships as a package asset (`packages/server/assets`) so it stays a
- * reviewable Markdown file. The relative URL resolves identically from `src/`
- * (tests, tsx) and from `dist/` (built CLI and server).
+ * Split skill files shipped as package assets (`packages/server/assets/skills`)
+ * so the CLI can print one focused guide at a time instead of the whole manual.
+ * `devchestra-skill.md` remains the concatenated legacy guide: it seeds new
+ * projects and backs `devchestra skill --all`.
  */
 const SKILL_TEMPLATE_URL = new URL("../../assets/devchestra-skill.md", import.meta.url);
+const SKILLS_DIR_URL = new URL("../../assets/skills/", import.meta.url);
+
+export const SKILL_NAMES = [
+  "basics",
+  "graph",
+  "expressions",
+  "nodes-core",
+  "nodes-branch",
+  "nodes-compose",
+  "triggers",
+  "ops",
+] as const;
+
+export type SkillName = (typeof SKILL_NAMES)[number];
+
+const SKILL_DESCRIPTIONS: Record<SkillName, string> = {
+  basics: "file layout, ids, minimal workflow. Start here for any new workflow.",
+  graph: "graph rules and edge handles.",
+  expressions: "params, outputs, JSONata templates vs bare expressions, scope.",
+  "nodes-core": "start/agent/shell/end + output schemas.",
+  "nodes-branch": "gate/join/approval/decision + routing example.",
+  "nodes-compose": "loop/foreach/workflow calls.",
+  triggers: "start.polling / start.webhook trigger blocks, arming, delivery contracts.",
+  ops: "workspace safety, limits, authoring checklist, CLI lifecycle, recovery.",
+};
+
+const skillCache = new Map<string, Buffer>();
+
+function readSkillFile(name: string): Buffer {
+  const cached = skillCache.get(name);
+  if (cached !== undefined) return Buffer.from(cached);
+  const loaded = readFileSync(fileURLToPath(new URL(`${name}.md`, SKILLS_DIR_URL)));
+  skillCache.set(name, loaded);
+  return Buffer.from(loaded);
+}
+
+export function isSkillName(value: string): value is SkillName {
+  return (SKILL_NAMES as readonly string[]).includes(value);
+}
+
+export function listSkills(): { name: SkillName; description: string }[] {
+  return SKILL_NAMES.map((name) => ({ name, description: SKILL_DESCRIPTIONS[name] }));
+}
+
+/** One focused skill guide. Throws E_NOT_FOUND for unknown names. */
+export function skillTemplate(name: SkillName): Buffer {
+  if (!isSkillName(name)) {
+    throw new DevChestraError("E_NOT_FOUND", `Unknown skill '${name}'.`);
+  }
+  return readSkillFile(name);
+}
+
+/** Parent menu printed by `devchestra skill` with no skill name. */
+export function skillMenu(): string {
+  const rows = listSkills()
+    .map(({ name, description }) => `  ${name} — ${description}`)
+    .join("\n");
+  return [
+    "DevChestra skills — run one for the task at hand, not all at once.",
+    "Usage: devchestra skill <name> | devchestra skill --all",
+    "",
+    rows,
+    "",
+    "Start with `devchestra skill basics`. Validator wins over guide text.",
+    "",
+  ].join("\n");
+}
 
 let cachedTemplate: Buffer | undefined;
 

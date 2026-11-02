@@ -13,7 +13,7 @@ import {
 } from "@devchestra/schema";
 import { createNodeExpressionExecutor } from "@devchestra/schema/node";
 import { describe, expect, it } from "vitest";
-import { projectSkillTemplate } from "../src/index.js";
+import { projectSkillTemplate, SKILL_NAMES, skillMenu, skillTemplate } from "../src/index.js";
 
 const text = projectSkillTemplate().toString("utf8");
 
@@ -206,6 +206,48 @@ describe("skill.md embedded examples", () => {
     expect(readFileSync(new URL("../assets/devchestra-skill.md", import.meta.url), "utf8")).toBe(
       text,
     );
+  });
+
+  describe("split skills", () => {
+    it("exposes one focused guide per name plus a parent menu", () => {
+      expect([...SKILL_NAMES]).toEqual([
+        "basics",
+        "graph",
+        "expressions",
+        "nodes-core",
+        "nodes-branch",
+        "nodes-compose",
+        "triggers",
+        "ops",
+      ]);
+      const menu = skillMenu();
+      for (const name of SKILL_NAMES) expect(menu).toContain(name);
+      expect(menu).toContain("devchestra skill <name>");
+      for (const name of SKILL_NAMES) {
+        const body = skillTemplate(name).toString("utf8");
+        expect(body.length).toBeGreaterThan(200);
+        expect(readFileSync(new URL(`../assets/skills/${name}.md`, import.meta.url), "utf8")).toBe(
+          body,
+        );
+      }
+      expect(() => skillTemplate("nope" as never)).toThrowError(/Unknown skill/);
+    });
+
+    it("documents the start polling/webhook contracts the split added", () => {
+      const triggers = skillTemplate("triggers").toString("utf8");
+      for (const needle of [
+        "start.polling",
+        "start.webhook",
+        "paramMapping",
+        "dedupeKey",
+        "probe-now",
+        "X-Hub-Signature-256",
+        "intervalSeconds",
+      ])
+        expect(triggers).toContain(needle);
+      expect(skillTemplate("nodes-core").toString("utf8")).toContain("skill triggers");
+      expect(skillTemplate("ops").toString("utf8")).toContain("no trigger commands");
+    });
   });
 
   describe("rejections the guide documents", () => {
