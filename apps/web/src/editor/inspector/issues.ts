@@ -80,9 +80,14 @@ const FIELD_PATHS = [
   "/body",
   // Webhook mapping rows show their own E_WEBHOOK_* issues.
   "/webhook/paramMapping/",
+  // Polling probe rows show their own E_POLL_* issues.
+  "/polling/",
 ];
 
 function isShownByAField(issue: Issue): boolean {
+  // E_POLL_PROBE is shown at the top of the start node's Polling trigger
+  // section, wherever its pointer lands.
+  if (issue.code === "E_POLL_PROBE") return true;
   const pointer = issue.pointer;
   if (typeof pointer !== "string") return false;
   if (pointer.endsWith("/name") && !pointer.includes("/params/")) return true;
