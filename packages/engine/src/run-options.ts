@@ -7,14 +7,18 @@ export interface RunOptionInput {
   readonly kind?: unknown;
 }
 
-function invalid(message: string): DevChestraError {
-  return new DevChestraError("E_WORKFLOW_INVALID", message, {});
+function invalid(message: string, details?: unknown): DevChestraError {
+  return new DevChestraError(
+    "E_WORKFLOW_INVALID",
+    message,
+    details === undefined ? {} : { details },
+  );
 }
 
 export function validateRunOptions(input: RunOptionInput): Result<null, DevChestraError> {
   try {
     if (input.kind !== undefined && input.kind !== "run") {
-      throw invalid("Only kind 'run' is supported");
+      throw invalid("Only kind 'run' is supported", { kind: input.kind });
     }
     if (input.baseSha !== undefined && input.baseSha !== null) {
       if (typeof input.baseSha !== "string" || input.baseSha === "") {

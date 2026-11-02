@@ -61,7 +61,7 @@ function summaryFor(
         "Run paused for an uncertain shell side effect. Inspect effects, then resume with --retry-uncertain-shell.";
     } else if (outcome.pausedReason === "approval_cap") {
       summary.hint =
-        "Run is waiting for a human approval, which `devchestra run` cannot collect; run the workflow through `devchestra start` to approve it.";
+        "Run is waiting for a human approval, which `devchestra run` cannot collect. Run approval-gated workflows through `devchestra start --data-dir <dir>` instead.";
     } else {
       summary.hint = "Run is paused; resume it with `devchestra resume <runId> --data-dir <dir>`.";
     }

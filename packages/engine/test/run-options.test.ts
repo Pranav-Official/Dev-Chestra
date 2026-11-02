@@ -10,4 +10,12 @@ describe("validateRunOptions", () => {
     expect(validateRunOptions({ snapshot: {}, kind: "node_test" }).ok).toBe(false);
     expect(validateRunOptions({ snapshot: {}, kind: "run" }).ok).toBe(true);
   });
+
+  it("reports the offending kind in the error details", () => {
+    const result = validateRunOptions({ snapshot: {}, kind: "node_test" });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("E_WORKFLOW_INVALID");
+    expect(result.error.details).toEqual({ kind: "node_test" });
+  });
 });
