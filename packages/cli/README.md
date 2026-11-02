@@ -8,7 +8,7 @@ Start the local API without a browser or web build in a long-lived terminal:
 devchestra start --headless
 ```
 
-Run `devchestra skill` for the bundled workflow authoring and CLI guide. Existing project-local `.devchestra/skill.md` files are left untouched and may be out of date. `devchestra project --help` lists the agent command groups.
+Run `devchestra skill` for the skill menu (one focused guide per task: `devchestra skill <name>`), or `devchestra skill --all` for the concatenated guide. Existing project-local `.devchestra/skill.md` files are left untouched and may be out of date. `devchestra project --help` lists the agent command groups.
 
 ```sh
 devchestra project add /path/to/project

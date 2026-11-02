@@ -145,8 +145,14 @@ export {
 } from "./workflows/service.js";
 export {
   ensureProjectSkill,
+  isSkillName,
+  listSkills,
   PROJECT_SKILL_FILE,
   PROJECT_SKILL_RELATIVE_FILE,
   type ProjectSkillResult,
   projectSkillTemplate,
+  SKILL_NAMES,
+  type SkillName,
+  skillMenu,
+  skillTemplate,
 } from "./workflows/skill.js";

@@ -313,7 +313,7 @@ Usage:
   devchestra status [--data-dir <dir>] [--json]
   devchestra doctor [--data-dir <dir>] [--json] [--probe-decisions]
   devchestra version
-  devchestra skill
+  devchestra skill [<name>|--all]
   devchestra capabilities --json
   devchestra project|workflow|run|approval|providers --help
 
