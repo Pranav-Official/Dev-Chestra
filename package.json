@@ -4,28 +4,24 @@
   "private": true,
   "description": "DevChestra local workflow orchestrator workspace",
   "type": "module",
-  "workspaces": [
-    "packages/*",
-    "apps/*",
-    "tools/*"
-  ],
+  "packageManager": "pnpm@10.14.0",
   "engines": {
     "node": ">=22",
-    "npm": ">=10"
+    "pnpm": ">=10.14.0"
   },
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
-    "test": "npm run build && npm run test --workspaces --if-present",
+    "build": "pnpm -r --if-present run build",
+    "test": "pnpm build && pnpm -r --if-present run test",
     "test:root": "vitest run",
-    "test:windows": "npm run build && npm exec --workspace=@devchestra/cli -- vitest run test/windows-native.test.ts test/server-commands.e2e.test.ts && npm exec --workspace=@devchestra/adapters -- vitest run test/process.test.ts",
-    "typecheck": "npm run build --workspaces --if-present && npm run typecheck --workspaces --if-present",
-    "check": "biome check . && npm run typecheck && npm run depcruise && node scripts/check-browser.mjs",
+    "test:windows": "pnpm build && pnpm --filter @devchestra/cli exec vitest run test/windows-native.test.ts test/server-commands.e2e.test.ts && pnpm --filter @devchestra/adapters exec vitest run test/process.test.ts",
+    "typecheck": "pnpm -r --if-present run build && pnpm -r --if-present run typecheck",
+    "check": "biome check . && pnpm typecheck && pnpm depcruise && node scripts/check-browser.mjs",
     "depcruise": "depcruise --config .dependency-cruiser.cjs packages tools apps",
-    "audit": "npm audit --audit-level=high",
-    "test:workflows": "npm run test --workspace=@devchestra/e2e-workflows",
-    "test:e2e:workflows": "npm run test:e2e --workspace=@devchestra/e2e-workflows",
-    "web:build": "npm run build --workspace=@devchestra/web",
-    "web:dev": "npm run dev --workspace=@devchestra/web",
+    "audit": "pnpm audit --audit-level high",
+    "test:workflows": "pnpm --filter @devchestra/e2e-workflows test",
+    "test:e2e:workflows": "pnpm --filter @devchestra/e2e-workflows test:e2e",
+    "web:build": "pnpm --filter @devchestra/web build",
+    "web:dev": "pnpm --filter @devchestra/web dev",
     "devchestra": "tsx packages/cli/src/main.ts",
     "devchestra:start": "tsx packages/cli/src/main.ts start",
     "devchestra:run": "tsx packages/cli/src/main.ts run",
@@ -35,7 +31,7 @@
     "lint": "biome lint .",
     "format": "biome format --write .",
     "format:check": "biome format .",
-    "clean": "npm run clean --workspaces --if-present"
+    "clean": "pnpm -r --if-present run clean"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

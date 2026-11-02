@@ -82,21 +82,21 @@ set up https://github.com/Pranav-Official/Dev-Chestra globaly
 Also register this project as well.
 ```
 
-You need Node 22 or newer (npm 10 or newer comes with it). pnpm 10.14.0 or newer also works if you prefer it — the setup script uses whichever manager invoked it, defaulting to pnpm when both are installed.
+You need Node 22 or newer and pnpm 10.14.0.
 
 ```sh
-npm run setup:global
+pnpm setup:global
 devchestra start
 ```
 
-That installs everything, links the `devchestra` command, and opens the editor in your browser. Run it again any time something looks off, it's safe to repeat. Prefer pnpm? Run `pnpm setup:global` (or `npm run setup:global -- --pm=pnpm`) instead.
+That installs everything, links the `devchestra` command, and opens the editor in your browser. Run it again any time something looks off, it's safe to repeat.
 
 Prefer the manual route?
 
 ```sh
-npm install
-npm run build
-npm run devchestra:start
+pnpm install
+pnpm build
+pnpm devchestra start
 ```
 
 Prefer to work through your coding agent? Start DevChestra without the browser:
