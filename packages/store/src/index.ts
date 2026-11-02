@@ -7,6 +7,16 @@ export { EXECUTION_LIMITS } from "./execution-settings.js";
 export type { ForeachItem, ForeachItemRef, ForeachSource, ForeachSourceMeta } from "./foreach.js";
 export { FOREACH_MAX_ITEMS } from "./foreach.js";
 export { hashJsonSync } from "./hash.js";
+export type {
+  ArmPollerInput,
+  CreatePollerInput,
+  PollDedupeClaim,
+  PollTickInput,
+  PollTickOutcome,
+  PollTriggerRecord,
+  PollTriggerRuntime,
+} from "./poll-triggers.js";
+export { POLL_DEDUPE_RETENTION_MS } from "./poll-triggers.js";
 export type { ProviderSettingRecord } from "./provider-settings.js";
 export type { ChildLink, RunBundle } from "./run-children.js";
 export type { SecretFinding } from "./secrets.js";
@@ -20,6 +30,7 @@ export type {
   ForeachApi,
   LoopsApi,
   OutputsApi,
+  PollTriggersApi,
   ProcessesApi,
   ProjectsApi,
   ProviderSettingsApi,

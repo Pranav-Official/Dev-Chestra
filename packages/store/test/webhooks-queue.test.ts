@@ -71,15 +71,15 @@ function armInput(revision: string) {
   };
 }
 
-describe("schema migration 0011", () => {
+describe("schema migration 0014", () => {
   it("is registered and applied with the webhook tables and queue index", () => {
     const { store, dir } = setup();
-    expect(MIGRATIONS.at(-1)?.version).toBe(13);
+    expect(MIGRATIONS.at(-1)?.version).toBe(14);
     store.close();
     const db = new Database(join(dir, "devchestra.db"), { readonly: true });
     try {
       const version = db.pragma("user_version", { simple: true });
-      expect(version).toBe(13);
+      expect(version).toBe(14);
       const tables = db
         .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
         .all()

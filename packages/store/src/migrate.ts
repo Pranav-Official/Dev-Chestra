@@ -21,6 +21,7 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 11, file: "0011_webhooks_and_queue.sql" },
   { version: 12, file: "0012_drop_bearer_token.sql" },
   { version: 13, file: "0013_webhook_fingerprint_index.sql" },
+  { version: 14, file: "0014_poll_triggers.sql" },
 ];
 
 function migrationsDir(): string {
