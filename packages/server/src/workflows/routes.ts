@@ -52,6 +52,8 @@ export interface WorkflowRouteDeps {
   workspaceService?: BrowserWorkspacePort;
   providerSettings?: BrowserProviderSettingsPort;
   webhooks?: WorkflowWebhookHooks;
+  /** Same hook shape as webhooks, for polling triggers. */
+  polling?: WorkflowWebhookHooks;
   validate: (name: string, value: unknown) => void;
 }
 
@@ -210,6 +212,7 @@ export function mountWorkflowRoutes(app: Hono, deps: WorkflowRouteDeps): void {
         expected,
       );
       await deps.webhooks?.afterSave(toProject(found), c.req.param("wid"));
+      await deps.polling?.afterSave(toProject(found), c.req.param("wid"));
       return documentResponse(deps, c, document);
     } catch (error) {
       if (isConflict(error)) return conflictResponse(c, error);
@@ -223,11 +226,16 @@ export function mountWorkflowRoutes(app: Hono, deps: WorkflowRouteDeps): void {
     const expected = parseIfMatch(c.req.header("if-match"));
     try {
       await deps.service.remove(toProject(found), c.req.param("wid"), expected);
-      // Deletion has already succeeded; neither hook below may change that response.
+      // Deletion has already succeeded; no hook below may change that response.
       try {
         deps.webhooks?.afterDelete(toProject(found), c.req.param("wid"));
       } catch {
         /* If the disarm failed, the trigger stays armed until someone disarms it explicitly. */
+      }
+      try {
+        deps.polling?.afterDelete(toProject(found), c.req.param("wid"));
+      } catch {
+        /* Same as webhooks above: the poller stays until someone disarms it explicitly. */
       }
       try {
         const current = readWorkflowGroups(toProject(found), deps.dataDir);

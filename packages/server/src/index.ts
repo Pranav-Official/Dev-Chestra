@@ -63,6 +63,22 @@ export {
   startLoopbackServer,
 } from "./node.js";
 export type {
+  BrowserPollFreezePort,
+  BrowserPollPorts,
+  BrowserPollRunPort,
+  PollProbeCommand,
+  PollProbeOutcome,
+  PollRunCommand,
+  PollRunLaunch,
+} from "./polling/ports.js";
+export { mountPollRoutes, type PollRouteDeps } from "./polling/routes.js";
+export { POLL_PROBE_RUN_KEEP, PollScheduler, type PollSchedulerDeps } from "./polling/scheduler.js";
+export {
+  newPollerId,
+  PollService,
+  type PollServiceDeps,
+} from "./polling/service.js";
+export type {
   AcceptedOutputView,
   ReceiptView,
   SubmissionPort,
