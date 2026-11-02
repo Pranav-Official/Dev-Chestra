@@ -28,15 +28,30 @@ import { Dialog } from "../controls/Dialog.js";
 const DESCRIPTION =
   "A timer probe can start this workflow on a schedule. Manual runs stay available whether or not the trigger is armed.";
 
-const STATE_TEXT: Record<PollTriggerState, string> = {
-  off: "Not armed. The probe does not run until the trigger is armed.",
-  current: "Armed. The probe runs on the armed revision, which matches the saved workflow.",
+const STATE_HEADING: Record<PollTriggerState, string> = {
+  off: "Not armed",
+  current: "Armed",
+  stale: "Armed, out of date",
+  invalid: "Armed, saved workflow invalid",
+  failing: "Armed, last probe failed",
+};
+
+const STATE_DETAIL: Record<PollTriggerState, string> = {
+  off: "The probe does not run until the trigger is armed.",
+  current: "The probe runs on the armed revision, which matches the saved workflow.",
   stale:
-    "Armed, but the saved workflow changed after arming. The probe keeps running the armed revision until you refresh it.",
+    "The saved workflow changed after arming. The probe keeps running the armed revision until you refresh it.",
   invalid:
-    "Armed, but the saved workflow is invalid or no longer declares polling. The last valid armed revision keeps running.",
-  failing:
-    "Armed, but the last probe failed. The poller keeps trying until the next probe succeeds or it disarms itself.",
+    "The saved workflow is invalid or no longer declares polling. The last valid armed revision keeps running.",
+  failing: "The poller keeps trying until the next probe succeeds or it disarms itself.",
+};
+
+const OUTCOME_TONE: Record<string, string> = {
+  triggered: "green",
+  nothing: "",
+  duplicate: "blue",
+  skipped: "amber",
+  failed: "red",
 };
 
 interface Chip {
@@ -63,13 +78,17 @@ function chipFor(status: PollTriggerStatus | undefined, failed: boolean): Chip {
 }
 
 function formatTime(value: number | null): string | null {
-  return value === null ? null : new Date(value).toLocaleString();
+  return value === null
+    ? null
+    : new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
 function formatInterval(seconds: number | null): string | null {
   if (seconds === null) return null;
-  if (seconds % 60 === 0) return `every ${seconds / 60} minutes`;
-  return `every ${seconds} seconds`;
+  const unit = (count: number, word: string): string =>
+    `Every ${count === 1 ? "" : `${count} `}${word}${count === 1 ? "" : "s"}`;
+  if (seconds % 60 === 0) return unit(seconds / 60, "minute");
+  return unit(seconds, "second");
 }
 
 function FailureNote({ failure }: { failure: PollFailure }) {
@@ -97,10 +116,19 @@ function IssueList({ issues }: { issues: readonly PollIssue[] }) {
 }
 
 function ProbeResult({ result }: { result: PollProbeResult }) {
+  const tone = result.outcome === "failed" ? "red" : result.outcome === "found" ? "green" : "";
+  const heading =
+    result.outcome === "failed"
+      ? "Probe failed"
+      : result.outcome === "found"
+        ? "Found parameters"
+        : "Nothing found";
   return (
-    <section className="poll-section" aria-label="Probe result">
-      <h3>Probe result</h3>
-      <p className="faint">A one-off probe. It does not start a run.</p>
+    <section className="poll-section poll-result" data-tone={tone} aria-label="Probe result">
+      <h3>
+        <span className={`pill ${tone}`}>{heading}</span>
+        <span className="poll-result-time">Took {result.durationMs} ms.</span>
+      </h3>
       {result.outcome === "failed" ? (
         <div className="note red" role="alert">
           <AlertTriangle size={14} aria-hidden="true" />
@@ -115,8 +143,9 @@ function ProbeResult({ result }: { result: PollProbeResult }) {
             <JsonView value={result.params} testId="poll-probe-params" label="Probe parameters" />
           )}
           {result.dedupeKey === null ? null : (
-            <p>
-              Dedupe key: <span className="mono">{result.dedupeKey}</span>
+            <p className="poll-dedupe">
+              <span className="faint">Dedupe key</span>
+              <span className="mono">{result.dedupeKey}</span>
             </p>
           )}
           {result.wouldSkipAsDuplicate ? (
@@ -127,7 +156,6 @@ function ProbeResult({ result }: { result: PollProbeResult }) {
           ) : null}
         </>
       )}
-      <p className="faint">Took {result.durationMs} ms.</p>
     </section>
   );
 }
@@ -164,6 +192,7 @@ export function PollTriggerControl({
   const [probeResult, setProbeResult] = useState<PollProbeResult | null>(null);
   const [amount, setAmount] = useState("5");
   const [unit, setUnit] = useState<"minutes" | "seconds">("minutes");
+  const intervalEdited = useRef(false);
   const armHintId = useId();
 
   const lastRevision = useRef(savedRevision);
@@ -174,6 +203,18 @@ export function PollTriggerControl({
   }, [savedRevision, projectId, workflowId, queryClient]);
 
   const status = trigger.data;
+  // Start the form from the interval the poller is armed with, until the person edits it.
+  const armedSeconds = status?.intervalSeconds ?? null;
+  useEffect(() => {
+    if (armedSeconds === null || intervalEdited.current) return;
+    if (armedSeconds % 60 === 0) {
+      setAmount(String(armedSeconds / 60));
+      setUnit("minutes");
+    } else {
+      setAmount(String(armedSeconds));
+      setUnit("seconds");
+    }
+  }, [armedSeconds]);
   const chip = chipFor(status, trigger.isError);
   const minInterval = POLL_INTERVAL_LIMITS[probeType].min;
   const parsed = Number(amount.trim());
@@ -227,6 +268,9 @@ export function PollTriggerControl({
         description={DESCRIPTION}
         onClose={() => setOpen(false)}
         testId="poll-trigger-dialog"
+        footer={
+          <p className="poll-footnote">Polling only runs while the DevChestra server is running.</p>
+        }
       >
         <div className="poll-panel">
           {status === undefined ? (
@@ -243,12 +287,15 @@ export function PollTriggerControl({
             )
           ) : (
             <>
-              <div className="poll-summary">
-                <span className={`pill ${chip.tone}`}>{chip.label}</span>
-                <p>{STATE_TEXT[status.state]}</p>
-                {formatInterval(status.intervalSeconds) === null ? null : (
-                  <p className="faint">{formatInterval(status.intervalSeconds)}.</p>
-                )}
+              <div className="poll-status" data-tone={chip.tone === "" ? "neutral" : chip.tone}>
+                <span className="poll-dot" aria-hidden="true" />
+                <div className="poll-status-text">
+                  <p className="poll-state">{STATE_HEADING[status.state]}</p>
+                  <p className="poll-state-detail">{STATE_DETAIL[status.state]}</p>
+                </div>
+                {status.armed && formatInterval(status.intervalSeconds) !== null ? (
+                  <span className="poll-cadence">{formatInterval(status.intervalSeconds)}</span>
+                ) : null}
               </div>
 
               {status.supported ? null : (
@@ -272,83 +319,103 @@ export function PollTriggerControl({
               )}
 
               {status.state === "invalid" && status.issues.length > 0 ? (
-                <section className="poll-section" aria-label="Saved workflow issues">
+                <section className="poll-section poll-block" aria-label="Saved workflow issues">
                   <h3>Saved workflow issues</h3>
                   <IssueList issues={status.issues} />
                 </section>
               ) : null}
 
-              <div className="poll-actions">
-                {status.armed ? (
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => setConfirmDisarm(true)}
-                    disabled={disarm.isPending}
-                  >
-                    Disarm polling
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={armNow}
-                  disabled={armDisabled}
-                  aria-describedby={armHint === null ? undefined : armHintId}
-                >
-                  {status.armed ? "Update interval" : "Arm polling"}
-                </button>
-                {status.state === "stale" ? (
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => refresh.mutate()}
-                    disabled={refresh.isPending}
-                  >
-                    <RefreshCw size={13} aria-hidden="true" />
-                    Refresh armed revision
-                  </button>
-                ) : null}
-              </div>
-              {armHint !== null ? (
-                <p className="poll-hint" id={armHintId}>
-                  {armHint}
-                </p>
-              ) : null}
-              <div className="poll-interval">
-                <label htmlFor="poll-interval-amount">Every</label>
-                <input
-                  id="poll-interval-amount"
-                  className="inspector-input mono"
-                  data-testid="poll-interval-amount"
-                  type="text"
-                  inputMode="numeric"
-                  value={amount}
-                  onChange={(event) => setAmount(event.currentTarget.value)}
-                  aria-invalid={intervalError ? true : undefined}
-                />
-                <select
-                  data-testid="poll-interval-unit"
-                  aria-label="Interval unit"
-                  value={unit}
-                  onChange={(event) => setUnit(event.currentTarget.value as "minutes" | "seconds")}
-                >
-                  <option value="minutes">minutes</option>
-                  <option value="seconds">seconds</option>
-                </select>
-                <span className="faint">
+              <section className="poll-block" aria-label="Schedule">
+                <h3>Schedule</h3>
+                <div className="poll-schedule">
+                  <div className="poll-interval">
+                    <label htmlFor="poll-interval-amount">Check every</label>
+                    <input
+                      id="poll-interval-amount"
+                      className="inspector-input mono"
+                      data-testid="poll-interval-amount"
+                      type="text"
+                      inputMode="numeric"
+                      value={amount}
+                      onChange={(event) => {
+                        intervalEdited.current = true;
+                        setAmount(event.currentTarget.value);
+                      }}
+                      aria-invalid={intervalError ? true : undefined}
+                    />
+                    <select
+                      data-testid="poll-interval-unit"
+                      aria-label="Interval unit"
+                      value={unit}
+                      onChange={(event) => {
+                        intervalEdited.current = true;
+                        setUnit(event.currentTarget.value as "minutes" | "seconds");
+                      }}
+                    >
+                      <option value="minutes">minutes</option>
+                      <option value="seconds">seconds</option>
+                    </select>
+                  </div>
+                  <div className="poll-actions">
+                    {status.armed ? (
+                      <button
+                        type="button"
+                        className="btn ghost danger"
+                        onClick={() => setConfirmDisarm(true)}
+                        disabled={disarm.isPending}
+                      >
+                        Disarm polling
+                      </button>
+                    ) : null}
+                    {status.state === "stale" ? (
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() => refresh.mutate()}
+                        disabled={refresh.isPending}
+                      >
+                        <RefreshCw size={13} aria-hidden="true" />
+                        Refresh armed revision
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="btn poll-primary"
+                      onClick={armNow}
+                      disabled={armDisabled}
+                      aria-describedby={armHint === null ? undefined : armHintId}
+                    >
+                      {status.armed ? "Update interval" : "Arm polling"}
+                    </button>
+                  </div>
+                </div>
+                <p className="poll-hint">
                   Minimum {minInterval} seconds for {probeType} probes.
-                </span>
-              </div>
+                </p>
+                {armHint !== null ? (
+                  <p
+                    className="poll-hint"
+                    id={armHintId}
+                    data-tone={armHint === intervalError ? "error" : undefined}
+                  >
+                    {armHint}
+                  </p>
+                ) : null}
+                {arm.isError ? <FailureNote failure={describePollFailure(arm.error)} /> : null}
+                {disarm.isError ? (
+                  <FailureNote failure={describePollFailure(disarm.error)} />
+                ) : null}
+                {refresh.isError ? (
+                  <FailureNote failure={describePollFailure(refresh.error)} />
+                ) : null}
+              </section>
 
-              {arm.isError ? <FailureNote failure={describePollFailure(arm.error)} /> : null}
-              {disarm.isError ? <FailureNote failure={describePollFailure(disarm.error)} /> : null}
-              {refresh.isError ? (
-                <FailureNote failure={describePollFailure(refresh.error)} />
-              ) : null}
-
-              <section className="poll-section" aria-label="Test probe">
-                <div className="poll-actions">
+              <section className="poll-block" aria-label="Test probe">
+                <div className="poll-block-head">
+                  <div>
+                    <h3>Test the probe</h3>
+                    <p className="poll-block-note">Runs it once. Never starts a workflow run.</p>
+                  </div>
                   <button
                     type="button"
                     className="btn"
@@ -359,7 +426,7 @@ export function PollTriggerControl({
                     }
                     disabled={probeNow.isPending || !status.supported}
                   >
-                    Test probe now
+                    {probeNow.isPending ? "Probing…" : "Test probe now"}
                   </button>
                 </div>
                 {probeNow.isError ? (
@@ -368,44 +435,55 @@ export function PollTriggerControl({
                 {probeResult === null ? null : <ProbeResult result={probeResult} />}
               </section>
 
-              <dl className="poll-facts">
-                <div>
-                  <dt>Last check</dt>
-                  <dd>{formatTime(status.lastTickAt) ?? "No ticks yet"}</dd>
-                </div>
-                <div>
-                  <dt>Next check</dt>
-                  <dd>{formatTime(status.nextDueAt) ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt>Last outcome</dt>
-                  <dd>{status.lastOutcome ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt>Last run</dt>
-                  <dd>
-                    {status.lastRunId === null ? (
-                      "No runs yet"
-                    ) : (
-                      <Link to={`/p/${projectId}/r/${status.lastRunId}`} className="mono">
-                        {status.lastRunId}
-                      </Link>
-                    )}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Consecutive failures</dt>
-                  <dd>{status.consecutiveFailures}</dd>
-                </div>
-                {status.lastError === null ? null : (
+              <section className="poll-block" aria-label="Last activity">
+                <h3>Last activity</h3>
+                <dl className="poll-facts">
                   <div>
-                    <dt>Last error</dt>
-                    <dd>{status.lastError}</dd>
+                    <dt>Last check</dt>
+                    <dd>{formatTime(status.lastTickAt) ?? "No checks yet"}</dd>
                   </div>
-                )}
-              </dl>
-
-              <p className="faint">Polling only runs while the DevChestra server is running.</p>
+                  <div>
+                    <dt>Next check</dt>
+                    <dd>{formatTime(status.nextDueAt) ?? "Not scheduled"}</dd>
+                  </div>
+                  <div>
+                    <dt>Last outcome</dt>
+                    <dd>
+                      {status.lastOutcome === null ? (
+                        <span className="faint">None yet</span>
+                      ) : (
+                        <span className={`pill ${OUTCOME_TONE[status.lastOutcome] ?? ""}`}>
+                          {status.lastOutcome}
+                        </span>
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Last run</dt>
+                    <dd>
+                      {status.lastRunId === null ? (
+                        <span className="faint">No runs yet</span>
+                      ) : (
+                        <Link to={`/p/${projectId}/r/${status.lastRunId}`} className="mono">
+                          {status.lastRunId}
+                        </Link>
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Consecutive failures</dt>
+                    <dd data-tone={status.consecutiveFailures > 0 ? "error" : undefined}>
+                      {status.consecutiveFailures}
+                    </dd>
+                  </div>
+                  {status.lastError === null ? null : (
+                    <div>
+                      <dt>Last error</dt>
+                      <dd data-tone="error">{status.lastError}</dd>
+                    </div>
+                  )}
+                </dl>
+              </section>
             </>
           )}
         </div>

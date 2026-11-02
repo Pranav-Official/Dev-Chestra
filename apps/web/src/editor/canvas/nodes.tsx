@@ -450,8 +450,9 @@ export function ProbeNodeView({ data, selected }: NodeProps<ProbeFlowNode>) {
   const rawDetail = agent ? (probe.prompt ?? "") : (probe.command ?? "");
   const firstLine = rawDetail.split("\n", 1)[0] ?? "";
   const short = firstLine.length > 40 ? `${firstLine.slice(0, 39)}…` : firstLine;
-  const displayName =
-    probe.name.trim() === "" ? (agent ? "Agent probe" : "Shell probe") : probe.name;
+  // A hand-written file may omit the probe's name (the schema defaults it), so read it defensively.
+  const savedName = typeof probe.name === "string" ? probe.name.trim() : "";
+  const displayName = savedName === "" ? (agent ? "Agent probe" : "Shell probe") : probe.name;
   const summary = agent
     ? `Agent probe for ${startId}${probe.model === undefined ? "" : ` · ${probe.model}`}`
     : `Shell probe for ${startId}`;

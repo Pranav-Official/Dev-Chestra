@@ -1,75 +1,115 @@
 /* Polling trigger control in the editor header and its dialog
-   (editor/poll/*.tsx). Mirrors src/styles/editor-webhook.css. */
+   (editor/poll/*.tsx). Mirrors src/styles/editor-webhook.css.
+   Reading order in the dialog: state, schedule (the one primary action),
+   probe test, last activity. Sections are separated by hairlines, not boxes. */
 
 .poll-panel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
-.poll-summary {
+
+/* State: what is the trigger doing right now. */
+.poll-status {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: 4px 10px;
+}
+.poll-dot {
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+.poll-status[data-tone="green"] .poll-dot {
+  background: var(--green);
+}
+.poll-status[data-tone="amber"] .poll-dot {
+  background: var(--amber);
+}
+.poll-status[data-tone="red"] .poll-dot {
+  background: var(--red);
+}
+.poll-status-text {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
+  gap: 2px;
+  min-width: 0;
 }
-.poll-summary p {
+.poll-state {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: var(--text);
+}
+.poll-state-detail {
   margin: 0;
   color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.45;
 }
-.poll-actions {
+.poll-cadence {
+  align-self: start;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--bg-muted);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Sections: a heading, then its content, separated from the previous block by a hairline. */
+.poll-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.poll-block h3,
+.poll-section h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.poll-block-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+.poll-block-note {
+  margin: 2px 0 0;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+/* Schedule: the interval on the left, the actions on the right, primary action last. */
+.poll-schedule {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-}
-.poll-hint {
-  margin: 0;
-  color: var(--text-3);
-  font-size: 12px;
-}
-.poll-section {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.poll-section h3 {
-  margin: 0;
-  font-size: 13px;
-}
-.poll-section p {
-  margin: 0;
-  font-size: 12.5px;
-}
-.poll-issues {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: 12.5px;
-}
-.poll-facts {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 4px 12px;
-  margin: 0;
-  font-size: 12.5px;
-}
-.poll-facts dt {
-  color: var(--text-3);
-}
-.poll-facts dd {
-  margin: 0;
+  justify-content: space-between;
+  gap: 10px 16px;
 }
 .poll-interval {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
+.poll-interval label {
+  color: var(--text-2);
+}
 .poll-interval .inspector-input {
-  width: 96px;
+  width: 72px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 .poll-interval select {
   height: 28px;
@@ -81,8 +121,145 @@
   font: inherit;
   font-size: 13px;
 }
+.poll-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+/* Disarm is the quiet action: red text, no outline, so it does not compete with the primary one. */
+.poll-actions .btn.ghost.danger {
+  border-color: transparent;
+  color: var(--red);
+}
+.poll-actions .btn.ghost.danger:hover {
+  background: var(--red-soft);
+}
+.btn.poll-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: none;
+  color: var(--bg);
+  font-weight: 600;
+}
+.btn.poll-primary:hover {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+.btn.poll-primary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.poll-hint {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.poll-hint[data-tone="error"],
 .poll-error {
   margin: 0;
   color: var(--red);
   font-size: 12px;
+}
+
+/* Probe result: one quiet surface, because it is a result and not a section of the dialog. */
+.poll-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.poll-section p {
+  margin: 0;
+  font-size: 12.5px;
+}
+.poll-result {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-subtle);
+}
+.poll-result h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.poll-result-time {
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.poll-dedupe {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.poll-dedupe .mono {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.poll-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+
+/* Last activity: aligned rows, label left, value right, hairlines between. */
+.poll-facts {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  font-size: 12.5px;
+}
+.poll-facts > div {
+  display: grid;
+  grid-template-columns: 152px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+}
+.poll-facts > div:last-child {
+  border-bottom: none;
+}
+.poll-facts dt {
+  color: var(--text-3);
+}
+.poll-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.poll-facts dd[data-tone="error"] {
+  color: var(--red);
+  font-weight: 600;
+}
+.poll-facts .mono {
+  font-size: 12px;
+}
+
+.poll-footnote {
+  margin: 0 auto 0 0;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+@media (max-width: 520px) {
+  .poll-facts > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+  .poll-status {
+    grid-template-columns: auto 1fr;
+  }
+  .poll-cadence {
+    grid-column: 2;
+    justify-self: start;
+  }
 }

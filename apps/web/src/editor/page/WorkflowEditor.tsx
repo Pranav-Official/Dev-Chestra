@@ -23,6 +23,7 @@ import type { BufferValidity } from "../inspector/types.js";
 import { createEditorModel } from "../model/index.js";
 import type { CommandOutcome } from "../model/types.js";
 import { PollTriggerControl } from "../poll/PollTriggerControl.js";
+import { PROBE_NAME_DEFAULT } from "../poll/probe.js";
 import { WebhookTriggerControl } from "../webhook/WebhookTriggerControl.js";
 import { EditorHeader } from "./EditorHeader.js";
 import { useEditorValidation } from "./useEditorValidation.js";
@@ -277,11 +278,11 @@ export function WorkflowEditor({
               ? {
                   id: "probe",
                   type: "agent",
-                  name: probe.name,
+                  name: probe.name ?? PROBE_NAME_DEFAULT,
                   cli: probe.cli,
                   ...(probe.model === undefined ? {} : { model: probe.model }),
                   ...(probe.prompt === undefined ? {} : { prompt: probe.prompt }),
-                  permissions: probe.permissions,
+                  permissions: probe.permissions ?? { network: true, write: [], shell: true },
                   ...(probe.mcpServers === undefined ? {} : { mcpServers: probe.mcpServers }),
                   ...(probe.limits === undefined ? {} : { limits: probe.limits }),
                   ...(probe.cliOptions === undefined ? {} : { cliOptions: probe.cliOptions }),
@@ -293,7 +294,7 @@ export function WorkflowEditor({
               : {
                   id: "probe",
                   type: "shell",
-                  name: probe.name,
+                  name: probe.name ?? PROBE_NAME_DEFAULT,
                   command: probe.command,
                   ...(probe.timeoutMin === undefined ? {} : { timeoutMin: probe.timeoutMin }),
                   ...(probe.env === undefined ? {} : { env: probe.env }),

@@ -97,6 +97,23 @@ describe("polling probe canvas node", () => {
     expect(screen.getByTestId("ed-handle-start-poll")).toBeInTheDocument();
   });
 
+  it("renders a hand-written probe that omits its name and permissions", async () => {
+    // The schema defaults both, so a file written by hand reaches the editor without them.
+    const bare = { id: "probe", type: "shell", command: "echo hi" } as unknown as PollProbe;
+    render(<Harness initial={sample({ enabled: true, probe: bare })} />);
+    const probe = await screen.findByTestId("ed-node-start::probe");
+    expect(probe).toHaveTextContent("Shell probe");
+    expect(probe).toHaveTextContent("echo hi");
+    const agentBare = {
+      id: "probe",
+      type: "agent",
+      cli: "codex",
+      prompt: "look",
+    } as unknown as PollProbe;
+    render(<Harness initial={sample({ enabled: true, probe: agentBare })} />);
+    expect(await screen.findAllByTestId("ed-node-start::probe")).toHaveLength(2);
+  });
+
   it("renders an agent probe with the prompt as subtitle", async () => {
     render(<Harness initial={sample({ enabled: true, probe: agentProbe("watch PRs") })} />);
     const probe = await screen.findByTestId("ed-node-start::probe");

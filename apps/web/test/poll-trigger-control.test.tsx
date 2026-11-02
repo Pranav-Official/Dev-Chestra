@@ -204,6 +204,29 @@ describe("PollTriggerControl arming", () => {
     await waitFor(() => expect(disarm).toHaveBeenCalledWith("p1", "demo"));
   });
 
+  it("starts the interval form from the armed interval and keeps a person's edit", async () => {
+    vi.spyOn(api, "getPollTrigger").mockResolvedValue({ ...ARMED, intervalSeconds: 90 });
+    renderControl();
+    const panel = await openPanel("current");
+    const amount = within(panel).getByTestId("poll-interval-amount") as HTMLInputElement;
+    await waitFor(() => expect(amount.value).toBe("90"));
+    expect(within(panel).getByTestId("poll-interval-unit")).toHaveValue("seconds");
+    fireEvent.change(amount, { target: { value: "120" } });
+    expect(amount.value).toBe("120");
+  });
+
+  it("starts the interval form in minutes when the armed interval is whole minutes", async () => {
+    vi.spyOn(api, "getPollTrigger").mockResolvedValue({ ...ARMED, intervalSeconds: 600 });
+    renderControl();
+    const panel = await openPanel("current");
+    await waitFor(() =>
+      expect((within(panel).getByTestId("poll-interval-amount") as HTMLInputElement).value).toBe(
+        "10",
+      ),
+    );
+    expect(within(panel).getByTestId("poll-interval-unit")).toHaveValue("minutes");
+  });
+
   it("updates the interval while armed", async () => {
     vi.spyOn(api, "getPollTrigger").mockResolvedValue(ARMED);
     const arm = vi.spyOn(api, "armPollTrigger").mockResolvedValue(ARMED);
@@ -325,7 +348,7 @@ describe("PollTriggerControl probe-now", () => {
     const panel = await openPanel("off");
     fireEvent.click(within(panel).getByRole("button", { name: "Test probe now" }));
     const result = await within(panel).findByRole("region", { name: "Probe result" });
-    expect(within(result).getByText("A one-off probe. It does not start a run.")).toBeVisible();
+    expect(within(panel).getByText("Runs it once. Never starts a workflow run.")).toBeVisible();
     expect(within(result).getByTestId("poll-probe-params")).toHaveTextContent("hello");
     expect(within(result).getByText("abc123")).toBeVisible();
     expect(within(result).getByText("Took 123 ms.")).toBeVisible();
