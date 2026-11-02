@@ -3,12 +3,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
   FilePlus2,
   Link2,
-  Trash2,
-  ChevronDown,
-  Workflow,
   MoreHorizontal,
+  Trash2,
+  Workflow,
 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -185,7 +185,12 @@ export function WorkflowsPage() {
           {!project.missing ? (
             <>
               {groups.data ? (
-                <div className="workflow-toolbar"><div><h2>Workflow library</h2><p>Organize the workflows in this project.</p></div><span className="sp" />
+                <div className="workflow-toolbar">
+                  <div>
+                    <h2>Workflow library</h2>
+                    <p>Organize the workflows in this project.</p>
+                  </div>
+                  <span className="sp" />
                   <GroupControls projectId={pid} groups={groups.data} />
                 </div>
               ) : groups.isError ? (
@@ -221,23 +226,104 @@ export function WorkflowsPage() {
               ) : (
                 <div className="workflow-library">
                   {[
-                    ...(groups.data?.document.groups ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)),
+                    ...(groups.data?.document.groups ?? [])
+                      .slice()
+                      .sort((a, b) => a.name.localeCompare(b.name)),
                     { id: "", name: "Ungrouped" },
                   ].map((group) => {
-                    const items = (workflows.data?.items ?? []).filter((item) => (groups.data?.document.memberships[item.id] ?? "") === group.id);
-                    return <section className="workflow-group" key={group.id || "ungrouped"}>
-                      <details open><summary className="workflow-group-heading"><ChevronDown className="workflow-chevron" size={16} aria-hidden="true" /><span className="workflow-group-name">{group.name} ({items.length})</span></summary>
-                        <div className="workflow-items">{items.length === 0 ? <p className="workflow-group-empty">No workflows in this group yet.</p> : items.map((item) => <article className="workflow-item" key={item.id} data-testid={`workflow-row-${item.id}`}>
-                          <div className="workflow-item-icon"><Workflow size={17} aria-hidden="true" /></div><div className="workflow-item-main"><Link className="workflow-item-title" to={`/p/${pid}/w/${item.id}`}>{item.name}</Link>{item.description ? <p className="workflow-description">{item.description}</p> : null}<div className="workflow-meta"><span className="mono" title={item.relativeFile}>{item.relativeFile}</span><span>Updated {formatTime(item.updatedAt)}</span></div></div>
-                          <div className="workflow-item-status"><ValidationStatus item={item} /></div><div className="workflow-item-actions"><details className="workflow-actions-menu"><summary aria-label={`Actions for ${item.name}`}><MoreHorizontal size={18} aria-hidden="true" /></summary><div className="workflow-actions-popover">{groups.data && groups.data.document.groups.length > 0 ? <GroupSelect projectId={pid} workflowId={item.id} groups={groups.data} /> : null}<button type="button" className="workflow-menu-delete" onClick={() => { setDeleteError(null); setDeleting(item); }}><Trash2 size={14} aria-hidden="true" /> Delete workflow</button></div></details></div>
-                        </article>)}</div></details>{group.id && groups.data ? <GroupControls projectId={pid} groups={groups.data} groupId={group.id} /> : null}
-                    </section>;
+                    const items = (workflows.data?.items ?? []).filter(
+                      (item) => (groups.data?.document.memberships[item.id] ?? "") === group.id,
+                    );
+                    return (
+                      <section className="workflow-group" key={group.id || "ungrouped"}>
+                        <details open>
+                          <summary className="workflow-group-heading">
+                            <ChevronDown
+                              className="workflow-chevron"
+                              size={16}
+                              aria-hidden="true"
+                            />
+                            <span className="workflow-group-name">
+                              {group.name} ({items.length})
+                            </span>
+                          </summary>
+                          <div className="workflow-items">
+                            {items.length === 0 ? (
+                              <p className="workflow-group-empty">
+                                No workflows in this group yet.
+                              </p>
+                            ) : (
+                              items.map((item) => (
+                                <article
+                                  className="workflow-item"
+                                  key={item.id}
+                                  data-testid={`workflow-row-${item.id}`}
+                                >
+                                  <div className="workflow-item-icon">
+                                    <Workflow size={17} aria-hidden="true" />
+                                  </div>
+                                  <div className="workflow-item-main">
+                                    <Link
+                                      className="workflow-item-title"
+                                      to={`/p/${pid}/w/${item.id}`}
+                                    >
+                                      {item.name}
+                                    </Link>
+                                    {item.description ? (
+                                      <p className="workflow-description">{item.description}</p>
+                                    ) : null}
+                                    <div className="workflow-meta">
+                                      <span className="mono" title={item.relativeFile}>
+                                        {item.relativeFile}
+                                      </span>
+                                      <span>Updated {formatTime(item.updatedAt)}</span>
+                                    </div>
+                                  </div>
+                                  <div className="workflow-item-status">
+                                    <ValidationStatus item={item} />
+                                  </div>
+                                  <div className="workflow-item-actions">
+                                    <details className="workflow-actions-menu">
+                                      <summary aria-label={`Actions for ${item.name}`}>
+                                        <MoreHorizontal size={18} aria-hidden="true" />
+                                      </summary>
+                                      <div className="workflow-actions-popover">
+                                        {groups.data && groups.data.document.groups.length > 0 ? (
+                                          <GroupSelect
+                                            projectId={pid}
+                                            workflowId={item.id}
+                                            groups={groups.data}
+                                          />
+                                        ) : null}
+                                        <button
+                                          type="button"
+                                          className="workflow-menu-delete"
+                                          onClick={() => {
+                                            setDeleteError(null);
+                                            setDeleting(item);
+                                          }}
+                                        >
+                                          <Trash2 size={14} aria-hidden="true" /> Delete workflow
+                                        </button>
+                                      </div>
+                                    </details>
+                                  </div>
+                                </article>
+                              ))
+                            )}
+                          </div>
+                        </details>
+                        {group.id && groups.data ? (
+                          <GroupControls projectId={pid} groups={groups.data} groupId={group.id} />
+                        ) : null}
+                      </section>
+                    );
                   })}
                 </div>
               )}
               {workflows.data !== undefined && workflows.data.nextCursor !== null ? (
                 <p className="faint" style={{ marginTop: 8 }}>
-                  Only the first page of workflows is shown in this slice.
+                  Only the first page of workflows is shown.
                 </p>
               ) : null}
             </>

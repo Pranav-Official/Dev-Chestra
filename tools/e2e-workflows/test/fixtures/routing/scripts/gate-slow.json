@@ -1,0 +1,5 @@
+[
+  { "type": "say", "text": "routing slow branch" },
+  { "type": "sleep", "ms": 1500 },
+  { "type": "submit", "output": { "verdict": "slow", "note": "routing" } }
+]

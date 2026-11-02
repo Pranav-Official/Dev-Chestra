@@ -2,10 +2,10 @@ import { DevChestraError } from "@devchestra/core";
 import type { DecisionSecretName } from "./secrets.js";
 import { redactSecrets } from "./secrets.js";
 
-/** Response body cap (contract §7). */
+/** Response body cap. */
 export const MAX_RESPONSE_BYTES = 1024 * 1024;
 
-/** Retry delays in milliseconds (contract §7). */
+/** Retry delays in milliseconds. */
 export const RETRY_429_DELAYS_MS = [1000, 3000];
 export const RETRY_NETWORK_DELAYS_MS = [500, 1500];
 export const MAX_RETRIES = 2;
@@ -356,7 +356,7 @@ async function terminalFailure(
 
 /**
  * POST the decision body with timeout/abort, `redirect: "error"`, https
- * enforcement, a response size cap, and the §7 retry schedule. Returns the
+ * enforcement, a response size cap, and the retry schedule. Returns the
  * response text; the caller parses JSON. Every error is key-redacted.
  */
 export async function postDecisionJson(

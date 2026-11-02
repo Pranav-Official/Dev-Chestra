@@ -4,7 +4,7 @@
   gateway and MCP shim. It checks separate accepted outputs, cleanup markers and
   explicitly carried state. Run after building: `pnpm exec tsx tools/fixtures/engine/loops.ts`.
 
-Trusted, deterministic P1 engine fixtures. They are not live-CLI evidence.
+Trusted, deterministic engine fixtures. They are not live-CLI evidence.
 
 - `linear-research.json` — normalized `start -> agent -> shell -> end` workflow used by
   the engine unit tests and smoke scripts.

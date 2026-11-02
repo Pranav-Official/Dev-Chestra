@@ -73,7 +73,7 @@ export function validateWorkflow(
         issue(
           "error",
           "E_WORKFLOW_INVALID",
-          `Workflow budgets are not implemented in P1 and would be ignored (${defined
+          `Workflow budgets are not enforced and would be ignored (${defined
             .map(([key]) => key)
             .join(", ")}). Remove the budget block; enforcement belongs to the engine.`,
           "/budget",
@@ -86,7 +86,7 @@ export function validateWorkflow(
       issue(
         "error",
         "E_WORKFLOW_INVALID",
-        "supervisor is not implemented in P1; remove the supervisor block.",
+        "supervisor is not supported; remove the supervisor block.",
         "/supervisor",
       ),
     );

@@ -1,9 +1,0 @@
-[
-  { "type": "say", "text": "p2 html agent working" },
-  {
-    "type": "submit",
-    "output": {
-      "summary": "<img src=x onerror=\"window.__devchestraPwned='img'\"><script>window.__devchestraPwned='script'</script>P2_HTML_SENTINEL <b>bold</b>"
-    }
-  }
-]

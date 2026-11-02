@@ -1,4 +1,4 @@
--- P3.5: durable human approval checkpoints (no auto/supervisor/timeouts)
+-- Durable human approval checkpoints (no auto/supervisor/timeouts)
 CREATE TABLE approvals (
   run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
   path TEXT NOT NULL,

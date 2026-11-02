@@ -21,8 +21,9 @@ import type {
 } from "@devchestra/adapters";
 import { type ActiveRunState, EngineContext } from "../src/context.js";
 import { executeAgent } from "../src/exec-agent.js";
-import { analyzeLinearWorkflow, type LinearChain, type LinearNode } from "../src/sequence.js";
+import type { PlanNode, WorkflowPlan } from "../src/graph-plan.js";
 import { ProcessGroupAliveError, StopSignal } from "../src/stop.js";
+import { isolated, planOf } from "./plan-source.js";
 
 /**
  * Characterization tests for `runAttempts` (packages/engine/src/exec-agent.ts).
@@ -68,8 +69,8 @@ interface Harness {
   ctx: EngineContext;
   store: Store;
   runId: string;
-  chain: LinearChain;
-  node: LinearNode;
+  plan: WorkflowPlan;
+  node: PlanNode;
   active: ActiveRunState;
   runAgentCalls: () => number;
   prompts: () => string[];
@@ -222,9 +223,8 @@ function setup(
     snapshot,
     snapshotRaw: JSON.stringify(snapshot),
   });
-  const analyzed = analyzeLinearWorkflow(snapshot);
-  if (!analyzed.ok) throw analyzed.error;
-  const node = analyzed.value.nodes.find((entry) => entry.id === "a");
+  const plan = planOf(snapshot);
+  const node = plan.nodes.find((entry) => entry.id === "a");
   if (node === undefined) throw new Error("missing node");
 
   const seen = {
@@ -401,8 +401,8 @@ function setup(
     ctx,
     store,
     runId: created.runId as string,
-    chain: analyzed.value,
-    node: node as LinearNode,
+    plan,
+    node: node as PlanNode,
     active,
     runAgentCalls: () => runAgentCalls,
     prompts: () => seen.prompts,
@@ -428,7 +428,7 @@ async function runAgent(harness: Harness): Promise<{ error?: unknown }> {
     await executeAgent(
       harness.ctx,
       harness.ctx.run(harness.runId),
-      { ...harness.chain, nodes: [harness.node] } as LinearChain,
+      isolated(harness.plan),
       harness.node,
       harness.active,
     );

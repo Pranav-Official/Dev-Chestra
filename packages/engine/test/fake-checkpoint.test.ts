@@ -23,7 +23,8 @@ vi.mock("@devchestra/adapters", async (importOriginal) => {
 import type { AdapterRegistry, RunRequest } from "@devchestra/adapters";
 import { type ActiveRunState, EngineContext } from "../src/context.js";
 import { executeAgent } from "../src/exec-agent.js";
-import { analyzeLinearWorkflow, type LinearChain, type LinearNode } from "../src/sequence.js";
+import type { PlanNode, WorkflowPlan } from "../src/graph-plan.js";
+import { isolated, planOf } from "./plan-source.js";
 
 const cleanups: (() => void)[] = [];
 afterEach(() => {
@@ -135,8 +136,7 @@ function setup(runLevel: boolean) {
       ? { workspace: { selection: { mode: "project" as const }, projectRoot: project } }
       : {}),
   });
-  const analyzed = analyzeLinearWorkflow(snapshot);
-  if (!analyzed.ok) throw analyzed.error;
+  const plan = planOf(snapshot);
   const ctx = new EngineContext({
     store,
     adapters: adapterRegistry(),
@@ -208,24 +208,18 @@ function setup(runLevel: boolean) {
     reason: null,
     tokens: new Set(),
   };
-  return { base, project, dataDir, store, chain: analyzed.value, created, ctx, active };
+  return { base, project, dataDir, store, plan, created, ctx, active };
 }
 
 async function runNode(
   ctx: EngineContext,
   runId: string,
-  chain: LinearChain,
-  node: LinearNode,
+  plan: WorkflowPlan,
+  node: PlanNode,
   active: ActiveRunState,
 ): Promise<void> {
   try {
-    await executeAgent(
-      ctx,
-      ctx.run(runId),
-      { ...chain, nodes: [node] } as LinearChain,
-      node,
-      active,
-    );
+    await executeAgent(ctx, ctx.run(runId), isolated(plan), node, active);
   } catch (error) {
     if (process.env.DEBUG_CHECKPOINT) console.error(error);
   }
@@ -234,11 +228,11 @@ async function runNode(
 describe("fake checkpoint placement", () => {
   it("uses stable per-node/attempt dataDir checkpoints for a shared run cwd", async () => {
     const s = setup(true);
-    const a = s.chain.nodes.find((node) => node.id === "a");
-    const b = s.chain.nodes.find((node) => node.id === "b");
+    const a = s.plan.nodes.find((node) => node.id === "a");
+    const b = s.plan.nodes.find((node) => node.id === "b");
     if (a === undefined || b === undefined) throw new Error("missing node");
-    await runNode(s.ctx, s.created.runId, s.chain, a, s.active);
-    await runNode(s.ctx, s.created.runId, s.chain, b, s.active);
+    await runNode(s.ctx, s.created.runId, s.plan, a, s.active);
+    await runNode(s.ctx, s.created.runId, s.plan, b, s.active);
 
     const byNode = (id: string) =>
       mocks.captures.filter((capture) => capture.checkpoint?.includes(`/${id}/`));
@@ -260,9 +254,9 @@ describe("fake checkpoint placement", () => {
 
   it("keeps the legacy cwd checkpoint for runs without a frozen binding", async () => {
     const s = setup(false);
-    const a = s.chain.nodes.find((node) => node.id === "a");
+    const a = s.plan.nodes.find((node) => node.id === "a");
     if (a === undefined) throw new Error("missing node");
-    await runNode(s.ctx, s.created.runId, s.chain, a, s.active);
+    await runNode(s.ctx, s.created.runId, s.plan, a, s.active);
     const capture = mocks.captures.find((entry) => entry.checkpoint?.includes("/a/"));
     const legacyDir = join(s.dataDir, "scratch", "a");
     expect(capture?.checkpoint).toBe(join(legacyDir, ".devchestra/fake-checkpoint.json"));

@@ -1,0 +1,11 @@
+[
+  { "type": "say", "text": "slow agent started" },
+  { "type": "sleep", "ms": 6000 },
+  {
+    "type": "submit",
+    "output": {
+      "summary": "slow summary",
+      "points": ["close", "reopen", "complete"]
+    }
+  }
+]

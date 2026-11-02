@@ -1,0 +1,5 @@
+[
+  { "type": "say", "text": "browser agent started" },
+  { "type": "sleep", "ms": 8000 },
+  { "type": "submit", "output": { "summary": "browser summary" } }
+]

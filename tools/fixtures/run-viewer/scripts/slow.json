@@ -1,0 +1,5 @@
+[
+  { "type": "say", "text": "slow agent started" },
+  { "type": "sleep", "ms": 5000 },
+  { "type": "submit", "output": { "summary": "slow summary" } }
+]

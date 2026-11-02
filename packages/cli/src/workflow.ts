@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { DevChestraError, type Result, type RunWorkspaceSelection } from "@devchestra/core";
@@ -11,6 +10,7 @@ import {
   type WorkflowFile,
   workflowNodes,
 } from "@devchestra/schema";
+import { projectIdForPath } from "@devchestra/server";
 import { pathSafety, realRoot } from "@devchestra/workspaces";
 import { validateWorkspaceSelection } from "./workspace-service.js";
 
@@ -111,7 +111,7 @@ export async function loadWorkflow(
   });
   if (!normalized.ok) throw normalized.error;
   const workflowHash = await hashWorkflow(normalized.value);
-  const projectId = `p1-${createHash("sha256").update(projectRoot).digest("hex").slice(0, 16)}`;
+  const projectId = projectIdForPath(projectRoot);
   return {
     projectRoot,
     projectId,

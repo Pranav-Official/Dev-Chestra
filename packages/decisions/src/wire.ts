@@ -9,14 +9,14 @@ import type {
   ResponseShapeSummary,
 } from "./types.js";
 
-/** Local limits checked before anything reaches the network (contract §7). */
+/** Local limits checked before anything reaches the network. */
 export const MAX_STATE_BYTES = 64 * 1024;
 export const MIN_CHOICE_OPTIONS = 1;
 export const MAX_CHOICE_OPTIONS = 255;
 export const MIN_SCORE_LEVELS = 2;
 export const MAX_SCORE_LEVELS = 10;
 
-/** Contract §1: node model override pattern. */
+/** Node model override pattern. */
 export const MODEL_OVERRIDE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
 export function isValidModelOverride(value: string): boolean {
@@ -90,7 +90,7 @@ function checkLocalLimits(question: DecisionQuestion, state: string | JsonValue)
 }
 
 /**
- * Build the intersection request body (contract §1). Throws `E_VALIDATION`
+ * Build the intersection request body. Throws `E_VALIDATION`
  * before any network use when local limits or the model pattern fail.
  */
 export function buildDecisionBody(req: DecisionRequest, preset: DecisionPreset): DecisionWireBody {
@@ -328,7 +328,7 @@ function readUsage(inner: Record<string, unknown>): DecisionUsage | undefined {
 }
 
 /**
- * Parse a provider response into the normalized §4 answer. Accepts bare and
+ * Parse a provider response into the normalized answer. Accepts bare and
  * `{ result }`-wrapped payloads. A missing `q0` answer, or one of the wrong
  * type, is a provider refusal (value null), never a transport error.
  */

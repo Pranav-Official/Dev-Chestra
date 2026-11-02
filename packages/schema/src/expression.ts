@@ -381,7 +381,7 @@ export async function evaluate(
     if (executor === undefined) {
       return err(
         exprError(
-          'No expression executor configured. In Node, import { createNodeExpressionExecutor } from "@devchestra/schema/node" and pass it as options.executor. Browser worker execution is not implemented in P1.',
+          'No expression executor configured. In Node, import { createNodeExpressionExecutor } from "@devchestra/schema/node" and pass it as options.executor. Browser worker execution is not supported.',
         ),
       );
     }

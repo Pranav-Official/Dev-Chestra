@@ -53,7 +53,7 @@ async function checkDataDir(dataDir: string): Promise<DoctorCheck> {
       name: "data-dir",
       status: "fail",
       message: error instanceof Error ? error.message : String(error),
-      fix: "Use an explicit writable --data-dir (not ~/.devchestra in this milestone).",
+      fix: "Use an explicit writable --data-dir.",
     };
   }
 }

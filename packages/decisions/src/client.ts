@@ -22,7 +22,7 @@ import type {
 } from "./types.js";
 import { buildDecisionBody, parseDecisionPayload, summarizeResponseShape } from "./wire.js";
 
-/** At most 8 concurrent calls per provider (contract §7). */
+/** At most 8 concurrent calls per provider. */
 export const MAX_CONCURRENT_PER_PROVIDER = 8;
 
 export interface DecisionClientOptions {

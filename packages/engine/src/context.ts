@@ -26,10 +26,9 @@ import { createNodeExpressionExecutor } from "@devchestra/schema/node";
 import type { AcceptedOutput, ExecutionRow, RunRecord, Store } from "@devchestra/store";
 import type { ScratchWorkspace } from "@devchestra/workspaces";
 import { ExecutionContextCache } from "./execution-context.js";
-import type { PlanNode, ScopeSource, WorkflowPlan } from "./graph-plan.js";
+import type { PlanNode, ScopeSource } from "./graph-plan.js";
 import { stripUi } from "./hash-config.js";
 import { decisionScopeValue } from "./scope.js";
-import type { LinearChain } from "./sequence.js";
 
 export { decisionScopeValue } from "./scope.js";
 
@@ -174,40 +173,20 @@ export class EngineContext {
    */
   async chainOutputs(
     run: RunRecord,
-    source: ScopeSource | LinearChain,
+    source: ScopeSource,
     nodeId: string,
   ): Promise<Array<{ nodeId: string; output: unknown }>> {
     const outputs: Array<{ nodeId: string; output: unknown }> = [];
-    if ("ancestorsOf" in source) {
-      // Body Start has no parameters, even when its node id is not "start".
-      if (source.body) outputs.push({ nodeId: "start", output: {} });
-      for (const [nodeId, output] of Object.entries(source.scope ?? {})) {
-        outputs.push({ nodeId, output });
-      }
-      for (const id of (source as WorkflowPlan).ancestorsOf(nodeId)) {
-        const localId = source.byId.get(id)?.raw.id;
-        outputs.push({
-          nodeId: source.body ? String(localId) : id,
-          output: this.ancestorValue(run, id),
-        });
-      }
-      return outputs;
+    // Body Start has no parameters, even when its node id is not "start".
+    if (source.body) outputs.push({ nodeId: "start", output: {} });
+    for (const [nodeId, output] of Object.entries(source.scope ?? {})) {
+      outputs.push({ nodeId, output });
     }
-    for (const node of (source as LinearChain).nodes) {
-      if (node.id === nodeId) break;
-      const execution = this.store.executions.get(run.id, node.id as Path);
-      const attempt = execution?.attempt ?? 1;
-      const output = this.output(run.id, node.id, attempt);
-      if (output === null) {
-        throw new DevChestraError(
-          "E_INTERNAL",
-          `Ancestor '${node.id}' has no output for attempt ${attempt}`,
-          { details: { runId: run.id } },
-        );
-      }
+    for (const id of source.ancestorsOf(nodeId)) {
+      const localId = source.byId.get(id)?.raw.id;
       outputs.push({
-        nodeId: node.id,
-        output: execution?.kind === "decision" ? decisionScopeValue(output.json) : output.json,
+        nodeId: source.body ? String(localId) : id,
+        output: this.ancestorValue(run, id),
       });
     }
     return outputs;

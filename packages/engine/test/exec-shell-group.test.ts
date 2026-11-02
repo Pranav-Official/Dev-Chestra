@@ -15,7 +15,7 @@ import { openStore } from "@devchestra/store";
 import { acquireScratch, finalizeScratch, releaseScratch } from "@devchestra/workspaces";
 import { type ActiveRunState, EngineContext } from "../src/context.js";
 import { executeShell } from "../src/exec-shell.js";
-import { analyzeLinearWorkflow } from "../src/sequence.js";
+import { isolated, planOf } from "./plan-source.js";
 
 const fixture = {
   schemaVersion: 1,
@@ -64,10 +64,8 @@ describe("shell process group stop", () => {
         snapshotRaw: JSON.stringify(fixture),
         params: {},
       });
-      const chainResult = analyzeLinearWorkflow(fixture);
-      if (!chainResult.ok) throw chainResult.error;
-      const chain = chainResult.value;
-      const node = chain.nodes.find((candidate) => candidate.id === "report");
+      const plan = planOf(fixture);
+      const node = plan.nodes.find((candidate) => candidate.id === "report");
       if (node === undefined) throw new Error("missing report node");
       const run = store.runs.get(created.runId);
       if (run === null) throw new Error("missing run");
@@ -118,8 +116,7 @@ describe("shell process group stop", () => {
         reason: null,
         tokens: new Set(),
       };
-      const shellChain = { ...chain, nodes: [node] };
-      await expect(executeShell(ctx, run, shellChain, node, active)).rejects.toMatchObject({
+      await expect(executeShell(ctx, run, isolated(plan), node, active)).rejects.toMatchObject({
         code: "E_WORKSPACE",
       });
       const view = store.view.get(created.runId);

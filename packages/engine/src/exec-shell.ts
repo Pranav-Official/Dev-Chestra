@@ -5,7 +5,6 @@ import type { ScratchWorkspace } from "@devchestra/workspaces";
 import { type ActiveRunState, type EngineContext, toDevChestraError } from "./context.js";
 import type { PlanNode, ScopeSource } from "./graph-plan.js";
 import { stripUi } from "./hash-config.js";
-import type { LinearChain } from "./sequence.js";
 import { ProcessGroupAliveError, StopSignal } from "./stop.js";
 
 const TAIL_BYTES = 64 * 1024;
@@ -13,7 +12,7 @@ const TAIL_BYTES = 64 * 1024;
 export async function executeShell(
   ctx: EngineContext,
   run: RunRecord,
-  source: ScopeSource | LinearChain,
+  source: ScopeSource,
   node: PlanNode,
   active: ActiveRunState,
 ): Promise<void> {

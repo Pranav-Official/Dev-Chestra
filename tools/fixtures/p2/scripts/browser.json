@@ -1,5 +1,0 @@
-[
-  { "type": "say", "text": "p2 browser agent started" },
-  { "type": "sleep", "ms": 8000 },
-  { "type": "submit", "output": { "summary": "P2 browser summary" } }
-]

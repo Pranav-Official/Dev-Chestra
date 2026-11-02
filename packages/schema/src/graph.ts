@@ -287,7 +287,7 @@ export function analyzeGraph(graph: Graph): { analysis: GraphAnalysis; issues: I
       issues.push(
         issue(
           "E_NODE_TYPE",
-          `Unsupported node type '${node.type}'; P1 routing supports start, agent, shell, gate, join, approval, decision, loop, foreach, workflow, end.`,
+          `Unsupported node type '${node.type}'; supported types are start, agent, shell, gate, join, approval, decision, loop, foreach, workflow, end.`,
           `${pointer}/type`,
           node.id,
         ),
@@ -297,7 +297,7 @@ export function analyzeGraph(graph: Graph): { analysis: GraphAnalysis; issues: I
       issues.push(
         issue(
           "E_NODE_ID",
-          `Node id '${node.id}' must match ${NODE_ID_PATTERN.source}; P1 requires JSONata-safe ids (no hyphens).`,
+          `Node id '${node.id}' must match ${NODE_ID_PATTERN.source}; ids must be JSONata-safe (no hyphens).`,
           `${pointer}/id`,
           node.id,
         ),

@@ -1,0 +1,21 @@
+[
+  { "type": "say", "text": "raw output agent working" },
+  {
+    "type": "submit",
+    "output": {
+      "rawMarker": "RAW_P3_SENTINEL",
+      "repo": {
+        "name": "acme/processor",
+        "stars": 0,
+        "fork": false,
+        "owner": null,
+        "topics": ["alpha", "beta"],
+        "nested": { "levels": [[1, 0], [false, null]], "deep": { "leaf": "bottom" } }
+      },
+      "records": [
+        { "id": "r1", "active": false, "score": 0, "labels": ["x", "y"] },
+        { "id": "r2", "active": true, "note": null }
+      ]
+    }
+  }
+]

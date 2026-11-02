@@ -1,5 +1,0 @@
-[
-  { "type": "say", "text": "p4 routing slow branch" },
-  { "type": "sleep", "ms": 1500 },
-  { "type": "submit", "output": { "verdict": "slow", "note": "routing" } }
-]

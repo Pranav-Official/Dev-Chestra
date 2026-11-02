@@ -17,7 +17,7 @@ export interface AcquireScratchRequest {
   mode?: WorkspaceMode;
   requireExisting?: boolean;
   projectRoot?: string;
-  /** Unsupported in this milestone; present so callers get an explicit rejection. */
+  /** Unsupported; present so callers get an explicit rejection. */
   base?: string;
   setup?: string;
   from?: string;

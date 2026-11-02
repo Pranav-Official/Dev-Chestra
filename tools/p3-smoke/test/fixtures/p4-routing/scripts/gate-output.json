@@ -1,4 +1,0 @@
-[
-  { "type": "say", "text": "p4 routing fake agent" },
-  { "type": "submit", "output": { "verdict": "ok", "note": "routing" } }
-]

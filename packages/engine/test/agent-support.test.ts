@@ -7,7 +7,7 @@ import { acquireScratch, finalizeScratch, releaseScratch } from "@devchestra/wor
 import { afterEach, describe, expect, it } from "vitest";
 import { countNoSubmit, finalizeAccepted } from "../src/agent-support.js";
 import { type ActiveRunState, EngineContext } from "../src/context.js";
-import { analyzeLinearWorkflow } from "../src/sequence.js";
+import { planOf } from "./plan-source.js";
 
 const fixture = {
   schemaVersion: 1,
@@ -78,11 +78,10 @@ function seed(store: Store, dataDir: string) {
     snapshotRaw: JSON.stringify(fixture),
     params: {},
   });
-  const chain = analyzeLinearWorkflow(fixture);
-  if (!chain.ok) throw chain.error;
-  const node = chain.value.nodes[1];
+  const plan = planOf(fixture);
+  const node = plan.nodes[1];
   if (node === undefined) throw new Error("missing research node");
-  return { runId: created.runId, chain: chain.value, node };
+  return { runId: created.runId, plan, node };
 }
 
 function accept(store: Store, runId: string) {

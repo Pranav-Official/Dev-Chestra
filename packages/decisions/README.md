@@ -1,6 +1,6 @@
 # @devchestra/decisions
 
-System One decision-model provider client (contract §7). Fixed provider
+System One decision-model provider client. Fixed provider
 presets (Jev, Clef, Clef-flash), secret loading, the intersection wire format,
 and a fetch-based HTTP client with retries and a per-provider concurrency cap.
 
@@ -19,7 +19,7 @@ Everything public is re-exported from `src/index.ts`. Modules:
   never mutates `process.env`; reports missing NAMES only).
 - `wire.ts` — `buildDecisionBody()` (intersection request format) and
   `parseDecisionPayload()` (bare or `{ result }`-wrapped responses,
-  data-driven candidate fields, §4 normalization incl. refusals).
+  data-driven candidate fields, normalization incl. refusals).
 - `http.ts` — timeout/abort fetch, `redirect: "error"`, https-only (loopback
   `http` only via the injected test override), 1 MiB cap, 429/5xx retries,
   redacted errors.

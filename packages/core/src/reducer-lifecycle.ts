@@ -154,7 +154,7 @@ export function reduceLifecycleEvent(view: RunView, envelope: EventEnvelope): Ru
     }
 
     case "run.override.added":
-      // No RunView effect in the P0 slice; retained for forward-compatible replay.
+      // No RunView effect; retained for forward-compatible replay.
       return withEventId(view, envelope);
 
     case "quota.blocked": {
@@ -193,7 +193,7 @@ export function reduceLifecycleEvent(view: RunView, envelope: EventEnvelope): Ru
 
     case "budget.threshold":
     case "budget.exceeded":
-      // Budget figures are projected from usage; threshold events are audit-only in P0.
+      // Budget figures are projected from usage; threshold events are audit-only.
       return withEventId(view, envelope);
 
     case "error.logged": {
@@ -811,8 +811,8 @@ export function reduceLifecycleEvent(view: RunView, envelope: EventEnvelope): Ru
       });
     }
 
-    // Reserved catalog events have no RunView effect in the P0 slice. Their
-    // payloads are versioned and replayed safely; later slices add reducers.
+    // Reserved catalog events have no RunView effect. Their payloads are
+    // versioned and replayed safely until a reducer handles them.
     case "map.started":
     case "map.item.state":
     case "map.completed":

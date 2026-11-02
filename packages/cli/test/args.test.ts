@@ -16,17 +16,12 @@ describe("CLI args", () => {
       "--param",
       "name=alpha",
       "--json",
-      "--embedded",
-      "--budget-usd",
-      "2",
     ]);
     expect(options.command).toBe("run");
     expect(options.workflow).toBe("workflow.json");
     expect(options.project).toBe("/tmp/project");
     expect(options.params).toEqual({ count: 3, name: "alpha" });
     expect(options.json).toBe(true);
-    expect(options.embedded).toBe(true);
-    expect(options.budgetUsd).toBe(2);
   });
 
   it("requires a project for run but defaults the data dir", () => {

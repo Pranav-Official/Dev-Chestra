@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "id": "gate-slow",
+  "name": "gate crash route",
+  "description": "Chosen slow branch survives restart and dead branch never spawns",
+  "graph": {
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "name": "Inputs",
+        "params": [
+          {
+            "name": "route",
+            "type": "string",
+            "required": true,
+            "default": "a"
+          }
+        ],
+        "ui": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": "route_gate",
+        "type": "gate",
+        "name": "Route",
+        "branches": [
+          {
+            "id": "slow",
+            "when": "start.route = \"slow\""
+          },
+          {
+            "id": "fast",
+            "otherwise": true
+          }
+        ],
+        "ui": {
+          "x": 180,
+          "y": 0
+        }
+      },
+      {
+        "id": "agent_slow",
+        "type": "agent",
+        "name": "Agent Slow",
+        "cli": "fake",
+        "prompt": "Run Agent Slow for {{ start.route }}.",
+        "output": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "verdict",
+            "note"
+          ],
+          "properties": {
+            "verdict": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 200
+            }
+          }
+        },
+        "permissions": {
+          "network": false,
+          "write": [
+            "workspace"
+          ]
+        },
+        "workspace": {
+          "mode": "scratch"
+        },
+        "limits": {
+          "timeoutMin": 2,
+          "validationRetries": 1,
+          "crashRetries": 0
+        },
+        "context": {
+          "project": "none",
+          "workflow": "none"
+        },
+        "ui": {
+          "x": 380,
+          "y": -80
+        }
+      },
+      {
+        "id": "agent_fast",
+        "type": "agent",
+        "name": "Agent Fast",
+        "cli": "fake",
+        "prompt": "Run Agent Fast for {{ start.route }}.",
+        "output": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "verdict",
+            "note"
+          ],
+          "properties": {
+            "verdict": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 200
+            }
+          }
+        },
+        "permissions": {
+          "network": false,
+          "write": [
+            "workspace"
+          ]
+        },
+        "workspace": {
+          "mode": "scratch"
+        },
+        "limits": {
+          "timeoutMin": 2,
+          "validationRetries": 1,
+          "crashRetries": 0
+        },
+        "context": {
+          "project": "none",
+          "workflow": "none"
+        },
+        "ui": {
+          "x": 380,
+          "y": 80
+        }
+      },
+      {
+        "id": "merge",
+        "type": "join",
+        "name": "Merge",
+        "mode": "first",
+        "inputs": [
+          "slow",
+          "fast"
+        ],
+        "ui": {
+          "x": 620,
+          "y": 0
+        }
+      },
+      {
+        "id": "done",
+        "type": "end",
+        "name": "done",
+        "status": "success",
+        "result": "merge",
+        "ui": {
+          "x": 820,
+          "y": 0
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e-start-gate",
+        "from": "start",
+        "to": "route_gate"
+      },
+      {
+        "id": "e-gate-slow",
+        "from": "route_gate.slow",
+        "to": "agent_slow"
+      },
+      {
+        "id": "e-gate-fast",
+        "from": "route_gate.fast",
+        "to": "agent_fast"
+      },
+      {
+        "id": "e-slow-join",
+        "from": "agent_slow",
+        "to": "merge.slow"
+      },
+      {
+        "id": "e-fast-join",
+        "from": "agent_fast",
+        "to": "merge.fast"
+      },
+      {
+        "id": "e-join-end",
+        "from": "merge",
+        "to": "done"
+      }
+    ]
+  }
+}
