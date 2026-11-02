@@ -198,6 +198,8 @@ describe("devchestra start lifecycle", () => {
     if (read.status !== "valid") throw new Error("metadata missing");
     expect(read.value.token.length).toBeGreaterThanOrEqual(32);
     expect(wiring?.instanceId).toBe(read.value.instanceId);
+    expect(wiring?.webhooks).toBeDefined();
+    expect(wiring?.polling).toBeDefined();
 
     const readyText = out.text();
     expect(readyText).toContain('"type":"devchestra.ready"');

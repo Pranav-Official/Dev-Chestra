@@ -16,8 +16,10 @@ import { createDecisionService } from "@devchestra/decisions";
 import type { Engine } from "@devchestra/engine";
 import type {
   BrowserModelCatalogPort,
+  BrowserPollPorts,
   BrowserWebhookPorts,
   CommandResponse,
+  PollScheduler,
   StartRunCommand,
   StartRunResponse,
 } from "@devchestra/server";
@@ -37,6 +39,7 @@ import { type RunningGateway, startGateway } from "./gateway.js";
 import { acquireDataDirLock, DataDirLockedError, type LockHandle } from "./lock.js";
 import { createModelCatalogService, type ModelCatalogService } from "./model-catalog.js";
 import { type ExitCode, notice } from "./output.js";
+import { createPollPorts, createPollScheduler } from "./poll-wiring.js";
 import {
   attachToServer,
   bootstrapUrl,
@@ -97,6 +100,8 @@ export interface BrowserWiring {
   webRoot?: string;
   /** Webhook triggers: launch, queue pump and freeze ports over this engine and store. */
   webhooks?: BrowserWebhookPorts;
+  /** Polling triggers: probe, launch, queue pump and freeze ports over this engine and store. */
+  polling?: BrowserPollPorts;
 }
 
 export interface BrowserListener {
@@ -197,6 +202,7 @@ async function defaultBrowserFactory(wiring: BrowserWiring): Promise<BrowserList
     port: wiring.port,
     ...(wiring.webRoot === undefined ? {} : { webRoot: wiring.webRoot }),
     ...(wiring.webhooks === undefined ? {} : { webhooks: wiring.webhooks }),
+    ...(wiring.polling === undefined ? {} : { polling: wiring.polling }),
   });
   const closed = new Promise<void>((resolveClose) => {
     running.server.once("close", () => {
@@ -481,6 +487,7 @@ export async function executeStart(
   let engine: Engine | undefined;
   let modelCatalog: ModelCatalogService | undefined;
   let listener: BrowserListener | undefined;
+  let pollScheduler: PollScheduler | undefined;
   let metadata: ServerMetadata | undefined;
   let cleaned = false;
   let closeWindowsControl: (() => Promise<void>) | undefined;
@@ -507,6 +514,12 @@ export async function executeStart(
     if (cwc !== undefined) await runStage("windows-control", () => cwc());
     const catalog = modelCatalog;
     if (catalog !== undefined) await runStage("model-catalog", () => catalog.close());
+    const scheduler = pollScheduler;
+    if (scheduler !== undefined) {
+      await runStage("poll-scheduler", async () => {
+        scheduler.stop();
+      });
+    }
     const lst = listener;
     if (lst !== undefined) await runStage("listener", () => lst.close());
     const eng = engine;
@@ -557,6 +570,7 @@ export async function executeStart(
       createModelCatalogService({ dataDir, env: process.env });
     const sessionToken = createSessionToken();
     const instanceId = createInstanceId();
+    const pollPorts = createPollPorts(store, engine);
     listener = await listen(
       deps.startBrowserServer ?? defaultBrowserFactory,
       {
@@ -569,9 +583,13 @@ export async function executeStart(
         version,
         ...(webRoot === undefined ? {} : { webRoot }),
         webhooks: createWebhookPorts(store, engine),
+        polling: pollPorts,
       },
       options.port,
     );
+    // The polling timer starts after the engine is up and stops with the server.
+    pollScheduler = createPollScheduler(pollPorts);
+    pollScheduler.start();
 
     metadata = {
       version,
