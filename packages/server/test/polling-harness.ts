@@ -83,7 +83,7 @@ export function pollWorkflow(
           ],
           polling: options.polling ?? {
             enabled: true,
-            probe: { type: "shell", command: "gh pr list" },
+            probe: { id: "probe", type: "shell", name: "Poll probe", command: "gh pr list" },
           },
         },
         { id: "done", type: "end", name: "Done", status: "success", result: '{ "ok": true }' },
@@ -103,7 +103,14 @@ export function withoutPolling(file: Record<string, unknown>): Record<string, un
 export function agentPolling(prompt = "Check for work."): Record<string, unknown> {
   return {
     enabled: true,
-    probe: { type: "agent", cli: "codex", prompt },
+    probe: {
+      id: "probe",
+      type: "agent",
+      name: "Poll probe",
+      cli: "codex",
+      prompt,
+      permissions: { network: true, write: [], shell: true },
+    },
   };
 }
 

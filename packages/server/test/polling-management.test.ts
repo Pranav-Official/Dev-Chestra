@@ -325,4 +325,34 @@ describe("probe-now", () => {
     expect(h.launches).toHaveLength(1);
     expect(await status()).toMatchObject({ lastOutcome: "triggered", consecutiveFailures: 0 });
   });
+
+  it("passes an armed agent probe with mcpServers and permissions to the engine unchanged", async () => {
+    const permissions = { network: false, write: ["workspace"], shell: true };
+    const mcpServers = [{ name: "gh", scope: "global" }];
+    h.writeWorkflow(
+      WORKFLOW_ID,
+      pollWorkflow({
+        polling: {
+          enabled: true,
+          probe: {
+            id: "probe",
+            type: "agent",
+            name: "Poll probe",
+            cli: "codex",
+            prompt: "Check for work.",
+            permissions,
+            mcpServers,
+            limits: { timeoutMin: 5 },
+          },
+        },
+      }),
+    );
+    h.probeScript.push({ kind: "agent", output: { found: true, params: { pr: 4 } } });
+    const { status: code, body } = await probeNow();
+    expect(code).toBe(200);
+    expect(body.outcome).toBe("found");
+    expect(body.params).toEqual({ pr: 4, title: "none" });
+    expect(h.probes).toHaveLength(1);
+    expect(h.probes[0]?.probe).toMatchObject({ type: "agent", permissions, mcpServers });
+  });
 });

@@ -61,7 +61,12 @@ describe("createPollPorts", () => {
   it("probes through the engine and rethrows its refusals", async () => {
     const engine = stubEngine();
     const ports = createPollPorts({} as Store, engine);
-    const probe = { type: "shell" as const, command: "true" };
+    const probe = {
+      id: "probe" as const,
+      type: "shell" as const,
+      name: "Poll probe",
+      command: "true",
+    };
     const outcome = await ports.runs.probe({
       projectId: "p",
       workflowId: "wf",
