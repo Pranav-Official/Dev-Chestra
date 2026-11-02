@@ -17,7 +17,7 @@ Above: a real DevChestra workflow that routes a PR review by risk, with a separa
 
 ## Why it's nice
 
-Pasting the same instructions into chat every time and hoping the agent does it the same way? That's the problem. Chat is vibes: same prompt, different tools, different order, different day.
+Pasting the same instructions into chat every time or using 100 diffrent SKILL.md and hoping the agent does it the same way? That's the problem. Chat is vibes: same prompt, different tools, diffrent model, different order, different day.
 
 DevChestra makes the boring parts deterministic. You build the process once — who runs, what tools and MCPs they get, what they're allowed to touch, what they must hand back, what happens next — and it runs that way every time. The agents still improvise inside their box (they're LLMs, after all), but the orchestration around them doesn't.
 
