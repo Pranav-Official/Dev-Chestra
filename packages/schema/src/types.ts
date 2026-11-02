@@ -105,10 +105,47 @@ export interface StartWebhookConfig {
   paramMapping?: Record<string, string>;
 }
 
+/** Poll probe that runs a shell command. Its stdout is the poll result. */
+export interface PollShellProbe {
+  type: "shell";
+  command: string;
+  timeoutMin?: number;
+}
+
+/** Poll probe that runs an agent. Read-only: the engine fixes its permissions and output schema. */
+export interface PollAgentProbe {
+  type: "agent";
+  cli: AgentCli;
+  model?: string;
+  prompt: string;
+  timeoutMin?: number;
+}
+
+export type PollProbe = PollShellProbe | PollAgentProbe;
+
+/**
+ * Polling support declared by the saved workflow. Arming (and the interval) is
+ * runtime state in the store. The probe runs on a timer and returns nothing, or
+ * the start parameters (plus an optional `dedupeKey`) that should start a run.
+ */
+export interface StartPollingConfig {
+  /** Whether this workflow may be armed as a polling trigger. */
+  enabled: boolean;
+  probe: PollProbe;
+  /** Skip a result whose dedupe key was already triggered within 7 days. Defaults to true. */
+  dedupe?: boolean;
+  /**
+   * Where the probe runs. `project` is the registered project root, read-only, with no
+   * checkout. `worktree` is a fresh worktree per tick. Defaults to `project`.
+   */
+  workspace?: "project" | "worktree";
+}
+
 export interface StartNode extends NodeBase {
   type: "start";
   params: WorkflowParam[];
   webhook?: StartWebhookConfig;
+  polling?: StartPollingConfig;
 }
 
 export type WorkspaceSpec =
@@ -361,6 +398,7 @@ export interface NormalizedStartNode extends NormalizedNodeBase {
   type: "start";
   params: WorkflowParam[];
   webhook?: StartWebhookConfig;
+  polling?: StartPollingConfig;
 }
 
 export interface NormalizedAgentNode extends NormalizedNodeBase {
