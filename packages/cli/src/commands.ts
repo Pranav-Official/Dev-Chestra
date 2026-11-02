@@ -18,7 +18,7 @@ import {
   prepareRunWorkspace,
   releaseScratch,
 } from "@devchestra/workspaces";
-import { type CliOptions, UsageError } from "./args.js";
+import type { CliOptions } from "./args.js";
 import { loadFakeScript, requireFakeScript } from "./fake-script.js";
 import { type RunningGateway, startGateway } from "./gateway.js";
 import { type ExitCode, exitCodeForOutcome, notice, writeEvent, writeSummary } from "./output.js";
@@ -60,7 +60,8 @@ function summaryFor(
       summary.hint =
         "Run paused for an uncertain shell side effect. Inspect effects, then resume with --retry-uncertain-shell.";
     } else if (outcome.pausedReason === "approval_cap") {
-      summary.hint = "Run is waiting for a human approval; this P1 CLI has no approval command.";
+      summary.hint =
+        "Run is waiting for a human approval, which `devchestra run` cannot collect; run the workflow through `devchestra start` to approve it.";
     } else {
       summary.hint = "Run is paused; resume it with `devchestra resume <runId> --data-dir <dir>`.";
     }
@@ -143,9 +144,6 @@ export async function executeRun(options: CliOptions, dataDir: string): Promise<
   if (options.workflow === undefined || options.project === undefined) {
     throw new DevChestraError("E_VALIDATION", "run requires a workflow and --project");
   }
-  if (options.budgetUsd !== undefined) {
-    throw new UsageError("--budget-usd is not supported by this runner; remove it.");
-  }
   const loaded = await loadWorkflow(options.project, options.workflow);
   const workspace = await resolveRunWorkspace(
     loaded.projectRoot,
@@ -176,9 +174,11 @@ export async function executeRun(options: CliOptions, dataDir: string): Promise<
   process.once("SIGTERM", onSignal);
 
   try {
-    // The CLI registers the project implicitly, bypassing the HTTP route.
+    // The CLI registers the project implicitly, bypassing the HTTP route. A project already
+    // registered for this path (for example through the browser) keeps its id.
+    const projectId = store.projects.findByPath(loaded.projectRoot)?.id ?? loaded.projectId;
     store.projects.ensure({
-      id: loaded.projectId,
+      id: projectId,
       name: loaded.projectName,
       path: loaded.projectRoot,
       kind: loaded.projectKind,
@@ -190,7 +190,7 @@ export async function executeRun(options: CliOptions, dataDir: string): Promise<
     await engine.start();
 
     const outcome = await engine.run({
-      projectId: loaded.projectId,
+      projectId,
       workflowId: loaded.workflowId,
       snapshot: loaded.normalized,
       snapshotRaw: loaded.raw,

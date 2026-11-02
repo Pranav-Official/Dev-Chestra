@@ -19,16 +19,12 @@ export interface CliOptions {
   dataDir?: string;
   params: Record<string, unknown>;
   json: boolean;
-  embedded: boolean;
   nonInteractive: boolean;
   retryUncertainShell: boolean;
-  /** Deprecated no-op; kept so existing scripts keep working. */
-  allowExperimentalAdapters: boolean;
   /** Deprecated flags that were passed, so the entry point can print one notice. */
   deprecatedFlags?: string[];
   workspaceMode?: "project" | "new-worktree" | "existing-worktree";
   worktreePath?: string;
-  budgetUsd?: number;
   fakeScript?: string;
   port?: number;
   noOpen: boolean;
@@ -84,10 +80,8 @@ export function parseArgs(argv: string[]): CliOptions {
     command: "help",
     params: {},
     json: false,
-    embedded: false,
     nonInteractive: false,
     retryUncertainShell: false,
-    allowExperimentalAdapters: false,
     noOpen: false,
     printUrl: false,
     probeDecisions: false,
@@ -111,10 +105,6 @@ export function parseArgs(argv: string[]): CliOptions {
       options.json = true;
       continue;
     }
-    if (arg === "--embedded") {
-      options.embedded = true;
-      continue;
-    }
     if (arg === "--non-interactive") {
       options.nonInteractive = true;
       continue;
@@ -124,7 +114,6 @@ export function parseArgs(argv: string[]): CliOptions {
       continue;
     }
     if (arg === "--allow-experimental-adapters") {
-      options.allowExperimentalAdapters = true;
       options.deprecatedFlags = [
         ...(options.deprecatedFlags ?? []),
         "--allow-experimental-adapters",
@@ -221,16 +210,6 @@ export function parseArgs(argv: string[]): CliOptions {
       index = taken.next;
       continue;
     }
-    if (arg === "--budget-usd") {
-      const taken = takeValue(argv, index, arg);
-      const value = Number(taken.value);
-      if (!Number.isFinite(value) || value < 0) {
-        throw new UsageError("--budget-usd must be a non-negative number.");
-      }
-      options.budgetUsd = value;
-      index = taken.next;
-      continue;
-    }
     if (arg.startsWith("--")) {
       throw new UsageError(`Unknown option: ${arg}`);
     }
@@ -282,9 +261,6 @@ export function parseArgs(argv: string[]): CliOptions {
   }
   if (Object.keys(options.params).length > 0 && options.command !== "run") {
     throw new UsageError("--param is only valid with run.");
-  }
-  if (options.budgetUsd !== undefined && options.command !== "run") {
-    throw new UsageError("--budget-usd is only valid with run.");
   }
   if (options.workspaceMode !== undefined && options.command !== "run") {
     throw new UsageError("--workspace is only valid with run.");
@@ -349,10 +325,8 @@ Options:
   --param k=v                 Run only: start parameter (repeatable; JSON parsed)
   --workspace MODE            Run only: project (default), new-worktree or existing-worktree
   --worktree-path <dir>       Run only: existing worktree of the project (with --workspace)
-  --budget-usd N              Rejected in P1 (not enforced)
   --fake-script <file>        Test-only fake-agent JSON script (DEVCHESTRA_ALLOW_FAKE=1)
   --json                      NDJSON events plus a final summary
-  --embedded                  In-process engine (this milestone is always embedded)
   --non-interactive           Never prompt
   --allow-experimental-adapters
                               Deprecated and ignored: all adapters are official

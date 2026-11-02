@@ -38,10 +38,8 @@ function options(overrides: Partial<CliOptions> = {}): CliOptions {
     command: "start",
     params: {},
     json: false,
-    embedded: false,
     nonInteractive: false,
     retryUncertainShell: false,
-    allowExperimentalAdapters: false,
     noOpen: true,
     printUrl: false,
     probeDecisions: false,
@@ -292,10 +290,7 @@ describe("experimental adapter launch over the real CLI HTTP server", () => {
       const { marker } = installCliStubs();
       const dataDir = tempDir();
       const projectDir = tempDir("devchestra-experimental-project-");
-      const server = await startOwned(
-        dataDir,
-        options({ port: 0, allowExperimentalAdapters: true }),
-      );
+      const server = await startOwned(dataDir, options({ port: 0 }));
       try {
         const projectId = await registerProject(server.base, server.auth, projectDir);
         const saved = await createAndSaveWorkflow(server.base, server.auth, projectId, cli);
