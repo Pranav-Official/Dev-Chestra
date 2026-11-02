@@ -295,6 +295,11 @@ describe("engine.probe with a shell probe", () => {
     expect(result.error.message).toContain("timed out");
     const runId = (result.error.details as { runId?: string } | undefined)?.runId;
     expect(typeof runId).toBe("string");
+    // The probe call itself waits for the cancelled run to end, so it cannot overlap the next tick.
+    expect(
+      (result.error.details as { lingering?: boolean } | undefined)?.lingering,
+    ).toBeUndefined();
+    expect(["cancelled", "failed"]).toContain(store.runs.get(runId as never)?.status);
     // The cancelled run settles instead of lingering.
     for (let i = 0; i < 50; i++) {
       const run = store.runs.get(runId as never);

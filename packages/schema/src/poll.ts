@@ -24,6 +24,12 @@ import { retryBounds, timeoutBounds } from "./validate-support.js";
 /** Max agent probe prompt size in UTF-8 bytes. Mirrors the engine CLI limit. */
 export const POLL_AGENT_PROMPT_MAX_BYTES = 1024 * 1024;
 
+/** Start parameter names the probe output contract reserves for its own envelope keys. */
+export const POLL_RESERVED_PARAM_NAMES: readonly string[] = ["found", "dedupeKey"];
+
+/** Longest dedupeKey a probe may return. Keys are stored per claim for seven days. */
+export const POLL_DEDUPE_KEY_MAX_CHARS = 512;
+
 function utf8Bytes(value: string): number {
   return new TextEncoder().encode(value).length;
 }
@@ -383,6 +389,15 @@ export function validatePollingConfig(
   if (typeof polling.enabled !== "boolean") {
     fail("E_POLL_PROBE", "Start polling.enabled must be a boolean.", `${pointerBase}/enabled`);
   }
+  start.params.forEach((param, index) => {
+    if (POLL_RESERVED_PARAM_NAMES.includes(param.name)) {
+      fail(
+        "E_POLL_PROBE",
+        `Parameter '${param.name}' is reserved by the polling output contract (${POLL_RESERVED_PARAM_NAMES.join(", ")}). Rename it to use polling.`,
+        `${pointerBase.replace(/\/polling$/, "")}/params/${index}/name`,
+      );
+    }
+  });
   const probe = polling.probe;
   const probeBase = `${pointerBase}/probe`;
   if (!isRecord(probe)) {
@@ -460,10 +475,10 @@ export type PollResult =
 
 const NOTHING: PollResult = { found: false };
 
-function pollFail(
+function pollFail<T = PollResult>(
   message: string,
   details?: Record<string, unknown>,
-): Result<PollResult, DevChestraError> {
+): Result<T, DevChestraError> {
   return err(new DevChestraError("E_POLL_PROBE", message, { details }));
 }
 
@@ -489,10 +504,15 @@ function checkedParams(
   );
 }
 
-function takeDedupeKey(raw: Record<string, unknown>): string | undefined {
-  const key = raw.dedupeKey;
-  delete raw.dedupeKey;
-  return typeof key === "string" && key !== "" ? key : undefined;
+/** A probe's dedupeKey, or undefined when absent. Over-long keys are a probe failure. */
+function readDedupeKey(key: unknown): Result<string | undefined, DevChestraError> {
+  if (typeof key !== "string" || key === "") return ok(undefined);
+  if (key.length > POLL_DEDUPE_KEY_MAX_CHARS) {
+    return pollFail<string | undefined>(
+      `Poll probe dedupeKey is ${key.length} characters; the limit is ${POLL_DEDUPE_KEY_MAX_CHARS}.`,
+    );
+  }
+  return ok(key);
 }
 
 function resolveShellResult(
@@ -517,11 +537,20 @@ function resolveShellResult(
   if (isJson) {
     if (parsed === null) return ok(NOTHING);
     if (isRecord(parsed)) {
-      if ((parsed as Record<string, unknown>).found === false) return ok(NOTHING);
-      const raw: Record<string, unknown> = { ...(parsed as Record<string, unknown>) };
-      const dedupeKey = takeDedupeKey(raw);
+      // `found` and `dedupeKey` are reserved envelope keys (no start param may use them).
+      const envelope = parsed as Record<string, unknown>;
+      if (envelope.found === false) return ok(NOTHING);
+      if (envelope.found !== undefined) {
+        return pollFail(
+          'Poll shell probe output must be the parameters object itself, such as {"pr_url": "..."}. Only {"found": false} is accepted as an envelope.',
+        );
+      }
+      const raw: Record<string, unknown> = { ...envelope };
+      const dedupeKey = readDedupeKey(raw.dedupeKey);
+      if (!dedupeKey.ok) return err(dedupeKey.error);
+      delete raw.dedupeKey;
       if (Object.keys(raw).length === 0) return ok(NOTHING);
-      return checkedParams(start, raw, dedupeKey);
+      return checkedParams(start, raw, dedupeKey.value);
     }
     if (typeof parsed === "string") {
       return resolveBareLine(start, parsed);
@@ -572,9 +601,9 @@ function resolveAgentResult(
     return pollFail("Poll agent probe output must include a params object.");
   }
   const raw: Record<string, unknown> = { ...params };
-  const dedupeKey =
-    typeof output.dedupeKey === "string" && output.dedupeKey !== "" ? output.dedupeKey : undefined;
-  return checkedParams(start, raw, dedupeKey);
+  const dedupeKey = readDedupeKey(output.dedupeKey);
+  if (!dedupeKey.ok) return err(dedupeKey.error);
+  return checkedParams(start, raw, dedupeKey.value);
 }
 
 /**
@@ -615,7 +644,7 @@ export function buildPollAgentOutputSchema(
     properties: {
       found: { type: "boolean" },
       params: { type: "object", properties, additionalProperties: false },
-      dedupeKey: { type: "string" },
+      dedupeKey: { type: "string", maxLength: POLL_DEDUPE_KEY_MAX_CHARS },
     },
     required: ["found", "params"],
     additionalProperties: false,

@@ -344,7 +344,7 @@ describe("agent probe builders", () => {
           properties: { pr: { type: "number" }, title: { type: "string" } },
           additionalProperties: false,
         },
-        dedupeKey: { type: "string" },
+        dedupeKey: { type: "string", maxLength: 512 },
       },
       required: ["found", "params"],
       additionalProperties: false,
@@ -521,5 +521,64 @@ describe("start node polling block in workflow files", () => {
     if (!normalized.ok) return;
     const start = normalized.value.graph.nodes.find((node) => node.type === "start");
     expect(start && "polling" in start).toBe(false);
+  });
+});
+
+describe("reserved envelope names and dedupeKey bounds", () => {
+  it.each(["found", "dedupeKey"])("rejects a start parameter named %s", (name) => {
+    const issues = validatePollingConfig(
+      startNode(SHELL_POLLING, [{ name, type: "string", required: false }]),
+      "/graph/nodes/0/polling",
+    );
+    expect(issues.map((issue) => issue.code)).toContain("E_POLL_PROBE");
+    expect(issues.find((issue) => issue.code === "E_POLL_PROBE")?.pointer).toBe(
+      "/graph/nodes/0/params/0/name",
+    );
+  });
+
+  it("does not reserve those names when polling is not declared", () => {
+    expect(
+      validatePollingConfig(
+        startNode(undefined, [{ name: "found", type: "string", required: false }]),
+        "/p",
+      ),
+    ).toEqual([]);
+  });
+
+  it("fails a shell {found:true,...} wrapper with a contract error", () => {
+    const result = resolvePollResult(startNode(SHELL_POLLING), {
+      kind: "shell",
+      stdout: '{"found": true, "params": {"pr": 1}}',
+      exitCode: 0,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.message).toContain("parameters object itself");
+  });
+
+  it("fails an over-long dedupeKey from a shell or an agent probe", () => {
+    const key = "k".repeat(513);
+    const shell = resolvePollResult(startNode(SHELL_POLLING), {
+      kind: "shell",
+      stdout: JSON.stringify({ pr: 1, dedupeKey: key }),
+      exitCode: 0,
+    });
+    const agent = resolvePollResult(startNode(SHELL_POLLING), {
+      kind: "agent",
+      output: { found: true, params: { pr: 1 }, dedupeKey: key },
+    });
+    for (const result of [shell, agent]) {
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.message).toContain("512");
+    }
+  });
+
+  it("accepts a dedupeKey at the limit", () => {
+    const result = resolvePollResult(startNode(SHELL_POLLING), {
+      kind: "shell",
+      stdout: JSON.stringify({ pr: 1, dedupeKey: "k".repeat(512) }),
+      exitCode: 0,
+    });
+    expect(result.ok).toBe(true);
   });
 });

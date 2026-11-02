@@ -84,7 +84,10 @@ function deferred<T>(): Deferred<T> {
   return { promise, resolve };
 }
 
-export class LinearEngine implements Engine {
+export /** How long a timed-out probe waits for its cancelled run to end before reporting it as lingering. */
+const PROBE_CANCEL_GRACE_MS = 10_000;
+
+class LinearEngine implements Engine {
   readonly #ctx: EngineContext;
   readonly #active = new Map<string, ActiveEntry>();
   #started = false;
@@ -793,9 +796,23 @@ export class LinearEngine implements Engine {
       const winner = await Promise.race([completion, deadline]);
       if (winner !== "timed-out") return ok(winner);
       await this.cancel(runId).catch(() => undefined);
+      // Hold the caller until the cancelled run has actually ended, so a probe that is slow
+      // to stop cannot overlap the next tick. A run that outlasts the grace is reported as
+      // lingering.
+      let grace: ReturnType<typeof setTimeout> | undefined;
+      const ended = await Promise.race([
+        completion.then(
+          () => true,
+          () => true,
+        ),
+        new Promise<false>((resolve) => {
+          grace = setTimeout(() => resolve(false), PROBE_CANCEL_GRACE_MS);
+        }),
+      ]);
+      if (grace !== undefined) clearTimeout(grace);
       return err(
         new DevChestraError("E_POLL_PROBE", `Poll probe timed out after ${timeoutMs}ms`, {
-          details: { runId, timeoutMs },
+          details: { runId, timeoutMs, ...(ended ? {} : { lingering: true }) },
         }),
       );
     } catch (error) {

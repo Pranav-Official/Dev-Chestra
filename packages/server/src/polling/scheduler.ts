@@ -298,11 +298,19 @@ export class PollScheduler {
     }
   }
 
-  /** A disarm that lands mid-probe wins: the tick records nothing. */
+  /**
+   * A disarm, or a re-arm or refresh to another revision, that lands mid-probe wins: the
+   * tick records nothing and never triggers from the superseded snapshot. The poller stays
+   * due, so the next tick probes again on the new revision.
+   */
   #stillArmed(runtime: PollTriggerRuntime): boolean {
     try {
       const current = this.#ports.store.pollTriggers.trigger(runtime.projectId, runtime.workflowId);
-      return current?.armed === true && current.pollerId === runtime.pollerId;
+      return (
+        current?.armed === true &&
+        current.pollerId === runtime.pollerId &&
+        current.armedRevision === runtime.armedRevision
+      );
     } catch (error) {
       this.#log(`poll armed check did not complete: ${messageOf(error)}`);
       return false;

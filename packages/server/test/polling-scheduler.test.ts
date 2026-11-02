@@ -194,6 +194,29 @@ describe("scheduler ticks", () => {
     expect(triggerOf()).toMatchObject({ armed: false, lastOutcome: null });
   });
 
+  it("does not trigger from a superseded revision when a refresh lands mid-probe", async () => {
+    await armPoll(h, 10);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    h.gateProbe = () => gate;
+    h.probeScript.push({ kind: "shell", stdout: '{"pr": 9, "dedupeKey": "k-9"}', exitCode: 0 });
+    const first = h.scheduler.tick(h.clock.now() + 10_000);
+    for (let i = 0; i < 100 && h.enteredProbes() === 0; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    const before = triggerOf()?.armedRevision;
+    h.writeWorkflow(WORKFLOW_ID, { ...pollWorkflow(), name: "Renamed mid-probe" });
+    await api(h, "POST", `/api/projects/${PROJECT_ID}/workflows/${WORKFLOW_ID}/polling/refresh`);
+    expect(triggerOf()?.armedRevision).not.toBe(before);
+    release();
+    await first;
+    // The late probe found something, but it belongs to the old revision: no run, no tick.
+    expect(h.launches).toHaveLength(0);
+    expect(triggerOf()).toMatchObject({ armed: true, lastOutcome: null });
+  });
+
   it("keeps the probe timeout below the interval", async () => {
     await armPoll(h, 10);
     h.probeScript.push({ kind: "shell", stdout: "", exitCode: 0 });
