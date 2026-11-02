@@ -61,7 +61,7 @@ pnpm exec biome check packages/core
   event types and versions newer than `1` advance `lastEventId` and have no view effect, so
   replay remains forward-compatible.
 - `run.created` carries `runNumber`; `node.state` may carry `init { kind, requireSubmission }`.
-  These are deliberate P0 extensions used by the projection and durable-success gate.
+  These are deliberate extensions used by the projection and durable-success gate.
 
 ## Limits
 
@@ -84,11 +84,11 @@ pnpm exec biome check packages/core
 - Retry-from-node clears per-attempt session/workspace/result/last-error provenance.
   `tokensIn`/`tokensOut`/`costUsd` are cumulative; `attemptTokensIn`/`attemptTokensOut`/
   `attemptCostUsd` reset for the new attempt.
-- Future catalog events have versioned payloads but no reducer effect in this P0 slice.
-- Context banks, pins, maps/loops and persistent user-data conventions are deferred.
+- Future catalog events have versioned payloads but no reducer effect.
+- Context banks and pins are not implemented.
 - `sha256Hex`/`hashJson` return promises. Synchronous/native hashing belongs in a server layer.
 - `budget.activeMs` is approximate and includes quota/human waits. Time budgets are not
-  enforced in P1; callers must reject `maxActiveMinutes` before starting rather than accept an
+  enforced; callers must reject `maxActiveMinutes` before starting rather than accept an
   unenforced cap. Token/USD caps are accepted only when real accounting enforces them.
 - `fsSlug` is injective, but callers must still enforce filesystem component length limits for
   very deep paths.

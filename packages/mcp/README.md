@@ -5,7 +5,7 @@ The MCP transport for DevChestra. It has two halves:
 - a stateless stdio shim that an agent CLI starts;
 - a loopback HTTP gateway client used by that shim.
 
-The shim never validates node output, persists results, or decides that an execution succeeded. Those are gateway/store/engine responsibilities (spec §§8.10, 9.3–9.7).
+The shim never validates node output, persists results, or decides that an execution succeeded. Those are gateway/store/engine responsibilities.
 
 ## Entrypoints
 

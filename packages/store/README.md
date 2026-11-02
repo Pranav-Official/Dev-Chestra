@@ -5,8 +5,8 @@ migrations, event log as source of truth, transactional projection through
 `@devchestra/core`'s reducer, durable agent tool receipts, immutable accepted
 outputs, and process-generation fencing.
 
-This is a deliberately small P0 slice, not the full §6 schema. See
-[Deviations](#deviations-from-spec-6).
+The store implements the tables created by `migrations/`. See
+[Scope and limits](#scope-and-limits) for what it deliberately omits.
 
 ## Install / drivers
 
@@ -14,7 +14,7 @@ This is a deliberately small P0 slice, not the full §6 schema. See
 - Fallback: `node:sqlite` via explicit `nodeSqliteDriver` from
   `@devchestra/store/driver-node-sqlite`. It never triggers native compilation.
 - Startup refuses to open unless `sqlite_compileoption_used('ENABLE_FTS5')`
-  is true, per spec §6.1.
+  is true.
 - Pragmas: `journal_mode=WAL`, `synchronous=NORMAL`, `foreign_keys=ON`,
   `busy_timeout=5000`, `wal_autocheckpoint=1000`, `temp_store=MEMORY`,
   `trusted_schema=OFF`. `PRAGMA quick_check` runs at open.
@@ -49,7 +49,7 @@ same transaction. Subscribers never throw into the commit path.
 type Identity = { runId: RunId; path: Path; attempt: number; generation: number };
 ```
 
-### Runs / executions (P1 read ports)
+### Runs / executions
 
 ```ts
 store.runs.get(runId): RunRecord | null
@@ -64,7 +64,7 @@ store.processes.active(): ActiveProcess[]
 ```
 
 Snapshots are returned as fresh parsed copies; mutating a returned object cannot
-change stored data. P1 accepts only `budgets.maxTokens`; any other budget key
+change stored data. Only `budgets.maxTokens` is accepted; any other budget key
 (including `maxUsd`, `maxActiveMinutes`, typos) is rejected with `E_VALIDATION`
 before the run number is allocated, rather than silently ignored. Active time
 remains approximate and unenforced.
@@ -171,7 +171,7 @@ Completion gates:
 - `start` / `end`: a recorded output is required; no process/workspace markers.
 - `shell`: recorded output plus `processStopped` and `workspaceFinalized` for
   the exact current attempt/generation.
-- `agent`: accepted result plus both markers (unchanged from P0).
+- `agent`: accepted result plus both markers.
 
 ### Acceptance is not success
 
@@ -219,7 +219,7 @@ store.close(): void
 
 `recovery.recover` rebuilds the projection from the full log before deciding.
 
-### P2 read ports and durable start idempotency
+### Read ports and durable start idempotency
 
 All reads are synchronous, bounded and use the single store connection. No
 driver, raw `SqliteDb` or SQL string is exported.
@@ -279,7 +279,7 @@ allocates no run row, event or run number. A different fingerprint is
 events, so it survives process restart; no new migration or dependency is
 needed. The runtime/engine must not dispatch a `duplicate: true` launch.
 
-P1 policy:
+Recovery policy:
 
 - Terminal runs are skipped entirely (`rebuilt:false`, no writes).
 - Accepted-but-unfinalized: a running/validating execution is interrupted but
@@ -342,9 +342,9 @@ P1 policy:
 - Migrations are forward-only, one transaction each, recorded in
   `schema_migrations` and mirrored in `PRAGMA user_version`. `0002` is
   additive: `process_generations.pid_start/binary/cwd`,
-  `executions.kind`, and the `uncertain_retries` audit table; P0 databases
-  upgrade in place and existing rows/events are preserved. `0001` is not
-  rewritten. There is no automatic backup before migration in P1: take a
+  `executions.kind`, and the `uncertain_retries` audit table; databases
+  upgrade in place and existing rows/events are preserved. Earlier migrations
+  are never rewritten. There is no automatic backup before migration: take a
   copied canary database before upgrading production data; this gap is
   intentional and documented. A database newer
   than the build is refused. Runtime lookup is `new URL('../migrations/...')`
@@ -355,11 +355,11 @@ P1 policy:
   reference by the caller. Payload strings get best-effort token-pattern
   redaction; this is defense in depth, not the primary secret boundary.
 
-## Deviations from spec §6
+## Scope and limits
 
-- Only the P0 tables are implemented. No `artifacts`, `pins`,
-  `provider_state`, `approvals`, `supervisor_recs`, context banks/FTS,
-  `cli_probe_cache`, backups, retention, `stats()` or `VACUUM INTO`.
+- There are no `artifacts`, `pins`, `provider_state`, `supervisor_recs`,
+  context banks/FTS or `cli_probe_cache` tables, and no backups, retention,
+  `stats()` or `VACUUM INTO`.
 - Redaction/rejection uses built-in token patterns plus explicitly registered
   in-memory values; it is not wired to the config redactor or an exhaustive
   entropy scan. Request bodies are not persisted but are still caller-owned;
@@ -370,19 +370,18 @@ P1 policy:
   incremental appends and `rebuild` use the same core reducer; tests assert
   equality.
 - `validation_limit` is operational configuration stored on `executions`; it
-  is preserved across projection rebuilds. The spec's per-execution
-  `active_ms` and `quota_resume_at` columns are omitted because P0 does not
-  derive them; run-level active time lives in `runs.active_ms`/events.
-- No generic retry/attempt-advance API yet; the only P1 exception is the
-  audited uncertain-shell generation retry. Terminal run retry remains
-  forbidden.
-- Deterministic outputs share the P0 per-attempt unique output index, so a
+  is preserved across projection rebuilds. There are no per-execution
+  `active_ms` or `quota_resume_at` columns because nothing derives them;
+  run-level active time lives in `runs.active_ms`/events.
+- There is no generic retry/attempt-advance API; the only exception is the
+  audited uncertain-shell generation retry. Terminal run retry is forbidden.
+- Deterministic outputs share the per-attempt unique output index, so a
   new generation in the same logical attempt cannot write a second output;
-  use a new logical attempt once core retry lands.
+  a retry needs a new logical attempt.
 - No transcript files, WAL checkpoint tuning, backup-before-migration, or
   cross-process single-instance lock. The server owns that lock.
 - Process stop/workspace evidence is caller-recorded; the store cannot prove
-  external effects. This slice never claims exactly-once side effects.
+  external effects. The store never claims exactly-once side effects.
 
 ## Test evidence
 
@@ -392,7 +391,7 @@ receipts, same-callId altered payload, stale/future generation rejection,
 accepted != succeeded, input row is not an accepted output, output uniqueness,
 incremental == full replay == rebuild == reopened, `node:sqlite` fallback,
 registered/pattern secret rejection with an on-disk absence check, and a
-child-process SIGKILL prefix/replay boundary. P2 adds real-file tests for
+child-process SIGKILL prefix/replay boundary. Real-file tests also cover
 project relink identity/duplicate paths, active+terminal run pages with tied
 timestamps, snapshot/live watermark races, literal `%`/`_` event prefixes,
 cross-run and future cursors, historical output/input provenance, event-derived

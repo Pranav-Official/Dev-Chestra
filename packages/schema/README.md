@@ -1,6 +1,6 @@
 # @devchestra/schema
 
-Browser-safe DevChestra workflow contracts for the P1 single-chain slice: parse, validate, normalize,
+Browser-safe DevChestra workflow contracts: parse, validate, normalize,
 hash, parameters, restricted output schemas, JSONata expressions and templates.
 
 No filesystem, process, network or model access. The main entry (`@devchestra/schema`) has no Node
@@ -80,7 +80,7 @@ main entry returns `E_EXPR` if no executor is supplied.
 Vitest and from the `dist` copy. `tsc` does not typecheck it because `checkJs` is disabled; the
 public executor and main API are typechecked.
 
-## P1 workflow subset
+## Workflow document
 
 ```jsonc
 {
@@ -89,16 +89,18 @@ public executor and main API are typechecked.
   "name": "Linear codex demo",
   "description": "optional",
   "graph": {
-    "nodes": [ /* start, agent, shell, end */ ],
+    "nodes": [ /* start, agent, shell, gate, join, approval, decision, loop, foreach, workflow, end */ ],
     "edges": [ { "id": "e1", "from": "start", "to": "draft" } ]
   }
 }
 ```
 
-- Exactly one `start`, exactly one `end`, and the whole graph is one chain:
-  start has no inbound/one outbound, end has one inbound/no outbound, every other node has
-  exactly one inbound and one outbound. No cycles, forks, joins, dangling edges or unreachable
-  nodes.
+- Exactly one `start` and at least one `end`. The start node has no inbound edge, every node
+  must be able to reach an end node, and the top-level graph is acyclic. Only `join` nodes may
+  merge inputs; every other node has at most one inbound edge. Edges leaving a `gate` or
+  `decision`, and edges entering a `join`, name a handle (`node.handle`). `approval`, `loop`
+  and `workflow` nodes each have one optional extra handle (`rejected`, the loop-exhausted
+  handle and `failed`).
 - Node ids are JSONata-safe (`^[a-z][a-z0-9_]{0,47}$`, no hyphens). The id `start` is reserved
   for the start node because `start` names run parameters in expressions.
 - `ui` data on nodes/edges is accepted and preserved by `parseWorkflow`, then stripped by
@@ -126,12 +128,12 @@ the exact `promptFile` value or by `<workflowId>.prompts/<value>`. Missing conte
 actionable `E_WORKFLOW_INVALID`. This package does not validate project-relative workflow paths;
 the CLI/workspaces layer owns `.devchestra/workflows/<id>.json` placement.
 
-### Rejected in P1, with clear diagnostics
+### Rejected, with clear diagnostics
 
 Unsupported node types; `fake` (test-only, behind `DEVCHESTRA_ALLOW_FAKE=1`); per-node workspace execution (legacy `workspace` metadata
 still parses, but fresh runs use the run-level selection); agent context
 reads/writes; top-level supervisor; node supervise modes other than `default`; workflow budgets
-(`maxUsd`, `maxTokens`, `maxActiveMinutes` are not enforced yet and are not accepted); artifact
+(`maxUsd`, `maxTokens`, `maxActiveMinutes` are not enforced and are not accepted); artifact
 `format: "devchestra-artifact"`; non-empty `cliOptions`; non-empty `env`; project write permission;
 `maxQuotaWaitHours`; raw `{{{ }}}` templates; shell heredocs, placeholders in comments or after a
 trailing backslash, and placeholders inside quotes, backticks, substitutions or after `$`.
@@ -194,17 +196,17 @@ the normalized hash form). Remote refs, recursion, tuples, `if`/`then`/`else`, `
 total properties 200 and serialized size 64 KiB. Runtime Ajv validation stays in the
 server/engine; this package produces the normalized schema and its hash.
 
-## Limits of this slice
+## Limits
 
-- No `gate`, `join`, `decision`, `approval`, `map`, `loop`, context banks, pins, supervisor,
-  artifacts, budgets, worktrees, project writes, browser expression worker, graph editor or I/O.
+- No context banks, pins, supervisor, artifacts, budgets, project writes or browser expression
+  worker, and no I/O.
 - Live Claude Code/Codex behavior is adapter-owned and not verified here.
 - `fake` is only for deterministic tests behind `DEVCHESTRA_ALLOW_FAKE=1`; user workflows use `claude-code`/`codex`/`opencode`/`pi`.
 - DevChestra is not a sandbox.
 
 ## Examples
 
-- `/home/pranavpp/Dev Works/DevChestra/examples/linear-codex.json` — deterministic four-node
+- `examples/linear-codex.json` — deterministic four-node
   scratch-only chain using the `codex` CLI.
-- `/home/pranavpp/Dev Works/DevChestra/examples/linear-claude-code.json` — same chain using
+- `examples/linear-claude-code.json` — same chain using
   the `claude-code` CLI; live execution/verification is owned by the adapter worker.
