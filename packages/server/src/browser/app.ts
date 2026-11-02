@@ -351,6 +351,9 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
   mountProjectRoutes(app, {
     store: deps.store,
     dataDir,
+    workflowService,
+    ...(deps.providerStatus === undefined ? {} : { providerStatus: deps.providerStatus }),
+    ...(deps.providerSettings === undefined ? {} : { providerSettings: deps.providerSettings }),
     ...(deps.workspaceService === undefined ? {} : { workspaceService: deps.workspaceService }),
     validate,
   });

@@ -186,7 +186,7 @@ async function registerProject(
   const response = await fetch(`${base}/api/projects`, {
     method: "POST",
     headers: auth,
-    body: JSON.stringify({ path: projectDir }),
+    body: JSON.stringify({ path: projectDir, seedStarters: false }),
   });
   expect(response.status).toBe(200);
   return ((await response.json()) as { id: string }).id;
