@@ -44,6 +44,7 @@ export type EditorFlowNode = Node<EditorNodeData, "editor" | "unsupported">;
 export interface ProbeNodeData extends Record<string, unknown> {
   startId: string;
   probe: PollProbe;
+  issues: readonly Issue[];
 }
 
 export type ProbeFlowNode = Node<ProbeNodeData, "probe">;
@@ -444,20 +445,24 @@ export const EDITOR_NODE_TYPES = {
  * autosave payloads.
  */
 export function ProbeNodeView({ data, selected }: NodeProps<ProbeFlowNode>) {
-  const { probe, startId } = data;
+  const { probe, startId, issues } = data;
   const agent = probe.type === "agent";
-  const detail = agent ? probe.prompt : probe.command;
-  const firstLine = detail.split("\n", 1)[0] ?? "";
+  const rawDetail = agent ? (probe.prompt ?? "") : (probe.command ?? "");
+  const firstLine = rawDetail.split("\n", 1)[0] ?? "";
   const short = firstLine.length > 40 ? `${firstLine.slice(0, 39)}…` : firstLine;
+  const displayName =
+    probe.name.trim() === "" ? (agent ? "Agent probe" : "Shell probe") : probe.name;
   const summary = agent
     ? `Agent probe for ${startId}${probe.model === undefined ? "" : ` · ${probe.model}`}`
     : `Shell probe for ${startId}`;
+  const issueCount = issues.length;
+  const issueSummary = issueCount > 0 ? issues.map((issue) => issue.message).join("\n") : summary;
   return (
     <button
       type="button"
       className={`ed-node ed-node-probe${selected ? " selected" : ""}`}
       data-testid={`ed-node-${startId}::probe`}
-      title={summary}
+      title={issueCount > 0 ? issueSummary : summary}
       aria-label={summary}
     >
       <Handle
@@ -474,11 +479,23 @@ export function ProbeNodeView({ data, selected }: NodeProps<ProbeFlowNode>) {
         <span className="ed-node-icon" aria-hidden="true">
           {agent ? <Bot size={13} /> : <TerminalSquare size={13} />}
         </span>
-        <span className="ed-node-kind">probe</span>
+        <span className="ed-node-kind">probe · {agent ? "agent" : "shell"}</span>
         <span className="ed-node-spacer" />
+        {issueCount > 0 ? (
+          <span
+            className="ed-node-issues"
+            role="img"
+            aria-label={`${issueCount} validation ${issueCount === 1 ? "issue" : "issues"}`}
+            title={issueSummary}
+            data-testid={`ed-node-${startId}::probe-issues`}
+          >
+            <AlertTriangle size={11} aria-hidden="true" />
+            <span>{issueCount}</span>
+          </span>
+        ) : null}
       </div>
-      <div className="ed-node-name">{agent ? "Agent probe" : "Shell probe"}</div>
-      <div className="ed-node-meta" title={detail === "" ? summary : detail}>
+      <div className="ed-node-name">{displayName}</div>
+      <div className="ed-node-meta" title={rawDetail === "" ? summary : rawDetail}>
         {short === "" ? (agent ? "No prompt yet" : "No command yet") : short}
       </div>
     </button>

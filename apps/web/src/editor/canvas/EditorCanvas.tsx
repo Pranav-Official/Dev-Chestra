@@ -31,7 +31,6 @@ import {
 import "@xyflow/react/dist/style.css";
 import "../../styles/editor-canvas.css";
 import { EdgeHealer } from "../../ui/EdgeHealer.js";
-import { openInspectorSection } from "../inspector/Section.js";
 import { applyCommandToFile } from "../model/commands.js";
 import {
   checkConnection,
@@ -84,13 +83,26 @@ function issuesByNode(issues: readonly Issue[]): Map<string, Issue[]> {
 }
 
 /**
- * The saved-graph node a canvas node id selects. A derived probe node selects
- * its start node; every other id selects itself.
+ * The canvas node id a canvas interaction selects. A derived probe node now
+ * selects the probe itself (`${startId}::probe`); every other id selects
+ * itself. Probe ids without a polling start fall back to the start.
  */
-function nodeIdForSelection(file: WorkflowFile, nodeId: string): string {
+export function nodeIdForSelection(file: WorkflowFile, nodeId: string): string {
   const startId = probeStartId(nodeId);
-  if (startId !== null && file.graph.nodes.some((item) => item.id === startId)) return startId;
-  return nodeId;
+  if (startId === null) return nodeId;
+  const start = file.graph.nodes.find((item) => item.id === startId);
+  if (start === undefined) return nodeId;
+  return pollConfig(start) === null ? startId : nodeId;
+}
+
+/** True when a selection id is a derived probe node with a live polling start. */
+export function isProbeSelectionId(file: WorkflowFile, nodeId: string): boolean {
+  const startId = probeStartId(nodeId);
+  if (startId === null) return false;
+  const start = file.graph.nodes.find((item) => item.id === startId);
+  return (
+    start !== undefined && pollConfig(start) !== null && nodeId === `${startId}${PROBE_NODE_SUFFIX}`
+  );
 }
 
 /** Vertical gap between a start node and its derived probe node. */
@@ -119,6 +131,16 @@ function buildNodes(
       !supported || node.type !== "decision"
         ? undefined
         : !wiredSources.has(`${node.id}.${DECISION_UNCERTAIN_HANDLE}`);
+    const allForNode = byNode.get(node.id) ?? [];
+    // Probe issues belong to the derived probe node badge, not the start badge.
+    const nodeIssues =
+      node.type === "start"
+        ? allForNode.filter((issue) => {
+            if (issue.code === "E_POLL_PROBE") return false;
+            const pointer = issue.pointer;
+            return !(typeof pointer === "string" && pointer.includes("/polling/probe"));
+          })
+        : allForNode;
     return {
       id: node.id,
       type: supported ? "editor" : "unsupported",
@@ -131,7 +153,7 @@ function buildNodes(
       connectable: !readOnly && supported,
       data: {
         node,
-        issues: byNode.get(node.id) ?? [],
+        issues: nodeIssues,
         readOnly,
         unsupported: !supported,
         ...(unwiredUncertain === undefined ? {} : { unwiredUncertain }),
@@ -145,16 +167,23 @@ function buildNodes(
     const polling = pollConfig(node);
     if (polling === null) continue;
     const startPosition = positionOf(node);
-    const prior = old.get(`${node.id}${PROBE_NODE_SUFFIX}`);
+    const probeId = `${node.id}${PROBE_NODE_SUFFIX}`;
+    const prior = old.get(probeId);
+    const allForStart = byNode.get(node.id) ?? [];
+    const probeIssues = allForStart.filter((issue) => {
+      if (issue.code === "E_POLL_PROBE") return true;
+      const pointer = issue.pointer;
+      return typeof pointer === "string" && pointer.includes("/polling/probe");
+    });
     const probe: ProbeFlowNode = {
-      id: `${node.id}${PROBE_NODE_SUFFIX}`,
+      id: probeId,
       type: "probe",
       position: { x: startPosition.x, y: startPosition.y - PROBE_NODE_OFFSET_Y },
       ...(prior?.measured === undefined ? {} : { measured: prior.measured }),
-      selected: selectedId === node.id,
+      selected: selectedId === probeId,
       draggable: false,
       connectable: false,
-      data: { startId: node.id, probe: polling.probe },
+      data: { startId: node.id, probe: polling.probe, issues: probeIssues },
     };
     nodes.push(probe);
   }
@@ -371,17 +400,15 @@ export function EditorCanvas({
 
   const handleNodeClick: NodeMouseHandler<EditorCanvasNode> = useCallback(
     (_event, node) => {
-      // A derived probe node stands in for its start node: clicking it selects
-      // the start node and opens the Polling section of the inspector.
-      const startId = node.type === "probe" ? probeStartId(node.id) : null;
-      if (startId !== null && file.graph.nodes.some((item) => item.id === startId)) {
-        openInspectorSection("start:polling");
-        onSelectionChange({ kind: "node", nodeId: startId });
+      // A derived probe node selects the probe itself; the inspector edits
+      // start.polling.probe. It never enters the saved graph.
+      if (node.type === "probe") {
+        onSelectionChange({ kind: "node", nodeId: node.id });
         return;
       }
       onSelectionChange({ kind: "node", nodeId: node.id });
     },
-    [file.graph.nodes, onSelectionChange],
+    [onSelectionChange],
   );
 
   const handleEdgeClick: EdgeMouseHandler<EditorFlowEdge> = useCallback(
@@ -493,6 +520,9 @@ export function EditorCanvas({
       if (event.key === "Delete" || event.key === "Backspace") {
         if (selection === null) return;
         event.preventDefault();
+        // Derived probe nodes are never deleted: they exist only while the
+        // start declares polling.
+        if (selection.kind === "node" && probeStartId(selection.nodeId) !== null) return;
         const outcome =
           selection.kind === "node"
             ? run({ kind: "removeNode", nodeId: selection.nodeId })
