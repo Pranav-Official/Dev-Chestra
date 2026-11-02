@@ -130,6 +130,12 @@ export interface BrowserAppDeps {
    * owned by the CLI's scheduler, not the app.
    */
   polling?: BrowserPollPorts;
+  /**
+   * Disable the session-token requirement (cookie or X-DevChestra-Token) for
+   * browser and API routes. Loopback host, Origin and CSRF guards still
+   * apply. Opt-in only via CLI `--no-auth`; never enabled by default.
+   */
+  noAuth?: boolean;
 }
 
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
@@ -245,6 +251,7 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
   app.use("*", originGuard(port));
 
   const sessionAuthorized = (c: Context): boolean => {
+    if (deps.noAuth === true) return true;
     const cookie = getCookie(c, SESSION_COOKIE);
     if (cookie !== undefined && cookie !== "" && constantTimeEqual(cookie, deps.sessionToken)) {
       return true;
@@ -688,7 +695,7 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
       return cookie !== undefined && cookie !== "" && constantTimeEqual(cookie, deps.sessionToken);
     })();
     if (pathname === "/" || pathname === "/index.html" || isKnownAppRoute(pathname)) {
-      if (!validCookie) return instructionsResponse(c);
+      if (!validCookie && deps.noAuth !== true) return instructionsResponse(c);
       return indexResponse(c, web) ?? instructionsResponse(c);
     }
     const asset = staticResponse(c, web, pathname);

@@ -29,6 +29,8 @@ export interface CliOptions {
   port?: number;
   noOpen: boolean;
   headless?: boolean;
+  detach?: boolean;
+  secure?: boolean;
   printUrl: boolean;
   /** Stop only: stop even with active runs, and SIGKILL if the server will not exit. */
   force?: boolean;
@@ -123,6 +125,14 @@ export function parseArgs(argv: string[]): CliOptions {
     if (arg === "--headless") {
       options.headless = true;
       options.noOpen = true;
+      continue;
+    }
+    if (arg === "--detach" || arg === "-d") {
+      options.detach = true;
+      continue;
+    }
+    if (arg === "--secure") {
+      options.secure = true;
       continue;
     }
     if (arg === "--no-open") {
@@ -295,10 +305,17 @@ export function parseArgs(argv: string[]): CliOptions {
     throw new UsageError("--fake-script is only valid with start, run or resume.");
   }
   if (
-    (options.port !== undefined || options.noOpen || options.printUrl || options.headless) &&
+    (options.port !== undefined ||
+      options.noOpen ||
+      options.printUrl ||
+      options.headless ||
+      options.detach ||
+      options.secure) &&
     options.command !== "start"
   ) {
-    throw new UsageError("--port, --no-open and --print-url are only valid with start.");
+    throw new UsageError(
+      "--port, --no-open, --print-url, --headless, --detach and --secure are only valid with start.",
+    );
   }
   return options;
 }
@@ -306,7 +323,7 @@ export function parseArgs(argv: string[]): CliOptions {
 export const HELP = `devchestra — local DevChestra runner and browser API
 
 Usage:
-  devchestra start [--data-dir <dir>] [--port N] [--no-open] [--print-url] [options]
+  devchestra start [--data-dir <dir>] [--port N] [--no-open] [--print-url] [--detach|-d] [options]
   devchestra run <workflow.json> --project <dir> [--data-dir <dir>] [options]
   devchestra resume <runId> [--data-dir <dir>] [--retry-uncertain-shell] [options]
   devchestra stop [--data-dir <dir>] [--force] [--timeout <secs>] [--json]
@@ -320,6 +337,8 @@ Usage:
 Options:
   --port N                    Start only: 0 = ephemeral; on EADDRINUSE retries ephemeral
   --headless                  Start only: serve API without requiring web assets
+  --detach, -d                Start only: run the server in the background (logs to <data-dir>/server.log)
+  --secure                    Start only: require the session token (cookie or header) for browser and API access
   --no-open                   Start only: do not open the browser
   --print-url                 Start only: print the tokenised launch URL once
   --param k=v                 Run only: start parameter (repeatable; JSON parsed)

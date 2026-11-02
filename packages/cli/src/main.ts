@@ -12,6 +12,7 @@ import { type CliOptions, HELP, parseArgs, UsageError } from "./args.js";
 import { executeResume, executeRun } from "./commands.js";
 import { printDoctor, runDoctor } from "./doctor.js";
 import { acquireDataDirLock, DataDirLockedError, type LockHandle } from "./lock.js";
+import { detachStart } from "./detach.js";
 import { exitCodeForError, safeError, writeSummary } from "./output.js";
 import { runStatus, runStop } from "./server-commands.js";
 import { executeStart } from "./start.js";
@@ -157,6 +158,9 @@ async function main(): Promise<number> {
   }
 
   if (options.command === "start") {
+    if (options.detach === true) {
+      return await detachStart(dataDir, { json: options.json });
+    }
     const controller = new AbortController();
     const onSignal = (): void => {
       controller.abort();

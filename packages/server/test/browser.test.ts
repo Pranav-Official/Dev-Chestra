@@ -289,7 +289,12 @@ interface Harness {
 }
 
 async function harness(
-  options: { webRoot?: string; logger?: boolean; controller?: BrowserRunControllerPort } = {},
+  options: {
+    webRoot?: string;
+    logger?: boolean;
+    controller?: BrowserRunControllerPort;
+    noAuth?: boolean;
+  } = {},
 ): Promise<Harness> {
   const dataDir = await mkdtemp(join(tmpdir(), "devchestra-browser-data-"));
   const projectDir = await mkdtemp(join(tmpdir(), "devchestra-browser-project-"));
@@ -321,6 +326,7 @@ async function harness(
     now: () => NOW,
     ...(options.webRoot === undefined ? {} : { webRoot: options.webRoot }),
     ...(options.logger === true ? { logger: (line) => logs.push(line) } : {}),
+    ...(options.noAuth === true ? { noAuth: true } : {}),
   });
   const app = {
     request(input: Request | string | URL, init?: RequestInit) {
@@ -431,6 +437,28 @@ describe("browser app security", () => {
     });
     expect(internal.status).toBe(404);
     expect(((await internal.json()) as { error: { code: string } }).error.code).toBe("E_NOT_FOUND");
+  });
+
+  it("serves the API and app without a session when noAuth is set", async () => {
+    const webRoot = await mkdtemp(join(tmpdir(), "devchestra-browser-web-"));
+    cleanups.push(async () => rm(webRoot, { recursive: true, force: true }));
+    await writeFile(join(webRoot, "index.html"), "<html>APP SHELL</html>");
+    const h = await harness({ webRoot, noAuth: true });
+    expect((await h.app.request(url("/api/bootstrap"))).status).toBe(200);
+    const created = await h.app.request(url("/api/projects"), {
+      method: "POST",
+      headers: {
+        Host: HOST,
+        Origin: ORIGIN,
+        "X-DevChestra-Csrf": "1",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ path: h.projectDir }),
+    });
+    expect(created.status).toBe(200);
+    const page = await h.app.request(url("/"));
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain("APP SHELL");
   });
 
   it("requires CSRF and JSON for mutations", async () => {

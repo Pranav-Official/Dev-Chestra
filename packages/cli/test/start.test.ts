@@ -169,6 +169,37 @@ describe("server metadata", () => {
 });
 
 describe("devchestra start lifecycle", () => {
+  it("runs open by default and requires opt-in --secure for session auth", async () => {
+    const wirings: (BrowserWiring | undefined)[] = [];
+    const runOnce = async (overrides: Partial<CliOptions>): Promise<void> => {
+      const dir = tempDir();
+      const out = capture();
+      const controller = new AbortController();
+      let wiring: BrowserWiring | undefined;
+      const running = executeStart(options(overrides), dir, {
+        webRoot: webRoot(),
+        stdout: out.stream,
+        signal: controller.signal,
+        openBrowser: () => undefined,
+        startBrowserServer: async (value) => {
+          wiring = value;
+          return {
+            url: "http://127.0.0.1:4821",
+            port: 4821,
+            close: async () => undefined,
+          };
+        },
+      });
+      await waitFor(() => existsSync(serverMetadataPath(dir)));
+      controller.abort();
+      await expect(running).resolves.toBe(0);
+      wirings.push(wiring);
+    };
+    await runOnce({});
+    await runOnce({ secure: true });
+    expect(wirings[0]?.noAuth).toBe(true);
+    expect(wirings[1]?.noAuth).toBeUndefined();
+  });
   it("emits one tokenless ready line, writes metadata, and cleans only its own state", async () => {
     const dir = tempDir();
     const out = capture();

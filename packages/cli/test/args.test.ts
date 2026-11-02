@@ -95,6 +95,8 @@ describe("CLI args", () => {
       "0",
       "--no-open",
       "--print-url",
+      "--detach",
+      "--secure",
       "--fake-script",
       "s.json",
     ]);
@@ -102,6 +104,8 @@ describe("CLI args", () => {
     expect(options.port).toBe(0);
     expect(options.noOpen).toBe(true);
     expect(options.printUrl).toBe(true);
+    expect(options.detach).toBe(true);
+    expect(options.secure).toBe(true);
     expect(options.fakeScript).toBe("s.json");
     expect(() => parseArgs(["start", "--data-dir", "/tmp/data", "--param", "x=1"])).toThrow(
       UsageError,
@@ -114,6 +118,12 @@ describe("CLI args", () => {
     );
     expect(() =>
       parseArgs(["run", "w.json", "--project", "/tmp/p", "--data-dir", "/tmp/d", "--port", "1"]),
+    ).toThrow(UsageError);
+    expect(() =>
+      parseArgs(["run", "w.json", "--project", "/tmp/p", "--data-dir", "/tmp/d", "--secure"]),
+    ).toThrow(UsageError);
+    expect(() =>
+      parseArgs(["run", "w.json", "--project", "/tmp/p", "--data-dir", "/tmp/d", "--detach"]),
     ).toThrow(UsageError);
   });
 

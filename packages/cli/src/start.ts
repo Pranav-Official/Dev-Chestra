@@ -98,6 +98,12 @@ export interface BrowserWiring {
   version: string;
   port: number;
   webRoot?: string;
+  /**
+   * Skip the session-token requirement so any local tab can use the plain
+   * URL. The CLI sets this unless `--secure` was passed; the server library
+   * defaults to requiring the session.
+   */
+  noAuth?: boolean;
   /** Webhook triggers: launch, queue pump and freeze ports over this engine and store. */
   webhooks?: BrowserWebhookPorts;
   /** Polling triggers: probe, launch, queue pump and freeze ports over this engine and store. */
@@ -200,6 +206,7 @@ async function defaultBrowserFactory(wiring: BrowserWiring): Promise<BrowserList
     instanceId: wiring.instanceId,
     version: wiring.version,
     port: wiring.port,
+    ...(wiring.noAuth === true ? { noAuth: true } : {}),
     ...(wiring.webRoot === undefined ? {} : { webRoot: wiring.webRoot }),
     ...(wiring.webhooks === undefined ? {} : { webhooks: wiring.webhooks }),
     ...(wiring.polling === undefined ? {} : { polling: wiring.polling }),
@@ -582,6 +589,7 @@ export async function executeStart(
         instanceId,
         version,
         ...(webRoot === undefined ? {} : { webRoot }),
+        ...(options.secure === true ? {} : { noAuth: true }),
         webhooks: createWebhookPorts(store, engine),
         polling: pollPorts,
       },
