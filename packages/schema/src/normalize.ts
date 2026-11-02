@@ -71,21 +71,9 @@ function normalizeWebhook(webhook: StartWebhookConfig): StartWebhookConfig {
   };
 }
 
+// Interim: copies the probe node as saved. Per-field normalization follows the node rules in the next change.
 function normalizePollProbe(probe: PollProbe): PollProbe {
-  if (probe.type === "shell") {
-    return {
-      type: "shell",
-      command: probe.command,
-      ...(probe.timeoutMin === undefined ? {} : { timeoutMin: probe.timeoutMin }),
-    };
-  }
-  return {
-    type: "agent",
-    cli: probe.cli,
-    ...(probe.model === undefined ? {} : { model: probe.model }),
-    prompt: probe.prompt,
-    ...(probe.timeoutMin === undefined ? {} : { timeoutMin: probe.timeoutMin }),
-  };
+  return { ...probe, id: "probe" };
 }
 
 function normalizePolling(polling: StartPollingConfig): StartPollingConfig {

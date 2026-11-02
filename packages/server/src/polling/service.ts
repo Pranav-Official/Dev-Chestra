@@ -13,6 +13,7 @@ import {
   type NormalizedWorkflow,
   normalizeWorkflow,
   type PollProbeOutput,
+  pollProbeTimeoutMin,
   resolvePollResult,
   type WorkflowFile,
   workflowNodes,
@@ -203,10 +204,7 @@ export class PollService {
     const start = startOfSnapshot(normalized.value);
     if (start === null || start.polling === undefined) throw notSupported();
     const probe = start.polling.probe;
-    const timeoutMs = Math.min(
-      (probe.timeoutMin ?? (probe.type === "agent" ? 30 : 10)) * 60_000,
-      PROBE_NOW_TIMEOUT_MS,
-    );
+    const timeoutMs = Math.min(pollProbeTimeoutMin(probe) * 60_000, PROBE_NOW_TIMEOUT_MS);
     let raw: PollProbeOutput;
     try {
       const outcome = await this.#deps.ports.runs.probe({

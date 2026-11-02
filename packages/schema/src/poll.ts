@@ -4,6 +4,7 @@ import {
   type Issue,
   type JsonSchemaObject,
   type NormalizedStartNode,
+  type PollProbe,
   PROD_CLIS,
   type StartNode,
   type WorkflowParam,
@@ -367,4 +368,10 @@ export function buildPollPromptPreamble(
     }
   }
   return lines.join("\n");
+}
+
+/** The probe node's own timeout in minutes: `timeoutMin` for a shell probe, `limits.timeoutMin` for an agent probe. */
+export function pollProbeTimeoutMin(probe: PollProbe): number {
+  if (probe.type === "shell") return probe.timeoutMin ?? 10;
+  return probe.limits?.timeoutMin ?? 30;
 }

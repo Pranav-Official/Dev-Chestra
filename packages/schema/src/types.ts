@@ -105,21 +105,25 @@ export interface StartWebhookConfig {
   paramMapping?: Record<string, string>;
 }
 
-/** Poll probe that runs a shell command. Its stdout is the poll result. */
-export interface PollShellProbe {
-  type: "shell";
-  command: string;
-  timeoutMin?: number;
-}
+/** Node id every embedded probe carries. The probe is a node of its own, not a graph member. */
+export const POLL_PROBE_ID = "probe";
 
-/** Poll probe that runs an agent. Read-only: the engine fixes its permissions and output schema. */
-export interface PollAgentProbe {
-  type: "agent";
-  cli: AgentCli;
-  model?: string;
-  prompt: string;
-  timeoutMin?: number;
-}
+/**
+ * Poll probe that runs a shell command: a full shell node, so it takes the same
+ * fields as a graph shell node. Its stdout is the poll result. `workspace` and
+ * `allowFailure` are engine-owned (a non-zero exit is always a probe failure).
+ */
+export type PollShellProbe = Omit<ShellNode, "workspace" | "allowFailure">;
+
+/**
+ * Poll probe that runs an agent: a full agent node (MCP servers, permissions,
+ * limits, cliOptions and the rest). The engine owns what the poll contract needs:
+ * `output` is generated from the start params, a preamble describing the contract
+ * is prepended to `prompt`, and `workspace`, `context` and `promptFile` are not
+ * accepted. Permissions are the author's; new probes default to network on, no
+ * write tools, shell on.
+ */
+export type PollAgentProbe = Omit<AgentNode, "output" | "workspace" | "context" | "promptFile">;
 
 export type PollProbe = PollShellProbe | PollAgentProbe;
 

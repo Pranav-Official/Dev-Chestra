@@ -3,6 +3,7 @@ import type { JsonObject } from "@devchestra/core";
 import {
   type NormalizedStartNode,
   type NormalizedWorkflow,
+  pollProbeTimeoutMin,
   resolvePollResult,
 } from "@devchestra/schema";
 import type { PollTriggerRuntime } from "@devchestra/store";
@@ -174,7 +175,7 @@ export class PollScheduler {
       return;
     }
     // The probe deadline stays below the interval; the node timeout is a backstop.
-    const configuredMs = (probe.timeoutMin ?? (probe.type === "agent" ? 30 : 10)) * 60_000;
+    const configuredMs = pollProbeTimeoutMin(probe) * 60_000;
     const timeoutMs = Math.max(1000, Math.min(configuredMs, intervalSeconds * 1000 - 1000));
     let probeOutcome: PollProbeOutcome;
     try {
