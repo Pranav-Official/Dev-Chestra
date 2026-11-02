@@ -24,7 +24,7 @@ export type NodeKind =
   | "foreach"
   | "supervisor";
 
-export type RunKind = "run" | "node_test";
+export type RunKind = "run" | "node_test" | "poll_probe";
 export type RunPauseReason =
   | "quota"
   | "budget"

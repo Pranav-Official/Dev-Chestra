@@ -1,6 +1,7 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { FakeClock } from "@devchestra/core";
 import Database from "better-sqlite3";
 import { afterEach, describe, expect, it } from "vitest";
@@ -55,14 +56,14 @@ function create(store: Store, pollerId = "pol_1", workflowId = "wf"): void {
   store.pollTriggers.create({ pollerId, projectId: "p", workflowId });
 }
 
-describe("schema migration 0014", () => {
+describe("schema migration 0014 and 0015", () => {
   it("is registered and applied with the poller and dedupe tables", () => {
     const { store, dir } = setup();
-    expect(MIGRATIONS.at(-1)?.version).toBe(14);
+    expect(MIGRATIONS.at(-1)?.version).toBe(15);
     store.close();
     const db = new Database(join(dir, "devchestra.db"), { readonly: true });
     try {
-      expect(db.pragma("user_version", { simple: true })).toBe(14);
+      expect(db.pragma("user_version", { simple: true })).toBe(15);
       const tables = db
         .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
         .all()
@@ -77,6 +78,58 @@ describe("schema migration 0014", () => {
       );
     } finally {
       db.close();
+    }
+  });
+
+  it("upgrades a v14 database to v15 without losing runs", () => {
+    const dir = tempDir();
+    const file = join(dir, "devchestra.db");
+    const migrationsDir = fileURLToPath(new URL("../migrations/", import.meta.url));
+    const seed = new Database(file);
+    try {
+      seed.pragma("foreign_keys = ON");
+      for (const migration of MIGRATIONS.filter((entry) => entry.version < 15)) {
+        seed.exec(readFileSync(`${migrationsDir}${migration.file}`, "utf8"));
+      }
+      seed.exec("PRAGMA user_version = 14");
+      seed
+        .prepare(
+          "INSERT INTO projects (id, name, path, kind, added_at, next_run_number) VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .run("p", "Project", join(dir, "repo"), "git", 1, 2);
+      seed
+        .prepare(
+          `INSERT INTO runs (id, project_id, workflow_id, run_number, kind, status,
+            workflow_hash, snapshot_json, snapshot_raw, params_json, budgets_json, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run("run-1", "p", "wf", 1, "run", "succeeded", "hash", "{}", "{}", "{}", "{}", 1);
+      seed
+        .prepare(
+          "INSERT INTO events (run_id, ts, path, type, actor, payload) VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .run("run-1", 1, "", "run.created", "system", "{}");
+    } finally {
+      seed.close();
+    }
+
+    const clock = new FakeClock(1_700_000_000_000);
+    const store = open(file, clock);
+    try {
+      // The old run and its child rows survive the table rebuild.
+      expect(store.runs.get("run-1" as never)?.workflowId).toBe("wf");
+      expect(store.events.list("run-1" as never)).toHaveLength(1);
+      // And the widened check now accepts probe runs.
+      store.runs.enqueue({
+        projectId: "p",
+        workflowId: "wf",
+        workflowHash: "hash",
+        snapshot: SNAPSHOT,
+        snapshotRaw: JSON.stringify(SNAPSHOT),
+        kind: "poll_probe",
+      });
+    } finally {
+      store.close();
     }
   });
 });

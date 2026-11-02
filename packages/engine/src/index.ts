@@ -4,6 +4,7 @@ export * from "./exec-decision.js";
 export { freezeWorkflowBundle } from "./freeze.js";
 export * from "./node-config.js";
 export * from "./plan.js";
+export * from "./probe.js";
 export * from "./prompt.js";
 export * from "./run-options.js";
 export * from "./scope.js";

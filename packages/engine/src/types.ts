@@ -12,7 +12,13 @@ import type {
   SerializedError,
 } from "@devchestra/core";
 import type { DecisionService } from "@devchestra/decisions";
-import type { McpScope, McpSelection, NormalizedWorkflow, ProdCliId } from "@devchestra/schema";
+import type {
+  McpScope,
+  McpSelection,
+  NormalizedWorkflow,
+  PollProbe,
+  ProdCliId,
+} from "@devchestra/schema";
 import type { Store } from "@devchestra/store";
 import type {
   AcquireScratchRequest,
@@ -178,6 +184,8 @@ export interface StartRunInput {
   readonly params?: JsonObject;
   readonly budgets?: JsonObject;
   readonly baseSha?: string;
+  /** Run kind. Probes use 'poll_probe' so listings can hide them. Defaults to 'run'. */
+  readonly kind?: "run" | "poll_probe";
   /** One workspace per run; defaults to the registered project root. */
   readonly workspace?: RunWorkspaceSelection;
   readonly idempotency?: RunIdempotency;
@@ -202,6 +210,35 @@ export interface RunOutcome {
   readonly result?: unknown;
   readonly pausedReason?: string;
   readonly error?: SerializedError;
+}
+
+/** Raw probe output: shell stdout plus exit code, or the agent's structured output. */
+export type ProbeRawOutput =
+  | { readonly kind: "shell"; readonly stdout: string; readonly exitCode: number }
+  | { readonly kind: "agent"; readonly output: unknown };
+
+export interface ProbePollInput {
+  readonly projectId: string;
+  readonly workflowId: string;
+  /** Armed snapshot the tick probes; its start node carries the params under test. */
+  readonly snapshot: NormalizedWorkflow;
+  /** The start.polling probe. Read from the snapshot by the caller. */
+  readonly probe: PollProbe;
+  /**
+   * Where the probe runs. `project` is the registered project root with no
+   * checkout and no worktree; `worktree` is a fresh worktree per tick.
+   */
+  readonly workspace: "project" | "worktree";
+  /** Probe deadline in milliseconds. The caller keeps it below the interval. */
+  readonly timeoutMs: number;
+  /** Probe node timeout in minutes. Defaults to 1, the tightest engine step. */
+  readonly timeoutMin?: number;
+}
+
+export interface ProbePollResult {
+  readonly runId: string;
+  readonly raw: ProbeRawOutput;
+  readonly durationMs: number;
 }
 
 /**
@@ -250,6 +287,12 @@ export interface Engine {
   run(input: StartRunInput): Promise<Result<RunOutcome, DevChestraError>>;
   /** Compatibility: awaits launchResume(...).completion. */
   resume(runId: string, options?: ResumeOptions): Promise<Result<RunOutcome, DevChestraError>>;
+  /**
+   * Runs one polling probe as an ordinary run of kind 'poll_probe' and waits
+   * for it. Returns the probe's raw output, or a failure when the probe run
+   * fails, times out, or the provider is disabled.
+   */
+  probe(input: ProbePollInput): Promise<Result<ProbePollResult, DevChestraError>>;
   cancel(runId: string): Promise<Result<void, DevChestraError>>;
   subscribe(callback: (event: EventEnvelope) => void): () => void;
   view(runId: string): RunView;

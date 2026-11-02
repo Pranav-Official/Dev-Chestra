@@ -122,7 +122,14 @@ import {
   listChildLinks,
   putRunBundle,
 } from "./run-children.js";
-import { createRun, getRun, listActiveRuns, listQueuedRuns } from "./runs.js";
+import {
+  createRun,
+  deleteProbeRun,
+  getRun,
+  listActiveRuns,
+  listQueuedRuns,
+  pruneProbeRuns,
+} from "./runs.js";
 import { now, type Runtime } from "./runtime.js";
 import { type SecretFinding, SecretRegistry } from "./secrets.js";
 import {
@@ -309,6 +316,10 @@ export interface RunsApi {
   get(runId: RunId): RunRecord | null;
   list(filters?: RunListFilters): RunListPage;
   listActive(): RunRecord[];
+  /** Hard-deletes one poll_probe run; refuses any other kind. */
+  deleteProbeRun(runId: RunId): void;
+  /** Keeps the newest `keep` poll_probe runs of one workflow; returns removals. */
+  pruneProbeRuns(projectId: string, workflowId: string, keep: number): number;
 }
 
 export interface ProcessesApi {
@@ -634,6 +645,9 @@ export class Store {
       get: (runId) => getRun(this.#runtime, runId),
       list: (filters) => listRuns(this.#runtime, filters),
       listActive: () => listActiveRuns(this.#runtime),
+      deleteProbeRun: (runId) => this.tx(() => deleteProbeRun(this.#runtime, runId)),
+      pruneProbeRuns: (projectId, workflowId, keep) =>
+        this.tx(() => pruneProbeRuns(this.#runtime, projectId, workflowId, keep)),
     };
     this.processes = {
       active: () => activeProcesses(this.#runtime),
