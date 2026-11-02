@@ -75,6 +75,13 @@ Agents automatically receive what came before them, so a plain prompt like "sort
 
 ## Get going
 
+The easiest what to get set up is ask your codling agent to set it up for you
+```
+set up https://github.com/Pranav-Official/Dev-Chestra globaly
+# if you are working on a project then...
+Also register this project as well.
+```
+
 You need Node 22 or newer and pnpm 10.14.0.
 
 ```sh
@@ -98,7 +105,12 @@ Prefer to work through your coding agent? Start DevChestra without the browser:
 devchestra start --headless
 ```
 
-In another terminal, run `devchestra skill` to print the guide your agent can use to create, validate, run, and monitor workflows. Then ask it something like "build a workflow that runs the linter, then asks me before fixing anything." It can use the CLI to manage the workflow and follow a run when you ask it to start one.
+Agents can also refer skills by using 
+```
+devchestra skill
+```
+
+Agents can use it to create, validate, run, and monitor workflows. Then ask it something like "build a workflow that runs the linter, then asks me before fixing anything." It can use the CLI to manage the workflow and follow a run when you ask it to start one.
 
 You can use the same commands yourself. Here, `workflow.json` contains a workflow with the ID `my-workflow`:
 
