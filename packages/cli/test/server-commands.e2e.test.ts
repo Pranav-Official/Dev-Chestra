@@ -25,7 +25,7 @@ describe.skipIf(!existsSync(MAIN))("devchestra status / stop against a real serv
     dirs.push(dir);
     const server = spawn(
       process.execPath,
-      [MAIN, "start", "--data-dir", dir, "--no-open", "--port", "0"],
+      [MAIN, "start", "--foreground", "--data-dir", dir, "--no-open", "--port", "0"],
       { stdio: ["ignore", "pipe", "pipe"] },
     );
     children.push(server);

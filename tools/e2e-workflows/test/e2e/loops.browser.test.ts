@@ -96,7 +96,7 @@ it("edits a loop body with Apply/Cancel, reloads it, and inspects completed roun
   writeFileSync(file, JSON.stringify(workflow()));
   const server = spawn(
     process.execPath,
-    [CLI, "start", "--data-dir", dataDir, "--port", "0", "--no-open"],
+    [CLI, "start", "--foreground", "--data-dir", dataDir, "--port", "0", "--no-open"],
     {
       cwd: REPO_ROOT,
       windowsHide: true,

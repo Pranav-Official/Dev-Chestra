@@ -78,7 +78,16 @@ async function readMeta(dataDir: string): Promise<ServerMeta | null> {
 }
 
 export async function startServer(options: StartServerOptions): Promise<OwnedServer> {
-  const args = [options.cli, "start", "--data-dir", options.dataDir, "--port", "0", "--no-open"];
+  const args = [
+    options.cli,
+    "start",
+    "--foreground",
+    "--data-dir",
+    options.dataDir,
+    "--port",
+    "0",
+    "--no-open",
+  ];
   if (options.fakeScript !== undefined) args.push("--fake-script", options.fakeScript);
   if (options.extraArgs !== undefined) args.push(...options.extraArgs);
   const child = spawn(process.execPath, args, {
