@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "capturedAt": "2026-10-26T17:02:45Z",
   "scope": "bounded CLI capability baseline: version/help/argument-parse/config-parse only",
-  "note": "No live model prompt, tool call, MCP handshake, session resume or paid inference was exercised. Version strings come from --version at capture time; install mtimes are intentionally not used as release evidence. Behavior flags are NOT verified by the presence of a binary or a help entry. P1 live smoke entries are separately marked inferenceInvoked:true.",
+  "note": "No live model prompt, tool call, MCP handshake, session resume or paid inference was exercised. Version strings come from --version at capture time; install mtimes are intentionally not used as release evidence. Behavior flags are NOT verified by the presence of a binary or a help entry. Live smoke entries are separately marked inferenceInvoked:true.",
   "host": {
     "os": "Linux 7.2.11-1-cachyos x86_64",
     "libc": "glibc 2.44",
@@ -91,7 +91,7 @@
           "sha256": "3f24fba433016247620f4eea7404f56deed427360552c23a845cef537c4cea94"
         },
         {
-          "path": "tools/fixtures/claude-code/P1/2026-10-26T17-55-21-430Z-fresh.meta.json",
+          "path": "tools/fixtures/claude-code/live-smoke/2026-10-26T17-55-21-430Z-fresh.meta.json",
           "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
           "captureKind": "live smoke metadata",
           "inferenceInvoked": true,
@@ -103,7 +103,7 @@
           "accepted": true
         },
         {
-          "path": "tools/fixtures/claude-code/P1/2026-10-26T17-55-21-430Z-fresh.stderr.txt",
+          "path": "tools/fixtures/claude-code/live-smoke/2026-10-26T17-55-21-430Z-fresh.stderr.txt",
           "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
           "captureKind": "live smoke stream",
           "inferenceInvoked": true,
@@ -113,7 +113,7 @@
           "bytes": 0
         },
         {
-          "path": "tools/fixtures/claude-code/P1/2026-10-26T17-55-21-430Z-fresh.stdout.ndjson",
+          "path": "tools/fixtures/claude-code/live-smoke/2026-10-26T17-55-21-430Z-fresh.stdout.ndjson",
           "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
           "captureKind": "live smoke stream",
           "inferenceInvoked": true,
@@ -123,7 +123,7 @@
           "bytes": 10746
         },
         {
-          "path": "tools/fixtures/claude-code/P1/2026-10-26T17-55-21-431Z-resume.meta.json",
+          "path": "tools/fixtures/claude-code/live-smoke/2026-10-26T17-55-21-431Z-resume.meta.json",
           "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
           "captureKind": "live smoke metadata",
           "inferenceInvoked": true,
@@ -135,7 +135,7 @@
           "accepted": true
         },
         {
-          "path": "tools/fixtures/claude-code/P1/2026-10-26T17-55-21-431Z-resume.stderr.txt",
+          "path": "tools/fixtures/claude-code/live-smoke/2026-10-26T17-55-21-431Z-resume.stderr.txt",
           "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
           "captureKind": "live smoke stream",
           "inferenceInvoked": true,
@@ -145,7 +145,7 @@
           "bytes": 0
         },
         {
-          "path": "tools/fixtures/claude-code/P1/2026-10-26T17-55-21-431Z-resume.stdout.ndjson",
+          "path": "tools/fixtures/claude-code/live-smoke/2026-10-26T17-55-21-431Z-resume.stdout.ndjson",
           "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
           "captureKind": "live smoke stream",
           "inferenceInvoked": true,
@@ -236,7 +236,7 @@
           "sha256": "5cc4ff653cc442cc5d98697fdc4e6a6ba302632d0781510a636dd8d3c898a2c4"
         },
         {
-          "path": "tools/fixtures/codex/P1/2026-10-26T17-55-44-934Z-fresh.meta.json",
+          "path": "tools/fixtures/codex/live-smoke/2026-10-26T17-55-44-934Z-fresh.meta.json",
           "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
           "captureKind": "live smoke metadata",
           "inferenceInvoked": true,
@@ -249,7 +249,7 @@
           "blocker": "MCP tool call requires approval, but approval policy is never"
         },
         {
-          "path": "tools/fixtures/codex/P1/2026-10-26T17-55-44-934Z-fresh.stderr.txt",
+          "path": "tools/fixtures/codex/live-smoke/2026-10-26T17-55-44-934Z-fresh.stderr.txt",
           "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
           "captureKind": "live smoke stream",
           "inferenceInvoked": true,
@@ -259,7 +259,7 @@
           "bytes": 29
         },
         {
-          "path": "tools/fixtures/codex/P1/2026-10-26T17-55-44-934Z-fresh.stdout.ndjson",
+          "path": "tools/fixtures/codex/live-smoke/2026-10-26T17-55-44-934Z-fresh.stdout.ndjson",
           "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
           "captureKind": "live smoke stream",
           "inferenceInvoked": true,
@@ -269,7 +269,7 @@
           "bytes": 788
         },
         {
-          "path": "tools/fixtures/codex/P1/2026-10-26T18-00-09-245Z-fresh.meta.json",
+          "path": "tools/fixtures/codex/live-smoke/2026-10-26T18-00-09-245Z-fresh.meta.json",
           "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
           "captureKind": "live smoke metadata",
           "inferenceInvoked": true,
@@ -281,7 +281,7 @@
           "accepted": true
         },
         {
-          "path": "tools/fixtures/codex/P1/2026-10-26T18-00-09-245Z-fresh.stderr.txt",
+          "path": "tools/fixtures/codex/live-smoke/2026-10-26T18-00-09-245Z-fresh.stderr.txt",
           "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
           "captureKind": "live smoke stream",
           "inferenceInvoked": true,
@@ -291,7 +291,7 @@
           "bytes": 29
         },
         {
-          "path": "tools/fixtures/codex/P1/2026-10-26T18-00-09-245Z-fresh.stdout.ndjson",
+          "path": "tools/fixtures/codex/live-smoke/2026-10-26T18-00-09-245Z-fresh.stdout.ndjson",
           "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
           "captureKind": "live smoke stream",
           "inferenceInvoked": true,
@@ -301,7 +301,7 @@
           "bytes": 840
         },
         {
-          "path": "tools/fixtures/codex/P1/2026-10-26T18-00-09-245Z-resume.meta.json",
+          "path": "tools/fixtures/codex/live-smoke/2026-10-26T18-00-09-245Z-resume.meta.json",
           "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
           "captureKind": "live smoke metadata",
           "inferenceInvoked": true,
@@ -313,7 +313,7 @@
           "accepted": true
         },
         {
-          "path": "tools/fixtures/codex/P1/2026-10-26T18-00-09-245Z-resume.stderr.txt",
+          "path": "tools/fixtures/codex/live-smoke/2026-10-26T18-00-09-245Z-resume.stderr.txt",
           "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
           "captureKind": "live smoke stream",
           "inferenceInvoked": true,
@@ -323,7 +323,7 @@
           "bytes": 29
         },
         {
-          "path": "tools/fixtures/codex/P1/2026-10-26T18-00-09-245Z-resume.stdout.ndjson",
+          "path": "tools/fixtures/codex/live-smoke/2026-10-26T18-00-09-245Z-resume.stdout.ndjson",
           "sourceCommand": "adapter.plan() -> materialize -> spawn (real gateway/shim/store)",
           "captureKind": "live smoke stream",
           "inferenceInvoked": true,
@@ -335,7 +335,7 @@
       ]
     }
   },
-  "p1LiveSmoke": {
+  "liveSmoke": {
     "capturedAt": "2026-10-26T18:00:09Z",
     "status": "bounded pass: Claude fresh+resume, Codex fresh+resume after per-server approval fix",
     "open": [

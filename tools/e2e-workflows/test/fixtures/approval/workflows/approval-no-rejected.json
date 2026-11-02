@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "approval-no-rejected",
+  "name": "reject without edge",
+  "graph": {
+    "nodes": [
+      { "id": "start", "type": "start", "name": "Start", "ui": { "x": 20, "y": 20 }, "params": [] },
+      { "id": "a", "type": "approval", "name": "Gate", "ui": { "x": 240, "y": 20 }, "message": "Approve?", "irreversible": true },
+      { "id": "done", "type": "end", "name": "Done", "ui": { "x": 480, "y": 20 }, "status": "success", "result": "start" }
+    ],
+    "edges": [
+      { "id": "e0", "from": "start", "to": "a" },
+      { "id": "e1", "from": "a", "to": "done" }
+    ]
+  }
+}

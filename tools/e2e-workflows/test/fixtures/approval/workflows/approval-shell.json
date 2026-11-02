@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "approval-shell",
+  "name": "approval then shell",
+  "graph": {
+    "nodes": [
+      { "id": "start", "type": "start", "name": "Start", "ui": { "x": 20, "y": 20 }, "params": [] },
+      { "id": "a", "type": "approval", "name": "Check", "ui": { "x": 200, "y": 20 }, "message": "Approve shell", "irreversible": false },
+      { "id": "sh", "type": "shell", "name": "Shell", "ui": { "x": 380, "y": 20 }, "command": "sleep 15; echo done", "timeoutMin": 5 },
+      { "id": "done", "type": "end", "name": "Done", "ui": { "x": 560, "y": 20 }, "status": "success", "result": "start" }
+    ],
+    "edges": [
+      { "id": "e0", "from": "start", "to": "a" },
+      { "id": "e1", "from": "a", "to": "sh" },
+      { "id": "e2", "from": "sh", "to": "done" }
+    ]
+  }
+}

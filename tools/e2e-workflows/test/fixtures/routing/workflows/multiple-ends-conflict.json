@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "multiple-ends-conflict",
+  "name": "multiple active ends conflict",
+  "description": "Both ends are active; the run must fail, not pick one",
+  "graph": {
+    "nodes": [
+      { "id": "start", "type": "start", "name": "Inputs", "params": [], "ui": { "x": 0, "y": 0 } },
+      { "id": "end_a", "type": "end", "name": "End A", "status": "success", "result": "{ \"end\": \"a\" }", "ui": { "x": 300, "y": -80 } },
+      { "id": "end_b", "type": "end", "name": "End B", "status": "success", "result": "{ \"end\": \"b\" }", "ui": { "x": 300, "y": 80 } }
+    ],
+    "edges": [
+      { "id": "e-start-a", "from": "start", "to": "end_a" },
+      { "id": "e-start-b", "from": "start", "to": "end_b" }
+    ]
+  }
+}

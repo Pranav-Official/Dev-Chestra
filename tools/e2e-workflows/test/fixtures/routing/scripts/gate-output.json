@@ -1,0 +1,4 @@
+[
+  { "type": "say", "text": "routing fake agent" },
+  { "type": "submit", "output": { "verdict": "ok", "note": "routing" } }
+]

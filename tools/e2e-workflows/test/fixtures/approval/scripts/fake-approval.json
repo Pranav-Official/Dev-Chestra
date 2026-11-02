@@ -1,0 +1,4 @@
+[
+  { "type": "say", "text": "fake agent" },
+  { "type": "submit", "output": { "verdict": "ok" } }
+]

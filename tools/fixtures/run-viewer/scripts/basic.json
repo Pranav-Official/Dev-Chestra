@@ -1,0 +1,4 @@
+[
+  { "type": "say", "text": "acceptance agent working" },
+  { "type": "submit", "output": { "summary": "acceptance summary" } }
+]

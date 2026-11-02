@@ -1,0 +1,10 @@
+[
+  { "type": "say", "text": "acceptance agent working" },
+  {
+    "type": "submit",
+    "output": {
+      "summary": "acceptance summary",
+      "points": ["authoring", "conflict safety", "live runs"]
+    }
+  }
+]

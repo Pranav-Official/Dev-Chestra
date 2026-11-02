@@ -18,8 +18,8 @@ pnpm --filter @devchestra/web test
 pnpm devchestra start --data-dir /tmp/devchestra-dev \
   --no-open --print-url
 
-# Full P2 acceptance, including a real Chromium run page and axe checks
-pnpm demo:p2
+# Browser acceptance against the real server: run viewer, replay, themes and axe checks
+pnpm --filter @devchestra/e2e-run-viewer test:e2e
 ```
 
 `devchestra start` serves `apps/web/dist` from the same loopback origin as `/api`. Restart `devchestra start`
@@ -69,7 +69,6 @@ after rebuilding the web app: the server caches `index.html` in memory at startu
 
 ## Known limits
 
-- This milestone has no editor, settings, approval, budget, artifact or supervisor controls.
 - Replay requires the full event history. History beyond the bounded 100,000-event window is
   reported as unavailable instead of being silently truncated.
 - Historical output content is not in the event log, so replay shows output ids/hashes and marks

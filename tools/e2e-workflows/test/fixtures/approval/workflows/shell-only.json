@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "shell-only",
+  "name": "shell only",
+  "graph": {
+    "nodes": [
+      { "id": "start", "type": "start", "name": "Start", "ui": { "x": 20, "y": 20 }, "params": [] },
+      { "id": "sh", "type": "shell", "name": "Shell", "ui": { "x": 200, "y": 20 }, "command": "sleep 15; echo done", "timeoutMin": 5 },
+      { "id": "done", "type": "end", "name": "Done", "ui": { "x": 380, "y": 20 }, "status": "success", "result": "start" }
+    ],
+    "edges": [
+      { "id": "e0", "from": "start", "to": "sh" },
+      { "id": "e1", "from": "sh", "to": "done" }
+    ]
+  }
+}
