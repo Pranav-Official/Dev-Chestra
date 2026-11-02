@@ -13,7 +13,7 @@ import { defaultDataDir } from "./data-dir.js";
 import { attachToServer, readServerMetadata } from "./server-metadata.js";
 
 const HELP = `Agent CLI (all commands return JSON; watch returns JSONL):
-  devchestra project list|add|show [project] [--project PROJECT]
+  devchestra project list|add|show [project] [--project PROJECT] [--no-starters]
   devchestra workflow list|show|validate|create|update|delete [ID] --project PROJECT [--file FILE] [--if-match ETAG]
   devchestra run start|list|show|watch|events|execution|transcript|output|children|usage|cancel|resume [ID] [options]
   devchestra approval list|show|resolve [RUN-ID] [options]
@@ -26,7 +26,12 @@ const common = ["data-dir", "json"];
 const pageFlags = ["cursor", "limit"];
 export const COMMANDS: Record<string, CommandSpec> = {
   "project list": { min: 0, max: 0, flags: pageFlags, description: "List registered projects" },
-  "project add": { min: 1, max: 1, flags: [], description: "Register a project" },
+  "project add": {
+    min: 1,
+    max: 1,
+    flags: ["no-starters"],
+    description: "Register a project (adds starter workflows unless --no-starters)",
+  },
   "project show": {
     min: 0,
     max: 1,
@@ -258,7 +263,7 @@ type Flags = Record<string, string | boolean | string[]>;
 function parse(args: string[]): { positional: string[]; flags: Flags } {
   const positional: string[] = [];
   const flags: Flags = {};
-  const switches = new Set(["json", "jsonl", "help", "retry-uncertain-shell"]);
+  const switches = new Set(["json", "jsonl", "help", "retry-uncertain-shell", "no-starters"]);
   const values = new Set([
     "data-dir",
     "project",
@@ -445,7 +450,10 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
   if (group === "project") {
     if (action === "list") result = await client.listProjects(page);
     else if (action === "add")
-      result = await client.registerProject({ path: resolve(required(id, "project path")) });
+      result = await client.registerProject({
+        path: resolve(required(id, "project path")),
+        ...(flags["no-starters"] === true ? { seedStarters: false } : {}),
+      });
     else if (action === "remove")
       result = await client.removeProject(await projectId(client, required(id, "project")));
     else if (action === "relink")

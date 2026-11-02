@@ -6,7 +6,15 @@ import {
 } from "@devchestra/api";
 import type { Hono } from "hono";
 import { DevChestraError, errorBody } from "../errors.js";
-import type { BrowserQueryPort, BrowserWorkspacePort, ProjectView } from "./ports.js";
+import type { ManagedWorkflowService } from "../workflows/service.js";
+import { pickStarterCli, seedStarterWorkflows } from "../workflows/starters.js";
+import type { ProviderStatusService } from "./provider-status.js";
+import type {
+  BrowserProviderSettingsPort,
+  BrowserQueryPort,
+  BrowserWorkspacePort,
+  ProjectView,
+} from "./ports.js";
 import { readJsonObject } from "./security.js";
 import { assertProjectPathAllowed, projectKind, validateProjectPathInput } from "./workflow.js";
 import { listRunWorkspaces } from "./workspaces.js";
@@ -48,7 +56,22 @@ export interface ProjectRouteDeps {
   store: BrowserQueryPort;
   dataDir: string;
   workspaceService?: BrowserWorkspacePort;
+  /** With a workflow service, newly registered projects get the starter workflows. */
+  workflowService?: ManagedWorkflowService;
+  providerStatus?: ProviderStatusService;
+  providerSettings?: BrowserProviderSettingsPort;
   validate: (name: string, value: unknown) => void;
+}
+
+async function starterCli(deps: ProjectRouteDeps) {
+  let ready = new Set<string>();
+  try {
+    const statuses = (await deps.providerStatus?.getAll()) ?? [];
+    ready = new Set(statuses.filter((s) => s.state === "ready").map((s) => s.id));
+  } catch {
+    // Detection is best effort; fall back to the default CLI.
+  }
+  return pickStarterCli(ready, deps.providerSettings?.disabled());
 }
 
 export function mountProjectRoutes(app: Hono, deps: ProjectRouteDeps): void {
@@ -155,11 +178,23 @@ export function mountProjectRoutes(app: Hono, deps: ProjectRouteDeps): void {
     }
     const input = validateProjectPathInput(parsed.data.path);
     const canonical = assertProjectPathAllowed(input, deps.dataDir);
+    const isNew =
+      parsed.data.seedStarters !== false &&
+      deps.workflowService !== undefined &&
+      !(await deps.store.listProjects()).some((existing) => existing.path === canonical);
     const project = await deps.store.registerProject({
       path: canonical,
       name: basename(canonical) || "project",
       kind: projectKind(canonical),
     });
+    if (isNew && deps.workflowService !== undefined) {
+      try {
+        const cli = await starterCli(deps);
+        await seedStarterWorkflows(deps.workflowService, project, { cli });
+      } catch {
+        // Starters are a convenience; registration already succeeded.
+      }
+    }
     deps.validate("ProjectView", project);
     return c.json(project);
   });

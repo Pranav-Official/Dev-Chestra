@@ -63,7 +63,7 @@ End — finish the run.
 
 ## How a run feels
 
-1. Register your project once by pointing DevChestra at a folder.
+1. Register your project once by pointing DevChestra at a folder. A new project comes with two starter workflows, "Tour this project" (read-only survey) and "Fix failing tests" (test, fix, retest, ask for approval), using the first coding CLI it finds. Pass `--no-starters` to `devchestra project add` to skip them.
 2. Build a workflow on the canvas, or ask your coding agent to create and validate one through the CLI.
 3. Start a run in the editor or from the CLI. Pick where it runs — your project folder as-is, an existing worktree, or a fresh worktree per run.
 4. Follow events and transcripts in the editor, or let your agent watch the run, inspect errors and usage, and bring human review gates back to you through the CLI.

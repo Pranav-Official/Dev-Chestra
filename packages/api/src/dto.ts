@@ -57,6 +57,8 @@ export const projectViewSchema = strict({
  */
 export const registerProjectRequestSchema = strict({
   path: z.string().min(1).max(4096),
+  /** Write the starter workflows into a newly registered project. Defaults to true. */
+  seedStarters: z.boolean().optional(),
 });
 
 export const relinkProjectRequestSchema = strict({

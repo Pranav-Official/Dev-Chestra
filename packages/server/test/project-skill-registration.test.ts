@@ -48,7 +48,8 @@ function harness() {
       },
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
-  const register = (path: string) => request("/api/projects", "POST", { path });
+  const register = (path: string) =>
+    request("/api/projects", "POST", { path, seedStarters: false });
   return { dataDir, store, port, request, register };
 }
 
