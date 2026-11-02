@@ -3,6 +3,8 @@ packages:
   - "apps/*"
   - "tools/*"
 
+linkWorkspacePackages: true
+
 ignoredOptionalDependencies:
   - "@anthropic-ai/claude-agent-sdk-linux-x64"
   - "@anthropic-ai/claude-agent-sdk-linux-arm64"

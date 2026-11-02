@@ -82,7 +82,7 @@ set up https://github.com/Pranav-Official/Dev-Chestra globaly
 Also register this project as well.
 ```
 
-You need Node 22 or newer (npm 10 or newer comes with it). pnpm 10.14.0 or newer also works if you prefer it — the setup script uses whichever manager invoked it, defaulting to pnpm when both are installed.
+You need Node 22 or newer and npm 11 or newer (ships with Node 24; on Node 22 run `npm install -g npm@latest` once). pnpm 10.14.0 or newer also works if you prefer it — the setup script uses whichever manager invoked it, defaulting to pnpm when both are installed.
 
 ```sh
 npm run setup:global
