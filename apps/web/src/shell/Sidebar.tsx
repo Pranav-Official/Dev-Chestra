@@ -19,7 +19,7 @@ import {
   Ban,
   Settings,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { api, classifyError } from "../api/client.js";
 import { queryKeys, useBootstrap } from "../api/hooks.js";
@@ -47,39 +47,20 @@ function RunIndicator({ status }: { status: string }) {
   return <span className={`nav-run-status nav-status-${status}`} role="img" aria-label={label} title={label}><Icon size={14} className={active ? "nav-status-spin" : undefined} aria-hidden="true" /></span>;
 }
 
-function SettingsMenu() {
-  const menu = useRef<HTMLDetailsElement>(null);
+function SettingsLink() {
   const location = useLocation();
   const pid = location.pathname.match(/^\/p\/([^/]+)/)?.[1];
+  const active = /\/settings(\/|$)/.test(location.pathname);
   return (
-    <details
-      className="workspace-menu workspace-menu-up"
-      ref={menu}
-      onKeyDown={(event) => {
-        if (event.key === "Escape" && menu.current) {
-          menu.current.open = false;
-          menu.current.querySelector("summary")?.focus();
-        }
-      }}
+    <Link
+      className={`sidebar-settings${active ? " active" : ""}`}
+      to={settingsPath(pid, SETTINGS_SECTIONS[0].id)}
+      aria-label="Settings"
+      title="Settings"
+      aria-current={active ? "page" : undefined}
     >
-      <summary aria-label="Settings">
-        <Settings size={15} aria-hidden="true" />
-      </summary>
-      <div className="workspace-menu-items">
-        {SETTINGS_SECTIONS.map((entry) => (
-          <Link
-            key={entry.id}
-            to={settingsPath(pid, entry.id)}
-            aria-current={location.pathname.endsWith(`/settings/${entry.id}`) ? "page" : undefined}
-            onClick={() => {
-              if (menu.current) menu.current.open = false;
-            }}
-          >
-            {entry.label}
-          </Link>
-        ))}
-      </div>
-    </details>
+      <Settings size={15} aria-hidden="true" />
+    </Link>
   );
 }
 
@@ -403,7 +384,7 @@ export function Sidebar() {
             ? `DevChestra ${bootstrap.data.version} · ${bootstrap.data.counts.activeRuns} active`
             : "Not connected"}
         </span>
-        <SettingsMenu />
+        <SettingsLink />
       </div>
     </aside>
   );
