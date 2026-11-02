@@ -40,7 +40,7 @@ afterEach(async () => {
 interface Harness {
   engine: Engine;
   store: Store;
-  requests: { prompt: string; permissions: unknown }[];
+  requests: { prompt: string; permissions: unknown; mcpServers: unknown }[];
 }
 
 async function harness(
@@ -48,6 +48,7 @@ async function harness(
     fakeScript?: unknown[];
     isCliEnabled?: (cli: CliId) => boolean;
     gateway?: "stub" | "real";
+    mcpResolver?: import("../src/types.js").McpResolver;
   } = {},
 ): Promise<Harness> {
   const dataDir = mkdtempSync(join(tmpdir(), "devchestra-engine-probe-"));
@@ -65,6 +66,7 @@ async function harness(
       requests.push({
         prompt: (request as { prompt?: string }).prompt ?? "",
         permissions: (request as { permissions?: unknown }).permissions,
+        mcpServers: (request as { extraMcp?: unknown }).extraMcp,
       });
       return base.plan(request);
     },
@@ -135,6 +137,7 @@ async function harness(
         | { ok: true }
         | { ok: false; issues: never },
     ...(options.isCliEnabled === undefined ? {} : { isCliEnabled: options.isCliEnabled }),
+    ...(options.mcpResolver === undefined ? {} : { mcpResolver: options.mcpResolver }),
   });
   cleanups.push(async () => {
     await engine.stop({ graceMs: 1_000 }).catch(() => undefined);
@@ -196,18 +199,28 @@ describe("buildProbeSnapshot", () => {
     expect(probe).toMatchObject({ type: "shell", command: "echo hi", allowFailure: false });
   });
 
-  it("builds a read-only agent probe with a generated schema and preamble", () => {
+  it("builds an agent probe from the saved node with generated schema", () => {
     const snap = buildProbeSnapshot(
       "wf",
       START,
-      { type: "agent", cli: "codex", prompt: "Check." },
+      {
+        id: "probe",
+        type: "agent",
+        name: "Poll probe",
+        cli: "codex",
+        prompt: "Check.",
+        permissions: { network: false, write: ["workspace"], shell: false },
+        mcpServers: [{ name: "gh", scope: "global" }],
+        limits: { timeoutMin: 5, validationRetries: 2, crashRetries: 1 },
+      } as unknown as PollProbe,
       2,
     );
     const probe = snap.graph.nodes.find((node) => node.id === POLL_PROBE_NODE_ID);
     expect(probe).toMatchObject({
       type: "agent",
       cli: "codex",
-      permissions: { network: true, write: [] },
+      permissions: { network: false, write: ["workspace"], shell: false },
+      mcpServers: [{ name: "gh", scope: "global" }],
       limits: { timeoutMin: 2 },
     });
     if (probe?.type !== "agent") throw new Error("expected agent probe node");
@@ -284,15 +297,38 @@ describe("engine.probe with an agent probe", () => {
   // `fake` is test-only: the PollProbe type keeps the production CLI union,
   // so the test fixture casts at the boundary like the parser does.
   const agentProbe = {
+    id: "probe",
     type: "agent",
+    name: "Poll probe",
     cli: "fake",
     prompt: "Check for work.",
+    permissions: { network: true, write: [], shell: true },
+    mcpServers: [{ name: "gh", scope: "global" }],
+    limits: { timeoutMin: 5, validationRetries: 2, crashRetries: 1 },
   } as unknown as PollProbe;
 
-  it("returns the agent structured output with read-only permissions", async () => {
+  it("carries the author's permissions and mcpServers with generated schema", async () => {
     const { engine, store, requests } = await harness({
       fakeScript: [{ type: "submit", output: { found: true, params: { pr: 5 } } }],
       gateway: "real",
+      mcpResolver: {
+        list: async () => ({
+          servers: [{ name: "gh", scope: "global" as const }],
+          warnings: [],
+        }),
+        resolve: async (_cli, _dir, selection) => ({
+          ok: true as const,
+          value: {
+            extra: selection.map((s) => ({
+              name: s.name,
+              scope: s.scope,
+              transport: "http" as const,
+              url: "https://example.test",
+            })),
+            known: selection.map((s) => ({ name: s.name, scope: s.scope })),
+          },
+        }),
+      },
     });
     await engine.start();
     const result = await engine.probe(input(agentProbe));
@@ -303,11 +339,17 @@ describe("engine.probe with an agent probe", () => {
       output: { found: true, params: { pr: 5 } },
     });
     expect(store.runs.get(result.value.runId as never)?.kind).toBe("poll_probe");
-    // The probe carries the generated preamble and no write powers.
+    // Author's permissions/mcpServers pass through unchanged (not overridden).
     expect(requests).toHaveLength(1);
     expect(requests[0]?.permissions).toMatchObject({ network: true, write: [], shell: true });
+    expect(requests[0]?.mcpServers).toMatchObject([{ name: "gh", scope: "global" }]);
     expect(requests[0]?.prompt).toContain("read-only polling probe");
     expect(requests[0]?.prompt).toContain("Check for work.");
+    // Output schema is generated from the start params, not from the probe.
+    const snap = buildProbeSnapshot("polled", START, agentProbe, 1);
+    const node = snap.graph.nodes.find((n) => n.id === POLL_PROBE_NODE_ID);
+    if (node?.type !== "agent") throw new Error("expected agent probe node");
+    expect(node.output).toMatchObject({ type: "object", required: ["found", "params"] });
   });
 
   it("honours provider-disabled checks", async () => {

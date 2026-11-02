@@ -27,6 +27,10 @@ export function probeStartNode(snapshot: NormalizedWorkflow): NormalizedStartNod
  * its polling probe. The probe runs as an ordinary node: a shell probe fails
  * the run on a non-zero exit, and an agent probe submits the generated output
  * schema. The end result stays empty; callers read the probe node's output.
+ * Agent probes use the author's node as saved (cli, model, mcpServers,
+ * permissions, limits, cliOptions, env); output, prompt preamble, workspace
+ * and context are engine-owned. Shell probes use their command and timeoutMin
+ * with allowFailure false.
  */
 export function buildProbeSnapshot(
   workflowId: string,
@@ -47,36 +51,44 @@ export function buildProbeSnapshot(
       ? {
           id: POLL_PROBE_NODE_ID,
           type: "shell" as const,
-          name: "Poll probe",
+          name: probe.name ?? "Poll probe",
           supervise: "default" as const,
           env: [],
           command: probe.command,
           workspace: { mode: "scratch" as const },
-          timeoutMin,
+          timeoutMin: probe.timeoutMin ?? 10,
           allowFailure: false,
         }
-      : {
-          id: POLL_PROBE_NODE_ID,
-          type: "agent" as const,
-          name: "Poll probe",
-          supervise: "default" as const,
-          env: [],
-          cli: probe.cli,
-          ...(probe.model === undefined ? {} : { model: probe.model }),
-          prompt: `${buildPollPromptPreamble(start)}\n\n${probe.prompt}`,
-          output: buildPollAgentOutputSchema(start),
-          // No edit or write tools, but the shell stays on: probes exist to run
-          // read-only commands such as `gh` and `git`. Unset would follow the
-          // legacy rule (shell tracks write) and drop the shell entirely.
-          permissions: {
-            network: true,
-            write: [] as ("workspace" | "project")[],
-            shell: true,
-          },
-          workspace: { mode: "scratch" as const },
-          limits: { timeoutMin, validationRetries: 2, crashRetries: 1 },
-          context: { project: "none" as const, workflow: "none" as const },
-        };
+      : (() => {
+          const nodeTimeout = probe.limits?.timeoutMin ?? 30;
+          return {
+            id: POLL_PROBE_NODE_ID,
+            type: "agent" as const,
+            name: probe.name ?? "Poll probe",
+            supervise: "default" as const,
+            env: (probe as { env?: string[] }).env ?? [],
+            cli: probe.cli,
+            ...(probe.model === undefined ? {} : { model: probe.model }),
+            prompt: `${buildPollPromptPreamble(start)}\n\n${probe.prompt}`,
+            output: buildPollAgentOutputSchema(start),
+            // Author's permissions, not overridden. New probes default to
+            // network on, no writes, shell on in normalize.
+            permissions: probe.permissions ?? {
+              network: true,
+              write: [] as ("workspace" | "project")[],
+              shell: true,
+            },
+            ...(probe.mcpServers === undefined ? {} : { mcpServers: probe.mcpServers }),
+            ...(probe.cliOptions === undefined ? {} : { cliOptions: probe.cliOptions }),
+            workspace: { mode: "scratch" as const },
+            limits: {
+              timeoutMin: Math.min(nodeTimeout, timeoutMin),
+              validationRetries: probe.limits?.validationRetries ?? 2,
+              crashRetries: probe.limits?.crashRetries ?? 1,
+            },
+            context: { project: "none" as const, workflow: "none" as const },
+          };
+        })();
   return {
     schemaVersion: 1,
     id: workflowId,
