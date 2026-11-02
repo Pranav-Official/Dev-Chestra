@@ -28,13 +28,12 @@ import type { PlanNode, ScopeSource } from "./graph-plan.js";
 import { stripUi } from "./hash-config.js";
 import { composeAgentPrompt, renderAgentInputContext, renderSubmitContract } from "./prompt.js";
 import { buildScopeData } from "./scope.js";
-import type { LinearChain } from "./sequence.js";
 import { ProcessGroupAliveError, StopSignal } from "./stop.js";
 
 export async function executeAgent(
   ctx: EngineContext,
   run: RunRecord,
-  source: ScopeSource | LinearChain,
+  source: ScopeSource,
   node: PlanNode,
   active: ActiveRunState,
 ): Promise<void> {
@@ -160,7 +159,7 @@ interface AttemptState {
 async function runAttempts(
   ctx: EngineContext,
   run: RunRecord,
-  source: ScopeSource | LinearChain,
+  source: ScopeSource,
   node: PlanNode,
   active: ActiveRunState,
   initialWorkspace: ScratchWorkspace,

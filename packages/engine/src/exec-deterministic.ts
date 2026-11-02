@@ -4,13 +4,12 @@ import type { ActiveRunState } from "./context.js";
 import { type EngineContext, toDevChestraError } from "./context.js";
 import type { PlanNode, ScopeSource } from "./graph-plan.js";
 import { buildScopeData } from "./scope.js";
-import type { LinearChain } from "./sequence.js";
 import { StopSignal } from "./stop.js";
 
 export async function executeDeterministic(
   ctx: EngineContext,
   run: RunRecord,
-  source: ScopeSource | LinearChain,
+  source: ScopeSource,
   node: PlanNode,
   active: ActiveRunState,
 ): Promise<void> {

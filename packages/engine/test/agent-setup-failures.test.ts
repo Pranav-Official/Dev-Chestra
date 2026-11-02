@@ -16,9 +16,10 @@ import type { AdapterRegistry, RunRequest } from "@devchestra/adapters";
 import type { McpSelection } from "@devchestra/schema";
 import { type ActiveRunState, EngineContext } from "../src/context.js";
 import { executeAgent } from "../src/exec-agent.js";
-import { analyzeLinearWorkflow, type LinearChain, type LinearNode } from "../src/sequence.js";
+import type { PlanNode, WorkflowPlan } from "../src/graph-plan.js";
 import { StopSignal } from "../src/stop.js";
 import type { McpResolver } from "../src/types.js";
+import { isolated, planOf } from "./plan-source.js";
 
 function workflow(agentExtra: Record<string, unknown>): unknown {
   return {
@@ -63,8 +64,8 @@ interface Harness {
   ctx: EngineContext;
   store: Store;
   runId: string;
-  chain: LinearChain;
-  node: LinearNode;
+  plan: WorkflowPlan;
+  node: PlanNode;
   active: ActiveRunState;
   counters: Counters;
   runAgentCalls: () => number;
@@ -99,9 +100,8 @@ function setup(options: {
     snapshot,
     snapshotRaw: JSON.stringify(snapshot),
   });
-  const analyzed = analyzeLinearWorkflow(snapshot);
-  if (!analyzed.ok) throw analyzed.error;
-  const node = analyzed.value.nodes.find((entry) => entry.id === "a");
+  const plan = planOf(snapshot);
+  const node = plan.nodes.find((entry) => entry.id === "a");
   if (node === undefined) throw new Error("missing node");
 
   const counters: Counters = {
@@ -222,8 +222,8 @@ function setup(options: {
     ctx,
     store,
     runId: created.runId as string,
-    chain: analyzed.value,
-    node: node as LinearNode,
+    plan,
+    node: node as PlanNode,
     active,
     counters,
     runAgentCalls: () => runAgentCalls,
@@ -240,13 +240,7 @@ describe("agent setup failures", () => {
     const h = setup({ planError: original });
     let error: unknown;
     try {
-      await executeAgent(
-        h.ctx,
-        h.ctx.run(h.runId),
-        { ...h.chain, nodes: [h.node] } as LinearChain,
-        h.node,
-        h.active,
-      );
+      await executeAgent(h.ctx, h.ctx.run(h.runId), isolated(h.plan), h.node, h.active);
     } catch (caught) {
       error = caught;
     }
@@ -286,13 +280,7 @@ describe("agent setup failures", () => {
       agent: { mcpServers: [{ name: "github", scope: "global" }] },
       resolver,
     });
-    const pending = executeAgent(
-      h.ctx,
-      h.ctx.run(h.runId),
-      { ...h.chain, nodes: [h.node] } as LinearChain,
-      h.node,
-      h.active,
-    );
+    const pending = executeAgent(h.ctx, h.ctx.run(h.runId), isolated(h.plan), h.node, h.active);
     pending.catch(() => undefined);
     for (let i = 0; i < 200 && resolveCalls === 0; i += 1) {
       await new Promise((r) => setTimeout(r, 5));
@@ -318,13 +306,7 @@ describe("agent setup failures", () => {
     const h = setup({ acquireError: new DevChestraError("E_WORKSPACE", "disk gone: marker-9c2e") });
     let error: unknown;
     try {
-      await executeAgent(
-        h.ctx,
-        h.ctx.run(h.runId),
-        { ...h.chain, nodes: [h.node] } as LinearChain,
-        h.node,
-        h.active,
-      );
+      await executeAgent(h.ctx, h.ctx.run(h.runId), isolated(h.plan), h.node, h.active);
     } catch (caught) {
       error = caught;
     }

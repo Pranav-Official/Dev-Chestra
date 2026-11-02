@@ -34,7 +34,7 @@ import { analyzeWorkflowPlan, type PlanNode, type WorkflowPlan } from "./graph-p
 import { derivePlanRouting, joinRoutingFor } from "./graph-run.js";
 import { assertLoopWorkspaceAvailable } from "./loop-workspace.js";
 import { recoverAll } from "./recovery.js";
-import { validateRunOptions } from "./sequence.js";
+import { validateRunOptions } from "./run-options.js";
 import { StopSignal } from "./stop.js";
 import type {
   Engine,

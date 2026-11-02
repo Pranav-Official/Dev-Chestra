@@ -13,10 +13,10 @@ import {
   validateLoopNode,
   validateWorkflow,
 } from "@devchestra/schema";
-import { type LinearNodeKind, validateBaseNodeConfig } from "./sequence.js";
+import { type BaseNodeKind, validateBaseNodeConfig } from "./node-config.js";
 
 export type PlanNodeKind =
-  | LinearNodeKind
+  | BaseNodeKind
   | "gate"
   | "join"
   | "approval"
@@ -223,7 +223,7 @@ function readPlanNode(value: unknown, index: number): PlanNode {
   }
   if (BASE_TYPES.has(type)) {
     if (type !== "approval" && type !== "decision") {
-      validateBaseNodeConfig(value, type as LinearNodeKind);
+      validateBaseNodeConfig(value, type as BaseNodeKind);
     }
   }
   if (type === "workflow") validateWorkflowNodeConfig(value);
