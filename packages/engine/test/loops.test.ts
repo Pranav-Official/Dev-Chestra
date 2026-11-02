@@ -11,7 +11,7 @@ import {
   releaseScratch,
 } from "@devchestra/workspaces";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createEngine } from "../src/engine.js";
+import { createEngine, WORKSPACE_WAIT_MS } from "../src/engine.js";
 import { StopSignal } from "../src/stop.js";
 import type { EngineDeps } from "../src/types.js";
 
@@ -281,6 +281,44 @@ describe("bounded loops", () => {
     expect(new Set(requestIds).size).toBe(2);
   });
 
+  it("keeps a run waiting on a parked workspace, records the wait once, and fails it at the bound", async () => {
+    const { store, engine, input } = setup();
+    const body = graph(
+      [
+        node("start", "start", { params: [] }),
+        node("review", "approval", { message: "Approve", irreversible: false }),
+        node("done", "end", { status: "success", result: "{}" }),
+      ],
+      [
+        ["start", "review"],
+        ["review", "done"],
+      ],
+    );
+    const launched = await engine.launch(input(snapshot({ body })));
+    if (!launched.ok) throw launched.error;
+    await launched.value.completion;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const conflicting = await engine.launch(input(snapshot()));
+      if (!conflicting.ok) throw conflicting.error;
+      const runId = conflicting.value.runId as never;
+      expect(store.runs.get(runId)?.status).toBe("queued");
+      engine.pumpQueue();
+      const waits = store.events
+        .list(runId, { limit: 100 })
+        .filter((event) => event.type === "run.workspace_waiting");
+      expect(waits).toHaveLength(1);
+
+      await vi.advanceTimersByTimeAsync(WORKSPACE_WAIT_MS - 1);
+      expect(store.runs.get(runId)?.status).toBe("queued");
+      await vi.advanceTimersByTimeAsync(1);
+      expect(store.runs.get(runId)?.status).toBe("failed");
+    } finally {
+      vi.useRealTimers();
+    }
+    await engine.cancel(launched.value.runId);
+  });
+
   it("cancels a parked loop and all nonterminal children", async () => {
     const { store, engine, input } = setup();
     const body = graph(
@@ -298,8 +336,9 @@ describe("bounded loops", () => {
     if (!launched.ok) throw launched.error;
     await launched.value.completion;
     const conflicting = await engine.launch(input(snapshot()));
-    expect(conflicting.ok).toBe(false);
-    if (!conflicting.ok) expect(conflicting.error.code).toBe("E_LOCKED");
+    // The parked lineage owns the exclusive workspace, so the second run waits in the queue.
+    if (!conflicting.ok) throw conflicting.error;
+    expect(store.runs.get(conflicting.value.runId as never)?.status).toBe("queued");
     const cancelled = await engine.cancel(launched.value.runId);
     expect(cancelled.ok).toBe(true);
     const view = store.view.get(launched.value.runId as never);
@@ -307,6 +346,8 @@ describe("bounded loops", () => {
     expect(view.executions.refine?.status).toBe("cancelled");
     expect(view.executions["refine#1/review"]?.status).toBe("cancelled");
     expect(view.executions["refine#2/start"]).toBeUndefined();
+    // Releasing the workspace starts the waiting run, which then finishes on its own.
+    expect((await conflicting.value.completion).status).toBe("succeeded");
     const released = await engine.run(input(snapshot({ until: "true" })));
     if (!released.ok) throw released.error;
     expect(released.value.status).toBe("succeeded");

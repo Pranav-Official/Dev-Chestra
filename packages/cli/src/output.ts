@@ -13,6 +13,7 @@ export interface RunOutcomeLike {
 const SALIENT = new Set([
   "run.created",
   "run.started",
+  "run.workspace_waiting",
   "run.paused",
   "run.resumed",
   "run.cancelled",

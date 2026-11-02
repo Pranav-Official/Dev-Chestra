@@ -9,6 +9,7 @@ import {
   Save,
   Undo2,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import type { AutosaveSnapshot } from "../autosave.js";
 import type { BufferValidity } from "../inspector/types.js";
 import type { WorkflowMetaPatch } from "../model/types.js";
@@ -83,6 +84,7 @@ export function EditorHeader({
   onRedo,
   onSave,
   onRun,
+  webhook,
 }: {
   file: WorkflowFile;
   autosave: AutosaveSnapshot;
@@ -97,6 +99,8 @@ export function EditorHeader({
   onRedo: () => void;
   onSave: () => void;
   onRun: () => void;
+  /** The webhook trigger control, rendered by the page that owns the workflow ids. */
+  webhook?: ReactNode;
 }) {
   const issues = validation.report
     ? [...validation.report.errors, ...validation.report.warnings]
@@ -172,6 +176,7 @@ export function EditorHeader({
             )
           ) : null}
         </button>
+        {webhook}
       </div>
 
       <div className="editor-actions">

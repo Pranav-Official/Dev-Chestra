@@ -21,6 +21,7 @@ export type ErrorCode =
   | "E_BUDGET"
   | "E_WORKSPACE"
   | "E_LOCKED"
+  | "E_QUEUE_FULL"
   | "E_IRREVERSIBLE"
   | "E_JOIN_CONFLICT"
   | "E_CANCELLED"

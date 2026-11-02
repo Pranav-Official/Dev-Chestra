@@ -2,6 +2,7 @@ export * from "./chain-step.js";
 export * from "./engine.js";
 export * from "./exec-approval.js";
 export * from "./exec-decision.js";
+export { freezeWorkflowBundle } from "./freeze.js";
 export * from "./plan.js";
 export * from "./prompt.js";
 export * from "./scope.js";

@@ -525,6 +525,7 @@ export interface ErrorLoggedPayload {
 export const EVENT_TYPES = [
   "run.created",
   "run.started",
+  "run.workspace_waiting",
   "run.paused",
   "run.resumed",
   "run.cancelled",
@@ -585,6 +586,7 @@ export type KnownEventType = (typeof EVENT_TYPES)[number];
 export interface EventPayloads {
   "run.created": RunCreatedPayload;
   "run.started": Record<string, never>;
+  "run.workspace_waiting": Record<string, never>;
   "run.paused": RunPausedPayload;
   "run.resumed": RunResumedPayload;
   "run.cancelled": RunCancelledPayload;

@@ -93,6 +93,20 @@ export {
   type ValidationIssue,
   type ValidationResult,
 } from "./validate.js";
+export type {
+  BrowserWebhookFreezePort,
+  BrowserWebhookPorts,
+  BrowserWebhookRunPort,
+  WebhookRunCommand,
+  WebhookRunDelivery,
+  WebhookRunLaunch,
+} from "./webhooks/ports.js";
+export {
+  type WebhookDeliveryInput,
+  type WebhookDeliveryOutcome,
+  WebhookService,
+  type WebhookServiceDeps,
+} from "./webhooks/service.js";
 export {
   assertWorkflowId,
   MAX_WORKFLOW_BYTES,

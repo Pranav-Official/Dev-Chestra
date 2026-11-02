@@ -72,6 +72,15 @@ The CLI speaks JSON, so an agent can start a run, check its status, and reconnec
 
 Agents automatically receive what came before them, so a plain prompt like "sort by total stars, descending" just works. No template syntax required unless you want it.
 
+## Start runs from webhooks
+
+Turn on **Accept webhook triggers** on a workflow's Start node, map the webhook fields to its parameters, then arm the trigger from the editor header. Arming stores the saved revision, and later valid saves refresh it. Manual runs keep working either way.
+
+- Each delivery runs in a new Git worktree, so concurrent webhook runs never share a directory.
+- Authenticate the way GitHub does: sign the raw body with HMAC-SHA256 and send it in `X-Hub-Signature-256`. The secret is shown once, when the trigger is created or rotated. It is 40 hex characters, the value GitHub's Secret field expects.
+- A retried delivery is recognised by `X-GitHub-Delivery`, `X-Webhook-Id`, or `Idempotency-Key`, in that order, for seven days.
+- Runs beyond the concurrency limit wait in a queue. Set the limits and an optional public base URL for tunnelled URLs under Settings → Execution.
+
 ## Get going
 
 You need Node 22 or newer and pnpm 10.14.0.

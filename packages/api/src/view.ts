@@ -289,6 +289,10 @@ const normalizedStartNodeSchema = strict({
   ...normalizedNodeBase,
   type: z.literal("start"),
   params: z.array(workflowParamSchema),
+  webhook: strict({
+    enabled: z.boolean(),
+    paramMapping: z.record(z.string(), z.string()).optional(),
+  }).optional(),
 });
 
 const normalizedAgentNodeSchema = strict({

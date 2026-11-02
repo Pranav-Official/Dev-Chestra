@@ -363,9 +363,10 @@ export async function executeWorkflow(
         });
         // Lineage links exist before the lock check so the parent/child
         // shared-workspace exemption applies; rollback covers all three.
+        // Queued runs do not own a workspace yet, so they never block a child.
         assertLoopWorkspaceAvailable(
           ctx.store.runs.get(made.runId) as RunRecord,
-          ctx.store.runs.listActive(),
+          ctx.store.runs.listActive().filter((run) => run.status !== "queued"),
           lineageRelated,
         );
         return made;

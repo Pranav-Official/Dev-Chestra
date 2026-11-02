@@ -90,9 +90,25 @@ export interface NodeBase {
   env?: string[];
 }
 
+/**
+ * Webhook support declared by the saved workflow. Arming a trigger is runtime
+ * state in the store; tokens and signing secrets never live in the workflow file.
+ */
+export interface StartWebhookConfig {
+  /** Whether this workflow may be armed as a webhook trigger. */
+  enabled: boolean;
+  /**
+   * Parameter name -> dot path into the delivery: `body.<path>` or
+   * `headers.<allowlisted-name>`. When present it is authoritative: parameters
+   * without an entry take their default or fail as missing.
+   */
+  paramMapping?: Record<string, string>;
+}
+
 export interface StartNode extends NodeBase {
   type: "start";
   params: WorkflowParam[];
+  webhook?: StartWebhookConfig;
 }
 
 export type WorkspaceSpec =
@@ -344,6 +360,7 @@ export interface NormalizedNodeBase {
 export interface NormalizedStartNode extends NormalizedNodeBase {
   type: "start";
   params: WorkflowParam[];
+  webhook?: StartWebhookConfig;
 }
 
 export interface NormalizedAgentNode extends NormalizedNodeBase {

@@ -30,6 +30,7 @@ export * from "./primitives.js";
 export * from "./provider-dto.js";
 export * from "./sse.js";
 export * from "./view.js";
+export * from "./webhook-dto.js";
 export * from "./workflow-client.js";
 export * from "./workflow-dto.js";
 export * from "./workflow-groups.js";

@@ -42,13 +42,19 @@ export function RunOutcome({
       }
       break;
     case "running":
-    case "queued":
       if (inFlight !== null) {
         reason =
           inFlight.status === "waiting_quota"
             ? `waiting for provider quota at ${nodeName(inFlight.nodeId)}`
             : nodeName(inFlight.nodeId);
       }
+      break;
+    case "queued":
+      // A queued run has not started, so it names no step. A quota wait on a step still explains the hold.
+      reason =
+        inFlight?.status === "waiting_quota"
+          ? `waiting for provider quota at ${nodeName(inFlight.nodeId)}`
+          : "Waiting for an execution slot";
       break;
     default:
       break;

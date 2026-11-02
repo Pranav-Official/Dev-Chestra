@@ -18,6 +18,9 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 8, file: "0008_foreach_parent.sql" },
   { version: 9, file: "0009_read_indexes.sql" },
   { version: 10, file: "0010_provider_settings.sql" },
+  { version: 11, file: "0011_webhooks_and_queue.sql" },
+  { version: 12, file: "0012_drop_bearer_token.sql" },
+  { version: 13, file: "0013_webhook_fingerprint_index.sql" },
 ];
 
 function migrationsDir(): string {

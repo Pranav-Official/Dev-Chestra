@@ -7,6 +7,7 @@ import {
   type RunWorkspaceBinding,
 } from "@devchestra/core";
 import { appendEvents } from "./events.js";
+import { getExecutionSettings } from "./execution-settings.js";
 import { requireRun } from "./projection.js";
 import { now, type Runtime } from "./runtime.js";
 import type { CreateRunInput, CreateRunResult, RunRecord } from "./types.js";
@@ -113,10 +114,34 @@ function readWorkspace(raw: string | null): RunWorkspaceBinding | null {
   return value;
 }
 
-export function createRun(runtime: Runtime, input: CreateRunInput): CreateRunResult {
+/** Backpressure for manual and webhook runs; checked inside the caller's transaction. */
+function assertQueueHasRoom(runtime: Runtime): void {
+  const { maxQueueDepth } = getExecutionSettings(runtime);
+  const row = runtime.db
+    .prepare("SELECT COUNT(*) AS waiting FROM runs WHERE status = 'queued'")
+    .get() as { waiting: number };
+  if (row.waiting >= maxQueueDepth) {
+    fail("E_QUEUE_FULL", `The execution queue is full (${maxQueueDepth} runs waiting)`, {
+      limit: maxQueueDepth,
+    });
+  }
+}
+
+/**
+ * Inserts a run. A queued run (`options.queued`) records only `run.created` and
+ * waits for the engine to append `run.started` when it wins a slot. Otherwise
+ * the run starts immediately, as child workflow runs do.
+ */
+export function createRun(
+  runtime: Runtime,
+  input: CreateRunInput,
+  options: { queued?: boolean } = {},
+): CreateRunResult {
   const duplicate = checkIdempotency(runtime, input);
   if (duplicate !== null) return duplicate;
   const workspace = workspaceFor(input);
+  const queued = options.queued === true;
+  if (queued) assertQueueHasRoom(runtime);
 
   const budgetKeys = input.budgets ?? {};
   for (const key of Object.keys(budgetKeys)) {
@@ -194,7 +219,7 @@ export function createRun(runtime: Runtime, input: CreateRunInput): CreateRunRes
     actor: "engine",
     payload: {},
   };
-  appendEvents(runtime, runId, [created, started]);
+  appendEvents(runtime, runId, queued ? [created] : [created, started]);
 
   if (input.idempotency !== undefined) {
     const record: StoredIdempotency = {
@@ -289,6 +314,18 @@ export function getRun(runtime: Runtime, runId: RunId): RunRecord | null {
     | RunRecordRow
     | undefined;
   return row ? mapRunRecord(row) : null;
+}
+
+/** Runs waiting for an execution slot, oldest first. Children never queue. */
+export function listQueuedRuns(runtime: Runtime): RunRecord[] {
+  const rows = runtime.db
+    .prepare(
+      `${RUN_SELECT}
+       WHERE r.status = 'queued'
+       ORDER BY r.created_at ASC, r.id ASC`,
+    )
+    .all() as RunRecordRow[];
+  return rows.map(mapRunRecord);
 }
 
 export function listActiveRuns(runtime: Runtime): RunRecord[] {

@@ -5,6 +5,7 @@ export type EventFilter = "all" | "errors" | "supervisor" | "quota";
 const EVENT_LABELS: Record<string, string> = {
   "run.created": "Run created",
   "run.started": "Run started",
+  "run.workspace_waiting": "Waiting for workspace",
   "run.paused": "Run paused",
   "run.resumed": "Run resumed",
   "run.cancelled": "Run cancelled",
@@ -97,6 +98,8 @@ export function describeEvent(event: EventEnvelope): string {
       return `Run #${num(payload.runNumber) ?? "?"} created for ${text(payload.workflowId, "workflow")}.`;
     case "run.started":
       return "Run started.";
+    case "run.workspace_waiting":
+      return "Waiting for another run to release the workspace.";
     case "run.paused":
       return `Run paused${payload.reason ? `: ${text(payload.reason)}` : ""}.`;
     case "run.resumed":

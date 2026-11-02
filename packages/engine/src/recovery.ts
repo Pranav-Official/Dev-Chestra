@@ -73,7 +73,7 @@ function processKey(identity: {
 }
 
 async function recoverRun(ctx: EngineContext, run: RunRecord): Promise<void> {
-  if (run.status === "queued") await recoverQueued(ctx, run);
+  // A queued run has no executions to recover. The scheduler starts it when a slot is free.
   for (const execution of ctx.store.executions.list(run.id)) {
     if (execution.status !== "running" && execution.status !== "validating") continue;
     const identity: ExecutionIdentity = {
@@ -123,14 +123,6 @@ async function recoverRun(ctx: EngineContext, run: RunRecord): Promise<void> {
       detail:
         "Interrupted shell may have produced external effects; user approval required to retry",
     });
-  }
-}
-
-async function recoverQueued(ctx: EngineContext, run: RunRecord): Promise<void> {
-  try {
-    ctx.append(run.id, "", "run.started", "engine", {});
-  } catch (error) {
-    if (!(error instanceof DevChestraError) || error.code !== "E_CONFLICT") throw error;
   }
 }
 
