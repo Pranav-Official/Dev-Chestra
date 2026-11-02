@@ -1,5 +1,7 @@
 import type { StartNode, StartWebhookConfig, WorkflowParam } from "@devchestra/schema";
+import { POLL_PROBE_ID } from "@devchestra/schema";
 import { Plus } from "lucide-react";
+import { PROBE_NAME_DEFAULT } from "../poll/probe.js";
 import { CheckboxField } from "./fields/fields.js";
 import { ParamRow } from "./ParamRow.js";
 import { PollingEditor } from "./PollingEditor.js";
@@ -42,8 +44,12 @@ export function StartForm({
   issues,
   onPatch,
   bodyMode = false,
-  projectId,
-}: FormProps<StartNode> & { bodyMode?: boolean; projectId?: string | undefined }) {
+  onSelectProbe,
+}: FormProps<StartNode> & {
+  bodyMode?: boolean;
+  projectId?: string | undefined;
+  onSelectProbe?: ((probeNodeId: string) => void) | undefined;
+}) {
   if (bodyMode) {
     return (
       <InspectorSection sectionKey="start:parameters" title="Parameters" badge="0">
@@ -179,7 +185,12 @@ export function StartForm({
               polling: checked
                 ? {
                     enabled: true,
-                    probe: { type: "shell", command: "" },
+                    probe: {
+                      id: POLL_PROBE_ID,
+                      type: "shell",
+                      name: PROBE_NAME_DEFAULT,
+                      command: "",
+                    },
                     dedupe: true,
                     workspace: "project",
                   }
@@ -190,11 +201,11 @@ export function StartForm({
         {pollingOn && polling !== undefined ? (
           <PollingEditor
             nodeId={node.id}
-            projectId={projectId}
             polling={polling}
             paramCount={node.params.length}
             issues={issues}
             onChange={(next) => onPatch({ polling: next })}
+            onSelectProbe={onSelectProbe}
           />
         ) : null}
       </InspectorSection>

@@ -23,6 +23,10 @@ export interface InspectorProps {
   onBufferValidityChange?: (state: BufferValidity) => void;
   loopBodyOpenRequested?: boolean | undefined;
   onLoopBodyOpenHandled?: (() => void) | undefined;
+  /** True when the node is a derived poll probe (id 'probe'). Edits patch start.polling.probe. */
+  probeMode?: boolean | undefined;
+  /** Selects the probe node (used by the start polling section's Edit button). */
+  onSelectProbe?: ((probeNodeId: string) => void) | undefined;
 }
 
 /** Internal patch shape: optional top-level fields may also be removed. */

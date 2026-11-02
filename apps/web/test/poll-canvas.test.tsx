@@ -1,4 +1,4 @@
-import type { StartNode, WorkflowFile } from "@devchestra/schema";
+import type { Issue, PollProbe, StartNode, WorkflowFile } from "@devchestra/schema";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -7,6 +7,21 @@ import { Inspector } from "../src/editor/inspector/Inspector.js";
 import { openInspectorSection } from "../src/editor/inspector/Section.js";
 import { createDefaultNode } from "../src/editor/model/graph.js";
 import type { DocumentChange, EditorSelection } from "../src/editor/model/types.js";
+
+function shellProbe(command: string): PollProbe {
+  return { id: "probe", type: "shell", name: "Poll probe", command };
+}
+
+function agentProbe(prompt: string): PollProbe {
+  return {
+    id: "probe",
+    type: "agent",
+    name: "Poll probe",
+    cli: "codex",
+    prompt,
+    permissions: { network: true, write: [], shell: true },
+  };
+}
 
 function sample(polling?: StartNode["polling"]): WorkflowFile {
   const startBase = createDefaultNode("start", [], { x: 0, y: 160 });
@@ -30,10 +45,12 @@ function sample(polling?: StartNode["polling"]): WorkflowFile {
 
 function Harness({
   initial,
+  issues = [],
   onSelection,
   onChange,
 }: {
   initial: WorkflowFile;
+  issues?: Issue[];
   onSelection?: (selection: EditorSelection) => void;
   onChange?: (next: WorkflowFile, change: DocumentChange) => void;
 }) {
@@ -43,7 +60,7 @@ function Harness({
     <EditorCanvas
       file={file}
       selection={selection}
-      issues={[]}
+      issues={issues}
       onSelectionChange={(next) => {
         setSelection(next);
         onSelection?.(next);
@@ -67,41 +84,28 @@ describe("polling probe canvas node", () => {
   });
 
   it("renders no probe node when polling is disabled", async () => {
-    render(
-      <Harness
-        initial={sample({ enabled: false, probe: { type: "shell", command: "echo hi" } })}
-      />,
-    );
+    render(<Harness initial={sample({ enabled: false, probe: shellProbe("echo hi") })} />);
     expect(await screen.findByTestId("ed-node-start")).toBeInTheDocument();
     expect(screen.queryByTestId("ed-node-start::probe")).toBeNull();
   });
 
-  it("renders a derived shell probe above the start with the command as subtitle", async () => {
-    render(
-      <Harness initial={sample({ enabled: true, probe: { type: "shell", command: "echo hi" } })} />,
-    );
+  it("renders a derived shell probe with the probe name and command as subtitle", async () => {
+    render(<Harness initial={sample({ enabled: true, probe: shellProbe("echo hi") })} />);
     const probe = await screen.findByTestId("ed-node-start::probe");
-    expect(probe).toHaveTextContent("Shell probe");
+    expect(probe).toHaveTextContent("Poll probe");
     expect(probe).toHaveTextContent("echo hi");
     expect(screen.getByTestId("ed-handle-start-poll")).toBeInTheDocument();
   });
 
   it("renders an agent probe with the prompt as subtitle", async () => {
-    render(
-      <Harness
-        initial={sample({
-          enabled: true,
-          probe: { type: "agent", cli: "codex", prompt: "watch PRs" },
-        })}
-      />,
-    );
+    render(<Harness initial={sample({ enabled: true, probe: agentProbe("watch PRs") })} />);
     const probe = await screen.findByTestId("ed-node-start::probe");
-    expect(probe).toHaveTextContent("Agent probe");
+    expect(probe).toHaveTextContent("Poll probe");
     expect(probe).toHaveTextContent("watch PRs");
   });
 
   it("connects the derived probe to the start top handle with a display edge", () => {
-    const file = sample({ enabled: true, probe: { type: "shell", command: "echo hi" } });
+    const file = sample({ enabled: true, probe: shellProbe("echo hi") });
     const edges = buildEdges(file, null);
     expect(edges).toHaveLength(3);
     const derived = edges.find((edge) => edge.source === "start::probe");
@@ -112,23 +116,40 @@ describe("polling probe canvas node", () => {
     });
   });
 
-  it("clicking the probe selects the start node, never the probe id", async () => {
+  it("clicking the probe selects the probe itself, not the start node", async () => {
     const onSelection = vi.fn();
     render(
       <Harness
-        initial={sample({ enabled: true, probe: { type: "shell", command: "echo hi" } })}
+        initial={sample({ enabled: true, probe: shellProbe("echo hi") })}
         onSelection={onSelection}
       />,
     );
     fireEvent.click(await screen.findByTestId("ed-node-start::probe"));
-    expect(onSelection).toHaveBeenCalledWith({ kind: "node", nodeId: "start" });
+    expect(onSelection).toHaveBeenCalledWith({ kind: "node", nodeId: "start::probe" });
+  });
+
+  it("shows probe issues on the derived node badge, not the start node", async () => {
+    const issues: Issue[] = [
+      {
+        severity: "error",
+        code: "E_POLL_PROBE",
+        message: "Probe command is empty.",
+        pointer: "/graph/nodes/0/polling/probe/command",
+        nodeId: "start",
+      },
+    ];
+    render(<Harness initial={sample({ enabled: true, probe: shellProbe("") })} issues={issues} />);
+    const badge = await screen.findByTestId("ed-node-start::probe-issues");
+    expect(badge).toHaveTextContent("1");
+    const start = await screen.findByTestId("ed-node-start");
+    expect(start.querySelector(".ed-node-issues")).toBeNull();
   });
 
   it("never writes derived nodes into the saved graph on change", async () => {
     const onChange = vi.fn();
     render(
       <Harness
-        initial={sample({ enabled: true, probe: { type: "shell", command: "echo hi" } })}
+        initial={sample({ enabled: true, probe: shellProbe("echo hi") })}
         onChange={onChange}
       />,
     );
@@ -148,9 +169,7 @@ describe("polling probe canvas node", () => {
     openInspectorSection("start:polling");
     render(
       <Inspector
-        node={
-          sample({ enabled: true, probe: { type: "shell", command: "x" } }).graph.nodes[0] ?? null
-        }
+        node={sample({ enabled: true, probe: shellProbe("x") }).graph.nodes[0] ?? null}
         issues={[]}
         onPatch={() => undefined}
       />,
