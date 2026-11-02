@@ -1,7 +1,10 @@
 import type { StartNode, StartWebhookConfig, WorkflowParam } from "@devchestra/schema";
+import { POLL_PROBE_ID } from "@devchestra/schema";
 import { Plus } from "lucide-react";
+import { PROBE_NAME_DEFAULT } from "../poll/probe.js";
 import { CheckboxField } from "./fields/fields.js";
 import { ParamRow } from "./ParamRow.js";
+import { PollingEditor } from "./PollingEditor.js";
 import { InspectorSection } from "./Section.js";
 import type { FormProps, PatchOf } from "./types.js";
 import { WebhookMappingEditor } from "./WebhookMappingEditor.js";
@@ -41,7 +44,12 @@ export function StartForm({
   issues,
   onPatch,
   bodyMode = false,
-}: FormProps<StartNode> & { bodyMode?: boolean }) {
+  onSelectProbe,
+}: FormProps<StartNode> & {
+  bodyMode?: boolean;
+  projectId?: string | undefined;
+  onSelectProbe?: ((probeNodeId: string) => void) | undefined;
+}) {
   if (bodyMode) {
     return (
       <InspectorSection sectionKey="start:parameters" title="Parameters" badge="0">
@@ -54,6 +62,8 @@ export function StartForm({
   const webhook = node.webhook;
   const webhookOn = webhook?.enabled === true;
   const mapping = webhook?.paramMapping;
+  const polling = node.polling;
+  const pollingOn = polling?.enabled === true;
 
   const addParam = (): void => {
     onPatch({
@@ -155,6 +165,47 @@ export function StartForm({
             onChange={(next) =>
               onPatch({ webhook: withMapping(webhook ?? { enabled: true }, next) })
             }
+          />
+        ) : null}
+      </InspectorSection>
+
+      <InspectorSection
+        sectionKey="start:polling"
+        title="Polling trigger"
+        badge={pollingOn ? "On" : "Off"}
+      >
+        <CheckboxField
+          id="inspector-start-polling"
+          label="Accept polling triggers"
+          hint="An armed trigger probes on a timer and starts a run when it finds work."
+          help="Arm and disarm from the editor header. This only declares support in the saved file. Manual runs are unaffected."
+          checked={pollingOn}
+          onChange={(checked) =>
+            onPatch({
+              polling: checked
+                ? {
+                    enabled: true,
+                    probe: {
+                      id: POLL_PROBE_ID,
+                      type: "shell",
+                      name: PROBE_NAME_DEFAULT,
+                      command: "",
+                    },
+                    dedupe: true,
+                    workspace: "project",
+                  }
+                : undefined,
+            })
+          }
+        />
+        {pollingOn && polling !== undefined ? (
+          <PollingEditor
+            nodeId={node.id}
+            polling={polling}
+            paramCount={node.params.length}
+            issues={issues}
+            onChange={(next) => onPatch({ polling: next })}
+            onSelectProbe={onSelectProbe}
           />
         ) : null}
       </InspectorSection>

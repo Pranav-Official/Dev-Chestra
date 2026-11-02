@@ -9,6 +9,7 @@ describe("validateRunOptions", () => {
     expect(validateRunOptions({ snapshot: {}, baseSha: "abc" }).ok).toBe(false);
     expect(validateRunOptions({ snapshot: {}, kind: "node_test" }).ok).toBe(false);
     expect(validateRunOptions({ snapshot: {}, kind: "run" }).ok).toBe(true);
+    expect(validateRunOptions({ snapshot: {}, kind: "poll_probe" }).ok).toBe(true);
   });
 
   it("reports the offending kind in the error details", () => {

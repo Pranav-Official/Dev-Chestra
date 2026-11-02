@@ -20,6 +20,9 @@ import { type Context, Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { DevChestraError, errorBody } from "../errors.js";
+import type { BrowserPollPorts } from "../polling/ports.js";
+import { mountPollRoutes } from "../polling/routes.js";
+import { PollService } from "../polling/service.js";
 import { mountWebhookIngress } from "../webhooks/ingress.js";
 import type { BrowserWebhookPorts } from "../webhooks/ports.js";
 import { mountWebhookRoutes } from "../webhooks/routes.js";
@@ -121,6 +124,12 @@ export interface BrowserAppDeps {
    * CLI. When absent, the webhook routes answer 501 and every hook is unknown.
    */
   webhooks?: BrowserWebhookPorts;
+  /**
+   * Polling triggers: store, engine probe/launch and transitive freeze, composed
+   * by the CLI. When absent, the polling routes answer 501. The timer itself is
+   * owned by the CLI's scheduler, not the app.
+   */
+  polling?: BrowserPollPorts;
 }
 
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
@@ -208,6 +217,18 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
           dataDir,
           getProject: (projectId) => deps.store.getProject(projectId),
           getRunStatus: async (runId) => (await deps.store.getRun(runId))?.status ?? null,
+          ...(deps.workspaceService === undefined
+            ? {}
+            : { workspaceService: deps.workspaceService }),
+        });
+  const pollService =
+    deps.polling === undefined
+      ? null
+      : new PollService({
+          ports: deps.polling,
+          workflows: workflowService,
+          dataDir,
+          getProject: (projectId) => deps.store.getProject(projectId),
           ...(deps.workspaceService === undefined
             ? {}
             : { workspaceService: deps.workspaceService }),
@@ -371,9 +392,11 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
     ...(deps.workspaceService === undefined ? {} : { workspaceService: deps.workspaceService }),
     ...(deps.providerSettings === undefined ? {} : { providerSettings: deps.providerSettings }),
     ...(webhookService === null ? {} : { webhooks: webhookService }),
+    ...(pollService === null ? {} : { polling: pollService }),
     validate,
   });
   mountWebhookRoutes(app, { store: deps.store, service: webhookService, validate });
+  mountPollRoutes(app, { store: deps.store, service: pollService, validate });
 
   app.get("/api/runs", async (c) => {
     const query = runListQuerySchema.safeParse({

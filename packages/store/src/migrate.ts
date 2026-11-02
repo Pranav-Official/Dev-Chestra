@@ -21,7 +21,17 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 11, file: "0011_webhooks_and_queue.sql" },
   { version: 12, file: "0012_drop_bearer_token.sql" },
   { version: 13, file: "0013_webhook_fingerprint_index.sql" },
+  { version: 14, file: "0014_poll_triggers.sql" },
+  { version: 15, file: "0015_poll_probe_kind.sql" },
 ];
+
+/**
+ * Migrations that rebuild a parent table. SQLite's DROP TABLE performs an
+ * implicit DELETE that follows ON DELETE CASCADE, so the rebuild must run
+ * with foreign keys off (a no-op inside a transaction, hence outside it) and
+ * is verified with foreign_key_check afterwards.
+ */
+const FK_OFF_MIGRATIONS: ReadonlySet<string> = new Set(["0015_poll_probe_kind.sql"]);
 
 function migrationsDir(): string {
   return fileURLToPath(new URL("../migrations/", import.meta.url));
@@ -52,6 +62,8 @@ export function applyMigrations(db: SqliteDb, now: number): number {
   for (const migration of MIGRATIONS) {
     if (migration.version <= current) continue;
     const sql = readFileSync(`${migrationsDir()}${migration.file}`, "utf8");
+    const fkOff = FK_OFF_MIGRATIONS.has(migration.file);
+    if (fkOff) db.exec("PRAGMA foreign_keys = OFF");
     db.exec("BEGIN IMMEDIATE");
     try {
       db.exec(sql);
@@ -63,7 +75,17 @@ export function applyMigrations(db: SqliteDb, now: number): number {
       db.exec("COMMIT");
     } catch (error) {
       db.exec("ROLLBACK");
+      if (fkOff) db.exec("PRAGMA foreign_keys = ON");
       throw error;
+    }
+    if (fkOff) {
+      db.exec("PRAGMA foreign_keys = ON");
+      const violations = db.prepare("PRAGMA foreign_key_check").all() as unknown[];
+      if (violations.length > 0) {
+        throw new Error(
+          `Migration ${migration.file} left ${violations.length} foreign key violation(s); refusing to open. Restore a backup.`,
+        );
+      }
     }
   }
 

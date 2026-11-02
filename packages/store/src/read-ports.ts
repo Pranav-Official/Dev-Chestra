@@ -65,7 +65,7 @@ interface RunSummaryRow {
   workflow_id: string;
   workflow_hash: string;
   run_number: number;
-  kind: "run" | "node_test";
+  kind: "run" | "node_test" | "poll_probe";
   status: string;
   created_at: number;
   started_at: number | null;
@@ -104,12 +104,14 @@ function mapRunSummary(row: RunSummaryRow): RunSummary {
 
 export function listRuns(runtime: Runtime, filters: RunListFilters = {}): RunListPage {
   const statuses = normalizeRunStatuses(filters.status);
+  const includeProbeRuns = filters.includeProbeRuns ?? false;
   const query = {
     kind: "runs" as const,
     projectId: filters.projectId ?? null,
     workflowId: filters.workflowId ?? null,
     status: statuses,
     archived: filters.archived ?? false,
+    includeProbeRuns,
   };
   const fingerprint = queryFingerprint(query);
   const limit = pageLimit(filters.limit);
@@ -118,6 +120,7 @@ export function listRuns(runtime: Runtime, filters: RunListFilters = {}): RunLis
     filters.archived ? "r.archived_at IS NOT NULL" : "r.archived_at IS NULL",
     "p.removed_at IS NULL",
   ];
+  if (!includeProbeRuns) where.push("r.kind != 'poll_probe'");
   const params: unknown[] = [];
   if (filters.projectId !== undefined) {
     where.push("r.project_id = ?");
@@ -170,12 +173,17 @@ export function listRuns(runtime: Runtime, filters: RunListFilters = {}): RunLis
 }
 
 /** Bounded lightweight rows per workflow; never loads frozen snapshots into JS. */
-export function workflowRunSummaries(runtime: Runtime, projectId: string): RunSummary[] {
+export function workflowRunSummaries(
+  runtime: Runtime,
+  projectId: string,
+  options: { includeProbeRuns?: boolean } = {},
+): RunSummary[] {
   const rows = runtime.db
     .prepare(`
     WITH ranked AS (
       SELECT id, ROW_NUMBER() OVER (PARTITION BY workflow_id ORDER BY created_at DESC, id DESC) AS position
       FROM runs WHERE project_id = ? AND archived_at IS NULL
+      ${options.includeProbeRuns === true ? "" : "AND kind != 'poll_probe'"}
     )
     SELECT r.id, r.project_id, p.name AS project_name, p.path AS project_path,
       p.kind AS project_kind, r.workflow_id, r.workflow_hash, r.run_number,
@@ -393,7 +401,10 @@ function mapMetadata(row: OutputMetadataRow): import("./types.js").OutputMetadat
   };
 }
 
-export function getOutputMetadataById(runtime: Runtime, id: string): import("./types.js").OutputMetadata | null {
+export function getOutputMetadataById(
+  runtime: Runtime,
+  id: string,
+): import("./types.js").OutputMetadata | null {
   if (typeof id !== "string" || id.length === 0 || id.length > 256) {
     fail("E_VALIDATION", "output id must be a non-empty string");
   }
@@ -441,9 +452,13 @@ export function listOutputsMetadata(
   }
   if (query.cursor !== undefined) {
     const cursor = decodeOutputsCursor(query.cursor);
-    if (cursor.q !== fingerprint) fail("E_VALIDATION", "Output cursor does not belong to this query");
-    const anchor = runtime.db.prepare("SELECT created_at FROM outputs WHERE id = ?").get(cursor.i) as { created_at: number } | undefined;
-    if (!anchor || anchor.created_at !== cursor.c) fail("E_CONFLICT", "Output cursor is stale or ahead of the current list");
+    if (cursor.q !== fingerprint)
+      fail("E_VALIDATION", "Output cursor does not belong to this query");
+    const anchor = runtime.db
+      .prepare("SELECT created_at FROM outputs WHERE id = ?")
+      .get(cursor.i) as { created_at: number } | undefined;
+    if (!anchor || anchor.created_at !== cursor.c)
+      fail("E_CONFLICT", "Output cursor is stale or ahead of the current list");
     where.push("(created_at < ? OR (created_at = ? AND id < ?))");
     params.push(cursor.c, cursor.c, cursor.i);
   }

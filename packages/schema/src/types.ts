@@ -105,10 +105,51 @@ export interface StartWebhookConfig {
   paramMapping?: Record<string, string>;
 }
 
+/** Node id every embedded probe carries. The probe is a node of its own, not a graph member. */
+export const POLL_PROBE_ID = "probe";
+
+/**
+ * Poll probe that runs a shell command: a full shell node, so it takes the same
+ * fields as a graph shell node. Its stdout is the poll result. `workspace` and
+ * `allowFailure` are engine-owned (a non-zero exit is always a probe failure).
+ */
+export type PollShellProbe = Omit<ShellNode, "workspace" | "allowFailure">;
+
+/**
+ * Poll probe that runs an agent: a full agent node (MCP servers, permissions,
+ * limits, cliOptions and the rest). The engine owns what the poll contract needs:
+ * `output` is generated from the start params, a preamble describing the contract
+ * is prepended to `prompt`, and `workspace`, `context` and `promptFile` are not
+ * accepted. Permissions are the author's; new probes default to network on, no
+ * write tools, shell on.
+ */
+export type PollAgentProbe = Omit<AgentNode, "output" | "workspace" | "context" | "promptFile">;
+
+export type PollProbe = PollShellProbe | PollAgentProbe;
+
+/**
+ * Polling support declared by the saved workflow. Arming (and the interval) is
+ * runtime state in the store. The probe runs on a timer and returns nothing, or
+ * the start parameters (plus an optional `dedupeKey`) that should start a run.
+ */
+export interface StartPollingConfig {
+  /** Whether this workflow may be armed as a polling trigger. */
+  enabled: boolean;
+  probe: PollProbe;
+  /** Skip a result whose dedupe key was already triggered within 7 days. Defaults to true. */
+  dedupe?: boolean;
+  /**
+   * Where the probe runs. `project` is the registered project root, read-only, with no
+   * checkout. `worktree` is a fresh worktree per tick. Defaults to `project`.
+   */
+  workspace?: "project" | "worktree";
+}
+
 export interface StartNode extends NodeBase {
   type: "start";
   params: WorkflowParam[];
   webhook?: StartWebhookConfig;
+  polling?: StartPollingConfig;
 }
 
 export type WorkspaceSpec =
@@ -361,6 +402,7 @@ export interface NormalizedStartNode extends NormalizedNodeBase {
   type: "start";
   params: WorkflowParam[];
   webhook?: StartWebhookConfig;
+  polling?: StartPollingConfig;
 }
 
 export interface NormalizedAgentNode extends NormalizedNodeBase {

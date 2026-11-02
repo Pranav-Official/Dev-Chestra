@@ -33,13 +33,20 @@ function label(value: string | null): string {
 export function getUsageSummary(runtime: Runtime, filter: UsageFilter = {}): UsageSummary {
   return withReadTx(runtime, () => {
     const params: unknown[] = [];
-    let runsWhere = "";
-    let executionsWhere = "";
+    const runsPredicates: string[] = [];
+    const executionsPredicates: string[] = [];
     if (filter.projectId !== undefined) {
-      runsWhere = "WHERE project_id = ?";
-      executionsWhere = "WHERE r.project_id = ?";
+      runsPredicates.push("project_id = ?");
+      executionsPredicates.push("r.project_id = ?");
       params.push(filter.projectId);
     }
+    if (filter.includeProbeRuns !== true) {
+      runsPredicates.push("kind != 'poll_probe'");
+      executionsPredicates.push("r.kind != 'poll_probe'");
+    }
+    const runsWhere = runsPredicates.length > 0 ? `WHERE ${runsPredicates.join(" AND ")}` : "";
+    const executionsWhere =
+      executionsPredicates.length > 0 ? `WHERE ${executionsPredicates.join(" AND ")}` : "";
 
     const total = runtime.db
       .prepare(

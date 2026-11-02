@@ -72,7 +72,7 @@ export interface CreateRunInput {
   params?: JsonObject;
   budgets?: JsonObject;
   baseSha?: string;
-  kind?: "run" | "node_test";
+  kind?: "run" | "node_test" | "poll_probe";
   /** Frozen run-level workspace choice. Omit only for legacy/manual runs. */
   workspace?: RunWorkspaceBinding;
   /** Optional durable idempotency claim, committed atomically with the run. */
@@ -358,7 +358,7 @@ export interface RunRecord {
   project: { id: string; name: string; path: string; kind: "git" | "folder" };
   workflowId: string;
   runNumber: number;
-  kind: "run" | "node_test";
+  kind: "run" | "node_test" | "poll_probe";
   status: string;
   workflowHash: string;
   snapshot: unknown;
@@ -392,7 +392,7 @@ export interface RunSummary {
   workflowId: string;
   workflowHash: string;
   runNumber: number;
-  kind: "run" | "node_test";
+  kind: "run" | "node_test" | "poll_probe";
   status: RunStatus;
   createdAt: number;
   startedAt: number | null;
@@ -412,6 +412,8 @@ export interface RunListFilters {
   status?: RunStatus | readonly RunStatus[];
   cursor?: string;
   limit?: number;
+  /** Probe runs are hidden unless this is true. */
+  includeProbeRuns?: boolean;
 }
 
 export interface RunListPage {
@@ -452,6 +454,8 @@ export interface UsageSummary {
 
 export interface UsageFilter {
   projectId?: string;
+  /** Probe runs are hidden unless this is true. */
+  includeProbeRuns?: boolean;
 }
 
 export interface EventPageOptions {

@@ -29,6 +29,7 @@ const CORE_ERROR_CODES = [
   "E_IRREVERSIBLE",
   "E_JOIN_CONFLICT",
   "E_LOOP_LIMIT",
+  "E_POLL_PROBE",
   "E_CANCELLED",
   "E_INTERNAL",
 ] as const satisfies readonly ErrorCode[];
@@ -94,6 +95,7 @@ const STATUS_BY_CODE: Readonly<Record<ApiErrorCode, number>> = {
   E_IRREVERSIBLE: 409,
   E_JOIN_CONFLICT: 409,
   E_LOOP_LIMIT: 409,
+  E_POLL_PROBE: 500,
   E_CANCELLED: 409,
   E_INTERNAL: 500,
   E_PAYLOAD_TOO_LARGE: 413,

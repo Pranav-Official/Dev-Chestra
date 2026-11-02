@@ -209,7 +209,7 @@ const RUN_COMPLETION_STATUS_VALUES = [
   "rejected",
   "cancelled",
 ] as const satisfies readonly RunCompletionStatus[];
-const RUN_KIND_VALUES = ["run", "node_test"] as const satisfies readonly RunKind[];
+const RUN_KIND_VALUES = ["run", "node_test", "poll_probe"] as const satisfies readonly RunKind[];
 const ACTOR_VALUES = [
   "engine",
   "scheduler",

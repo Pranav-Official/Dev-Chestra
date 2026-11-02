@@ -237,6 +237,48 @@ export function createRun(
 
 export { requireRun };
 
+/**
+ * Hard-deletes one probe run and everything it owns. Every run-child table
+ * references runs(id) ON DELETE CASCADE, so one DELETE removes executions,
+ * events, outputs, approvals and views with it. Refuses non-probe runs: only
+ * the polling scheduler purges, and it must never drop a real run.
+ */
+export function deleteProbeRun(runtime: Runtime, runId: RunId): void {
+  const row = runtime.db.prepare("SELECT kind FROM runs WHERE id = ?").get(runId) as
+    | { kind: string }
+    | undefined;
+  if (row === undefined) fail("E_NOT_FOUND", `Run ${runId} does not exist`);
+  if (row.kind !== "poll_probe") {
+    fail("E_CONFLICT", `Run ${runId} is not a probe run; refusing to delete it`);
+  }
+  runtime.db.prepare("DELETE FROM runs WHERE id = ?").run(runId);
+}
+
+/**
+ * Keeps the newest `keep` probe runs of one workflow and deletes the rest.
+ * Returns how many runs were removed.
+ */
+export function pruneProbeRuns(
+  runtime: Runtime,
+  projectId: string,
+  workflowId: string,
+  keep: number,
+): number {
+  if (!Number.isSafeInteger(keep) || keep < 0) {
+    fail("E_VALIDATION", "keep must be a non-negative safe integer");
+  }
+  const result = runtime.db
+    .prepare(
+      `DELETE FROM runs WHERE id IN (
+         SELECT id FROM runs
+         WHERE project_id = ? AND workflow_id = ? AND kind = 'poll_probe'
+         ORDER BY created_at DESC, id DESC
+         LIMIT -1 OFFSET ?)`,
+    )
+    .run(projectId, workflowId, keep) as { changes: number };
+  return result.changes;
+}
+
 interface RunRecordRow {
   archived_at: number | null;
   id: string;
@@ -246,7 +288,7 @@ interface RunRecordRow {
   project_kind: "git" | "folder";
   workflow_id: string;
   run_number: number;
-  kind: "run" | "node_test";
+  kind: "run" | "node_test" | "poll_probe";
   status: string;
   workflow_hash: string;
   snapshot_json: string;

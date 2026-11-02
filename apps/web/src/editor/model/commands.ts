@@ -65,7 +65,21 @@ export function reconcileSelection(
 ): EditorSelection {
   if (selection === null) return null;
   if (selection.kind === "node") {
-    return file.graph.nodes.some((node) => node.id === selection.nodeId) ? selection : null;
+    if (file.graph.nodes.some((node) => node.id === selection.nodeId)) return selection;
+    // Derived probe selections survive while their start declares polling.
+    // They never enter the saved graph, the undo history payload, or routing.
+    if (selection.nodeId.endsWith("::probe")) {
+      const startId = selection.nodeId.slice(0, -"::probe".length);
+      const start = file.graph.nodes.find((node) => node.id === startId);
+      if (
+        start !== undefined &&
+        start.type === "start" &&
+        (start as { polling?: { enabled?: boolean } }).polling?.enabled === true
+      ) {
+        return selection;
+      }
+    }
+    return null;
   }
   return file.graph.edges.some((edge) => edge.id === selection.edgeId) ? selection : null;
 }

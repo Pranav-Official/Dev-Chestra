@@ -281,6 +281,7 @@ describe("run list keyset pagination", () => {
       workflowId: null,
       status: null,
       archived: false,
+      includeProbeRuns: false,
     });
     expectDevChestraError(
       () =>

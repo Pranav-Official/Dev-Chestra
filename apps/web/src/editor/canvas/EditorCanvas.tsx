@@ -48,7 +48,15 @@ import type {
   Position,
 } from "../model/types.js";
 import { EDITOR_EDGE_TYPES, EdgeActionsContext, type EditorFlowEdge } from "./edges.js";
-import { EDITOR_NODE_TYPES, type EditorFlowNode } from "./nodes.js";
+import {
+  EDITOR_NODE_TYPES,
+  type EditorCanvasNode,
+  type EditorFlowNode,
+  PROBE_NODE_SUFFIX,
+  type ProbeFlowNode,
+  pollConfig,
+  probeStartId,
+} from "./nodes.js";
 
 export interface EditorCanvasProps {
   file: WorkflowFile;
@@ -74,20 +82,47 @@ function issuesByNode(issues: readonly Issue[]): Map<string, Issue[]> {
   return byNode;
 }
 
+/**
+ * The canvas node id a canvas interaction selects. A derived probe node now
+ * selects the probe itself (`${startId}::probe`); every other id selects
+ * itself. Probe ids without a polling start fall back to the start.
+ */
+export function nodeIdForSelection(file: WorkflowFile, nodeId: string): string {
+  const startId = probeStartId(nodeId);
+  if (startId === null) return nodeId;
+  const start = file.graph.nodes.find((item) => item.id === startId);
+  if (start === undefined) return nodeId;
+  return pollConfig(start) === null ? startId : nodeId;
+}
+
+/** True when a selection id is a derived probe node with a live polling start. */
+export function isProbeSelectionId(file: WorkflowFile, nodeId: string): boolean {
+  const startId = probeStartId(nodeId);
+  if (startId === null) return false;
+  const start = file.graph.nodes.find((item) => item.id === startId);
+  return (
+    start !== undefined && pollConfig(start) !== null && nodeId === `${startId}${PROBE_NODE_SUFFIX}`
+  );
+}
+
+/** Vertical gap between a start node and its derived probe node. */
+export const PROBE_NODE_OFFSET_Y = 144;
+
 function buildNodes(
   file: WorkflowFile,
   selection: EditorSelection,
   issues: readonly Issue[],
   readOnly: boolean,
-  previous?: readonly EditorFlowNode[],
-): EditorFlowNode[] {
+  previous?: readonly EditorCanvasNode[],
+): EditorCanvasNode[] {
   const byNode = issuesByNode(issues);
   const old = new Map((previous ?? []).map((node) => [node.id, node]));
   // A refusal can always route to `uncertain`, so warn whenever that handle is
   // unwired (the simpler rule the contract allows). Reaching it unwired fails
   // the run instead of silently falling through.
   const wiredSources = new Set(file.graph.edges.map((edge) => edge.from));
-  return file.graph.nodes.map((node) => {
+  const selectedId = selection?.kind === "node" ? selection.nodeId : null;
+  const nodes: EditorCanvasNode[] = file.graph.nodes.map((node) => {
     const supported = isSupportedNodeType(node.type);
     const prior = old.get(node.id);
     const position =
@@ -96,6 +131,16 @@ function buildNodes(
       !supported || node.type !== "decision"
         ? undefined
         : !wiredSources.has(`${node.id}.${DECISION_UNCERTAIN_HANDLE}`);
+    const allForNode = byNode.get(node.id) ?? [];
+    // Probe issues belong to the derived probe node badge, not the start badge.
+    const nodeIssues =
+      node.type === "start"
+        ? allForNode.filter((issue) => {
+            if (issue.code === "E_POLL_PROBE") return false;
+            const pointer = issue.pointer;
+            return !(typeof pointer === "string" && pointer.includes("/polling/probe"));
+          })
+        : allForNode;
     return {
       id: node.id,
       type: supported ? "editor" : "unsupported",
@@ -103,18 +148,46 @@ function buildNodes(
       // Keep the measured size: without it React Flow forgets the handle positions
       // and the node's edges disappear until the next re-measure.
       ...(prior?.measured === undefined ? {} : { measured: prior.measured }),
-      selected: selection?.kind === "node" && selection.nodeId === node.id,
+      selected: selectedId === node.id,
       draggable: !readOnly && supported,
       connectable: !readOnly && supported,
       data: {
         node,
-        issues: byNode.get(node.id) ?? [],
+        issues: nodeIssues,
         readOnly,
         unsupported: !supported,
         ...(unwiredUncertain === undefined ? {} : { unwiredUncertain }),
       },
     } as EditorFlowNode;
   });
+  // Derived probe nodes: rendered above polling start nodes from the saved
+  // model each render. They never enter the saved graph, the undo history,
+  // validation input, edge routing, or autosave payloads.
+  for (const node of file.graph.nodes) {
+    const polling = pollConfig(node);
+    if (polling === null) continue;
+    const startPosition = positionOf(node);
+    const probeId = `${node.id}${PROBE_NODE_SUFFIX}`;
+    const prior = old.get(probeId);
+    const allForStart = byNode.get(node.id) ?? [];
+    const probeIssues = allForStart.filter((issue) => {
+      if (issue.code === "E_POLL_PROBE") return true;
+      const pointer = issue.pointer;
+      return typeof pointer === "string" && pointer.includes("/polling/probe");
+    });
+    const probe: ProbeFlowNode = {
+      id: probeId,
+      type: "probe",
+      position: { x: startPosition.x, y: startPosition.y - PROBE_NODE_OFFSET_Y },
+      ...(prior?.measured === undefined ? {} : { measured: prior.measured }),
+      selected: selectedId === probeId,
+      draggable: false,
+      connectable: false,
+      data: { startId: node.id, probe: polling.probe, issues: probeIssues },
+    };
+    nodes.push(probe);
+  }
+  return nodes;
 }
 
 export function buildEdges(file: WorkflowFile, selection: EditorSelection): EditorFlowEdge[] {
@@ -151,6 +224,22 @@ export function buildEdges(file: WorkflowFile, selection: EditorSelection): Edit
         (targetNode as { type: string }).type === "join" && targetEndpoint.handle !== null
           ? `in:${targetEndpoint.handle}`
           : "in",
+    });
+  }
+  // Derived probe edges: one short vertical edge from each derived probe node
+  // into its start node's top handle. Display only, like the probe nodes.
+  for (const node of file.graph.nodes) {
+    if (pollConfig(node) === null) continue;
+    const probeId = `${node.id}${PROBE_NODE_SUFFIX}`;
+    edges.push({
+      id: `${probeId}->${node.id}`,
+      source: probeId,
+      target: node.id,
+      type: "editor",
+      selected: false,
+      data: { edge: { id: `${probeId}->${node.id}`, from: probeId, to: node.id } },
+      sourceHandle: "out",
+      targetHandle: "poll",
     });
   }
   return edges;
@@ -223,11 +312,11 @@ export function EditorCanvas({
   onLoopOpen,
 }: EditorCanvasProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  const flowRef = useRef<ReactFlowInstance<EditorFlowNode, EditorFlowEdge> | null>(null);
+  const flowRef = useRef<ReactFlowInstance<EditorCanvasNode, EditorFlowEdge> | null>(null);
   const fitTimer = useRef<number | null>(null);
   const fittedId = useRef<string | null>(null);
   const lastRejection = useRef<string | null>(null);
-  const [nodes, setNodes] = useState<EditorFlowNode[]>(() =>
+  const [nodes, setNodes] = useState<EditorCanvasNode[]>(() =>
     buildNodes(file, selection, issues, readOnly),
   );
 
@@ -293,7 +382,7 @@ export function EditorCanvas({
   }, [fitView]);
 
   const onInit = useCallback(
-    (instance: ReactFlowInstance<EditorFlowNode, EditorFlowEdge>) => {
+    (instance: ReactFlowInstance<EditorCanvasNode, EditorFlowEdge>) => {
       flowRef.current = instance;
       window.requestAnimationFrame(() => {
         fitView();
@@ -303,14 +392,20 @@ export function EditorCanvas({
     [file.id, fitView],
   );
 
-  const handleNodesChange = useCallback((changes: NodeChange<EditorFlowNode>[]) => {
+  const handleNodesChange = useCallback((changes: NodeChange<EditorCanvasNode>[]) => {
     const structural = changes.filter((change) => change.type !== "select");
     if (structural.length === 0) return;
     setNodes((current) => applyNodeChanges(structural, current));
   }, []);
 
-  const handleNodeClick: NodeMouseHandler<EditorFlowNode> = useCallback(
+  const handleNodeClick: NodeMouseHandler<EditorCanvasNode> = useCallback(
     (_event, node) => {
+      // A derived probe node selects the probe itself; the inspector edits
+      // start.polling.probe. It never enters the saved graph.
+      if (node.type === "probe") {
+        onSelectionChange({ kind: "node", nodeId: node.id });
+        return;
+      }
       onSelectionChange({ kind: "node", nodeId: node.id });
     },
     [onSelectionChange],
@@ -324,10 +419,11 @@ export function EditorCanvas({
   );
 
   const handleNodeDragStop = useCallback(
-    (_event: MouseEvent | TouchEvent, _node: EditorFlowNode, dragged: EditorFlowNode[]) => {
+    (_event: MouseEvent | TouchEvent, _node: EditorCanvasNode, dragged: EditorCanvasNode[]) => {
       if (readOnly) return;
       const positions: Record<string, Position> = {};
       for (const item of dragged) {
+        if (item.type === "probe") continue;
         if (!isSupportedNodeType(item.data.node.type)) continue;
         positions[item.id] = snapPosition(item.position);
       }
@@ -424,6 +520,9 @@ export function EditorCanvas({
       if (event.key === "Delete" || event.key === "Backspace") {
         if (selection === null) return;
         event.preventDefault();
+        // Derived probe nodes are never deleted: they exist only while the
+        // start declares polling.
+        if (selection.kind === "node" && probeStartId(selection.nodeId) !== null) return;
         const outcome =
           selection.kind === "node"
             ? run({ kind: "removeNode", nodeId: selection.nodeId })
@@ -442,7 +541,8 @@ export function EditorCanvas({
         const delta = event.shiftKey ? -1 : 1;
         const next = (current + delta + nodes.length) % nodes.length;
         const node = nodes[next];
-        if (node !== undefined) onSelectionChange({ kind: "node", nodeId: node.id });
+        if (node !== undefined)
+          onSelectionChange({ kind: "node", nodeId: nodeIdForSelection(file, node.id) });
         return;
       }
       const directions: Record<string, [number, number]> = {
@@ -460,10 +560,11 @@ export function EditorCanvas({
         selection?.kind === "node" ? nodes.find((node) => node.id === selection.nodeId) : undefined;
       if (current === undefined) {
         const first = nodes[0];
-        if (first !== undefined) onSelectionChange({ kind: "node", nodeId: first.id });
+        if (first !== undefined)
+          onSelectionChange({ kind: "node", nodeId: nodeIdForSelection(file, first.id) });
         return;
       }
-      let best: EditorFlowNode | undefined;
+      let best: EditorCanvasNode | undefined;
       let bestScore = Number.POSITIVE_INFINITY;
       for (const node of nodes) {
         if (node.id === current.id) continue;
@@ -478,9 +579,10 @@ export function EditorCanvas({
           bestScore = score;
         }
       }
-      if (best !== undefined) onSelectionChange({ kind: "node", nodeId: best.id });
+      if (best !== undefined)
+        onSelectionChange({ kind: "node", nodeId: nodeIdForSelection(file, best.id) });
     },
-    [nodes, onRedo, onSelectionChange, onUndo, readOnly, run, selection],
+    [nodes, onRedo, onSelectionChange, onUndo, readOnly, run, selection, file],
   );
 
   const edgeActions = useMemo(
@@ -514,7 +616,7 @@ export function EditorCanvas({
         aria-label={readOnly ? "Workflow canvas (read-only)" : "Workflow editor canvas"}
         data-testid="editor-canvas"
       >
-        <ReactFlow<EditorFlowNode, EditorFlowEdge>
+        <ReactFlow<EditorCanvasNode, EditorFlowEdge>
           nodes={nodes}
           edges={edges}
           nodeTypes={EDITOR_NODE_TYPES}
@@ -523,6 +625,9 @@ export function EditorCanvas({
           onNodesChange={handleNodesChange}
           onNodeClick={handleNodeClick}
           onNodeDoubleClick={(event, node) => {
+            // A derived probe node stands in for its start node; the click
+            // already selected it, and there is no body to open.
+            if (node.type === "probe") return;
             if (readOnly || !["loop", "foreach"].includes(node.data.node.type) || !onLoopOpen)
               return;
             event.stopPropagation();
@@ -567,7 +672,10 @@ export function EditorCanvas({
               nodeStrokeWidth={2}
               maskColor="var(--bg-muted)"
               nodeColor={(node) =>
-                node.data?.unsupported === true ? "var(--text-3)" : "var(--border-strong)"
+                node.type === "probe" ||
+                (node.data as { unsupported?: unknown } | undefined)?.unsupported === true
+                  ? "var(--text-3)"
+                  : "var(--border-strong)"
               }
               style={{ background: "var(--bg)", border: "1px solid var(--border)" }}
             />

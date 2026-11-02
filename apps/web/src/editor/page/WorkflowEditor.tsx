@@ -22,6 +22,8 @@ import { useAvailableClis } from "../inspector/model/useAvailableClis.js";
 import type { BufferValidity } from "../inspector/types.js";
 import { createEditorModel } from "../model/index.js";
 import type { CommandOutcome } from "../model/types.js";
+import { PollTriggerControl } from "../poll/PollTriggerControl.js";
+import { PROBE_NAME_DEFAULT } from "../poll/probe.js";
 import { WebhookTriggerControl } from "../webhook/WebhookTriggerControl.js";
 import { EditorHeader } from "./EditorHeader.js";
 import { useEditorValidation } from "./useEditorValidation.js";
@@ -260,9 +262,63 @@ export function WorkflowEditor({
     selectedNodeId === null
       ? null
       : (file.graph.nodes.find((item) => item.id === selectedNodeId) ?? null);
+  // Derived probe selection: `${startId}::probe` edits start.polling.probe with
+  // the normal Agent/Shell forms. The probe never enters the saved graph.
+  const probeSelection =
+    node === null && selectedNodeId !== null && selectedNodeId.endsWith("::probe")
+      ? (() => {
+          const startId = selectedNodeId.slice(0, -"::probe".length);
+          const start = file.graph.nodes.find((item) => item.id === startId);
+          if (start === undefined || start.type !== "start" || start.polling?.enabled !== true) {
+            return null;
+          }
+          const probe = start.polling.probe;
+          const synthetic =
+            probe.type === "agent"
+              ? {
+                  id: "probe",
+                  type: "agent",
+                  name: probe.name ?? PROBE_NAME_DEFAULT,
+                  cli: probe.cli,
+                  ...(probe.model === undefined ? {} : { model: probe.model }),
+                  ...(probe.prompt === undefined ? {} : { prompt: probe.prompt }),
+                  permissions: probe.permissions ?? { network: true, write: [], shell: true },
+                  ...(probe.mcpServers === undefined ? {} : { mcpServers: probe.mcpServers }),
+                  ...(probe.limits === undefined ? {} : { limits: probe.limits }),
+                  ...(probe.cliOptions === undefined ? {} : { cliOptions: probe.cliOptions }),
+                  ...(probe.env === undefined ? {} : { env: probe.env }),
+                  ...(probe.supervise === undefined ? {} : { supervise: probe.supervise }),
+                  ...(probe.ui === undefined ? {} : { ui: probe.ui }),
+                  output: { type: "object", additionalProperties: true },
+                }
+              : {
+                  id: "probe",
+                  type: "shell",
+                  name: probe.name ?? PROBE_NAME_DEFAULT,
+                  command: probe.command,
+                  ...(probe.timeoutMin === undefined ? {} : { timeoutMin: probe.timeoutMin }),
+                  ...(probe.env === undefined ? {} : { env: probe.env }),
+                  ...(probe.supervise === undefined ? {} : { supervise: probe.supervise }),
+                  ...(probe.ui === undefined ? {} : { ui: probe.ui }),
+                };
+          return { startId, start, probe, synthetic: synthetic as WorkflowNode };
+        })()
+      : null;
+  const activeNode = probeSelection?.synthetic ?? node;
   const issues: readonly Issue[] = validation.report
     ? [...validation.report.errors, ...validation.report.warnings]
     : [];
+  const inspectorIssues: readonly Issue[] =
+    probeSelection === null
+      ? issues
+      : issues
+          .filter((issue) => {
+            if (issue.nodeId !== probeSelection.startId) return false;
+            if (issue.code === "E_POLL_PROBE") return true;
+            const pointer = issue.pointer;
+            return typeof pointer === "string" && pointer.includes("/polling/probe");
+          })
+          .map((issue) => ({ ...issue, nodeId: "probe" }));
   // Arming reads the saved file, so it waits for a clean save; the server still validates.
   const armBlockedReason = isDirty(autosave)
     ? "Save your changes first. Arming uses the saved file."
@@ -271,6 +327,15 @@ export function WorkflowEditor({
       : validation.report?.ok === false
         ? "Fix the validation errors first, then save."
         : null;
+  // The polling control only mounts while the start node declares polling.
+  // Arming is blocked while edits are unsaved, so the live probe type matches
+  // the saved one whenever arming is allowed.
+  const startNode = file.graph.nodes.find((node) => node.type === "start");
+  const pollProbeType =
+    startNode !== undefined && startNode.type === "start" && startNode.polling?.enabled === true
+      ? startNode.polling.probe.type
+      : null;
+  const pollingDeclared = pollProbeType !== null;
 
   return (
     <div className="editor-page" data-testid="editor-page" data-workflow-id={workflowId}>
@@ -311,6 +376,17 @@ export function WorkflowEditor({
             savedRevision={autosave.savedRevision}
             armBlockedReason={armBlockedReason}
           />
+        }
+        poll={
+          pollingDeclared && pollProbeType !== null ? (
+            <PollTriggerControl
+              projectId={pid}
+              workflowId={workflowId}
+              savedRevision={autosave.savedRevision}
+              armBlockedReason={armBlockedReason}
+              probeType={pollProbeType}
+            />
+          ) : undefined
         }
       />
 
@@ -394,15 +470,44 @@ export function WorkflowEditor({
           </div>
           <Inspector
             loopBodyOpenRequested={
-              (node?.type === "loop" || node?.type === "foreach") && loopBodyOpenRequest === node.id
+              probeSelection !== null
+                ? false
+                : (node?.type === "loop" || node?.type === "foreach") &&
+                  loopBodyOpenRequest === node.id
             }
             onLoopBodyOpenHandled={clearLoopBodyOpenRequest}
-            node={node}
+            node={activeNode}
             projectId={pid}
-            issues={issues}
+            issues={inspectorIssues}
             graph={file.graph}
             edges={file.graph.edges}
-            onPatch={(nodeId, patch) => commit(model.getState().updateNode(nodeId, patch))}
+            probeMode={probeSelection !== null}
+            onSelectProbe={(probeNodeId) =>
+              model.getState().select({ kind: "node", nodeId: probeNodeId })
+            }
+            onPatch={(nodeId, patch) => {
+              if (probeSelection !== null) {
+                const current = probeSelection.probe;
+                const record = { ...(patch as Record<string, unknown>) };
+                delete record.id;
+                delete record.type;
+                delete record.output;
+                delete record.workspace;
+                delete record.context;
+                delete record.promptFile;
+                delete record.allowFailure;
+                delete record.ui;
+                const nextProbe = { ...current, ...record } as typeof current;
+                (nextProbe as { id: string }).id = "probe";
+                commit(
+                  model.getState().updateNode(probeSelection.startId, {
+                    polling: { ...probeSelection.start.polling, probe: nextProbe },
+                  } as Partial<WorkflowNode>),
+                );
+                return;
+              }
+              commit(model.getState().updateNode(nodeId, patch));
+            }}
             onRoutingChange={changeRouting}
             onBufferValidityChange={onBufferValidityChange}
           />

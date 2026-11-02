@@ -33,6 +33,7 @@ import { executeShell } from "./exec-shell.js";
 import { analyzeWorkflowPlan, type PlanNode, type WorkflowPlan } from "./graph-plan.js";
 import { derivePlanRouting, joinRoutingFor } from "./graph-run.js";
 import { assertLoopWorkspaceAvailable } from "./loop-workspace.js";
+import { buildProbeSnapshot, POLL_PROBE_NODE_ID, probeStartNode } from "./probe.js";
 import { recoverAll } from "./recovery.js";
 import { validateRunOptions } from "./run-options.js";
 import { StopSignal } from "./stop.js";
@@ -40,6 +41,9 @@ import type {
   Engine,
   EngineDeps,
   LaunchResult,
+  ProbePollInput,
+  ProbePollResult,
+  ProbeRawOutput,
   ResumeOptions,
   RunOutcome,
   StartRunInput,
@@ -80,7 +84,10 @@ function deferred<T>(): Deferred<T> {
   return { promise, resolve };
 }
 
-export class LinearEngine implements Engine {
+export /** How long a timed-out probe waits for its cancelled run to end before reporting it as lingering. */
+const PROBE_CANCEL_GRACE_MS = 10_000;
+
+class LinearEngine implements Engine {
   readonly #ctx: EngineContext;
   readonly #active = new Map<string, ActiveEntry>();
   #started = false;
@@ -201,7 +208,7 @@ export class LinearEngine implements Engine {
         snapshot: input.snapshot,
         budgets: input.budgets,
         baseSha: input.baseSha,
-        kind: "run",
+        kind: input.kind ?? "run",
       });
       if (!options.ok) return err(options.error);
       const params = resolveParams({ params: plan.start.raw.params as never }, input.params ?? {});
@@ -259,6 +266,7 @@ export class LinearEngine implements Engine {
         snapshotRaw: input.snapshotRaw,
         params: params.value as never,
         ...(input.budgets === undefined ? {} : { budgets: input.budgets }),
+        ...(input.kind === undefined ? {} : { kind: input.kind }),
         workspace: { selection, projectRoot: project.path },
         ...(input.idempotency === undefined ? {} : { idempotency: input.idempotency }),
       };
@@ -387,6 +395,53 @@ export class LinearEngine implements Engine {
     const launched = await this.launchResume(runId, options);
     if (!launched.ok) return err(launched.error);
     return ok(await launched.value.completion);
+  }
+
+  /**
+   * Runs one polling probe as an ordinary run of kind 'poll_probe': a
+   * synthesized snapshot of start -> probe -> end launched through the normal
+   * queue, so slot contention and provider-disabled checks behave like any
+   * other run. Waits for completion bounded by `timeoutMs` (the caller keeps
+   * it below the poll interval) and returns the probe's raw output: shell
+   * stdout plus exit code, or the agent's structured output.
+   */
+  async probe(input: ProbePollInput): Promise<Result<ProbePollResult, DevChestraError>> {
+    const began = Date.now();
+    try {
+      const start = probeStartNode(input.snapshot);
+      const snapshot = buildProbeSnapshot(
+        input.workflowId,
+        start,
+        input.probe,
+        input.timeoutMin ?? 1,
+      );
+      const launched = await this.launch({
+        projectId: input.projectId,
+        workflowId: input.workflowId,
+        snapshot,
+        snapshotRaw: JSON.stringify(snapshot),
+        params: {},
+        kind: "poll_probe",
+        workspace: input.workspace === "worktree" ? { mode: "new-worktree" } : { mode: "project" },
+      });
+      if (!launched.ok) return err(launched.error);
+      const runId = launched.value.runId;
+      const outcome = await this.#awaitProbe(runId, launched.value.completion, input.timeoutMs);
+      if (!outcome.ok) return err(outcome.error);
+      if (outcome.value.status !== "succeeded") {
+        const message = outcome.value.error?.message ?? `run ${outcome.value.status}`;
+        return err(
+          new DevChestraError("E_POLL_PROBE", `Poll probe failed: ${message}`, {
+            details: { runId, status: outcome.value.status },
+          }),
+        );
+      }
+      const raw = this.#probeOutput(runId, input.probe.type);
+      if (!raw.ok) return err(raw.error);
+      return ok({ runId, raw: raw.value, durationMs: Date.now() - began });
+    } catch (error) {
+      return err(toDevChestraError(error));
+    }
   }
 
   async cancel(runId: string): Promise<Result<void, DevChestraError>> {
@@ -721,6 +776,92 @@ export class LinearEngine implements Engine {
     const waiter = deferred<RunOutcome>();
     this.#queuedWaiters.set(runId, waiter);
     return waiter.promise;
+  }
+
+  /**
+   * Waits for a probe run bounded by its deadline. On timeout the run is
+   * cancelled (best effort) and the tick fails; the scheduler records the
+   * failure and moves on, so a stuck probe never blocks the next tick.
+   */
+  async #awaitProbe(
+    runId: string,
+    completion: Promise<RunOutcome>,
+    timeoutMs: number,
+  ): Promise<Result<RunOutcome, DevChestraError>> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const deadline = new Promise<"timed-out">((resolve) => {
+        timer = setTimeout(() => resolve("timed-out"), Math.max(1, timeoutMs));
+      });
+      const winner = await Promise.race([completion, deadline]);
+      if (winner !== "timed-out") return ok(winner);
+      await this.cancel(runId).catch(() => undefined);
+      // Hold the caller until the cancelled run has actually ended, so a probe that is slow
+      // to stop cannot overlap the next tick. A run that outlasts the grace is reported as
+      // lingering.
+      let grace: ReturnType<typeof setTimeout> | undefined;
+      const ended = await Promise.race([
+        completion.then(
+          () => true,
+          () => true,
+        ),
+        new Promise<false>((resolve) => {
+          grace = setTimeout(() => resolve(false), PROBE_CANCEL_GRACE_MS);
+        }),
+      ]);
+      if (grace !== undefined) clearTimeout(grace);
+      return err(
+        new DevChestraError("E_POLL_PROBE", `Poll probe timed out after ${timeoutMs}ms`, {
+          details: { runId, timeoutMs, ...(ended ? {} : { lingering: true }) },
+        }),
+      );
+    } catch (error) {
+      return err(toDevChestraError(error));
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+  }
+
+  /** Reads the probe node's recorded output: shell exit/stdout or agent JSON. */
+  #probeOutput(
+    runId: string,
+    probeType: "shell" | "agent",
+  ): Result<ProbeRawOutput, DevChestraError> {
+    try {
+      const view = this.#ctx.store.view.get(runId as RunId);
+      const execution = view.executions[POLL_PROBE_NODE_ID];
+      if (probeType === "shell") {
+        const outputId = execution?.recordedOutput?.outputId;
+        if (outputId === undefined) {
+          throw new DevChestraError("E_POLL_PROBE", "Poll probe run has no recorded shell output", {
+            details: { runId },
+          });
+        }
+        const record = this.#ctx.store.outputs.getById(outputId);
+        const json = record?.json as { exitCode?: unknown; stdout?: unknown } | undefined;
+        if (typeof json?.exitCode !== "number" || typeof json?.stdout !== "string") {
+          throw new DevChestraError("E_POLL_PROBE", "Poll probe shell output is malformed", {
+            details: { runId },
+          });
+        }
+        return ok({ kind: "shell", stdout: json.stdout, exitCode: json.exitCode });
+      }
+      const outputId = execution?.acceptedResult?.outputId;
+      if (outputId === undefined) {
+        throw new DevChestraError("E_POLL_PROBE", "Poll probe run has no accepted agent output", {
+          details: { runId },
+        });
+      }
+      const record = this.#ctx.store.outputs.getById(outputId);
+      if (record === null) {
+        throw new DevChestraError("E_POLL_PROBE", "Poll probe agent output is missing", {
+          details: { runId },
+        });
+      }
+      return ok({ kind: "agent", output: record.json });
+    } catch (error) {
+      return err(toDevChestraError(error));
+    }
   }
 
   /** Settles any completion waiting on this run with its current outcome. */

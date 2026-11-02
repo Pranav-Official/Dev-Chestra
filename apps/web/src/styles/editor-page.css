@@ -6,19 +6,21 @@
   min-height: 0;
 }
 
+/* The right column mirrors the left's two rows: controls level with the name, document
+   health level with the description. Healthy states stay quiet; only problems get color. */
 .editor-header {
   flex: none;
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) auto auto;
-  align-items: center;
-  gap: 10px 14px;
-  padding: 9px 14px;
+  grid-template-columns: minmax(240px, 1fr) auto;
+  align-items: start;
+  gap: 8px 20px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--border);
   background: var(--bg);
 }
 .editor-meta {
   display: grid;
-  gap: 5px;
+  gap: 6px;
   min-width: 0;
 }
 .editor-meta input {
@@ -32,20 +34,124 @@
 .editor-meta-description input {
   color: var(--text-2);
 }
-.editor-status,
+.editor-controls {
+  display: grid;
+  grid-template-rows: 28px 28px;
+  gap: 6px;
+  justify-items: end;
+}
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
 .editor-actions {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-.editor-status button.pill {
-  border: 1px solid var(--border);
-  cursor: pointer;
 }
 .editor-actions .btn {
   white-space: nowrap;
+}
+.editor-history,
+.editor-triggers {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+.editor-history {
+  display: flex;
+  align-items: center;
+  margin-right: 2px;
+  border: 0;
+}
+
+/* Triggers: one control, one segment per trigger, a status dot in each. */
+.editor-triggers {
+  display: inline-flex;
+  align-items: stretch;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  overflow: hidden;
+}
+.editor-triggers > .pill {
+  height: 100%;
+  gap: 7px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.editor-triggers > .pill:not(:first-of-type) {
+  border-left: 1px solid var(--border);
+}
+.editor-triggers > .pill:hover {
+  background: var(--bg-muted);
+  color: var(--text);
+}
+/* The label already names the trigger and the dot carries its state. */
+.editor-triggers > .pill svg {
+  display: none;
+}
+.editor-triggers > .pill::after,
+.editor-save-state::before,
+.editor-status button.pill.green::before {
+  content: "";
+  order: -1;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+.editor-triggers > .pill.green::after,
+.editor-save-state.green::before,
+.editor-status button.pill.green::before {
+  background: var(--green);
+}
+.editor-triggers > .pill.amber::after,
+.editor-save-state.amber::before {
+  background: var(--amber);
+}
+.editor-triggers > .pill.red::after,
+.editor-save-state.red::before {
+  background: var(--red);
+}
+.editor-triggers > .pill.red {
+  color: var(--red);
+}
+
+/* Document health: plain text with a mark. A problem earns a tinted pill. */
+.editor-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.editor-status .pill {
+  height: 28px;
+  gap: 6px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius);
+  font-size: 12.5px;
+}
+.editor-status .pill:not(.amber):not(.red) {
+  background: transparent;
+  color: var(--text-2);
+}
+.editor-status .pill.green svg {
+  display: none;
+}
+.editor-status button.pill {
+  cursor: pointer;
+}
+.editor-status button.pill:not(.amber):not(.red):hover {
+  background: var(--bg-muted);
 }
 .editor-banner-error {
   grid-column: 1 / -1;
@@ -255,10 +361,14 @@ dialog.editor-dialog::backdrop {
 
 @media (max-width: 1000px) {
   .editor-header {
-    grid-template-columns: minmax(180px, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
   }
-  .editor-actions {
-    grid-column: 1 / -1;
+  .editor-controls {
+    grid-template-rows: auto auto;
+    justify-items: start;
+  }
+  .editor-toolbar {
+    flex-wrap: wrap;
     justify-content: flex-start;
   }
 }

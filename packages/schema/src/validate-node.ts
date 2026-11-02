@@ -3,6 +3,7 @@ import { compileExpression } from "./expression.js";
 import { joinOutputIssues } from "./join.js";
 import { normalizeOutputSchema } from "./output-schema.js";
 import { validateParamDefinitions, validateWebhookConfig } from "./params.js";
+import { validatePollingConfig } from "./poll.js";
 import { compileTemplate } from "./template.js";
 import type {
   AgentNode,
@@ -207,6 +208,13 @@ export function validateSingleNode(
     for (const paramIssue of paramIssues) addError(paramIssue);
     for (const webhookIssue of validateWebhookConfig(start, `${pointer}/webhook`)) {
       addError(webhookIssue);
+    }
+    for (const pollIssue of validatePollingConfig(start, `${pointer}/polling`, {
+      fileId,
+      ctx,
+    })) {
+      if (pollIssue.severity === "warning") addWarning(pollIssue);
+      else addError(pollIssue);
     }
     return;
   }

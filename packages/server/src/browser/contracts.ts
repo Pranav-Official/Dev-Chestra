@@ -17,6 +17,8 @@ import {
   healthResponseSchema,
   listProjectsResponseSchema,
   outputPreviewSchema,
+  pollProbeResultSchema,
+  pollTriggerStatusSchema,
   projectViewSchema,
   projectWorkspacesResponseSchema,
   providerStatusItemSchema,
@@ -80,6 +82,8 @@ const RESPONSE_SCHEMAS: Readonly<Record<string, SafeSchema>> = {
   WebhookTriggerStatus: webhookTriggerStatusSchema,
   WebhookTriggerResponse: webhookTriggerResponseSchema,
   WebhookDeliveryResponse: webhookDeliveryResponseSchema,
+  PollTriggerStatus: pollTriggerStatusSchema,
+  PollProbeResult: pollProbeResultSchema,
   ExecutionSettingsResponse: executionSettingsResponseSchema,
   WebhookSettings: webhookSettingsSchema,
 } as unknown as Readonly<Record<string, SafeSchema>>;

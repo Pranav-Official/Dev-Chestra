@@ -4,6 +4,8 @@ import {
   type Issue,
   LOOP_EXHAUSTED_HANDLE,
   type NodeType,
+  type PollProbe,
+  type StartPollingConfig,
   type WorkflowNode,
 } from "@devchestra/schema";
 import { Handle, type Node, type NodeProps, Position, useUpdateNodeInternals } from "@xyflow/react";
@@ -38,6 +40,30 @@ export interface EditorNodeData extends Record<string, unknown> {
 }
 
 export type EditorFlowNode = Node<EditorNodeData, "editor" | "unsupported">;
+
+export interface ProbeNodeData extends Record<string, unknown> {
+  startId: string;
+  probe: PollProbe;
+  issues: readonly Issue[];
+}
+
+export type ProbeFlowNode = Node<ProbeNodeData, "probe">;
+
+/** A node rendered on the canvas: a saved graph node or a derived probe node. */
+export type EditorCanvasNode = EditorFlowNode | ProbeFlowNode;
+
+/** Suffix for the derived probe node rendered above a polling start node. */
+export const PROBE_NODE_SUFFIX = "::probe";
+
+/** The start node a derived probe node was rendered for, or null. */
+export function probeStartId(nodeId: string): string | null {
+  return nodeId.endsWith(PROBE_NODE_SUFFIX) ? nodeId.slice(0, -PROBE_NODE_SUFFIX.length) : null;
+}
+
+/** The polling config when the node is a start node that declares polling. */
+export function pollConfig(node: WorkflowNode): StartPollingConfig | null {
+  return node.type === "start" && node.polling?.enabled === true ? node.polling : null;
+}
 
 function Icon({ type }: { type: NodeType }) {
   if (type === "start") return <Play size={13} aria-hidden="true" />;
@@ -180,6 +206,9 @@ export function EditorNodeView({ data, selected }: NodeProps<EditorFlowNode>) {
   }, [node.id, signature, updateNodeInternals]);
   const issueCount = issues.length;
   const summary = issueCount ? issues.map((issue) => issue.message).join("\n") : node.name;
+  const start = !unsupported && node.type === "start" ? node : null;
+  const pollingProbe =
+    start !== null && start.polling?.enabled === true ? start.polling.probe : null;
   const gate = !unsupported && node.type === "gate" ? node : null;
   const join = !unsupported && node.type === "join" ? node : null;
   const approval = !unsupported && node.type === "approval" ? node : null;
@@ -211,6 +240,18 @@ export function EditorNodeView({ data, selected }: NodeProps<EditorFlowNode>) {
           aria-label="Input"
         />
       ) : null}
+      {pollingProbe === null ? null : (
+        <Handle
+          type="target"
+          position={Position.Top}
+          id="poll"
+          className="ed-handle ed-handle-poll"
+          style={{ top: -5 }}
+          isConnectable={false}
+          data-testid={`ed-handle-${node.id}-poll`}
+          aria-label="Polling probe input"
+        />
+      )}
       <div className="ed-node-head">
         <span className={`ed-node-icon ed-node-icon-${node.type}`}>
           <Icon type={node.type} />
@@ -394,4 +435,70 @@ export function EditorNodeView({ data, selected }: NodeProps<EditorFlowNode>) {
 export const EDITOR_NODE_TYPES = {
   editor: EditorNodeView,
   unsupported: EditorNodeView,
+  probe: ProbeNodeView,
 } as const;
+
+/**
+ * The derived polling-probe node rendered above a start node that declares
+ * polling. It is derived from the saved model on every render: never written
+ * into the graph, the undo history, validation input, edge routing, or
+ * autosave payloads.
+ */
+export function ProbeNodeView({ data, selected }: NodeProps<ProbeFlowNode>) {
+  const { probe, startId, issues } = data;
+  const agent = probe.type === "agent";
+  const rawDetail = agent ? (probe.prompt ?? "") : (probe.command ?? "");
+  const firstLine = rawDetail.split("\n", 1)[0] ?? "";
+  const short = firstLine.length > 40 ? `${firstLine.slice(0, 39)}…` : firstLine;
+  // A hand-written file may omit the probe's name (the schema defaults it), so read it defensively.
+  const savedName = typeof probe.name === "string" ? probe.name.trim() : "";
+  const displayName = savedName === "" ? (agent ? "Agent probe" : "Shell probe") : probe.name;
+  const summary = agent
+    ? `Agent probe for ${startId}${probe.model === undefined ? "" : ` · ${probe.model}`}`
+    : `Shell probe for ${startId}`;
+  const issueCount = issues.length;
+  const issueSummary = issueCount > 0 ? issues.map((issue) => issue.message).join("\n") : summary;
+  return (
+    <button
+      type="button"
+      className={`ed-node ed-node-probe${selected ? " selected" : ""}`}
+      data-testid={`ed-node-${startId}::probe`}
+      title={issueCount > 0 ? issueSummary : summary}
+      aria-label={summary}
+    >
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="out"
+        className="ed-handle ed-handle-out"
+        style={{ bottom: -5 }}
+        isConnectable={false}
+        data-testid={`ed-handle-${startId}::probe-out`}
+        aria-label="Probe output"
+      />
+      <div className="ed-node-head">
+        <span className="ed-node-icon" aria-hidden="true">
+          {agent ? <Bot size={13} /> : <TerminalSquare size={13} />}
+        </span>
+        <span className="ed-node-kind">probe · {agent ? "agent" : "shell"}</span>
+        <span className="ed-node-spacer" />
+        {issueCount > 0 ? (
+          <span
+            className="ed-node-issues"
+            role="img"
+            aria-label={`${issueCount} validation ${issueCount === 1 ? "issue" : "issues"}`}
+            title={issueSummary}
+            data-testid={`ed-node-${startId}::probe-issues`}
+          >
+            <AlertTriangle size={11} aria-hidden="true" />
+            <span>{issueCount}</span>
+          </span>
+        ) : null}
+      </div>
+      <div className="ed-node-name">{displayName}</div>
+      <div className="ed-node-meta" title={rawDetail === "" ? summary : rawDetail}>
+        {short === "" ? (agent ? "No prompt yet" : "No command yet") : short}
+      </div>
+    </button>
+  );
+}

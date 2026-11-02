@@ -17,8 +17,8 @@ function invalid(message: string, details?: unknown): DevChestraError {
 
 export function validateRunOptions(input: RunOptionInput): Result<null, DevChestraError> {
   try {
-    if (input.kind !== undefined && input.kind !== "run") {
-      throw invalid("Only kind 'run' is supported", { kind: input.kind });
+    if (input.kind !== undefined && input.kind !== "run" && input.kind !== "poll_probe") {
+      throw invalid("Only kind 'run' or 'poll_probe' is supported", { kind: input.kind });
     }
     if (input.baseSha !== undefined && input.baseSha !== null) {
       if (typeof input.baseSha !== "string" || input.baseSha === "") {

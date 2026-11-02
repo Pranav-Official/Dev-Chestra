@@ -194,7 +194,7 @@ export interface RunSummary {
   /** Normalized workflow name; null if it cannot be read from the snapshot. */
   workflowName: string | null;
   runNumber: number;
-  kind: "run" | "node_test";
+  kind: "run" | "node_test" | "poll_probe";
   status: RunStatus;
   createdAt: number;
   startedAt: number | null;

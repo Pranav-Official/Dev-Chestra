@@ -2,6 +2,7 @@ import { DevChestraError, err, hashJson, ok, type Result } from "@devchestra/cor
 import { normalizeOutputSchema } from "./output-schema.js";
 import type {
   AgentNode,
+  AgentPermissions,
   ApprovalNode,
   ChildWorkflowNode,
   DecisionNode,
@@ -26,13 +27,18 @@ import type {
   NormalizedWorkflow,
   NormalizedWorkspaceSpec,
   NormalizeOptions,
+  PollAgentProbe,
+  PollProbe,
+  PollShellProbe,
   ShellNode,
   StartNode,
+  StartPollingConfig,
   StartWebhookConfig,
   WorkflowFile,
   WorkflowNode,
   WorkflowParam,
 } from "./types.js";
+import { POLL_PROBE_ID } from "./types.js";
 import { validateWorkflow } from "./validate.js";
 
 const AGENT_DEFAULTS = { timeoutMin: 30, validationRetries: 2, crashRetries: 1 } as const;
@@ -49,7 +55,11 @@ function normalizeParam(param: WorkflowParam): WorkflowParam {
   return out;
 }
 
-function normalizeStart(node: StartNode): NormalizedStartNode {
+function normalizeStart(
+  file: WorkflowFile,
+  node: StartNode,
+  options: NormalizeOptions,
+): NormalizedStartNode {
   return {
     id: node.id,
     type: "start",
@@ -58,6 +68,9 @@ function normalizeStart(node: StartNode): NormalizedStartNode {
     env: [],
     params: node.params.map(normalizeParam),
     ...(node.webhook === undefined ? {} : { webhook: normalizeWebhook(node.webhook) }),
+    ...(node.polling === undefined
+      ? {}
+      : { polling: normalizePolling(node.polling, file, options) }),
   };
 }
 
@@ -65,6 +78,84 @@ function normalizeWebhook(webhook: StartWebhookConfig): StartWebhookConfig {
   return {
     enabled: webhook.enabled,
     ...(webhook.paramMapping === undefined ? {} : { paramMapping: { ...webhook.paramMapping } }),
+  };
+}
+
+const POLL_PROBE_DEFAULT_PERMISSIONS: AgentPermissions = {
+  network: true,
+  write: [],
+  shell: true,
+};
+
+function normalizePollProbe(
+  probe: PollProbe,
+  file: WorkflowFile,
+  options: NormalizeOptions,
+): PollProbe {
+  const name =
+    typeof (probe as { name?: unknown }).name === "string" &&
+    (probe as { name: string }).name.trim() !== ""
+      ? (probe as { name: string }).name
+      : "Poll probe";
+  if (probe.type === "shell") {
+    const shellProbe = probe as PollShellProbe;
+    const synthetic: ShellNode = {
+      id: POLL_PROBE_ID,
+      type: "shell",
+      name,
+      command: shellProbe.command,
+      ...(shellProbe.timeoutMin !== undefined ? { timeoutMin: shellProbe.timeoutMin } : {}),
+    };
+    const normalized = normalizeShell(synthetic);
+    return {
+      id: normalized.id,
+      type: "shell",
+      name: normalized.name,
+      command: normalized.command,
+      timeoutMin: normalized.timeoutMin,
+    } as PollProbe;
+  }
+  const agentProbe = probe as PollAgentProbe;
+  const synthetic: AgentNode = {
+    id: POLL_PROBE_ID,
+    type: "agent",
+    name,
+    cli: agentProbe.cli,
+    ...(agentProbe.model !== undefined ? { model: agentProbe.model } : {}),
+    prompt: agentProbe.prompt as string,
+    // Dummy output passes normalizeOutputSchema; the generated poll schema is
+    // engine-owned and NOT stored in the saved/normalized probe.
+    output: { type: "object" },
+    permissions: agentProbe.permissions ?? { ...POLL_PROBE_DEFAULT_PERMISSIONS },
+    ...(agentProbe.mcpServers !== undefined ? { mcpServers: agentProbe.mcpServers } : {}),
+    ...(agentProbe.limits !== undefined ? { limits: agentProbe.limits } : {}),
+    ...(agentProbe.cliOptions !== undefined ? { cliOptions: agentProbe.cliOptions } : {}),
+  };
+  const normalized = normalizeAgent(file, synthetic, options);
+  const out: Record<string, unknown> = {
+    id: normalized.id,
+    type: "agent",
+    name: normalized.name,
+    cli: normalized.cli,
+    prompt: normalized.prompt,
+    permissions: normalized.permissions,
+    limits: normalized.limits,
+  };
+  if (normalized.model !== undefined) out.model = normalized.model;
+  if (normalized.mcpServers !== undefined) out.mcpServers = normalized.mcpServers;
+  return out as PollProbe;
+}
+
+function normalizePolling(
+  polling: StartPollingConfig,
+  file: WorkflowFile,
+  options: NormalizeOptions,
+): StartPollingConfig {
+  return {
+    enabled: polling.enabled,
+    probe: normalizePollProbe(polling.probe, file, options),
+    dedupe: polling.dedupe ?? true,
+    workspace: polling.workspace ?? "project",
   };
 }
 
@@ -344,7 +435,7 @@ function normalizeNode(
 ): NormalizedNode {
   switch (node.type) {
     case "start":
-      return normalizeStart(node);
+      return normalizeStart(file, node, options);
     case "agent":
       return normalizeAgent(file, node, options);
     case "shell":

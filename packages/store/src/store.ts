@@ -57,6 +57,29 @@ import { decideLoop, startLoop } from "./loops.js";
 import { applyMigrations } from "./migrate.js";
 import { getOutput, recordDeterministic } from "./outputs.js";
 import {
+  type ArmPollerInput,
+  armPoller,
+  bindPollDedupe,
+  type CreatePollerInput,
+  claimPollDedupe,
+  createPoller,
+  dedupeRunFor,
+  deletePoller,
+  disarmPoller,
+  disarmProjectPollers,
+  getPoller,
+  getPollerRuntime,
+  listDuePollers,
+  type PollDedupeClaim,
+  type PollTickInput,
+  type PollTriggerRecord,
+  type PollTriggerRuntime,
+  pruneExpiredDedupe,
+  recordPollTick,
+  replacePollerRevision,
+  setPollerRefreshError,
+} from "./poll-triggers.js";
+import {
   activeProcesses,
   completeAcceptedAfterRecovery,
   getProcess,
@@ -98,7 +121,14 @@ import {
   listChildLinks,
   putRunBundle,
 } from "./run-children.js";
-import { createRun, getRun, listActiveRuns, listQueuedRuns } from "./runs.js";
+import {
+  createRun,
+  deleteProbeRun,
+  getRun,
+  listActiveRuns,
+  listQueuedRuns,
+  pruneProbeRuns,
+} from "./runs.js";
 import { now, type Runtime } from "./runtime.js";
 import { type SecretFinding, SecretRegistry } from "./secrets.js";
 import {
@@ -225,6 +255,31 @@ export interface WebhookSettingsApi {
 }
 
 /**
+ * Polling trigger state. Writes run inside the caller's transaction when they
+ * are part of a tick, so a disarm and a tick cannot interleave.
+ */
+export interface PollTriggersApi {
+  trigger(projectId: string, workflowId: string): PollTriggerRecord | null;
+  /** Includes the armed bundle. Never serialize the result. */
+  runtimeFor(pollerId: string): PollTriggerRuntime | null;
+  create(input: CreatePollerInput): void;
+  arm(pollerId: string, input: ArmPollerInput): void;
+  replaceRevision(pollerId: string, expectedRevision: string, input: ArmPollerInput): boolean;
+  disarm(pollerId: string): void;
+  /** Deletes the poller row, which drops its dedupe claims for good. */
+  remove(pollerId: string): void;
+  setRefreshError(pollerId: string, message: string | null): void;
+  /** Armed pollers whose next probe is due at `at`, earliest first. */
+  listDue(at: number): PollTriggerRuntime[];
+  recordTick(pollerId: string, tick: PollTickInput, maxFailures: number): PollTriggerRecord;
+  claimDedupe(pollerId: string, key: string): PollDedupeClaim;
+  bindDedupe(pollerId: string, key: string, runId: string): void;
+  /** Read-only duplicate check for probe-now: never writes a claim. */
+  dedupeRunFor(pollerId: string, key: string): string | null;
+  pruneExpiredDedupe(limit: number): number;
+}
+
+/**
  * Webhook trigger state. Writes run inside the caller's transaction when they
  * are part of a delivery, so a disarm and a delivery claim cannot interleave.
  */
@@ -260,6 +315,10 @@ export interface RunsApi {
   get(runId: RunId): RunRecord | null;
   list(filters?: RunListFilters): RunListPage;
   listActive(): RunRecord[];
+  /** Hard-deletes one poll_probe run; refuses any other kind. */
+  deleteProbeRun(runId: RunId): void;
+  /** Keeps the newest `keep` poll_probe runs of one workflow; returns removals. */
+  pruneProbeRuns(projectId: string, workflowId: string, keep: number): number;
 }
 
 export interface ProcessesApi {
@@ -445,6 +504,7 @@ export class Store {
   readonly executionSettings: ExecutionSettingsApi;
   readonly webhookSettings: WebhookSettingsApi;
   readonly webhooks: WebhooksApi;
+  readonly pollTriggers: PollTriggersApi;
   readonly runs: RunsApi;
   readonly executions: ExecutionsApi;
   readonly processes: ProcessesApi;
@@ -496,11 +556,12 @@ export class Store {
     }
 
     this.projects = {
-      // Removing or relinking a project disarms its webhook triggers in the same
+      // Removing or relinking a project disarms its webhook and polling triggers in the same
       // transaction, so a trigger never runs against a different directory.
       remove: (projectId) =>
         this.tx(() => {
           disarmProjectTriggers(this.#runtime, projectId);
+          disarmProjectPollers(this.#runtime, projectId);
           return removeProject(this.#runtime, projectId);
         }),
       ensure: (input) => this.tx(() => ensureProject(this.#runtime, input)),
@@ -510,6 +571,7 @@ export class Store {
       relink: (input) =>
         this.tx(() => {
           disarmProjectTriggers(this.#runtime, input.projectId);
+          disarmProjectPollers(this.#runtime, input.projectId);
           return relinkProject(this.#runtime, input);
         }),
     };
@@ -550,6 +612,26 @@ export class Store {
         this.tx(() => pruneExpiredDeliveries(this.#runtime, limit)),
       signingSecrets: () => listTriggerSecrets(this.#runtime),
     };
+    this.pollTriggers = {
+      trigger: (projectId, workflowId) => getPoller(this.#runtime, projectId, workflowId),
+      runtimeFor: (pollerId) => getPollerRuntime(this.#runtime, pollerId),
+      create: (input) => this.tx(() => createPoller(this.#runtime, input)),
+      arm: (pollerId, input) => this.tx(() => armPoller(this.#runtime, pollerId, input)),
+      replaceRevision: (pollerId, expectedRevision, input) =>
+        this.tx(() => replacePollerRevision(this.#runtime, pollerId, expectedRevision, input)),
+      disarm: (pollerId) => this.tx(() => disarmPoller(this.#runtime, pollerId)),
+      remove: (pollerId) => this.tx(() => deletePoller(this.#runtime, pollerId)),
+      setRefreshError: (pollerId, message) =>
+        this.tx(() => setPollerRefreshError(this.#runtime, pollerId, message)),
+      listDue: (at) => listDuePollers(this.#runtime, at),
+      recordTick: (pollerId, tick, maxFailures) =>
+        this.tx(() => recordPollTick(this.#runtime, pollerId, tick, maxFailures)),
+      claimDedupe: (pollerId, key) => this.tx(() => claimPollDedupe(this.#runtime, pollerId, key)),
+      bindDedupe: (pollerId, key, runId) =>
+        this.tx(() => bindPollDedupe(this.#runtime, pollerId, key, runId)),
+      dedupeRunFor: (pollerId, key) => dedupeRunFor(this.#runtime, pollerId, key),
+      pruneExpiredDedupe: (limit) => this.tx(() => pruneExpiredDedupe(this.#runtime, limit)),
+    };
     this.runs = {
       setArchived: (runId, archived) =>
         this.tx(() => setRunArchived(this.#runtime, runId, archived)),
@@ -562,6 +644,9 @@ export class Store {
       get: (runId) => getRun(this.#runtime, runId),
       list: (filters) => listRuns(this.#runtime, filters),
       listActive: () => listActiveRuns(this.#runtime),
+      deleteProbeRun: (runId) => this.tx(() => deleteProbeRun(this.#runtime, runId)),
+      pruneProbeRuns: (projectId, workflowId, keep) =>
+        this.tx(() => pruneProbeRuns(this.#runtime, projectId, workflowId, keep)),
     };
     this.processes = {
       active: () => activeProcesses(this.#runtime),

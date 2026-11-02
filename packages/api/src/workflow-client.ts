@@ -16,6 +16,14 @@ import {
   gateTestRequestSchema,
   gateTestResultSchema,
 } from "./gate-dto.js";
+import {
+  type PollArmRequest,
+  type PollProbeResult,
+  type PollTriggerStatus,
+  pollArmRequestSchema,
+  pollProbeResultSchema,
+  pollTriggerStatusSchema,
+} from "./poll-dto.js";
 import { etagSchema, quoteEtag } from "./primitives.js";
 import {
   type ExecutionSettings,
@@ -277,6 +285,73 @@ export class ApiClient extends ApiClientBase {
       ["projects", projectId, "decisions", "test"],
       decisionTestResultSchema,
       this.req(options, { body: parsed, mutation: true }),
+    );
+  }
+
+  async getPollTrigger(
+    projectId: string,
+    workflowId: string,
+    options: ApiRequestOptions = {},
+  ): Promise<PollTriggerStatus> {
+    return this.request(
+      "GET",
+      ["projects", projectId, "workflows", workflowId, "polling"],
+      pollTriggerStatusSchema,
+      this.req(options),
+    );
+  }
+
+  async armPollTrigger(
+    projectId: string,
+    workflowId: string,
+    body: PollArmRequest,
+    options: ApiRequestOptions = {},
+  ): Promise<PollTriggerStatus> {
+    const parsed = pollArmRequestSchema.parse(body);
+    return this.request(
+      "POST",
+      ["projects", projectId, "workflows", workflowId, "polling", "arm"],
+      pollTriggerStatusSchema,
+      this.req(options, { body: parsed, mutation: true }),
+    );
+  }
+
+  async disarmPollTrigger(
+    projectId: string,
+    workflowId: string,
+    options: ApiRequestOptions = {},
+  ): Promise<PollTriggerStatus> {
+    return this.request(
+      "POST",
+      ["projects", projectId, "workflows", workflowId, "polling", "disarm"],
+      pollTriggerStatusSchema,
+      this.req(options, { mutation: true }),
+    );
+  }
+
+  async refreshPollTrigger(
+    projectId: string,
+    workflowId: string,
+    options: ApiRequestOptions = {},
+  ): Promise<PollTriggerStatus> {
+    return this.request(
+      "POST",
+      ["projects", projectId, "workflows", workflowId, "polling", "refresh"],
+      pollTriggerStatusSchema,
+      this.req(options, { mutation: true }),
+    );
+  }
+
+  async probePollTrigger(
+    projectId: string,
+    workflowId: string,
+    options: ApiRequestOptions = {},
+  ): Promise<PollProbeResult> {
+    return this.request(
+      "POST",
+      ["projects", projectId, "workflows", workflowId, "polling", "probe-now"],
+      pollProbeResultSchema,
+      this.req(options, { mutation: true }),
     );
   }
 

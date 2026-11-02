@@ -432,6 +432,21 @@ a:hover {
 .btn:hover {
   background: var(--bg-muted);
 }
+.btn.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: none;
+  color: var(--bg);
+  font-weight: 600;
+}
+.btn.primary:hover {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+.btn.primary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .btn.ghost {
   border-color: transparent;
   background: transparent;
@@ -554,6 +569,125 @@ a:hover {
 }
 
 /* Project tree: distinguish hierarchy and execution state at a glance. */
-.nav-workflow-row .nav-item{gap:7px}.nav-workflow-active{display:inline-flex;align-items:center;gap:3px;margin-left:auto;color:var(--accent);font-size:11px;font-weight:600;flex:none}.nav-run-group{margin-left:19px;padding-left:7px}.nav-run-row > .nav-item{min-height:28px;gap:7px;color:var(--text-2)}.nav-run-status{display:inline-flex;align-items:center;justify-content:center;flex:none;color:var(--text-3)}.nav-status-running,.nav-status-validating{color:var(--accent)}.nav-status-succeeded{color:var(--green)}.nav-status-failed,.nav-status-rejected,.nav-status-error{color:var(--red)}.nav-status-paused,.nav-status-waiting_approval,.nav-status-waiting_quota,.nav-status-interrupted{color:var(--amber)}.nav-run-label{margin-left:auto;color:var(--text-3);font-size:10px;white-space:nowrap}.nav-status-spin{animation:nav-status-spin 1s linear infinite}@keyframes nav-status-spin{to{transform:rotate(360deg)}}
-@media (prefers-reduced-motion:reduce){.nav-status-spin{animation:none}}
-.sidebar-active-runs{padding:0 0 12px;margin-bottom:4px;border-bottom:1px solid var(--border)}.sidebar-active-heading{display:flex;justify-content:space-between;align-items:center;margin-top:10px}.sidebar-active-heading span{font-size:11px;color:var(--text-3)}.sidebar-active-run{display:flex;align-items:center;gap:9px;min-width:0;margin:2px 0;padding:7px 8px;border-radius:var(--radius);color:var(--accent);text-decoration:none}.sidebar-active-run:hover{background:var(--bg-muted);text-decoration:none}.sidebar-active-run.active{background:var(--accent-soft)}.sidebar-active-run>svg{flex:none}.sidebar-active-copy{display:flex;flex-direction:column;min-width:0;gap:1px}.sidebar-active-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-weight:500}.sidebar-active-detail{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-3);font-size:11px}
+.nav-workflow-row .nav-item {
+  gap: 7px;
+}
+.nav-workflow-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  flex: none;
+}
+.nav-run-group {
+  margin-left: 19px;
+  padding-left: 7px;
+}
+.nav-run-row > .nav-item {
+  min-height: 28px;
+  gap: 7px;
+  color: var(--text-2);
+}
+.nav-run-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: var(--text-3);
+}
+.nav-status-running,
+.nav-status-validating {
+  color: var(--accent);
+}
+.nav-status-succeeded {
+  color: var(--green);
+}
+.nav-status-failed,
+.nav-status-rejected,
+.nav-status-error {
+  color: var(--red);
+}
+.nav-status-paused,
+.nav-status-waiting_approval,
+.nav-status-waiting_quota,
+.nav-status-interrupted {
+  color: var(--amber);
+}
+.nav-run-label {
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.nav-status-spin {
+  animation: nav-status-spin 1s linear infinite;
+}
+@keyframes nav-status-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-status-spin {
+    animation: none;
+  }
+}
+.sidebar-active-runs {
+  padding: 0 0 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-active-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+}
+.sidebar-active-heading span {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.sidebar-active-run {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  margin: 2px 0;
+  padding: 7px 8px;
+  border-radius: var(--radius);
+  color: var(--accent);
+  text-decoration: none;
+}
+.sidebar-active-run:hover {
+  background: var(--bg-muted);
+  text-decoration: none;
+}
+.sidebar-active-run.active {
+  background: var(--accent-soft);
+}
+.sidebar-active-run > svg {
+  flex: none;
+}
+.sidebar-active-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+.sidebar-active-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-weight: 500;
+}
+.sidebar-active-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+  font-size: 11px;
+}

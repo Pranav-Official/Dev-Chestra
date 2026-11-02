@@ -166,6 +166,8 @@ export function Inspector({
   onBufferValidityChange,
   loopBodyOpenRequested,
   onLoopBodyOpenHandled,
+  probeMode = false,
+  onSelectProbe,
 }: InspectorProps) {
   const callbackRef = useRef(onBufferValidityChange);
   callbackRef.current = onBufferValidityChange;
@@ -275,13 +277,25 @@ export function Inspector({
               <NodeHeader node={node} issues={nodeIssues} onPatch={emit} />
               <div className="inspector-content">
                 {node.type === "start" ? (
-                  <StartForm node={node} issues={nodeIssues} onPatch={emit} />
+                  <StartForm
+                    node={node}
+                    issues={nodeIssues}
+                    onPatch={emit}
+                    projectId={projectId}
+                    onSelectProbe={onSelectProbe}
+                  />
                 ) : null}
                 {node.type === "agent" ? (
-                  <AgentForm node={node} issues={nodeIssues} projectId={projectId} onPatch={emit} />
+                  <AgentForm
+                    node={node}
+                    issues={nodeIssues}
+                    projectId={projectId}
+                    onPatch={emit}
+                    probeMode={probeMode}
+                  />
                 ) : null}
                 {node.type === "shell" ? (
-                  <ShellForm node={node} issues={nodeIssues} onPatch={emit} />
+                  <ShellForm node={node} issues={nodeIssues} onPatch={emit} probeMode={probeMode} />
                 ) : null}
                 {node.type === "gate" ? (
                   <GateForm
