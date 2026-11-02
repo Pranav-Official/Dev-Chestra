@@ -43,7 +43,7 @@ export interface AutosaveOptions {
   docId: string;
   save: SaveFn;
   contentDebounceMs?: number;
-  /** Layout-only edits are batched for longer; P3 documents this as 5 s. */
+  /** Layout-only edits are batched for longer (5 s). */
   layoutDebounceMs?: number;
   now?: () => number;
 }

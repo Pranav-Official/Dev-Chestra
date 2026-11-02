@@ -333,10 +333,7 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
       return c.json(errorBody("E_AUTH", "The execution token is invalid or expired."), 401);
     }
     if (scope.toolset !== "agent") {
-      return c.json(
-        errorBody("E_FORBIDDEN", "Only the agent toolset is available in this slice."),
-        403,
-      );
+      return c.json(errorBody("E_FORBIDDEN", "Only the agent toolset is supported."), 403);
     }
     if (!buckets.take(scopeKey(scope), now())) {
       return c.json(

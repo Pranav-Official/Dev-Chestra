@@ -547,7 +547,7 @@ export function reduceExecutionEvent(view: RunView, envelope: EventEnvelope): Ru
     }
 
     case "node.watchdog":
-      // Watchdog details are surfaced by the engine; no RunView mutation in P0.
+      // Watchdog details are surfaced by the engine; no RunView mutation.
       return withEventId(view, envelope);
 
     case "workspace.created": {

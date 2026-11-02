@@ -326,7 +326,7 @@ function normalizeSchema(
   if (raw.format !== undefined) {
     if (raw.format === "devchestra-artifact") {
       throw unsupported(
-        "Artifact outputs (format: 'devchestra-artifact') are not implemented in P1; return a path or inline value instead.",
+        "Artifact outputs (format: 'devchestra-artifact') are not supported; return a path or inline value instead.",
         joinPath(pointer, "format"),
       );
     }

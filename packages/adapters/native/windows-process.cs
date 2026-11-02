@@ -1,4 +1,4 @@
-// Native Windows process ownership for the compatibility spike. Built with the
+// Native Windows process ownership. Built with the
 // .NET Framework compiler included with Windows; no WSL or administrator needed.
 using System;
 using System.Diagnostics;

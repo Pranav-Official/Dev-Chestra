@@ -1,4 +1,4 @@
-/* Workflow editor canvas (P3). Visual tokens only; no gradients. */
+/* Workflow editor canvas. Visual tokens only; no gradients. */
 .editor-canvas {
   position: relative;
   flex: 1;

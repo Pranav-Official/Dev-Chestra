@@ -1,4 +1,4 @@
--- DevChestra P0 store schema. Forward-only; applied transactionally by src/migrate.ts.
+-- DevChestra store schema. Forward-only; applied transactionally by src/migrate.ts.
 
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version INTEGER PRIMARY KEY,

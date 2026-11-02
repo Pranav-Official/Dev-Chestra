@@ -146,7 +146,7 @@ export function createRun(
   const budgetKeys = input.budgets ?? {};
   for (const key of Object.keys(budgetKeys)) {
     if (key !== "maxTokens") {
-      fail("E_VALIDATION", `budgets.${key} is not supported in P1; only maxTokens is accepted`);
+      fail("E_VALIDATION", `budgets.${key} is not supported; only maxTokens is accepted`);
     }
   }
   const finding =

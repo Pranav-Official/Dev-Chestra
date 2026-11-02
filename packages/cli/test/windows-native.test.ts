@@ -43,7 +43,7 @@ const children: ChildProcess[] = [];
 const env = () => buildChildEnv("fake");
 
 function directory(): string {
-  const dir = realpathSync.native(mkdtempSync(join(tmpdir(), "devchestra windows spike ")));
+  const dir = realpathSync.native(mkdtempSync(join(tmpdir(), "devchestra windows native ")));
   directories.push(dir);
   return dir;
 }
@@ -75,7 +75,7 @@ afterEach(async () => {
     rmSync(dir, { recursive: true, force: true, maxRetries: 15, retryDelay: 100 });
 });
 
-describe.skipIf(process.platform !== "win32")("Windows native spike", () => {
+describe.skipIf(process.platform !== "win32")("Windows native", () => {
   it("force-stops an identity-checked server when its control pipe is unavailable", async () => {
     const cwd = directory();
     const lock = await acquireDataDirLock(cwd);
@@ -114,7 +114,7 @@ describe.skipIf(process.platform !== "win32")("Windows native spike", () => {
       execFileSync("git", ["-C", path, ...args], { encoding: "utf8", windowsHide: true });
     git(root, ["init", "-q", "-b", "main"]);
     git(root, ["config", "user.email", "test@example.invalid"]);
-    git(root, ["config", "user.name", "Windows Spike"]);
+    git(root, ["config", "user.name", "Windows Native"]);
     writeFileSync(join(root, "file.txt"), "base\n");
     git(root, ["add", "."]);
     git(root, ["commit", "-q", "-m", "base"]);

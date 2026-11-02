@@ -423,7 +423,7 @@ function precheck(raw: unknown): DevChestraError | undefined {
       if (typeof type === "string" && !SUPPORTED_NODE_TYPES.has(type)) {
         return new DevChestraError(
           "E_WORKFLOW_INVALID",
-          `Unsupported node type '${type}' at graph.nodes[${i}]. P1 supports: start, agent, shell, gate, join, approval, decision, loop, foreach, workflow, end.`,
+          `Unsupported node type '${type}' at graph.nodes[${i}]. Supported types: start, agent, shell, gate, join, approval, decision, loop, foreach, workflow, end.`,
           { details: { pointer: `/graph/nodes/${i}/type` } },
         );
       }
@@ -463,7 +463,7 @@ function precheck(raw: unknown): DevChestraError | undefined {
           }
           return new DevChestraError(
             "E_WORKFLOW_INVALID",
-            `Unsupported agent CLI '${cli}' at graph.nodes[${i}]. P1 supports: ${[...PROD_CLIS].join(", ")}.`,
+            `Unsupported agent CLI '${cli}' at graph.nodes[${i}]. Supported CLIs: ${[...PROD_CLIS].join(", ")}.`,
             { details: { pointer: `/graph/nodes/${i}/cli` } },
           );
         }

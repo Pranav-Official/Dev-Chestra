@@ -173,7 +173,7 @@ export function validateNodeBase(
       issue(
         "error",
         "E_WORKFLOW_INVALID",
-        `Node supervise mode '${node.supervise}' is not implemented in P1; use 'default' or omit it.`,
+        `Node supervise mode '${node.supervise}' is not supported; use 'default' or omit it.`,
         `${pointer}/supervise`,
         nodeId,
       ),
@@ -184,7 +184,7 @@ export function validateNodeBase(
       issue(
         "error",
         "E_WORKFLOW_INVALID",
-        "env passthrough is not implemented in P1; remove node.env.",
+        "env passthrough is not supported; remove node.env.",
         `${pointer}/env`,
         nodeId,
       ),
@@ -230,7 +230,7 @@ export function validateSingleNode(
           issue(
             "error",
             "E_WORKFLOW_INVALID",
-            `Agent CLI '${String(agent.cli)}' is not supported in P1; use ${PROD_CLIS.join(", ")}. Fake is test-only behind DEVCHESTRA_ALLOW_FAKE=1.`,
+            `Agent CLI '${String(agent.cli)}' is not supported; use ${PROD_CLIS.join(", ")}. Fake is test-only behind DEVCHESTRA_ALLOW_FAKE=1.`,
             `${pointer}/cli`,
             node.id,
           ),
@@ -377,7 +377,7 @@ export function validateSingleNode(
           issue(
             "error",
             "E_WORKFLOW_INVALID",
-            "Project write permission is not supported in P1; use workspace-only access with a scratch workspace.",
+            "Project write permission is not supported; use workspace-only access with a scratch workspace.",
             `${pointer}/permissions/write`,
             node.id,
           ),
@@ -455,7 +455,7 @@ export function validateSingleNode(
           issue(
             "error",
             "E_WORKFLOW_INVALID",
-            "limits.maxQuotaWaitHours is not implemented in P1.",
+            "limits.maxQuotaWaitHours is not supported.",
             `${pointer}/limits/maxQuotaWaitHours`,
             node.id,
           ),
@@ -469,7 +469,7 @@ export function validateSingleNode(
           issue(
             "error",
             "E_WORKFLOW_INVALID",
-            "Agent context project/workflow access is not implemented in P1; use none for both.",
+            "Agent context project/workflow access is not supported; use none for both.",
             `${pointer}/context`,
             node.id,
           ),
@@ -482,7 +482,7 @@ export function validateSingleNode(
         issue(
           "error",
           "E_WORKFLOW_INVALID",
-          "Agent cliOptions are not implemented in P1; remove cliOptions.",
+          "Agent cliOptions are not supported; remove cliOptions.",
           `${pointer}/cliOptions`,
           node.id,
         ),

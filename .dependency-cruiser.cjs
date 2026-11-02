@@ -14,14 +14,14 @@ const allowed = [
   },
   { name: "api", path: "(^|/)packages/api/", deps: ["core", "schema"] },
   {
-    // P0 composition root: the gateway server wires the real store, MCP tool
+    // Composition root: the gateway server wires the real store, MCP tool
     // surface and core contracts. Revisit when the engine owns composition.
     name: "server",
     path: "(^|/)packages/server/",
     deps: ["api", "engine", "core", "schema", "store", "mcp", "adapters", "decisions"],
   },
   {
-    // P1 embedded CLI composition root: run/resume assemble the slice directly
+    // CLI composition root: the embedded run/resume commands assemble the engine directly
     // until the engine/server boundary owns it. Keep this list narrow.
     name: "cli",
     path: "(^|/)packages/cli/",

@@ -1,4 +1,4 @@
-name: Windows native spike
+name: Windows native
 on:
   workflow_dispatch:
 permissions:

@@ -164,7 +164,7 @@ function assertShellTemplate(parts: readonly TemplatePart[]): void {
 
 /**
  * Parse {{ expression }} template parts. Escaped `\{{` becomes a literal `{{`.
- * Raw {{{ ... }}} substitution is rejected in P1. With shell:true, placeholders
+ * Raw {{{ ... }}} substitution is rejected. With shell:true, placeholders
  * are only accepted in unquoted lexical context (no quotes, backticks,
  * substitutions or heredocs).
  */
@@ -191,7 +191,7 @@ export function compileTemplate(
     if (source.startsWith("{{{", i)) {
       return err(
         templateError(
-          "Raw {{{ ... }}} substitution is not supported in P1. Use {{ ... }} (shell values are quoted) and require trust before raw insertion is added.",
+          "Raw {{{ ... }}} substitution is not supported. Use {{ ... }} (shell values are quoted).",
         ),
       );
     }

@@ -125,7 +125,7 @@ export function lastEventTs(runtime: Runtime, runId: RunId): number {
 }
 
 /**
- * Routing fields became mandatory after P4. Normalize every cached view path so
+ * Routing fields are mandatory on every execution. Normalize every cached view path so
  * strict API consumers keep parsing old run_views until the next rebuild.
  */
 export function normalizeCachedView(view: RunView): RunView {

@@ -1,7 +1,7 @@
 import type { DecisionProviderId } from "@devchestra/schema";
 import type { DecisionSecretName } from "./secrets.js";
 
-/** Fixed per-provider host preset (contract §1). */
+/** Fixed per-provider host preset. */
 export interface DecisionPreset {
   id: DecisionProviderId;
   method: "POST";

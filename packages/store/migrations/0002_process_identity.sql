@@ -1,5 +1,5 @@
--- P1: persist the identity of the actual OS process after spawn.
--- Additive only; P0 databases upgrade in place.
+-- Persist the identity of the actual OS process after spawn.
+-- Additive only; existing databases upgrade in place.
 ALTER TABLE process_generations ADD COLUMN pid_start TEXT;
 ALTER TABLE process_generations ADD COLUMN binary TEXT;
 ALTER TABLE process_generations ADD COLUMN cwd TEXT;

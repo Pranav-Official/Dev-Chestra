@@ -506,7 +506,7 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
 
     if (/\/(retry|cancel|pin|diff)$/u.test(rest)) {
       return c.json(
-        errorBody("E_NOT_SUPPORTED", "That DevChestra API feature is not available in P2."),
+        errorBody("E_NOT_SUPPORTED", "That DevChestra API feature is not supported."),
         501,
       );
     }
@@ -628,13 +628,13 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
       /^\/api\/projects\/[^/]+$/u.test(c.req.path)
     ) {
       return c.json(
-        errorBody("E_NOT_SUPPORTED", "That DevChestra API feature is not available in P2."),
+        errorBody("E_NOT_SUPPORTED", "That DevChestra API feature is not supported."),
         501,
       );
     }
     if (isUnsupportedFeature(c.req.path)) {
       return c.json(
-        errorBody("E_NOT_SUPPORTED", "That DevChestra API feature is not available in P2."),
+        errorBody("E_NOT_SUPPORTED", "That DevChestra API feature is not supported."),
         501,
       );
     }

@@ -86,7 +86,7 @@ export interface NodeBase {
   /** Editor layout and other UI-only data. Preserved on parse, stripped on normalize. */
   ui?: Record<string, unknown>;
   supervise?: SuperviseMode;
-  /** Env var names passed through to this node. Non-empty is unsupported in P1. */
+  /** Env var names passed through to this node. Non-empty is unsupported. */
   env?: string[];
 }
 

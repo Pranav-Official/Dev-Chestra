@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseEnv } from "node:util";
 
-/** Exact secret names ever read (contract §2). Nothing else is taken. */
+/** Exact secret names ever read. Nothing else is taken. */
 export const DECISION_SECRET_NAMES = [
   "TYPESAFE_API_KEY",
   "CLOUDFLARE_ACCOUNT_ID",

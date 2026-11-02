@@ -294,7 +294,7 @@ export const relativeWorkflowFileSchema = z
   );
 
 /**
- * Bounded P2 start request. Trusted CLI startup settings (fake script,
+ * Start request. Trusted CLI startup settings (fake script,
  * experimental adapters, provider overrides) are deliberately not accepted
  * over the browser API.
  */

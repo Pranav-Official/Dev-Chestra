@@ -270,7 +270,7 @@ export interface ApprovalRequestedPayload {
   /** Invocation fence; optional for legacy events */
   attempt?: number;
   generation?: number;
-  /** Legacy: always false for P3.5 human-only approvals */
+  /** Legacy; always false because approvals are human-only. */
   autoApprove?: boolean;
   minConfidence?: number;
 }
