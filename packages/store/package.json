@@ -26,7 +26,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@devchestra/core": "workspace:*",
+    "@devchestra/core": "*",
     "better-sqlite3": "13.0.3"
   },
   "devDependencies": {

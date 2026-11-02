@@ -21,8 +21,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@devchestra/core": "workspace:*",
-    "@devchestra/schema": "workspace:*",
+    "@devchestra/core": "*",
+    "@devchestra/schema": "*",
     "zod": "4.6.7"
   },
   "devDependencies": {

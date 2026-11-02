@@ -25,7 +25,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@devchestra/core": "workspace:*",
+    "@devchestra/core": "*",
     "jsonata": "2.2.2",
     "zod": "4.6.7"
   },

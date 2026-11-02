@@ -30,6 +30,7 @@ export interface CliOptions {
   noOpen: boolean;
   headless?: boolean;
   detach?: boolean;
+  foreground?: boolean;
   secure?: boolean;
   printUrl: boolean;
   /** Stop only: stop even with active runs, and SIGKILL if the server will not exit. */
@@ -129,6 +130,10 @@ export function parseArgs(argv: string[]): CliOptions {
     }
     if (arg === "--detach" || arg === "-d") {
       options.detach = true;
+      continue;
+    }
+    if (arg === "--foreground" || arg === "-f") {
+      options.foreground = true;
       continue;
     }
     if (arg === "--secure") {
@@ -310,11 +315,12 @@ export function parseArgs(argv: string[]): CliOptions {
       options.printUrl ||
       options.headless ||
       options.detach ||
+      options.foreground ||
       options.secure) &&
     options.command !== "start"
   ) {
     throw new UsageError(
-      "--port, --no-open, --print-url, --headless, --detach and --secure are only valid with start.",
+      "--port, --no-open, --print-url, --headless, --detach, --foreground and --secure are only valid with start.",
     );
   }
   return options;
@@ -323,7 +329,7 @@ export function parseArgs(argv: string[]): CliOptions {
 export const HELP = `devchestra — local DevChestra runner and browser API
 
 Usage:
-  devchestra start [--data-dir <dir>] [--port N] [--no-open] [--print-url] [--detach|-d] [options]
+  devchestra start [--data-dir <dir>] [--port N] [--no-open] [--print-url] [--foreground|-f] [options]
   devchestra run <workflow.json> --project <dir> [--data-dir <dir>] [options]
   devchestra resume <runId> [--data-dir <dir>] [--retry-uncertain-shell] [options]
   devchestra stop [--data-dir <dir>] [--force] [--timeout <secs>] [--json]
@@ -337,7 +343,7 @@ Usage:
 Options:
   --port N                    Start only: 0 = ephemeral; on EADDRINUSE retries ephemeral
   --headless                  Start only: serve API without requiring web assets
-  --detach, -d                Start only: run the server in the background (logs to <data-dir>/server.log)
+  --foreground, -f            Start only: keep the server attached to this terminal (default: run in the background, logs to <data-dir>/server.log)
   --secure                    Start only: require the session token (cookie or header) for browser and API access
   --no-open                   Start only: do not open the browser
   --print-url                 Start only: print the tokenised launch URL once

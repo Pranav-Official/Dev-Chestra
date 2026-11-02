@@ -158,7 +158,7 @@ async function main(): Promise<number> {
   }
 
   if (options.command === "start") {
-    if (options.detach === true) {
+    if (options.foreground !== true) {
       return await detachStart(dataDir, { json: options.json });
     }
     const controller = new AbortController();

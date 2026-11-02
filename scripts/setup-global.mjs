@@ -1,12 +1,22 @@
 #!/usr/bin/env node
 // One command to set DevChestra up on this machine:
-//   pnpm setup:global [--dry-run] [--no-env] [--no-restart]
+//   pnpm|npm|bun run setup:global [--dry-run] [--no-env] [--no-restart]
 //
 // Installs and builds, links the `devchestra` command globally, copies the decision
 // API keys (names allowlisted, never printed) to ~/.config/devchestra/.env, and
 // restarts a running server if it is idle. Safe to run again at any time.
 import { spawn, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -70,20 +80,30 @@ say.step("1. Checking prerequisites");
 if (!nodeMajorOk(process.version))
   die(`Node ${process.version} is too old.`, "Install Node 22 or newer.");
 say.ok(`Node ${process.version}`);
-const pnpmVersion = run("pnpm", ["--version"]);
-if (pnpmVersion.status !== 0)
-  die("pnpm was not found.", "Install pnpm 10.14 or newer: https://pnpm.io/installation");
-say.ok(`pnpm ${pnpmVersion.stdout.trim()}`);
+// The package manager that launched this script (pnpm, npm or bun); otherwise the first installed.
+const pm = (() => {
+  const fromAgent = /^(pnpm|bun|npm)\//u.exec(process.env.npm_config_user_agent ?? "")?.[1];
+  if (fromAgent) return fromAgent;
+  return ["pnpm", "npm", "bun"].find((name) => run(name, ["--version"]).status === 0) ?? "pnpm";
+})();
+const pmVersion = run(pm, ["--version"]);
+if (pmVersion.status !== 0)
+  die(`${pm} was not found.`, "Install pnpm, npm or bun and run this again.");
+say.ok(`${pm} ${pmVersion.stdout.trim()}`);
 
 // 2. install + build
 say.step("2. Installing and building");
+const lockfile = { pnpm: "pnpm-lock.yaml", npm: "package-lock.json", bun: "bun.lock" }[pm];
+const installArgs = existsSync(join(root, lockfile))
+  ? pm === "npm"
+    ? ["ci"]
+    : ["install", "--frozen-lockfile"]
+  : ["install"];
 if (dryRun) {
-  say.note("would run: pnpm install --frozen-lockfile && pnpm build");
+  say.note(`would run: ${pm} ${installArgs.join(" ")} && ${pm} run build`);
 } else {
-  if (run("pnpm", ["install", "--frozen-lockfile"], { inherit: true }).status !== 0) {
-    die("pnpm install failed.");
-  }
-  if (run("pnpm", ["build"], { inherit: true }).status !== 0) die("pnpm build failed.");
+  if (run(pm, installArgs, { inherit: true }).status !== 0) die(`${pm} ${installArgs[0]} failed.`);
+  if (run(pm, ["run", "build"], { inherit: true }).status !== 0) die(`${pm} run build failed.`);
   if (!existsSync(cliMain)) die("The build did not produce packages/cli/dist/main.js.");
   chmodSync(cliMain, 0o755);
   say.ok("built");
@@ -91,21 +111,36 @@ if (dryRun) {
 
 // 3. global command
 say.step("3. Linking the global `devchestra` command");
-const binDir = run("pnpm", ["bin", "-g"]).stdout.trim();
+const globalBin = () => {
+  if (pm === "pnpm") return run("pnpm", ["bin", "-g"]).stdout.trim();
+  if (pm === "bun") return run("bun", ["pm", "bin", "-g"]).stdout.trim();
+  const prefix = run("npm", ["prefix", "-g"]).stdout.trim();
+  return prefix && (process.platform === "win32" ? prefix : join(prefix, "bin"));
+};
+const binDir = globalBin();
 if (dryRun) {
-  say.note(`would run: pnpm link --global (in packages/cli) -> ${binDir || "pnpm global bin"}`);
+  say.note(`would link packages/cli as \`devchestra\` -> ${binDir || `${pm} global bin`}`);
+} else if (pm === "bun") {
+  // bun has no equivalent of `npm link` that puts a workspace bin on PATH, so symlink it.
+  if (!binDir) die("bun has no global bin directory.", "Run `bun pm bin -g` to check your setup.");
+  mkdirSync(binDir, { recursive: true });
+  const target = join(binDir, "devchestra");
+  if (existsSync(target) || lstatSync(target, { throwIfNoEntry: false })) rmSync(target);
+  symlinkSync(cliMain, target);
 } else {
-  const link = run("pnpm", ["link", "--global"], { cwd: cliDir });
+  const link = run(pm, pm === "pnpm" ? ["link", "--global"] : ["link"], { cwd: cliDir });
   if (link.status !== 0) {
     const text = `${link.stdout}${link.stderr}`;
-    if (/NO_GLOBAL_BIN_DIR|global bin/iu.test(text)) {
+    if (pm === "pnpm" && /NO_GLOBAL_BIN_DIR|global bin/iu.test(text)) {
       die(
         "pnpm has no global bin directory yet.",
         "Run `pnpm setup` once, open a new terminal, then run this again.",
       );
     }
-    die("pnpm link --global failed.", text.trim().split("\n").slice(-3).join("\n    "));
+    die(`${pm} link failed.`, text.trim().split("\n").slice(-3).join("\n    "));
   }
+}
+if (!dryRun) {
   say.ok(`linked -> ${join(binDir, "devchestra")}`);
   const version = run(join(binDir, "devchestra"), ["version"]);
   if (version.status === 0) say.ok(version.stdout.trim());

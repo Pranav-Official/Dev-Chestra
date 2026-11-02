@@ -21,8 +21,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@devchestra/core": "workspace:*",
-    "@devchestra/schema": "workspace:*"
+    "@devchestra/core": "*",
+    "@devchestra/schema": "*"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

@@ -154,7 +154,7 @@ async function resolveWebRoot(override?: string): Promise<string> {
   } catch {
     throw new DevChestraError(
       "E_VALIDATION",
-      `Built web app not found at ${root}. Run \`pnpm build\` (or \`pnpm --filter @devchestra/web build\`) before devchestra start.`,
+      `Built web app not found at ${root}. Run \`npm run build\` (or \`pnpm build\` / \`bun run build\`) before devchestra start.`,
     );
   }
   return root;

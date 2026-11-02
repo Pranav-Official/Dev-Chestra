@@ -28,3 +28,8 @@ Thumbs.db
 # Generated tool output (tools/* are tracked; their build and run output is not)
 tools/*/artifacts/
 tools/*/dist/
+
+# Lockfiles of the package managers other than pnpm (pnpm-lock.yaml is the tracked one)
+package-lock.json
+bun.lock
+bun.lockb

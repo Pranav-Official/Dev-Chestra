@@ -15,7 +15,7 @@ export interface DetachStartDeps {
 const sleepDefault = (ms: number): Promise<void> => new Promise((done) => setTimeout(done, ms));
 
 /**
- * Launch `devchestra start` (minus --detach/-d) as a detached background
+ * Launch `devchestra start --foreground` as a detached background
  * process, wait until its server record verifies, then exit. Logs append to
  * `<dataDir>/server.log` since the child shares no terminal.
  */
@@ -49,7 +49,10 @@ export async function detachStart(
     stderr.write("devchestra: cannot detach: script path is unknown\n");
     return 1;
   }
-  const childArgs = process.argv.slice(2).filter((arg) => arg !== "--detach" && arg !== "-d");
+  const childArgs = [
+    ...process.argv.slice(2).filter((arg) => arg !== "--detach" && arg !== "-d"),
+    "--foreground",
+  ];
 
   const logFile = join(dataDir, "server.log");
   const logFd = openSync(logFile, "a");

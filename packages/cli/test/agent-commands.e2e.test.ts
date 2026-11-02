@@ -47,7 +47,7 @@ describe.skipIf(!existsSync(main))("agent CLI lifecycle", () => {
     );
     const server = spawn(
       process.execPath,
-      [main, "start", "--headless", "--data-dir", data, "--port", "0"],
+      [main, "start", "--headless", "--foreground", "--data-dir", data, "--port", "0"],
       { stdio: ["ignore", "pipe", "pipe"] },
     );
     servers.push(server);
@@ -265,7 +265,7 @@ describe.skipIf(!existsSync(main))("agent CLI lifecycle", () => {
     const startServer = async () => {
       const server = spawn(
         process.execPath,
-        [main, "start", "--headless", "--data-dir", data, "--port", "0"],
+        [main, "start", "--headless", "--foreground", "--data-dir", data, "--port", "0"],
         { stdio: ["ignore", "pipe", "pipe"] },
       );
       servers.push(server);

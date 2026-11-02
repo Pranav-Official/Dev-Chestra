@@ -275,7 +275,7 @@ export async function runDoctor(
           name: "mcp-shim",
           status: "fail",
           message: `missing ${SHIM}`,
-          fix: "Run `pnpm -r build`.",
+          fix: "Run `npm run build` (or `pnpm build` / `bun run build`).",
         },
   );
   checks.push(
@@ -285,7 +285,7 @@ export async function runDoctor(
           name: "fake-agent",
           status: "fail",
           message: `missing ${FAKE_AGENT}`,
-          fix: "Run `pnpm -r build`.",
+          fix: "Run `npm run build` (or `pnpm build` / `bun run build`).",
         },
   );
   checks.push(...checkDecisionProviders(options.decisions ?? createDecisionService()));
