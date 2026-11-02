@@ -143,91 +143,103 @@ export function EditorHeader({
         </label>
       </div>
 
-      <div className="editor-status">
-        <span
-          className={`pill ${
-            autosave.status === "error" || conflict
-              ? "red"
-              : autosave.status === "saving" || autosave.status === "dirty"
-                ? "amber"
-                : "green"
-          }`}
-          data-testid="autosave-status"
-          aria-live="polite"
-        >
-          {saveLabel(autosave)}
-        </span>
-        <button
-          type="button"
-          className={`pill ${validation.report?.ok === false ? "red" : validation.report?.ok ? "green" : ""}`}
-          onClick={onToggleIssues}
-          aria-expanded={issuesOpen}
-          aria-controls="editor-issue-panel"
-          data-testid="validation-chip"
-        >
-          {validation.report?.ok === false || !validation.current ? (
-            <AlertTriangle size={12} aria-hidden="true" />
-          ) : (
-            <CheckCircle2 size={12} aria-hidden="true" />
+      <div className="editor-controls">
+        <div className="editor-toolbar">
+          {webhook === undefined && poll === undefined ? null : (
+            <fieldset className="editor-triggers">
+              <legend className="sr-only">Triggers</legend>
+              {webhook}
+              {poll}
+            </fieldset>
           )}
-          {validationLabel(validation)}
-          {issues.length > 0 ? (
-            issuesOpen ? (
-              <ChevronUp size={12} aria-hidden="true" />
-            ) : (
-              <ChevronDown size={12} aria-hidden="true" />
-            )
-          ) : null}
-        </button>
-        {webhook}
-        {poll}
-      </div>
+          <div className="editor-actions">
+            <fieldset className="editor-history">
+              <legend className="sr-only">History</legend>
+              <button
+                type="button"
+                className="btn icon ghost"
+                onClick={onUndo}
+                disabled={!canUndo}
+                aria-label="Undo"
+                title="Undo (Ctrl+Z)"
+              >
+                <Undo2 size={14} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="btn icon ghost"
+                onClick={onRedo}
+                disabled={!canRedo}
+                aria-label="Redo"
+                title="Redo (Ctrl+Shift+Z)"
+              >
+                <Redo2 size={14} aria-hidden="true" />
+              </button>
+            </fieldset>
+            <button type="button" className="btn" onClick={onSave} disabled={saveDisabled}>
+              <Save size={14} aria-hidden="true" />
+              Save
+            </button>
+            <button
+              type="button"
+              className="btn primary"
+              onClick={onRun}
+              disabled={runDisabled}
+              title={
+                conflict
+                  ? "Resolve the file conflict before running."
+                  : buffer.valid === false
+                    ? (buffer.reason ?? "Fix the invalid form buffer before running.")
+                    : !validation.current
+                      ? "Wait for validation to finish."
+                      : validation.report?.ok === false
+                        ? "Fix validation errors before running."
+                        : "Review inputs and start a run"
+              }
+            >
+              <Play size={14} aria-hidden="true" />
+              Run
+            </button>
+          </div>
+        </div>
 
-      <div className="editor-actions">
-        <button
-          type="button"
-          className="btn icon sm"
-          onClick={onUndo}
-          disabled={!canUndo}
-          aria-label="Undo"
-          title="Undo (Ctrl+Z)"
-        >
-          <Undo2 size={14} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className="btn icon sm"
-          onClick={onRedo}
-          disabled={!canRedo}
-          aria-label="Redo"
-          title="Redo (Ctrl+Shift+Z)"
-        >
-          <Redo2 size={14} aria-hidden="true" />
-        </button>
-        <button type="button" className="btn sm" onClick={onSave} disabled={saveDisabled}>
-          <Save size={14} aria-hidden="true" />
-          Save
-        </button>
-        <button
-          type="button"
-          className="btn sm"
-          onClick={onRun}
-          disabled={runDisabled}
-          title={
-            conflict
-              ? "Resolve the file conflict before running."
-              : buffer.valid === false
-                ? (buffer.reason ?? "Fix the invalid form buffer before running.")
-                : !validation.current
-                  ? "Wait for validation to finish."
-                  : validation.report?.ok === false
-                    ? "Fix validation errors before running."
-                    : "Review inputs and start a run"
-          }
-        >
-          <Play size={14} aria-hidden="true" />
-          Run
-        </button>
+        <div className="editor-status">
+          <span
+            className={`pill editor-save-state ${
+              autosave.status === "error" || conflict
+                ? "red"
+                : autosave.status === "saving" || autosave.status === "dirty"
+                  ? "amber"
+                  : "green"
+            }`}
+            data-testid="autosave-status"
+            aria-live="polite"
+          >
+            {saveLabel(autosave)}
+          </span>
+          <button
+            type="button"
+            className={`pill ${validation.report?.ok === false ? "red" : validation.report?.ok ? "green" : ""}`}
+            onClick={onToggleIssues}
+            aria-expanded={issuesOpen}
+            aria-controls="editor-issue-panel"
+            data-testid="validation-chip"
+          >
+            {validation.report?.ok === false || !validation.current ? (
+              <AlertTriangle size={12} aria-hidden="true" />
+            ) : (
+              <CheckCircle2 size={12} aria-hidden="true" />
+            )}
+            {validationLabel(validation)}
+            {issues.length > 0 ? (
+              issuesOpen ? (
+                <ChevronUp size={12} aria-hidden="true" />
+              ) : (
+                <ChevronDown size={12} aria-hidden="true" />
+              )
+            ) : null}
+          </button>
+        </div>
       </div>
 
       {buffer.valid === false ? (

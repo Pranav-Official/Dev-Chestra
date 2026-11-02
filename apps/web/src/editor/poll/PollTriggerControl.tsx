@@ -380,7 +380,7 @@ export function PollTriggerControl({
                     ) : null}
                     <button
                       type="button"
-                      className="btn poll-primary"
+                      className="btn primary"
                       onClick={armNow}
                       disabled={armDisabled}
                       aria-describedby={armHint === null ? undefined : armHintId}
