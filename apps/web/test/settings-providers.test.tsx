@@ -166,14 +166,14 @@ describe("ProvidersPanel", () => {
 });
 
 describe("SettingsPage providers route", () => {
-  it("shows the providers panel with Providers before Usage in the nav", async () => {
+  it("shows the providers panel with Usage before Providers in the nav", async () => {
     renderWith(<SettingsPage />, "/settings/providers");
     expect(await screen.findByRole("heading", { name: "Providers" })).toBeInTheDocument();
     const nav = screen.getByRole("navigation", { name: "Settings sections" });
     const links = within(nav).getAllByRole("link");
-    expect(links.map((link) => link.textContent)).toEqual(["Providers", "Usage", "Execution"]);
-    expect(links[0]).toHaveAttribute("aria-current", "page");
-    expect(links[1]).not.toHaveAttribute("aria-current");
+    expect(links.map((link) => link.textContent)).toEqual(["Usage", "Providers", "Execution"]);
+    expect(links[1]).toHaveAttribute("aria-current", "page");
+    expect(links[0]).not.toHaveAttribute("aria-current");
   });
 
   it("keeps /settings/usage on the usage panel, not the providers panel", async () => {

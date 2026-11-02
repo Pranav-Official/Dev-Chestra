@@ -19,7 +19,7 @@ export function SettingsPage() {
   // Usage is the fallback page, as it was before the Providers page existed.
   const active =
     SETTINGS_SECTIONS.find((entry) => location.pathname.endsWith(`/settings/${entry.id}`)) ??
-    SETTINGS_SECTIONS[1];
+    SETTINGS_SECTIONS[0];
   const Panel = PANELS[active.id];
   const crumbs =
     pid !== ""
