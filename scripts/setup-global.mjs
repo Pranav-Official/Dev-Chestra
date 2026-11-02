@@ -111,7 +111,7 @@ if (pmVersion.status !== 0)
     `${pm} was not found.`,
     pm === "pnpm"
       ? "Install pnpm 10.14 or newer: https://pnpm.io/installation (or run with --pm=npm)."
-      : "Install npm 11 or newer: it ships with Node 24, or run `npm install -g npm@latest` on Node 22 (or run with --pm=pnpm).",
+      : "Install npm 10 or newer (it ships with Node 22+).",
   );
 say.ok(`${pm} ${pmVersion.stdout.trim()}`);
 
@@ -123,14 +123,6 @@ const installArgs =
     : existsSync(join(root, "package-lock.json"))
       ? ["ci"]
       : ["install"];
-// A node_modules tree built by the other manager cannot be reused (npm's
-// arborist crashes on pnpm's symlinked layout and vice versa).
-const foreignMarker = pm === "npm" ? ".modules.yaml" : ".package-lock.json";
-if (existsSync(join(root, "node_modules", foreignMarker))) {
-  const msg = `node_modules was built by ${pm === "npm" ? "pnpm" : "npm"}; ${pm} cannot reuse it.`;
-  if (dryRun) say.note(`${msg} Would need: rm -rf node_modules`);
-  else die(msg, "Run `rm -rf node_modules` and try again.");
-}
 if (dryRun) {
   say.note(`would run: ${pm} ${installArgs.join(" ")} && ${pm} ${pm === "pnpm" ? "build" : "run build"}`);
 } else {

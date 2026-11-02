@@ -24,16 +24,16 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@devchestra/adapters": "*",
-    "@devchestra/api": "*",
-    "@devchestra/core": "*",
-    "@devchestra/decisions": "*",
-    "@devchestra/engine": "*",
-    "@devchestra/mcp": "*",
-    "@devchestra/schema": "*",
-    "@devchestra/server": "*",
-    "@devchestra/store": "*",
-    "@devchestra/workspaces": "*"
+    "@devchestra/adapters": "workspace:*",
+    "@devchestra/api": "workspace:*",
+    "@devchestra/core": "workspace:*",
+    "@devchestra/decisions": "workspace:*",
+    "@devchestra/engine": "workspace:*",
+    "@devchestra/mcp": "workspace:*",
+    "@devchestra/schema": "workspace:*",
+    "@devchestra/server": "workspace:*",
+    "@devchestra/store": "workspace:*",
+    "@devchestra/workspaces": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

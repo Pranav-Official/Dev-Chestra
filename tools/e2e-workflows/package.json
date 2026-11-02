@@ -13,8 +13,8 @@
     "test:e2e": "vitest run --config vitest.e2e.config.ts"
   },
   "dependencies": {
-    "@devchestra/adapters": "*",
-    "@devchestra/core": "*"
+    "@devchestra/adapters": "workspace:*",
+    "@devchestra/core": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",

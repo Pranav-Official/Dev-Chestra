@@ -39,13 +39,13 @@ importers:
   apps/web:
     dependencies:
       '@devchestra/api':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../../packages/api
       '@devchestra/core':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../../packages/core
       '@devchestra/schema':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../../packages/schema
       '@tanstack/react-query':
         specifier: 5.104.2
@@ -109,10 +109,10 @@ importers:
         specifier: 0.133.0
         version: 0.133.0(zod@4.6.7)
       '@devchestra/core':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../core
       '@devchestra/schema':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../schema
       '@modelcontextprotocol/sdk':
         specifier: 1.32.1
@@ -137,10 +137,10 @@ importers:
   packages/api:
     dependencies:
       '@devchestra/core':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../core
       '@devchestra/schema':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../schema
       zod:
         specifier: 4.6.7
@@ -159,34 +159,34 @@ importers:
   packages/cli:
     dependencies:
       '@devchestra/adapters':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../adapters
       '@devchestra/api':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../api
       '@devchestra/core':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../core
       '@devchestra/decisions':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../decisions
       '@devchestra/engine':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../engine
       '@devchestra/mcp':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../mcp
       '@devchestra/schema':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../schema
       '@devchestra/server':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../server
       '@devchestra/store':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../store
       '@devchestra/workspaces':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../workspaces
     devDependencies:
       '@types/node':
@@ -217,10 +217,10 @@ importers:
   packages/decisions:
     dependencies:
       '@devchestra/core':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../core
       '@devchestra/schema':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../schema
     devDependencies:
       '@types/node':
@@ -236,22 +236,22 @@ importers:
   packages/engine:
     dependencies:
       '@devchestra/adapters':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../adapters
       '@devchestra/core':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../core
       '@devchestra/decisions':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../decisions
       '@devchestra/schema':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../schema
       '@devchestra/store':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../store
       '@devchestra/workspaces':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../workspaces
     devDependencies:
       '@types/node':
@@ -270,7 +270,7 @@ importers:
   packages/mcp:
     dependencies:
       '@devchestra/core':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../core
       '@modelcontextprotocol/sdk':
         specifier: 1.32.1
@@ -292,7 +292,7 @@ importers:
   packages/schema:
     dependencies:
       '@devchestra/core':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../core
       jsonata:
         specifier: 2.2.2
@@ -314,25 +314,25 @@ importers:
   packages/server:
     dependencies:
       '@devchestra/adapters':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../adapters
       '@devchestra/api':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../api
       '@devchestra/core':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../core
       '@devchestra/decisions':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../decisions
       '@devchestra/mcp':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../mcp
       '@devchestra/schema':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../schema
       '@devchestra/store':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../store
       '@hono/node-server':
         specifier: 2.1.4
@@ -360,7 +360,7 @@ importers:
   packages/store:
     dependencies:
       '@devchestra/core':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../core
       better-sqlite3:
         specifier: 13.0.3
@@ -382,7 +382,7 @@ importers:
   packages/workspaces:
     dependencies:
       '@devchestra/core':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../core
     devDependencies:
       '@types/node':
@@ -395,16 +395,35 @@ importers:
         specifier: 5.0.4
         version: 5.0.4(@types/node@22.20.5)(jsdom@30.1.2)(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(tsx@4.23.15))
 
+  tools/fake-agent:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: 1.32.1
+        version: 1.32.1(zod@4.6.7)
+    devDependencies:
+      '@types/node':
+        specifier: 22.20.5
+        version: 22.20.5
+      tsx:
+        specifier: 4.23.15
+        version: 4.23.15
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 5.0.4
+        version: 5.0.4(@types/node@22.20.5)(jsdom@30.1.2)(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(tsx@4.23.15))
+
   tools/e2e-run-viewer:
     dependencies:
       '@devchestra/adapters':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../../packages/adapters
       '@devchestra/cli':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../../packages/cli
       '@devchestra/core':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../../packages/core
     devDependencies:
       '@playwright/test':
@@ -429,10 +448,10 @@ importers:
   tools/e2e-workflows:
     dependencies:
       '@devchestra/adapters':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../../packages/adapters
       '@devchestra/core':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../../packages/core
     devDependencies:
       '@playwright/test':
@@ -444,25 +463,6 @@ importers:
       axe-core:
         specifier: 4.14.0
         version: 4.14.0
-      tsx:
-        specifier: 4.23.15
-        version: 4.23.15
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: 5.0.4
-        version: 5.0.4(@types/node@22.20.5)(jsdom@30.1.2)(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(tsx@4.23.15))
-
-  tools/fake-agent:
-    dependencies:
-      '@modelcontextprotocol/sdk':
-        specifier: 1.32.1
-        version: 1.32.1(zod@4.6.7)
-    devDependencies:
-      '@types/node':
-        specifier: 22.20.5
-        version: 22.20.5
       tsx:
         specifier: 4.23.15
         version: 4.23.15

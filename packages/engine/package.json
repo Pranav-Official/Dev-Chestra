@@ -21,12 +21,12 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@devchestra/adapters": "*",
-    "@devchestra/core": "*",
-    "@devchestra/decisions": "*",
-    "@devchestra/schema": "*",
-    "@devchestra/store": "*",
-    "@devchestra/workspaces": "*"
+    "@devchestra/adapters": "workspace:*",
+    "@devchestra/core": "workspace:*",
+    "@devchestra/decisions": "workspace:*",
+    "@devchestra/schema": "workspace:*",
+    "@devchestra/store": "workspace:*",
+    "@devchestra/workspaces": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

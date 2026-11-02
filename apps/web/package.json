@@ -12,9 +12,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@devchestra/api": "*",
-    "@devchestra/core": "*",
-    "@devchestra/schema": "*",
+    "@devchestra/api": "workspace:*",
+    "@devchestra/core": "workspace:*",
+    "@devchestra/schema": "workspace:*",
     "@tanstack/react-query": "5.104.2",
     "@xyflow/react": "12.12.0",
     "lucide-react": "1.55.0",
