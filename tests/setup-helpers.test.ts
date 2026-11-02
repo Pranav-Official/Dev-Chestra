@@ -76,4 +76,27 @@ describe("setup helpers", () => {
     expect(h.nodeMajorOk("22.0.0")).toBe(true);
     expect(h.nodeMajorOk("v20.19.0")).toBe(false);
   });
+
+  it("lists providers that still lack secrets, with only the missing names", () => {
+    expect(h.providerGaps([]).map((gap: { label: string }) => gap.label)).toEqual([
+      "Jev (TypeSafe AI)",
+      "Clef (Cloudflare Workers AI)",
+    ]);
+    expect(h.providerGaps(["TYPESAFE_API_KEY", "CLOUDFLARE_ACCOUNT_ID"])).toEqual([
+      { label: "Clef (Cloudflare Workers AI)", missing: ["CLOUDFLARE_AUTH_TOKEN"] },
+    ]);
+    expect(
+      h.providerGaps(["TYPESAFE_API_KEY", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_AUTH_TOKEN"]),
+    ).toEqual([]);
+  });
+
+  it("appends entered secrets, keeping existing lines and skipping blanks or unknown names", () => {
+    const next = h.appendSecrets("TYPESAFE_API_KEY=old", {
+      CLOUDFLARE_ACCOUNT_ID: " acct ",
+      CLOUDFLARE_AUTH_TOKEN: "",
+      EVIL: "x",
+    });
+    expect(next).toBe("TYPESAFE_API_KEY=old\nCLOUDFLARE_ACCOUNT_ID=acct\n");
+    expect(h.appendSecrets(null, {})).toBe("");
+  });
 });

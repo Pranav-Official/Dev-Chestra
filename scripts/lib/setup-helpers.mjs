@@ -66,3 +66,30 @@ export function nodeMajorOk(version, minimum = 22) {
   const major = Number(String(version).replace(/^v/u, "").split(".")[0]);
   return Number.isInteger(major) && major >= minimum;
 }
+
+/** Decision providers and the secrets each one needs (names match .env.example). */
+export const PROVIDERS = [
+  { label: "Jev (TypeSafe AI)", secrets: ["TYPESAFE_API_KEY"] },
+  {
+    label: "Clef (Cloudflare Workers AI)",
+    secrets: ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_AUTH_TOKEN"],
+  },
+];
+
+/** Providers that still lack at least one secret, with just the missing names. */
+export function providerGaps(haveNames) {
+  const have = new Set(haveNames);
+  return PROVIDERS.map((provider) => ({
+    label: provider.label,
+    missing: provider.secrets.filter((name) => !have.has(name)),
+  })).filter((gap) => gap.missing.length > 0);
+}
+
+/** Config text with the given allowed secrets appended. Existing lines are kept; blanks skipped. */
+export function appendSecrets(configText, values) {
+  const lines = Object.entries(values)
+    .filter(([name, value]) => SECRET_NAMES.includes(name) && value.trim() !== "")
+    .map(([name, value]) => `${name}=${value.trim()}`);
+  const base = configText === null || configText === "" ? "" : configText.replace(/\n?$/u, "\n");
+  return `${base}${lines.join("\n")}${lines.length > 0 ? "\n" : ""}`;
+}

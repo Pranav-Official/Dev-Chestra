@@ -89,7 +89,9 @@ pnpm setup:global   # or: npm run setup:global / bun run setup:global
 devchestra start
 ```
 
-That installs everything, links the `devchestra` command, and opens the editor in your browser. Run it again any time something looks off, it's safe to repeat.
+That installs everything, links the `devchestra` command, and starts the editor in the background (it opens in your browser and the shell comes back right away; `devchestra stop` shuts it down, `devchestra start --foreground` keeps it attached). Run it again any time something looks off, it's safe to repeat.
+
+In an interactive terminal, setup also offers to configure the decision providers: **Jev** (`TYPESAFE_API_KEY`) and **Clef** (`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_AUTH_TOKEN`). Answer `y` for the ones you use and paste the values (they are not echoed). Keys are saved to `~/.config/devchestra/.env` with mode 600, never overwriting a value that is already there. If you already filled in a `.env` copied from `.env.example` in the repo, setup copies those keys over instead of asking. Skip the step with `--no-env`, or preview everything with `--dry-run`.
 
 Prefer the manual route?
 
@@ -125,7 +127,7 @@ See the [CLI guide](packages/cli/README.md) for validation, approvals, recovery,
 
 Works with the CLIs you already signed in to: Claude Code, Codex, OpenCode, and Pi. DevChestra never asks for their keys, it just uses what's there.
 
-Decision nodes are the one exception — they need their own keys. Copy `.env.example` to `.env` and fill in only the provider you use.
+Decision nodes are the one exception — they need their own keys. `setup:global` can set them up for you (see above), or copy `.env.example` to `.env` and fill in only the provider you use.
 
 ## It lives where you already work
 

@@ -18,14 +18,19 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
+import { createInterface } from "node:readline/promises";
+import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import {
+  appendSecrets,
   configDir,
   mergedConfigText,
   modeTooOpen,
   nodeMajorOk,
   pathContains,
+  pickSecrets,
   planKeys,
+  providerGaps,
 } from "./lib/setup-helpers.mjs";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -51,6 +56,24 @@ function run(command, commandArgs, options = {}) {
     stdio: options.inherit ? "inherit" : "pipe",
     ...options,
   });
+}
+
+// Ask one question; secret answers are not echoed to the terminal.
+async function ask(question, { secret = false } = {}) {
+  let muteOutput = false;
+  const muted = new Writable({
+    write(chunk, _encoding, done) {
+      if (!muteOutput) process.stdout.write(chunk);
+      done();
+    },
+  });
+  const rl = createInterface({ input: process.stdin, output: muted, terminal: true });
+  const pending = rl.question(question);
+  muteOutput = secret;
+  const answer = await pending;
+  rl.close();
+  if (secret) process.stdout.write("\n");
+  return answer.trim();
 }
 
 function die(message, hint) {
@@ -164,7 +187,6 @@ if (skipEnv) {
   const plan = planKeys(repoText, configText);
   if (plan.action === "none") {
     say.note(`no keys found in ${repoEnvPath} or ${targetPath}`);
-    say.note("copy .env.example to ~/.config/devchestra/.env and fill in the keys you use");
   } else if (plan.action === "complete") {
     say.ok(`${targetPath} already has ${plan.have.join(", ")}`);
   } else if (dryRun) {
@@ -174,6 +196,36 @@ if (skipEnv) {
     writeFileSync(targetPath, mergedConfigText(configText, repoText, plan.add), { mode: 0o600 });
     chmodSync(targetPath, 0o600);
     say.ok(`added ${plan.add.join(", ")} to ${targetPath} (mode 600)`);
+  }
+  // Offer to enter whatever the decision providers still lack (interactive terminals only).
+  const interactive = !dryRun && process.stdin.isTTY && process.stdout.isTTY;
+  const currentText = existsSync(targetPath) ? readFileSync(targetPath, "utf8") : configText;
+  const gaps = providerGaps(Object.keys(pickSecrets(currentText ?? "")));
+  if (gaps.length === 0) {
+    say.ok("decision keys are set for Jev and Clef");
+  } else if (!interactive) {
+    say.note(`not set: ${gaps.map((gap) => gap.label).join(", ")}`);
+    say.note(
+      "add them to ~/.config/devchestra/.env (see .env.example) or re-run this in a terminal",
+    );
+  } else {
+    const entered = {};
+    for (const gap of gaps) {
+      const reply = await ask(`  Set up ${gap.label} for decision nodes now? [y/N] `);
+      if (!/^y(es)?$/iu.test(reply)) continue;
+      for (const name of gap.missing) {
+        entered[name] = await ask(`    ${name}: `, { secret: true });
+      }
+    }
+    const nextText = appendSecrets(currentText ?? null, entered);
+    if (nextText !== (currentText ?? "")) {
+      mkdirSync(targetDir, { recursive: true, mode: 0o700 });
+      writeFileSync(targetPath, nextText, { mode: 0o600 });
+      chmodSync(targetPath, 0o600);
+      say.ok(`saved to ${targetPath} (mode 600)`);
+    } else {
+      say.note("skipped; add keys later to ~/.config/devchestra/.env (see .env.example)");
+    }
   }
   if (repoText !== null && modeTooOpen(statSync(repoEnvPath).mode)) {
     if (dryRun) say.note(`would restrict ${repoEnvPath} to mode 600 (others can read it now)`);
