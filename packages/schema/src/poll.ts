@@ -8,7 +8,7 @@ import {
   type StartNode,
   type WorkflowParam,
 } from "./types.js";
-import { issue, timeoutBounds } from "./validate-support.js";
+import { timeoutBounds } from "./validate-support.js";
 
 /**
  * Polling probes. The probe is config inside the start node (`start.polling`),

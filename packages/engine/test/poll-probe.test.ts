@@ -80,7 +80,7 @@ async function harness(
   let closeGateway = async (): Promise<void> => undefined;
   if (options.gateway === "real") {
     const tokens = new ExecTokenRegistry({
-      registerSecret: (value: string, name: string) => store.security.registerSecret(value, name),
+      registerSecret: (value: string, name?: string) => store.security.registerSecret(value, name),
     });
     const validator = new OutputValidator();
     let port = 0;
@@ -281,7 +281,13 @@ describe("engine.probe with a shell probe", () => {
 });
 
 describe("engine.probe with an agent probe", () => {
-  const agentProbe: PollProbe = { type: "agent", cli: "fake", prompt: "Check for work." };
+  // `fake` is test-only: the PollProbe type keeps the production CLI union,
+  // so the test fixture casts at the boundary like the parser does.
+  const agentProbe = {
+    type: "agent",
+    cli: "fake",
+    prompt: "Check for work.",
+  } as unknown as PollProbe;
 
   it("returns the agent structured output with read-only permissions", async () => {
     const { engine, store, requests } = await harness({

@@ -72,7 +72,6 @@ import {
   listDuePollers,
   type PollDedupeClaim,
   type PollTickInput,
-  type PollTickOutcome,
   type PollTriggerRecord,
   type PollTriggerRuntime,
   pruneExpiredDedupe,

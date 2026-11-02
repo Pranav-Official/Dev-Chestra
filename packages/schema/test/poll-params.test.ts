@@ -299,7 +299,7 @@ describe("agent probe builders", () => {
       params: [{ name: "style", type: "enum", options: ["brief", "detailed"], required: false }],
     });
     const params = schema.properties as Record<string, { properties: Record<string, unknown> }>;
-    expect(params.params?.properties["style"]).toEqual({
+    expect(params.params?.properties.style).toEqual({
       type: "string",
       enum: ["brief", "detailed"],
     });

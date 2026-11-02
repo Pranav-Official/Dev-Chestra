@@ -6,7 +6,6 @@ import {
   resolvePollResult,
 } from "@devchestra/schema";
 import type { PollTriggerRuntime } from "@devchestra/store";
-import { devchestraErrorCode } from "../errors.js";
 import { hashJson } from "../hash.js";
 import type { BrowserPollPorts, PollProbeOutcome } from "./ports.js";
 
