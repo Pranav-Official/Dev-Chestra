@@ -1,15 +1,19 @@
 import { DevChestraError, err, ok, type Result } from "@devchestra/core";
 import { validateParams } from "./params.js";
+import { compileTemplate } from "./template.js";
 import {
   type Issue,
   type JsonSchemaObject,
+  MCP_SCOPES,
   type NormalizedStartNode,
+  POLL_PROBE_ID,
   type PollProbe,
   PROD_CLIS,
   type StartNode,
+  type ValidationContext,
   type WorkflowParam,
 } from "./types.js";
-import { timeoutBounds } from "./validate-support.js";
+import { retryBounds, timeoutBounds } from "./validate-support.js";
 
 /**
  * Polling probes. The probe is config inside the start node (`start.polling`),
@@ -39,13 +43,318 @@ export interface PollStartLike {
   };
 }
 
+const MCP_SERVER_NAME_MAX = 128;
+const MCP_SERVERS_MAX = 32;
+// biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting control characters is the point.
+const MCP_SERVER_NAME_CONTROL = /[\u0000-\u001f\u007f]/;
+const MCP_SCOPE_SET: ReadonlySet<string> = new Set(MCP_SCOPES);
+
+function hasProbeTemplate(text: string, shell: boolean): boolean {
+  const compiled = compileTemplate(text, { shell });
+  if (!compiled.ok) return true;
+  return compiled.value.parts.some((part) => part.kind === "expression");
+}
+
+function validatePollMcpServers(
+  value: unknown,
+  probeBase: string,
+  fail: (code: string, message: string, pointer: string) => void,
+): void {
+  if (value === undefined) return;
+  const base = `${probeBase}/mcpServers`;
+  if (!Array.isArray(value)) {
+    fail("E_MCP_SERVERS", "Agent mcpServers must be an array.", base);
+    return;
+  }
+  if (value.length > MCP_SERVERS_MAX) {
+    fail("E_MCP_SERVERS", `Agent mcpServers must have at most ${MCP_SERVERS_MAX} entries.`, base);
+  }
+  const seen = new Set<string>();
+  for (let index = 0; index < value.length; index += 1) {
+    const entry = `${base}/${index}`;
+    const selection = value[index];
+    if (!isRecord(selection)) {
+      fail("E_MCP_SERVERS", "Agent mcpServers entries must be objects.", entry);
+      continue;
+    }
+    const { name, scope } = selection as { name?: unknown; scope?: unknown };
+    if (
+      typeof name !== "string" ||
+      name.length < 1 ||
+      name.length > MCP_SERVER_NAME_MAX ||
+      MCP_SERVER_NAME_CONTROL.test(name)
+    ) {
+      fail(
+        "E_MCP_SERVERS",
+        `Agent mcpServers[${index}].name must be 1-${MCP_SERVER_NAME_MAX} characters with no control characters.`,
+        `${entry}/name`,
+      );
+      continue;
+    }
+    if (name === "devchestra") {
+      fail(
+        "E_MCP_SERVERS",
+        "Agent mcpServers name 'devchestra' is reserved for DevChestra's own server.",
+        `${entry}/name`,
+      );
+      continue;
+    }
+    if (typeof scope !== "string" || !MCP_SCOPE_SET.has(scope)) {
+      fail(
+        "E_MCP_SERVERS",
+        `Agent mcpServers[${index}].scope must be one of ${MCP_SCOPES.join(", ")}.`,
+        `${entry}/scope`,
+      );
+      continue;
+    }
+    const key = `${scope}:${name}`;
+    if (seen.has(key)) {
+      fail("E_MCP_SERVERS", `Agent mcpServers[${index}] duplicates '${key}'.`, entry);
+    } else {
+      seen.add(key);
+    }
+  }
+}
+
+function validatePollShellProbe(
+  typed: Record<string, unknown>,
+  probeBase: string,
+  fail: (code: string, message: string, pointer: string) => void,
+): void {
+  if (typed.workspace !== undefined) {
+    fail(
+      "E_POLL_PROBE",
+      "Poll shell probe workspace is engine-owned; remove it.",
+      `${probeBase}/workspace`,
+    );
+  }
+  if (typed.allowFailure !== undefined) {
+    fail(
+      "E_POLL_PROBE",
+      "Poll shell probe allowFailure is engine-owned; a non-zero exit is always a probe failure.",
+      `${probeBase}/allowFailure`,
+    );
+  }
+  const command = typed.command;
+  if (typeof command !== "string" || command.trim() === "") {
+    fail("E_SHELL_COMMAND", "Shell command must be a non-empty string.", `${probeBase}/command`);
+  } else if (hasProbeTemplate(command, true)) {
+    fail(
+      "E_POLL_PROBE",
+      "Poll probe text must not contain {{ }} variables.",
+      `${probeBase}/command`,
+    );
+  }
+  const timeout = timeoutBounds(typed.timeoutMin as number | undefined, "timeoutMin");
+  if (timeout !== undefined) {
+    fail("E_LIMITS", timeout, `${probeBase}/timeoutMin`);
+  }
+}
+
+function validatePollAgentProbe(
+  typed: Record<string, unknown>,
+  probeBase: string,
+  fail: (code: string, message: string, pointer: string) => void,
+  add: (severity: Issue["severity"], code: string, message: string, pointer: string) => void,
+  ctx?: ValidationContext,
+): void {
+  if (typed.output !== undefined) {
+    fail(
+      "E_POLL_PROBE",
+      "Poll agent probe output is generated from the start params; remove it.",
+      `${probeBase}/output`,
+    );
+  }
+  if (typed.workspace !== undefined) {
+    fail(
+      "E_POLL_PROBE",
+      "Poll agent probe workspace is engine-owned; remove it.",
+      `${probeBase}/workspace`,
+    );
+  }
+  if (typed.context !== undefined) {
+    fail(
+      "E_POLL_PROBE",
+      "Poll agent probe context is not supported; remove it.",
+      `${probeBase}/context`,
+    );
+  }
+  if (typed.promptFile !== undefined) {
+    fail(
+      "E_POLL_PROBE",
+      "Poll agent probe promptFile is not supported; inline the prompt.",
+      `${probeBase}/promptFile`,
+    );
+  }
+  if (typed.timeoutMin !== undefined) {
+    fail(
+      "E_POLL_PROBE",
+      "Poll agent probe timeoutMin was moved: use limits.timeoutMin instead of top-level timeoutMin.",
+      `${probeBase}/timeoutMin`,
+    );
+  }
+  const prodClis: readonly string[] = PROD_CLIS;
+  const cli = typed.cli;
+  if (typeof cli !== "string" || !prodClis.includes(cli)) {
+    if (cli === "fake") {
+      add(
+        "warning",
+        "W_FAKE_CLI",
+        "Poll agent probe CLI 'fake' is test-only (requires DEVCHESTRA_ALLOW_FAKE=1 at run time); do not use it for a real poller.",
+        `${probeBase}/cli`,
+      );
+    } else {
+      fail(
+        "E_WORKFLOW_INVALID",
+        `Agent CLI '${String(cli)}' is not supported; use ${PROD_CLIS.join(", ")}. Fake is test-only behind DEVCHESTRA_ALLOW_FAKE=1.`,
+        `${probeBase}/cli`,
+      );
+    }
+  } else if (ctx?.disabledClis?.includes(cli as never)) {
+    add(
+      "warning",
+      "W_CLI_DISABLED",
+      `Provider '${String(cli)}' is turned off in Settings > Providers. Runs that use this node are blocked.`,
+      `${probeBase}/cli`,
+    );
+  }
+  if (typed.model !== undefined) {
+    if (typeof typed.model !== "string" || (typed.model as string).trim() === "") {
+      fail(
+        "E_POLL_PROBE",
+        "Poll agent probe model must be a non-empty string.",
+        `${probeBase}/model`,
+      );
+    }
+  }
+  const prompt = typed.prompt;
+  if (typeof prompt !== "string" || prompt.trim() === "") {
+    fail(
+      "E_POLL_PROBE",
+      "Poll agent probe prompt must be a non-empty string.",
+      `${probeBase}/prompt`,
+    );
+  } else {
+    if (utf8Bytes(prompt) > POLL_AGENT_PROMPT_MAX_BYTES) {
+      fail(
+        "E_POLL_PROBE",
+        `Poll agent probe prompt exceeds the ${POLL_AGENT_PROMPT_MAX_BYTES}-byte limit.`,
+        `${probeBase}/prompt`,
+      );
+    }
+    if (hasProbeTemplate(prompt, false)) {
+      fail(
+        "E_POLL_PROBE",
+        "Poll probe text must not contain {{ }} variables.",
+        `${probeBase}/prompt`,
+      );
+    }
+  }
+  const permissions = typed.permissions;
+  if (permissions !== undefined) {
+    if (!isRecord(permissions)) {
+      fail("E_PERMISSIONS", "Agent permissions are required.", `${probeBase}/permissions`);
+    } else {
+      if (typeof permissions.network !== "boolean") {
+        fail(
+          "E_PERMISSIONS",
+          "permissions.network must be a boolean.",
+          `${probeBase}/permissions/network`,
+        );
+      }
+      if (
+        !Array.isArray(permissions.write) ||
+        (permissions.write as unknown[]).some(
+          (entry) => entry !== "workspace" && entry !== "project",
+        )
+      ) {
+        fail(
+          "E_PERMISSIONS",
+          "permissions.write must be an array of 'workspace'|'project'.",
+          `${probeBase}/permissions/write`,
+        );
+      } else if ((permissions.write as string[]).includes("project")) {
+        fail(
+          "E_WORKFLOW_INVALID",
+          "Project write permission is not supported; use workspace-only access with a scratch workspace.",
+          `${probeBase}/permissions/write`,
+        );
+      }
+      if (
+        typeof permissions.network === "boolean" &&
+        Array.isArray(permissions.write) &&
+        permissions.network &&
+        (permissions.write as string[]).includes("project")
+      ) {
+        add(
+          "warning",
+          "W_NETWORK_WRITE",
+          "Agent has network access and project write access.",
+          `${probeBase}/permissions`,
+        );
+      }
+      if (permissions.shell !== undefined && typeof permissions.shell !== "boolean") {
+        fail(
+          "E_PERMISSIONS",
+          "permissions.shell must be a boolean.",
+          `${probeBase}/permissions/shell`,
+        );
+      }
+    }
+  }
+  validatePollMcpServers(typed.mcpServers, probeBase, fail);
+  const limits = typed.limits;
+  if (isRecord(limits)) {
+    const timeout = timeoutBounds(limits.timeoutMin as number | undefined, "limits.timeoutMin");
+    if (timeout !== undefined) {
+      fail("E_LIMITS", timeout, `${probeBase}/limits/timeoutMin`);
+    }
+    const validationRetries = retryBounds(
+      limits.validationRetries as number | undefined,
+      "limits.validationRetries",
+    );
+    if (validationRetries !== undefined) {
+      fail("E_LIMITS", validationRetries, `${probeBase}/limits/validationRetries`);
+    }
+    const crashRetries = retryBounds(
+      limits.crashRetries as number | undefined,
+      "limits.crashRetries",
+    );
+    if (crashRetries !== undefined) {
+      fail("E_LIMITS", crashRetries, `${probeBase}/limits/crashRetries`);
+    }
+    if (limits.maxQuotaWaitHours !== undefined) {
+      fail(
+        "E_WORKFLOW_INVALID",
+        "limits.maxQuotaWaitHours is not supported.",
+        `${probeBase}/limits/maxQuotaWaitHours`,
+      );
+    }
+  } else if (limits !== undefined) {
+    fail("E_LIMITS", "limits must be an object.", `${probeBase}/limits`);
+  }
+  if (isRecord(typed.cliOptions) && Object.keys(typed.cliOptions).length > 0) {
+    fail(
+      "E_WORKFLOW_INVALID",
+      "Agent cliOptions are not supported; remove cliOptions.",
+      `${probeBase}/cliOptions`,
+    );
+  }
+}
+
 /**
  * Semantic checks for a start node's polling block. Parse (strict Zod
  * objects) already rejects unknown keys; this reports field-level problems
- * against the saved file. All errors use E_POLL_PROBE so trigger layers can
- * tell a bad probe from other workflow problems.
+ * against the saved file. Poll-specific problems use E_POLL_PROBE; agent/shell
+ * node-rule problems reuse the underlying codes from validateSingleNode
+ * (E_WORKFLOW_INVALID, E_PERMISSIONS, E_MCP_SERVERS, E_LIMITS,
+ * E_SHELL_COMMAND, E_NODE_NAME, ...). Pointers are under /polling/probe/...
  */
-export function validatePollingConfig(start: PollStartLike, pointerBase: string): Issue[] {
+export function validatePollingConfig(
+  start: PollStartLike,
+  pointerBase: string,
+  opts?: { fileId?: string; ctx?: ValidationContext },
+): Issue[] {
   const issues: Issue[] = [];
   const polling = start.polling;
   if (polling === undefined) return [];
@@ -75,80 +384,54 @@ export function validatePollingConfig(start: PollStartLike, pointerBase: string)
     fail("E_POLL_PROBE", "Start polling.enabled must be a boolean.", `${pointerBase}/enabled`);
   }
   const probe = polling.probe;
+  const probeBase = `${pointerBase}/probe`;
   if (!isRecord(probe)) {
     fail("E_POLL_PROBE", "Start polling.probe must be an object.", `${pointerBase}/probe`);
-  } else if (probe.type === "shell") {
-    const command = (probe as { command?: unknown }).command;
-    if (typeof command !== "string" || command.trim() === "") {
-      fail(
-        "E_POLL_PROBE",
-        "Poll shell probe command must be a non-empty string.",
-        `${pointerBase}/probe/command`,
-      );
-    }
-    const timeout = timeoutBounds(
-      (probe as { timeoutMin?: number }).timeoutMin,
-      "probe.timeoutMin",
-    );
-    if (timeout !== undefined) {
-      fail("E_POLL_PROBE", timeout, `${pointerBase}/probe/timeoutMin`);
-    }
-  } else if (probe.type === "agent") {
-    const typed = probe as {
-      cli?: unknown;
-      model?: unknown;
-      prompt?: unknown;
-      timeoutMin?: number;
-    };
-    const prodClis: readonly string[] = PROD_CLIS;
-    if (typeof typed.cli !== "string" || !prodClis.includes(typed.cli)) {
-      if (typed.cli === "fake") {
-        add(
-          "warning",
-          "W_FAKE_CLI",
-          "Poll agent probe CLI 'fake' is test-only (requires DEVCHESTRA_ALLOW_FAKE=1 at run time); do not use it for a real poller.",
-          `${pointerBase}/probe/cli`,
-        );
-      } else {
-        fail(
-          "E_POLL_PROBE",
-          `Poll agent probe CLI '${String(typed.cli)}' is not supported; use ${PROD_CLIS.join(", ")}.`,
-          `${pointerBase}/probe/cli`,
-        );
-      }
-    }
-    if (typed.model !== undefined) {
-      if (typeof typed.model !== "string" || typed.model.trim() === "") {
-        fail(
-          "E_POLL_PROBE",
-          "Poll agent probe model must be a non-empty string.",
-          `${pointerBase}/probe/model`,
-        );
-      }
-    }
-    if (typeof typed.prompt !== "string" || typed.prompt.trim() === "") {
-      fail(
-        "E_POLL_PROBE",
-        "Poll agent probe prompt must be a non-empty string.",
-        `${pointerBase}/probe/prompt`,
-      );
-    } else if (utf8Bytes(typed.prompt) > POLL_AGENT_PROMPT_MAX_BYTES) {
-      fail(
-        "E_POLL_PROBE",
-        `Poll agent probe prompt exceeds the ${POLL_AGENT_PROMPT_MAX_BYTES}-byte limit.`,
-        `${pointerBase}/probe/prompt`,
-      );
-    }
-    const timeout = timeoutBounds(typed.timeoutMin, "probe.timeoutMin");
-    if (timeout !== undefined) {
-      fail("E_POLL_PROBE", timeout, `${pointerBase}/probe/timeoutMin`);
-    }
   } else {
-    fail(
-      "E_POLL_PROBE",
-      "Start polling.probe.type must be 'shell' or 'agent'.",
-      `${pointerBase}/probe/type`,
-    );
+    const typed = probe as Record<string, unknown>;
+    // id must be 'probe' when present (parse enforces literal; normalize fills when absent).
+    if (typed.id !== undefined && typed.id !== POLL_PROBE_ID) {
+      fail("E_POLL_PROBE", `Poll probe id must be '${POLL_PROBE_ID}'.`, `${probeBase}/id`);
+    }
+    // name: optional (defaults to 'Poll probe' in normalize); when present reuse node-name rule.
+    if (typed.name !== undefined) {
+      if (typeof typed.name !== "string" || typed.name.trim() === "" || typed.name.length > 200) {
+        fail(
+          "E_NODE_NAME",
+          "Poll probe name must be a non-empty string (max 200).",
+          `${probeBase}/name`,
+        );
+      }
+    }
+    // supervise/env reuse node-base rules (underlying codes).
+    if (typed.supervise !== undefined && typed.supervise !== "default") {
+      fail(
+        "E_WORKFLOW_INVALID",
+        `Poll probe supervise mode '${String(typed.supervise)}' is not supported; use 'default' or omit it.`,
+        `${probeBase}/supervise`,
+      );
+    }
+    if (
+      typed.env !== undefined &&
+      (!Array.isArray(typed.env) || (typed.env as unknown[]).length > 0)
+    ) {
+      fail(
+        "E_WORKFLOW_INVALID",
+        "Probe env passthrough is not supported; remove probe.env.",
+        `${probeBase}/env`,
+      );
+    }
+    if (typed.type === "shell") {
+      validatePollShellProbe(typed, probeBase, fail);
+    } else if (typed.type === "agent") {
+      validatePollAgentProbe(typed, probeBase, fail, add, opts?.ctx);
+    } else {
+      fail(
+        "E_POLL_PROBE",
+        "Start polling.probe.type must be 'shell' or 'agent'.",
+        `${probeBase}/type`,
+      );
+    }
   }
   if (polling.dedupe !== undefined && typeof polling.dedupe !== "boolean") {
     fail("E_POLL_PROBE", "Start polling.dedupe must be a boolean.", `${pointerBase}/dedupe`);

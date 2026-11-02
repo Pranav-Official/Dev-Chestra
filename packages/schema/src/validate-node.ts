@@ -209,7 +209,10 @@ export function validateSingleNode(
     for (const webhookIssue of validateWebhookConfig(start, `${pointer}/webhook`)) {
       addError(webhookIssue);
     }
-    for (const pollIssue of validatePollingConfig(start, `${pointer}/polling`)) {
+    for (const pollIssue of validatePollingConfig(start, `${pointer}/polling`, {
+      fileId,
+      ctx,
+    })) {
       if (pollIssue.severity === "warning") addWarning(pollIssue);
       else addError(pollIssue);
     }

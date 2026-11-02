@@ -297,16 +297,38 @@ const normalizedStartNodeSchema = strict({
     enabled: z.boolean(),
     probe: z.union([
       strict({
+        id: z.literal("probe"),
         type: z.literal("shell"),
+        name: z.string(),
         command: z.string(),
-        timeoutMin: z.number().optional(),
+        timeoutMin: z.number(),
       }),
       strict({
+        id: z.literal("probe"),
         type: z.literal("agent"),
-        cli: z.string(),
+        name: z.string(),
+        cli: z.enum([...PROD_CLIS, "fake"]),
         model: z.string().optional(),
         prompt: z.string(),
-        timeoutMin: z.number().optional(),
+        permissions: strict({
+          network: z.boolean(),
+          write: z.array(z.enum(["workspace", "project"])),
+          shell: z.boolean().optional(),
+        }),
+        mcpServers: z
+          .array(
+            strict({
+              name: z.string().min(1).max(128),
+              scope: z.enum(["global", "project", "connector"]),
+            }),
+          )
+          .max(32)
+          .optional(),
+        limits: strict({
+          timeoutMin: z.number(),
+          validationRetries: z.number().int().nonnegative(),
+          crashRetries: z.number().int().nonnegative(),
+        }),
       }),
     ]),
     dedupe: z.boolean().optional(),

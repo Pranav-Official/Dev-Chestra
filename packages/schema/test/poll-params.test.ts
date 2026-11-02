@@ -69,7 +69,7 @@ describe("validatePollingConfig", () => {
     expect(issues).toEqual([]);
   });
 
-  it("reports probe field problems as E_POLL_PROBE", () => {
+  it("reports probe field problems with underlying and poll codes", () => {
     const issues = validatePollingConfig(
       startNode({
         enabled: true,
@@ -80,15 +80,15 @@ describe("validatePollingConfig", () => {
       "/graph/nodes/0/polling",
     );
     expect(issues.map((issue) => issue.code)).toEqual([
-      "E_POLL_PROBE",
-      "E_POLL_PROBE",
+      "E_SHELL_COMMAND",
+      "E_LIMITS",
       "E_POLL_PROBE",
       "E_POLL_PROBE",
     ]);
     expect(issues[0]?.pointer).toBe("/graph/nodes/0/polling/probe/command");
   });
 
-  it("reports agent probe problems as E_POLL_PROBE", () => {
+  it("reports agent probe problems with underlying and poll codes", () => {
     const issues = validatePollingConfig(
       startNode({
         enabled: true,
@@ -97,7 +97,7 @@ describe("validatePollingConfig", () => {
       "/graph/nodes/0/polling",
     );
     expect(issues.map((issue) => issue.code)).toEqual([
-      "E_POLL_PROBE",
+      "E_WORKFLOW_INVALID",
       "E_POLL_PROBE",
       "E_POLL_PROBE",
     ]);
@@ -133,6 +133,63 @@ describe("validatePollingConfig", () => {
     );
     expect(issues.map((issue) => issue.code)).toEqual(["W_FAKE_CLI"]);
     expect(issues[0]?.severity).toBe("warning");
+  });
+
+  it("accepts a probe with mcpServers and explicit permissions", () => {
+    const issues = validatePollingConfig(
+      startNode({
+        enabled: true,
+        probe: {
+          id: "probe",
+          type: "agent",
+          name: "Poll probe",
+          cli: "codex",
+          prompt: "Check for work.",
+          permissions: { network: true, write: [], shell: true },
+          mcpServers: [{ name: "gh", scope: "global" }],
+          limits: { timeoutMin: 5 },
+        },
+      }),
+      "/graph/nodes/0/polling",
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("rejects old-shape agent probe with top-level timeoutMin", () => {
+    const issues = validatePollingConfig(
+      startNode({
+        enabled: true,
+        probe: { type: "agent", cli: "codex", prompt: "Check.", timeoutMin: 5 },
+      }),
+      "/graph/nodes/0/polling",
+    );
+    expect(issues.map((issue) => issue.code)).toContain("E_POLL_PROBE");
+    expect(issues.map((issue) => issue.message).join(" ")).toContain("limits.timeoutMin");
+  });
+
+  it("rejects engine-owned output/workspace with E_POLL_PROBE", () => {
+    const agentIssues = validatePollingConfig(
+      startNode({
+        enabled: true,
+        probe: {
+          type: "agent",
+          cli: "codex",
+          prompt: "Check.",
+          output: { type: "object" },
+          workspace: { mode: "scratch" },
+        },
+      }),
+      "/graph/nodes/0/polling",
+    );
+    expect(agentIssues.map((issue) => issue.code)).toContain("E_POLL_PROBE");
+    const shellIssues = validatePollingConfig(
+      startNode({
+        enabled: true,
+        probe: { type: "shell", command: "true", workspace: { mode: "scratch" } },
+      }),
+      "/graph/nodes/0/polling",
+    );
+    expect(shellIssues.map((issue) => issue.code)).toContain("E_POLL_PROBE");
   });
 });
 
@@ -373,6 +430,80 @@ describe("start node polling block in workflow files", () => {
   it("reports probe errors against the saved file", () => {
     const parsed = parseWorkflow(
       workflow(startNode({ enabled: true, probe: { type: "shell", command: "" } })),
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const report = validateWorkflow(parsed.value);
+    expect(report.ok).toBe(false);
+    expect(report.errors.map((issue) => issue.code)).toContain("E_SHELL_COMMAND");
+  });
+
+  it("validates and round-trips a probe with mcpServers and permissions", () => {
+    const polling = {
+      enabled: true,
+      probe: {
+        id: "probe",
+        type: "agent",
+        name: "Poll probe",
+        cli: "codex",
+        prompt: "Check for work.",
+        permissions: { network: true, write: [], shell: true },
+        mcpServers: [{ name: "gh", scope: "global" }],
+        limits: { timeoutMin: 5 },
+      },
+    };
+    const parsed = parseWorkflow(workflow(startNode(polling)));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(validateWorkflow(parsed.value).ok).toBe(true);
+    const normalized = normalizeWorkflow(parsed.value);
+    expect(normalized.ok).toBe(true);
+    if (!normalized.ok) return;
+    const start = normalized.value.graph.nodes.find((node) => node.type === "start");
+    expect(start).toMatchObject({
+      polling: {
+        enabled: true,
+        probe: {
+          id: "probe",
+          type: "agent",
+          cli: "codex",
+          prompt: "Check for work.",
+          permissions: { network: true, write: [], shell: true },
+          mcpServers: [{ name: "gh", scope: "global" }],
+          limits: expect.objectContaining({ timeoutMin: 5 }),
+        },
+      },
+    });
+  });
+
+  it("rejects old-shape agent probe with top-level timeoutMin at parse", () => {
+    const parsed = parseWorkflow(
+      workflow(
+        startNode({
+          enabled: true,
+          probe: { type: "agent", cli: "codex", prompt: "Check.", timeoutMin: 5 },
+        }),
+      ),
+    );
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.error.message).toContain("limits.timeoutMin");
+  });
+
+  it("rejects engine-owned output/workspace in the probe", () => {
+    const parsed = parseWorkflow(
+      workflow(
+        startNode({
+          enabled: true,
+          probe: {
+            type: "agent",
+            cli: "codex",
+            prompt: "Check.",
+            output: { type: "object" },
+            workspace: { mode: "scratch" },
+          },
+        }),
+      ),
     );
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;

@@ -1,6 +1,6 @@
 import { DevChestraError, err, ok, type Result } from "@devchestra/core";
 import { MAX_WORKFLOW_FILE_BYTES } from "./ids.js";
-import { DECISION_PROVIDERS, PROD_CLIS, type WorkflowFile } from "./types.js";
+import { DECISION_PROVIDERS, POLL_PROBE_ID, PROD_CLIS, type WorkflowFile } from "./types.js";
 import { z } from "./zod.js";
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -144,20 +144,61 @@ const startWebhookSchema = z.strictObject({
   paramMapping: z.record(z.string(), z.string()).optional(),
 });
 
+const pollProbeBase = {
+  id: z.literal(POLL_PROBE_ID).optional(),
+  name: z.string().optional(),
+  ui: uiSchema.optional(),
+  supervise: superviseSchema.optional(),
+  env: z.array(z.string()).optional(),
+};
+
+const pollAgentPermissionsSchema = z.strictObject({
+  network: z.boolean(),
+  write: z.array(z.enum(["workspace", "project"])),
+  shell: z.boolean().optional(),
+});
+
 const pollShellProbeSchema = z.strictObject({
+  ...pollProbeBase,
   type: z.literal("shell"),
   command: z.string(),
   timeoutMin: z.number().optional(),
+  // Engine-owned: allowed through parse so validate can reject with E_POLL_PROBE
+  // (same precedent as budget/supervisor). Truly unknown keys still fail strict.
+  workspace: z.unknown().optional(),
+  allowFailure: z.unknown().optional(),
 });
 
 const pollAgentProbeSchema = z.strictObject({
+  ...pollProbeBase,
   type: z.literal("agent"),
   // Structural parse allows fake everywhere (warning in validateWorkflow).
   // Run-time layers enforce the DEVCHESTRA_ALLOW_FAKE=1 test-only gate.
   cli: z.enum([...PROD_CLIS, "fake"]),
   model: z.string().optional(),
   prompt: z.string().optional(),
-  timeoutMin: z.number().optional(),
+  permissions: pollAgentPermissionsSchema.optional(),
+  mcpServers: mcpServersSchema.optional(),
+  limits: limitsSchema.optional(),
+  cliOptions: z.record(z.string(), z.unknown()).optional(),
+  // Engine-owned: allowed through parse so validate rejects with E_POLL_PROBE.
+  output: z.unknown().optional(),
+  workspace: z.unknown().optional(),
+  context: z.unknown().optional(),
+  promptFile: z.unknown().optional(),
+  // Old reduced shape: fail at parse with a clear migration message.
+  timeoutMin: z
+    .unknown()
+    .optional()
+    .superRefine((value, ctx) => {
+      if (value !== undefined) {
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "Poll agent probe timeoutMin was moved: use limits.timeoutMin instead of top-level timeoutMin.",
+        });
+      }
+    }),
 });
 
 const startPollingSchema = z.strictObject({
