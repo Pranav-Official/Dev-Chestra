@@ -26,6 +26,7 @@ export type ErrorCode =
   | "E_JOIN_CONFLICT"
   | "E_CANCELLED"
   | "E_LOOP_LIMIT"
+  | "E_POLL_PROBE"
   | "E_INTERNAL";
 
 export interface DevChestraErrorOptions {

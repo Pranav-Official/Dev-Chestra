@@ -293,6 +293,25 @@ const normalizedStartNodeSchema = strict({
     enabled: z.boolean(),
     paramMapping: z.record(z.string(), z.string()).optional(),
   }).optional(),
+  polling: strict({
+    enabled: z.boolean(),
+    probe: z.union([
+      strict({
+        type: z.literal("shell"),
+        command: z.string(),
+        timeoutMin: z.number().optional(),
+      }),
+      strict({
+        type: z.literal("agent"),
+        cli: z.string(),
+        model: z.string().optional(),
+        prompt: z.string(),
+        timeoutMin: z.number().optional(),
+      }),
+    ]),
+    dedupe: z.boolean().optional(),
+    workspace: z.enum(["project", "worktree"]).optional(),
+  }).optional(),
 });
 
 const normalizedAgentNodeSchema = strict({

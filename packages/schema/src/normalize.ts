@@ -26,8 +26,10 @@ import type {
   NormalizedWorkflow,
   NormalizedWorkspaceSpec,
   NormalizeOptions,
+  PollProbe,
   ShellNode,
   StartNode,
+  StartPollingConfig,
   StartWebhookConfig,
   WorkflowFile,
   WorkflowNode,
@@ -58,6 +60,7 @@ function normalizeStart(node: StartNode): NormalizedStartNode {
     env: [],
     params: node.params.map(normalizeParam),
     ...(node.webhook === undefined ? {} : { webhook: normalizeWebhook(node.webhook) }),
+    ...(node.polling === undefined ? {} : { polling: normalizePolling(node.polling) }),
   };
 }
 
@@ -65,6 +68,32 @@ function normalizeWebhook(webhook: StartWebhookConfig): StartWebhookConfig {
   return {
     enabled: webhook.enabled,
     ...(webhook.paramMapping === undefined ? {} : { paramMapping: { ...webhook.paramMapping } }),
+  };
+}
+
+function normalizePollProbe(probe: PollProbe): PollProbe {
+  if (probe.type === "shell") {
+    return {
+      type: "shell",
+      command: probe.command,
+      ...(probe.timeoutMin === undefined ? {} : { timeoutMin: probe.timeoutMin }),
+    };
+  }
+  return {
+    type: "agent",
+    cli: probe.cli,
+    ...(probe.model === undefined ? {} : { model: probe.model }),
+    prompt: probe.prompt,
+    ...(probe.timeoutMin === undefined ? {} : { timeoutMin: probe.timeoutMin }),
+  };
+}
+
+function normalizePolling(polling: StartPollingConfig): StartPollingConfig {
+  return {
+    enabled: polling.enabled,
+    probe: normalizePollProbe(polling.probe),
+    dedupe: polling.dedupe ?? true,
+    workspace: polling.workspace ?? "project",
   };
 }
 

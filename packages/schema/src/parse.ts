@@ -144,11 +144,35 @@ const startWebhookSchema = z.strictObject({
   paramMapping: z.record(z.string(), z.string()).optional(),
 });
 
+const pollShellProbeSchema = z.strictObject({
+  type: z.literal("shell"),
+  command: z.string(),
+  timeoutMin: z.number().optional(),
+});
+
+const pollAgentProbeSchema = z.strictObject({
+  type: z.literal("agent"),
+  // Structural parse allows fake everywhere (warning in validateWorkflow).
+  // Run-time layers enforce the DEVCHESTRA_ALLOW_FAKE=1 test-only gate.
+  cli: z.enum([...PROD_CLIS, "fake"]),
+  model: z.string().optional(),
+  prompt: z.string().optional(),
+  timeoutMin: z.number().optional(),
+});
+
+const startPollingSchema = z.strictObject({
+  enabled: z.boolean(),
+  probe: z.discriminatedUnion("type", [pollShellProbeSchema, pollAgentProbeSchema]),
+  dedupe: z.boolean().optional(),
+  workspace: z.enum(["project", "worktree"]).optional(),
+});
+
 const startNodeSchema = z.strictObject({
   ...nodeBase,
   type: z.literal("start"),
   params: z.array(paramSchema),
   webhook: startWebhookSchema.optional(),
+  polling: startPollingSchema.optional(),
 });
 
 const agentNodeSchema = z.strictObject({
