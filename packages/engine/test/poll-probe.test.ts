@@ -157,7 +157,7 @@ const START: NormalizedStartNode = {
   params: [{ name: "pr", type: "number", required: true }],
   polling: {
     enabled: true,
-    probe: { type: "shell", command: "true" },
+    probe: { id: "probe", type: "shell", name: "Poll probe", command: "true" },
     dedupe: true,
     workspace: "project",
   },
@@ -189,7 +189,12 @@ function input(probe: PollProbe, extra: Partial<ProbePollInput> = {}): ProbePoll
 
 describe("buildProbeSnapshot", () => {
   it("synthesizes start -> probe -> end for a shell probe", () => {
-    const snap = buildProbeSnapshot("wf", START, { type: "shell", command: "echo hi" }, 1);
+    const snap = buildProbeSnapshot(
+      "wf",
+      START,
+      { id: "probe", type: "shell", name: "Poll probe", command: "echo hi" },
+      1,
+    );
     expect(snap.graph.nodes.map((node) => node.id)).toEqual(["start", "probe", "end"]);
     expect(snap.graph.edges).toEqual([
       { id: "e1", from: "start", to: "probe" },
@@ -243,7 +248,9 @@ describe("engine.probe with a shell probe", () => {
   it("returns stdout and the exit code as an ordinary poll_probe run", async () => {
     const { engine, store } = await harness();
     await engine.start();
-    const result = await engine.probe(input({ type: "shell", command: `printf '{"pr": 7}'` }));
+    const result = await engine.probe(
+      input({ id: "probe", type: "shell", name: "Poll probe", command: `printf '{"pr": 7}'` }),
+    );
     expect(result.ok).toBe(true);
     if (!result.ok) throw result.error;
     expect(result.value.raw).toEqual({ kind: "shell", stdout: '{"pr": 7}', exitCode: 0 });
@@ -265,7 +272,9 @@ describe("engine.probe with a shell probe", () => {
   it("fails the probe on a non-zero exit", async () => {
     const { engine } = await harness();
     await engine.start();
-    const result = await engine.probe(input({ type: "shell", command: "exit 3" }));
+    const result = await engine.probe(
+      input({ id: "probe", type: "shell", name: "Poll probe", command: "exit 3" }),
+    );
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected probe failure");
     expect(result.error.code).toBe("E_POLL_PROBE");
@@ -275,7 +284,10 @@ describe("engine.probe with a shell probe", () => {
     const { engine, store } = await harness();
     await engine.start();
     const result = await engine.probe(
-      input({ type: "shell", command: "sleep 30" }, { timeoutMs: 800 }),
+      input(
+        { id: "probe", type: "shell", name: "Poll probe", command: "sleep 30" },
+        { timeoutMs: 800 },
+      ),
     );
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected probe timeout");
@@ -380,7 +392,9 @@ describe("poll_probe run hygiene", () => {
     await engine.start();
     const ids: string[] = [];
     for (let i = 0; i < 3; i++) {
-      const result = await engine.probe(input({ type: "shell", command: "echo hi" }));
+      const result = await engine.probe(
+        input({ id: "probe", type: "shell", name: "Poll probe", command: "echo hi" }),
+      );
       if (!result.ok) throw result.error;
       ids.push(result.value.runId);
     }
@@ -427,7 +441,9 @@ describe("poll_probe run hygiene", () => {
   it("keeps probe runs out of usage by default", async () => {
     const { engine, store } = await harness();
     await engine.start();
-    const result = await engine.probe(input({ type: "shell", command: "echo hi" }));
+    const result = await engine.probe(
+      input({ id: "probe", type: "shell", name: "Poll probe", command: "echo hi" }),
+    );
     if (!result.ok) throw result.error;
     expect(store.usage.summary({}).total).toEqual({ usd: 0, tokens: 0 });
     expect(store.usage.summary({ includeProbeRuns: true }).total).toEqual({
