@@ -346,7 +346,7 @@ export function buildPollPromptPreamble(
   start: StartNode | NormalizedStartNode | { params: readonly WorkflowParam[] },
 ): string {
   const lines = [
-    "You are a read-only polling probe. Inspect the current state and decide whether a workflow run should start.",
+    "You are a read-only polling probe. Inspect the current state and decide whether a workflow run should start. You may run shell commands such as `gh` and `git` to look, but never change files, branches or remote state.",
     "Respond with a JSON object: { found: boolean, params: { ... }, dedupeKey?: string }.",
     "Set found to false when there is nothing to act on; params holds the workflow start parameters when found is true.",
     "Every params property is optional; missing values fall back to defaults and required checks still apply.",

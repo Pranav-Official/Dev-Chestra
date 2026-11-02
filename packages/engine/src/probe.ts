@@ -65,9 +65,14 @@ export function buildProbeSnapshot(
           ...(probe.model === undefined ? {} : { model: probe.model }),
           prompt: `${buildPollPromptPreamble(start)}\n\n${probe.prompt}`,
           output: buildPollAgentOutputSchema(start),
-          // Read-only: network reads are allowed, but no workspace or project
-          // writes, and no shell beyond what read-only implies.
-          permissions: { network: true, write: [] as ("workspace" | "project")[] },
+          // No edit or write tools, but the shell stays on: probes exist to run
+          // read-only commands such as `gh` and `git`. Unset would follow the
+          // legacy rule (shell tracks write) and drop the shell entirely.
+          permissions: {
+            network: true,
+            write: [] as ("workspace" | "project")[],
+            shell: true,
+          },
           workspace: { mode: "scratch" as const },
           limits: { timeoutMin, validationRetries: 2, crashRetries: 1 },
           context: { project: "none" as const, workflow: "none" as const },

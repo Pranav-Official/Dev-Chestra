@@ -305,7 +305,7 @@ describe("engine.probe with an agent probe", () => {
     expect(store.runs.get(result.value.runId as never)?.kind).toBe("poll_probe");
     // The probe carries the generated preamble and no write powers.
     expect(requests).toHaveLength(1);
-    expect(requests[0]?.permissions).toMatchObject({ network: true, write: [] });
+    expect(requests[0]?.permissions).toMatchObject({ network: true, write: [], shell: true });
     expect(requests[0]?.prompt).toContain("read-only polling probe");
     expect(requests[0]?.prompt).toContain("Check for work.");
   });
