@@ -85,6 +85,7 @@ export function EditorHeader({
   onSave,
   onRun,
   webhook,
+  poll,
 }: {
   file: WorkflowFile;
   autosave: AutosaveSnapshot;
@@ -101,6 +102,8 @@ export function EditorHeader({
   onRun: () => void;
   /** The webhook trigger control, rendered by the page that owns the workflow ids. */
   webhook?: ReactNode;
+  /** The polling trigger control, rendered next to the webhook control when declared. */
+  poll?: ReactNode;
 }) {
   const issues = validation.report
     ? [...validation.report.errors, ...validation.report.warnings]
@@ -177,6 +180,7 @@ export function EditorHeader({
           ) : null}
         </button>
         {webhook}
+        {poll}
       </div>
 
       <div className="editor-actions">

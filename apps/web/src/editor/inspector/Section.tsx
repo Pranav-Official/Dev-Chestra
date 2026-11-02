@@ -2,6 +2,11 @@ import { type ReactNode, useState } from "react";
 
 const OPEN_STATE = new Map<string, boolean>();
 
+/** Opens an inspector section on the next render that mounts it. */
+export function openInspectorSection(sectionKey: string): void {
+  OPEN_STATE.set(sectionKey, true);
+}
+
 export function InspectorSection({
   sectionKey,
   title,

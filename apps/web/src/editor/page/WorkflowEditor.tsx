@@ -22,6 +22,7 @@ import { useAvailableClis } from "../inspector/model/useAvailableClis.js";
 import type { BufferValidity } from "../inspector/types.js";
 import { createEditorModel } from "../model/index.js";
 import type { CommandOutcome } from "../model/types.js";
+import { PollTriggerControl } from "../poll/PollTriggerControl.js";
 import { WebhookTriggerControl } from "../webhook/WebhookTriggerControl.js";
 import { EditorHeader } from "./EditorHeader.js";
 import { useEditorValidation } from "./useEditorValidation.js";
@@ -271,6 +272,15 @@ export function WorkflowEditor({
       : validation.report?.ok === false
         ? "Fix the validation errors first, then save."
         : null;
+  // The polling control only mounts while the start node declares polling.
+  // Arming is blocked while edits are unsaved, so the live probe type matches
+  // the saved one whenever arming is allowed.
+  const startNode = file.graph.nodes.find((node) => node.type === "start");
+  const pollProbeType =
+    startNode !== undefined && startNode.type === "start" && startNode.polling?.enabled === true
+      ? startNode.polling.probe.type
+      : null;
+  const pollingDeclared = pollProbeType !== null;
 
   return (
     <div className="editor-page" data-testid="editor-page" data-workflow-id={workflowId}>
@@ -311,6 +321,17 @@ export function WorkflowEditor({
             savedRevision={autosave.savedRevision}
             armBlockedReason={armBlockedReason}
           />
+        }
+        poll={
+          pollingDeclared && pollProbeType !== null ? (
+            <PollTriggerControl
+              projectId={pid}
+              workflowId={workflowId}
+              savedRevision={autosave.savedRevision}
+              armBlockedReason={armBlockedReason}
+              probeType={pollProbeType}
+            />
+          ) : undefined
         }
       />
 

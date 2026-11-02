@@ -390,3 +390,19 @@
   border-radius: 50%;
   background: var(--amber);
 }
+
+/* Derived polling-probe node above a polling start node. Display only: it
+   stands in for the start node, so it is never draggable or connectable. */
+.ed-node-probe {
+  border-style: dashed;
+  background: var(--bg-subtle);
+  cursor: pointer;
+}
+
+.ed-node-probe .ed-node-head {
+  background: transparent;
+}
+
+.ed-node-probe .ed-node-kind {
+  color: var(--text-3);
+}

@@ -275,7 +275,7 @@ export function Inspector({
               <NodeHeader node={node} issues={nodeIssues} onPatch={emit} />
               <div className="inspector-content">
                 {node.type === "start" ? (
-                  <StartForm node={node} issues={nodeIssues} onPatch={emit} />
+                  <StartForm node={node} issues={nodeIssues} onPatch={emit} projectId={projectId} />
                 ) : null}
                 {node.type === "agent" ? (
                   <AgentForm node={node} issues={nodeIssues} projectId={projectId} onPatch={emit} />

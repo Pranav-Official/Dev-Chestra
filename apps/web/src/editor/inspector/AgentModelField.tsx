@@ -1,4 +1,4 @@
-import type { AgentNode, Issue } from "@devchestra/schema";
+import type { AgentCli, AgentNode, Issue } from "@devchestra/schema";
 import { PROD_CLI_LABELS } from "@devchestra/schema";
 import { useState } from "react";
 import { AgentModelPicker } from "./AgentModelPicker.js";
@@ -10,16 +10,26 @@ import type { PatchOf } from "./types.js";
 
 const HELP = "Optional. Leave on the default to use the provider's own model.";
 
+/** The cli/model slice AgentModelField edits. Widened from AgentNode so the
+ * polling probe (which is not a node) can reuse the same picker. */
+export interface AgentModelValue {
+  id: string;
+  cli: AgentCli;
+  model?: string | undefined;
+}
+
+export type AgentModelPatch = Pick<PatchOf<AgentNode>, "cli" | "model">;
+
 export function AgentModelField({
   node,
   projectId,
   issues,
   onPatch,
 }: {
-  node: AgentNode;
+  node: AgentModelValue;
   projectId?: string | undefined;
   issues: readonly Issue[];
-  onPatch: (patch: PatchOf<AgentNode>) => void;
+  onPatch: (patch: AgentModelPatch) => void;
 }) {
   const [open, setOpen] = useState(false);
   const modelIssue = fieldIssue(issues, "/model");
