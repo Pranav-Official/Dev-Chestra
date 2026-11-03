@@ -447,9 +447,21 @@ export interface UsageProviderSummary {
   byModel: UsageModelSummary[];
 }
 
+export interface UsageProjectSummary {
+  projectId: string;
+  name: string;
+  /** True for a project the user removed; its runs still count toward every total. */
+  removed: boolean;
+  usd: number;
+  tokens: number;
+  byProvider: UsageProviderSummary[];
+}
+
 export interface UsageSummary {
   total: { usd: number; tokens: number };
   byProvider: UsageProviderSummary[];
+  /** Spend per project, highest first, with each project's own provider split. */
+  byProject: UsageProjectSummary[];
 }
 
 export interface UsageFilter {

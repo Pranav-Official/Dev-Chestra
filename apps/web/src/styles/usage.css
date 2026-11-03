@@ -1,0 +1,63 @@
+/* Settings → Usage: spend by project. Rows and donut slices select a project. */
+.usage-metric {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.usage-project-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) auto auto;
+  gap: 14px;
+  align-items: center;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.usage-project-row:hover {
+  background: var(--bg-muted);
+}
+.usage-project-row[aria-pressed="true"] {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+.usage-project-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.usage-slice {
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+.usage-slice.dim {
+  opacity: 0.28;
+}
+.usage-slice.dim:hover {
+  opacity: 0.6;
+}
+.usage-project-detail {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+@media (max-width: 720px) {
+  .usage-project-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .usage-project-row .usage-project-secondary {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .usage-slice {
+    transition: none;
+  }
+}

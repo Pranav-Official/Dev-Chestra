@@ -665,9 +665,30 @@ export const usageProviderSummarySchema = strict({
   byModel: z.array(usageModelSummarySchema),
 }) as unknown as z.ZodType<UsageProviderSummary>;
 
+export interface UsageProjectSummary {
+  projectId: string;
+  name: string;
+  /** True for a removed project; its runs still count toward every total. */
+  removed: boolean;
+  usd: number;
+  tokens: number;
+  byProvider: UsageProviderSummary[];
+}
+
+export const usageProjectSummarySchema = strict({
+  projectId: z.string().min(1),
+  name: z.string(),
+  removed: z.boolean(),
+  usd: z.number().nonnegative(),
+  tokens: z.number().int().nonnegative(),
+  byProvider: z.array(usageProviderSummarySchema),
+}) as unknown as z.ZodType<UsageProjectSummary>;
+
 export interface UsageSummary {
   total: { usd: number; tokens: number };
   byProvider: UsageProviderSummary[];
+  /** Spend per project, highest first, each with its own provider split. */
+  byProject: UsageProjectSummary[];
 }
 
 export const usageSummarySchema = strict({
@@ -676,6 +697,7 @@ export const usageSummarySchema = strict({
     tokens: z.number().int().nonnegative(),
   }),
   byProvider: z.array(usageProviderSummarySchema),
+  byProject: z.array(usageProjectSummarySchema),
 }) as unknown as z.ZodType<UsageSummary>;
 
 /** Shared response schema registered as UsageSummaryResponse in contracts. */

@@ -113,6 +113,7 @@ export type {
   TranscriptHistory,
   UsageFilter,
   UsageModelSummary,
+  UsageProjectSummary,
   UsageProviderSummary,
   UsageSummary,
   ValidSubmission,

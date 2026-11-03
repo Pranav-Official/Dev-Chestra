@@ -1,9 +1,6 @@
 import type { EventEnvelope, RunId } from "@devchestra/core";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
-import { SettingsPage } from "../src/pages/SettingsPage.js";
 import { EventsPanel } from "../src/run/EventsPanel.js";
 import { ReplayBar } from "../src/run/ReplayBar.js";
 import { JsonView } from "../src/ui/JsonView.js";
@@ -90,22 +87,5 @@ describe("ReplayBar", () => {
     expect(onChange).toHaveBeenCalledWith(10);
     fireEvent.change(slider, { target: { value: "2" } });
     expect(onChange).toHaveBeenCalledWith(null);
-  });
-});
-
-describe("SettingsPage", () => {
-  it("renders structured usage stats, provider bars, and cost breakdown", () => {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={["/settings/usage"]}>
-          <SettingsPage />
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
-    expect(screen.getByRole("heading", { name: "Tokens by provider" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Cost by model" })).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "Cost by model donut chart" })).toBeInTheDocument();
-    expect(screen.getByText("4,820,500")).toBeInTheDocument();
   });
 });

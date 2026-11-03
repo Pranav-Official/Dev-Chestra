@@ -100,10 +100,15 @@ function track(
 describe("usage summary", () => {
   it("returns zeros for an empty database", () => {
     const store = setup();
-    expect(store.usage.summary()).toEqual({ total: { usd: 0, tokens: 0 }, byProvider: [] });
+    expect(store.usage.summary()).toEqual({
+      total: { usd: 0, tokens: 0 },
+      byProvider: [],
+      byProject: [],
+    });
     expect(store.usage.summary({ projectId: "missing" })).toEqual({
       total: { usd: 0, tokens: 0 },
       byProvider: [],
+      byProject: [],
     });
   });
 
@@ -187,5 +192,66 @@ describe("usage summary", () => {
     const global = store.usage.summary();
     expect(global.total).toEqual({ usd: 1.25, tokens: 150 });
     expect(global.byProvider.map((p) => p.provider).sort()).toEqual(["claude", "codex"]);
+  });
+
+  it("splits spend by project, with each project's own providers, removed ones included", () => {
+    const store = setup();
+    store.projects.ensure({ id: "proj-1", name: "One", path: "/tmp/1", kind: "folder" });
+    store.projects.ensure({ id: "proj-2", name: "Two", path: "/tmp/2", kind: "folder" });
+    store.projects.ensure({ id: "proj-3", name: "Three", path: "/tmp/3", kind: "folder" });
+    const run1 = createRun(store, "proj-1");
+    const run2 = createRun(store, "proj-2");
+    const run3 = createRun(store, "proj-3");
+    track(store, run1.runId, "a", {
+      cli: "claude",
+      model: "sonnet",
+      tokensIn: 100,
+      tokensOut: 0,
+      costUsd: 1,
+    });
+    track(store, run1.runId, "b", {
+      cli: "codex",
+      model: "gpt",
+      tokensIn: 400,
+      tokensOut: 0,
+      costUsd: 0.25,
+    });
+    track(store, run2.runId, "a", {
+      cli: "claude",
+      model: "opus",
+      tokensIn: 50,
+      tokensOut: 0,
+      costUsd: 3,
+    });
+    track(store, run3.runId, "a", {
+      cli: "pi",
+      model: "m",
+      tokensIn: 10,
+      tokensOut: 0,
+      costUsd: 0.1,
+    });
+    // A project can only be removed once its runs are finished.
+    store.events.append(run3.runId, [
+      { runId: run3.runId, path: "" as Path, type: "run.cancelled", actor: "user", payload: {} },
+    ]);
+    store.projects.remove("proj-3");
+
+    const summary = store.usage.summary();
+    expect(summary.byProject.map((p) => [p.projectId, p.name, p.removed, p.usd, p.tokens])).toEqual(
+      [
+        ["proj-2", "Two", false, 3, 50],
+        ["proj-1", "One", false, 1.25, 500],
+        ["proj-3", "Three", true, 0.1, 10],
+      ],
+    );
+    expect(summary.byProject[1]?.byProvider.map((p) => [p.provider, p.usd, p.tokens])).toEqual([
+      ["claude", 1, 100],
+      ["codex", 0.25, 400],
+    ]);
+    expect(summary.byProject.reduce((sum, p) => sum + p.tokens, 0)).toBe(summary.total.tokens);
+    expect(summary.byProject.reduce((sum, p) => sum + p.usd, 0)).toBeCloseTo(summary.total.usd);
+
+    const scoped = store.usage.summary({ projectId: "proj-1" });
+    expect(scoped.byProject.map((p) => p.projectId)).toEqual(["proj-1"]);
   });
 });
