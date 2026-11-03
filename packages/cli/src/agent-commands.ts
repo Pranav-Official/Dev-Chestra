@@ -4,10 +4,12 @@ import {
   ApiClient,
   ApiTransportError,
   type CatalogCli,
+  compactRunStatus,
   type DecisionTestRequest,
   type GateTestRequest,
   type WorkflowGroupsDocument,
 } from "@devchestra/api";
+import { parsePath, RUN_STATUSES } from "@devchestra/core";
 import { parseWorkflow, type WorkflowFile, workflowJsonSchema } from "@devchestra/schema";
 import { defaultDataDir } from "./data-dir.js";
 import { attachToServer, readServerMetadata } from "./server-metadata.js";
@@ -15,7 +17,7 @@ import { attachToServer, readServerMetadata } from "./server-metadata.js";
 const HELP = `Agent CLI (all commands return JSON; watch returns JSONL):
   devchestra project list|add|show [project] [--project PROJECT] [--no-starters]
   devchestra workflow list|show|validate|create|update|delete [ID] --project PROJECT [--file FILE] [--if-match ETAG]
-  devchestra run start|list|show|watch|events|execution|transcript|output|children|usage|cancel|resume [ID] [options]
+  devchestra run start|list|show|status|watch|events|execution|transcript|output|children|usage|cancel|resume [ID] [options]
   devchestra approval list|show|resolve [RUN-ID] [options]
   devchestra providers list|models|mcp [--project PROJECT] [--cli CLI]
 Use --data-dir DIR to select the server. FILE may be - for stdin.
@@ -119,7 +121,18 @@ export const COMMANDS: Record<string, CommandSpec> = {
     flags: ["project", "workflow", "status", "archived", ...pageFlags],
     description: "List runs",
   },
-  "run show": { min: 1, max: 1, flags: [], description: "Inspect a run" },
+  "run show": {
+    min: 1,
+    max: 1,
+    flags: ["compact"],
+    description: "Inspect a run (--compact for the short monitoring view)",
+  },
+  "run status": {
+    min: 1,
+    max: 1,
+    flags: [],
+    description: "Compact run status: health, progress, and what needs a person",
+  },
   "run events": { min: 1, max: 1, flags: ["after", "limit"], description: "Page run events" },
   "run execution": { min: 1, max: 1, flags: ["path"], description: "Inspect an execution" },
   "run transcript": {
@@ -246,8 +259,10 @@ function validateCommand(positional: string[], flags: Flags): void {
   const count = positional.length - 2;
   if (count < spec.min || count > spec.max)
     throw new AgentUsageError(`Wrong number of arguments for ${name}`);
+  // Every run command that takes a run ID also accepts --project, to assert the run belongs to it.
+  const scoped = name.startsWith("run ") && spec.min >= 1 ? ["project"] : [];
   for (const flag of Object.keys(flags))
-    if (![...common, ...spec.flags, "help"].includes(flag))
+    if (![...common, ...spec.flags, ...scoped, "help"].includes(flag))
       throw new AgentUsageError(`--${flag} is not valid for ${name}`);
   if (
     flags["retry-uncertain-shell"] !== true &&
@@ -263,7 +278,14 @@ type Flags = Record<string, string | boolean | string[]>;
 function parse(args: string[]): { positional: string[]; flags: Flags } {
   const positional: string[] = [];
   const flags: Flags = {};
-  const switches = new Set(["json", "jsonl", "help", "retry-uncertain-shell", "no-starters"]);
+  const switches = new Set([
+    "json",
+    "jsonl",
+    "help",
+    "retry-uncertain-shell",
+    "no-starters",
+    "compact",
+  ]);
   const values = new Set([
     "data-dir",
     "project",
@@ -320,6 +342,7 @@ function value(flags: Flags, key: string): string | undefined {
   const v = flags[key];
   return typeof v === "string" ? v : undefined;
 }
+const PATH_EXAMPLE = "start, find#1/discover (loop round 1) or each[0]/fetch (foreach item 0)";
 function required(v: string | undefined, name: string): string {
   if (!v) throw new AgentUsageError(`${name} is required`);
   return v;
@@ -328,7 +351,7 @@ function numberFlag(flags: Flags, key: string): number | undefined {
   const raw = value(flags, key);
   if (raw === undefined) return undefined;
   if (!/^\d+$/.test(raw) || !Number.isSafeInteger(Number(raw)))
-    throw new AgentUsageError(`--${key} must be a nonnegative integer`);
+    throw new AgentUsageError(`--${key} must be a nonnegative integer, for example --${key} 20`);
   return Number(raw);
 }
 async function readInput(file: string): Promise<unknown> {
@@ -439,7 +462,18 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
   const pid = async (): Promise<string> =>
     projectId(client, required(value(flags, "project"), "--project"));
   const runId = (): string => required(id, "run ID");
-  const path = (): string => required(value(flags, "path"), "--path");
+  const path = (): string => {
+    const raw = value(flags, "path");
+    if (!raw)
+      throw new AgentUsageError(
+        `--path is required: a node path such as ${PATH_EXAMPLE}. List a run's paths with: devchestra run status <run-id>`,
+      );
+    if (raw === "" || !parsePath(raw).ok)
+      throw new AgentUsageError(
+        `--path '${raw}' is not a valid node path. Expected a node id, optionally nested, such as ${PATH_EXAMPLE}`,
+      );
+    return raw;
+  };
   const page = {
     ...(value(flags, "cursor") === undefined
       ? {}
@@ -523,6 +557,18 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
       (await readInput(required(value(flags, "file"), "--file"))) as DecisionTestRequest,
     );
   } else if (group === "run") {
+    if (action !== "start" && action !== "list" && value(flags, "project") !== undefined) {
+      const scope = await pid();
+      const owner = (await client.getRun(runId())).run.projectId;
+      if (owner !== scope)
+        throw new AgentCommandError(
+          "E_NOT_FOUND",
+          `Run ${runId()} does not belong to project ${value(flags, "project")}.`,
+          false,
+          { runProjectId: owner },
+          "Omit --project, or pass the project this run was started in.",
+        );
+    }
     if (action === "start") {
       const p = await pid();
       const wf = await client.getWorkflow(p, required(id, "workflow ID"));
@@ -534,7 +580,10 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
       const params = { ...paramsRaw } as Record<string, import("@devchestra/core").JsonValue>;
       for (const param of (flags.param as string[] | undefined) ?? []) {
         const at = param.indexOf("=");
-        if (at < 1) throw new AgentUsageError("--param requires key=value");
+        if (at < 1)
+          throw new AgentUsageError(
+            '--param requires key=value, for example --param topic="ai shoes"',
+          );
         const raw = param.slice(at + 1);
         try {
           params[param.slice(0, at)] = JSON.parse(raw);
@@ -544,7 +593,9 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
       }
       const mode = value(flags, "workspace") ?? "project";
       if (!["project", "new-worktree", "existing-worktree"].includes(mode))
-        throw new AgentUsageError("Invalid workspace mode");
+        throw new AgentUsageError(
+          `Invalid --workspace '${mode}': use project, new-worktree or existing-worktree`,
+        );
       if (mode !== "existing-worktree" && value(flags, "worktree-path"))
         throw new AgentUsageError("--worktree-path requires existing-worktree mode");
       const workspace =
@@ -560,7 +611,13 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
         { params, etag: value(flags, "if-match") ?? wf.etag, workspace },
         key ? { idempotencyKey: key } : {},
       );
-    } else if (action === "list")
+    } else if (action === "list") {
+      const status = value(flags, "status");
+      if (status !== undefined && !(RUN_STATUSES as readonly string[]).includes(status))
+        throw new AgentUsageError(`--status must be one of: ${RUN_STATUSES.join(", ")}`);
+      const archived = value(flags, "archived");
+      if (archived !== undefined && archived !== "true" && archived !== "false")
+        throw new AgentUsageError("--archived must be true or false");
       result = await client.listRuns({
         ...page,
         ...(value(flags, "project") ? { project: await pid() } : {}),
@@ -572,7 +629,9 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
           ? { archived: value(flags, "archived") as "true" | "false" }
           : {}),
       });
-    else if (action === "show") result = await client.getRun(runId());
+    } else if (action === "show" && flags.compact !== true) result = await client.getRun(runId());
+    else if (action === "show" || action === "status")
+      result = compactRunStatus(await client.getRun(runId()));
     else if (action === "events")
       result = await client.listRunEvents(runId(), {
         ...(numberFlag(flags, "after") === undefined

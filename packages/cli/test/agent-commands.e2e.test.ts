@@ -186,6 +186,38 @@ describe.skipIf(!existsSync(main))("agent CLI lifecycle", () => {
       error: { code: "E_TIMEOUT", retryable: true },
     });
     expect(JSON.parse(run("run", "show", id).out).view.status).toBe("waiting_approval");
+    const compact = run("run", "status", id);
+    expect(compact.code, compact.err).toBe(0);
+    expect(JSON.parse(compact.out)).toMatchObject({
+      contractVersion: 1,
+      runId: id,
+      workflow: "review",
+      status: "waiting_approval",
+      nodes: { succeeded: 1, waiting: 1 },
+      needsAttention: [{ type: "approval", path: "approval", message: "Review this" }],
+    });
+    expect(compact.out.length).toBeLessThan(1024);
+    const withoutElapsed = (out: string) => ({ ...JSON.parse(out), elapsedMs: 0 });
+    expect(withoutElapsed(run("run", "show", id, "--compact").out)).toEqual(
+      withoutElapsed(compact.out),
+    );
+    expect(JSON.parse(run("run", "show", id).out)).toHaveProperty("view.executions");
+    expect(run("run", "show", id, "--project", project).code).toBe(0);
+    const otherProject = join(root, "other-project");
+    mkdirSync(otherProject);
+    expect(run("project", "add", otherProject).code).toBe(0);
+    const wrongProject = run("run", "status", id, "--project", otherProject);
+    expect(wrongProject.code).toBe(4);
+    expect(JSON.parse(wrongProject.err).error.message).toContain("does not belong to project");
+    const noPath = run("run", "execution", id);
+    expect(noPath.code).toBe(4);
+    expect(JSON.parse(noPath.err).error.message).toContain("find#1/discover");
+    const badPath = run("run", "execution", id, "--path", "Not A Path");
+    expect(badPath.code).toBe(4);
+    expect(JSON.parse(badPath.err).error.message).toContain("not a valid node path");
+    const badStatus = run("run", "list", "--status", "done");
+    expect(badStatus.code).toBe(4);
+    expect(JSON.parse(badStatus.err).error.message).toContain("waiting_approval");
     const detail = JSON.parse(run("approval", "list", "--run", id).out).items[0];
     const args = [
       "approval",
