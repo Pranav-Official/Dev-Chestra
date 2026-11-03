@@ -1,4 +1,5 @@
 import {
+  type EventEnvelope,
   type ExecStatus,
   type ExecView,
   type JsonObject,
@@ -7,6 +8,7 @@ import {
   type RunPauseReason,
   type RunStatus,
 } from "@devchestra/core";
+import type { NormalizedWorkflow } from "@devchestra/schema";
 import type { RunDetailResponse } from "./dto.js";
 
 /** Most `active` entries a compact status carries; the rest are counted in `activeTruncated`. */
@@ -311,4 +313,99 @@ export function compactRunStatus(detail: Detail, options: CompactOptions = {}): 
     };
   }
   return result;
+}
+
+/** What `run wait` is allowed to wake for. A finished run always ends the wait. */
+export const WAIT_UNTIL = ["any", "node-done", "status", "approval"] as const;
+export type WaitUntil = (typeof WAIT_UNTIL)[number];
+
+export type WakeCategory = "node-done" | "status" | "approval" | "terminal";
+
+export interface WakeReason {
+  category: WakeCategory;
+  /** Short human-readable cause, such as `node find#2/discover succeeded`. */
+  reason: string;
+}
+
+/** Nodes that finish instantly on every run; their completion is never worth waking for. */
+const TRIVIAL_KINDS: ReadonlySet<string> = new Set(["start", "gate", "join", "end"]);
+const WAKING_NODE_STATUSES: ReadonlySet<string> = new Set([
+  "succeeded",
+  "failed",
+  "rejected",
+  "interrupted",
+  "cancelled",
+  "waiting_quota",
+]);
+
+/** The node kind a path refers to, resolved from the frozen workflow snapshot; null if unknown. */
+export function kindOfPath(snapshot: NormalizedWorkflow, path: string): string | null {
+  const last = path.split("/").at(-1) ?? path;
+  const id = /^[a-z][a-z0-9_-]*/u.exec(last)?.[0];
+  if (id === undefined) return null;
+  const nested = path.includes("/");
+  const bodies = snapshot.graph.nodes.flatMap((node) =>
+    node.type === "loop" || node.type === "foreach" ? node.body.nodes : [],
+  );
+  const pool = nested ? [...bodies, ...snapshot.graph.nodes] : [...snapshot.graph.nodes, ...bodies];
+  return pool.find((node) => node.id === id)?.type ?? null;
+}
+
+/**
+ * Whether an event is worth waking a monitoring agent for, and why. Instant
+ * start/gate/join/end nodes and token-usage chatter are ignored. `until`
+ * narrows which categories wake the wait; a finished run always does.
+ */
+export function wakeReason(
+  event: Pick<EventEnvelope, "type" | "path" | "payload">,
+  kindOf: (path: string) => string | null,
+  until: WaitUntil = "any",
+): WakeReason | null {
+  const payload = (event.payload ?? {}) as Record<string, unknown>;
+  const path = event.path as string;
+  let found: WakeReason | null = null;
+  switch (event.type) {
+    case "run.completed":
+    case "run.cancelled":
+      return { category: "terminal", reason: `run ${event.type.slice(4)}` };
+    case "run.paused":
+      found = { category: "status", reason: "run paused" };
+      break;
+    case "run.resumed":
+      found = { category: "status", reason: "run resumed" };
+      break;
+    case "approval.requested":
+      found = { category: "approval", reason: `approval requested at ${path}` };
+      break;
+    case "loop.iteration.decided":
+      found = {
+        category: "node-done",
+        reason: `loop ${path} round ${String(payload.iteration)} decided`,
+      };
+      break;
+    case "foreach.item.decided":
+      found = {
+        category: "node-done",
+        reason: `foreach ${path} item ${String(payload.index)} ${String(payload.status)}`,
+      };
+      break;
+    case "workflow.completed":
+      found = {
+        category: "node-done",
+        reason: `child workflow at ${path} ${String(payload.status)}`,
+      };
+      break;
+    case "node.state": {
+      const to = String(payload.to);
+      const kind = kindOf(path);
+      if (WAKING_NODE_STATUSES.has(to) && !(kind !== null && TRIVIAL_KINDS.has(kind))) {
+        found = { category: "node-done", reason: `node ${path} ${to}` };
+      }
+      break;
+    }
+    default:
+      return null;
+  }
+  if (found === null) return null;
+  return until === "any" || until === found.category ? found : null;
 }

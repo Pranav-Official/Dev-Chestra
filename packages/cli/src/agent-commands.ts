@@ -6,18 +6,21 @@ import {
   type CatalogCli,
   type DecisionTestRequest,
   type GateTestRequest,
+  WAIT_UNTIL,
+  type WaitUntil,
   type WorkflowGroupsDocument,
 } from "@devchestra/api";
 import { parsePath, RUN_STATUSES } from "@devchestra/core";
 import { parseWorkflow, type WorkflowFile, workflowJsonSchema } from "@devchestra/schema";
 import { defaultDataDir } from "./data-dir.js";
 import { fetchRunStatus } from "./run-status.js";
+import { waitForRun } from "./run-wait.js";
 import { attachToServer, readServerMetadata } from "./server-metadata.js";
 
 const HELP = `Agent CLI (all commands return JSON; watch returns JSONL):
   devchestra project list|add|show [project] [--project PROJECT] [--no-starters]
   devchestra workflow list|show|validate|create|update|delete [ID] --project PROJECT [--file FILE] [--if-match ETAG]
-  devchestra run start|list|show|status|watch|events|execution|transcript|output|children|usage|cancel|resume [ID] [options]
+  devchestra run start|list|show|status|wait|watch|events|execution|transcript|output|children|usage|cancel|resume [ID] [options]
   devchestra approval list|show|resolve [RUN-ID] [options]
   devchestra providers list|models|mcp [--project PROJECT] [--cli CLI]
 Use --data-dir DIR to select the server. FILE may be - for stdin.
@@ -164,6 +167,13 @@ export const COMMANDS: Record<string, CommandSpec> = {
     ],
     description:
       "Resume a run; retrying an uncertain shell requires explicit authorization and a fence",
+  },
+  "run wait": {
+    min: 1,
+    max: 1,
+    flags: ["timeout", "until", "after"],
+    description:
+      "Block until a node finishes, a loop round completes, an approval is requested, or the run ends or pauses; returns the compact status",
   },
   "run watch": {
     min: 1,
@@ -695,6 +705,21 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
         {},
         fence === undefined ? undefined : { uncertaintyFence: fence },
       );
+    } else if (action === "wait") {
+      const timeout = numberFlag(flags, "timeout") ?? 60;
+      if (timeout < 1 || timeout > 3600)
+        throw new AgentUsageError("--timeout must be between 1 and 3600 seconds, for example 60");
+      const until = value(flags, "until") ?? "any";
+      if (!(WAIT_UNTIL as readonly string[]).includes(until))
+        throw new AgentUsageError(`--until must be one of: ${WAIT_UNTIL.join(", ")}`);
+      const after = numberFlag(flags, "after");
+      const outcome = await waitForRun(client, runId(), {
+        timeoutMs: timeout * 1000,
+        until: until as WaitUntil,
+        ...(after === undefined ? {} : { after }),
+      });
+      print({ ...outcome.status, timedOut: outcome.timedOut, reasons: outcome.reasons });
+      return outcome.exitCode;
     } else if (action === "watch") {
       const after = numberFlag(flags, "after");
       const timeout = numberFlag(flags, "timeout");

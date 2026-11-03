@@ -4,8 +4,10 @@ import {
   COMPACT_MAX_ACTIVE,
   type CompactActivity,
   compactRunStatus,
+  kindOfPath,
   type NormalizedWorkflow,
   type RunDetailResponse,
+  wakeReason,
 } from "../src/index.js";
 
 const NOW = 1_000_000;
@@ -307,5 +309,90 @@ describe("compactRunStatus", () => {
       activity: { work: activity },
     });
     expect(status.active[0]?.activity).toEqual(activity);
+  });
+});
+
+describe("wakeReason", () => {
+  const kinds: Record<string, string> = { start: "start", gate: "gate", work: "agent" };
+  const kindOf = (path: string) => kinds[path.split("/").at(-1) ?? path] ?? null;
+  const event = (type: string, path: string, payload: Record<string, unknown> = {}) =>
+    ({ type, path, payload }) as Parameters<typeof wakeReason>[0];
+
+  it("wakes for non-trivial nodes finishing or failing", () => {
+    expect(wakeReason(event("node.state", "work", { to: "succeeded" }), kindOf)).toEqual({
+      category: "node-done",
+      reason: "node work succeeded",
+    });
+    expect(wakeReason(event("node.state", "work", { to: "failed" }), kindOf)?.category).toBe(
+      "node-done",
+    );
+    expect(wakeReason(event("node.state", "work", { to: "waiting_quota" }), kindOf)).not.toBeNull();
+  });
+
+  it("ignores instant nodes, running transitions and usage chatter", () => {
+    expect(wakeReason(event("node.state", "start", { to: "succeeded" }), kindOf)).toBeNull();
+    expect(wakeReason(event("node.state", "gate", { to: "succeeded" }), kindOf)).toBeNull();
+    expect(wakeReason(event("node.state", "work", { to: "running" }), kindOf)).toBeNull();
+    expect(wakeReason(event("node.usage", "work"), kindOf)).toBeNull();
+    expect(wakeReason(event("node.output.recorded", "work"), kindOf)).toBeNull();
+  });
+
+  it("wakes for loop rounds, foreach items, child workflows, approvals and run state", () => {
+    expect(
+      wakeReason(event("loop.iteration.decided", "find", { iteration: 3 }), kindOf)?.reason,
+    ).toBe("loop find round 3 decided");
+    expect(
+      wakeReason(event("foreach.item.decided", "each", { index: 2, status: "failed" }), kindOf)
+        ?.reason,
+    ).toBe("foreach each item 2 failed");
+    expect(wakeReason(event("workflow.completed", "call", { status: "failed" }), kindOf)).not.toBe(
+      null,
+    );
+    expect(wakeReason(event("approval.requested", "review"), kindOf)?.category).toBe("approval");
+    expect(wakeReason(event("run.paused", ""), kindOf)?.category).toBe("status");
+    expect(wakeReason(event("run.completed", ""), kindOf)?.category).toBe("terminal");
+  });
+
+  it("narrows by --until but always wakes for a finished run", () => {
+    const approval = event("approval.requested", "review");
+    const node = event("node.state", "work", { to: "succeeded" });
+    expect(wakeReason(approval, kindOf, "approval")).not.toBeNull();
+    expect(wakeReason(node, kindOf, "approval")).toBeNull();
+    expect(wakeReason(approval, kindOf, "node-done")).toBeNull();
+    expect(wakeReason(node, kindOf, "node-done")).not.toBeNull();
+    expect(wakeReason(event("run.paused", ""), kindOf, "status")).not.toBeNull();
+    expect(wakeReason(event("run.completed", ""), kindOf, "approval")?.category).toBe("terminal");
+    expect(wakeReason(event("run.cancelled", ""), kindOf, "node-done")?.category).toBe("terminal");
+  });
+});
+
+describe("kindOfPath", () => {
+  const snapshot = {
+    graph: {
+      nodes: [
+        { id: "start", type: "start" },
+        {
+          id: "find",
+          type: "loop",
+          body: {
+            nodes: [
+              { id: "discover", type: "agent" },
+              { id: "check", type: "shell" },
+            ],
+          },
+        },
+        { id: "each", type: "foreach", body: { nodes: [{ id: "fetch", type: "workflow" }] } },
+      ],
+      edges: [],
+    },
+  } as unknown as NormalizedWorkflow;
+
+  it("resolves top-level, loop-body and foreach-body nodes from the last path segment", () => {
+    expect(kindOfPath(snapshot, "start")).toBe("start");
+    expect(kindOfPath(snapshot, "find")).toBe("loop");
+    expect(kindOfPath(snapshot, "find#2/discover")).toBe("agent");
+    expect(kindOfPath(snapshot, "find#2/check")).toBe("shell");
+    expect(kindOfPath(snapshot, "each[3]/fetch")).toBe("workflow");
+    expect(kindOfPath(snapshot, "nope")).toBeNull();
   });
 });

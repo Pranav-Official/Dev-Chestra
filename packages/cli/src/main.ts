@@ -55,6 +55,7 @@ async function main(): Promise<number> {
     "list",
     "show",
     "status",
+    "wait",
     "watch",
     "events",
     "execution",

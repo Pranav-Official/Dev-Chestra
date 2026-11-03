@@ -215,6 +215,19 @@ describe.skipIf(!existsSync(main))("agent CLI lifecycle", () => {
     const badPath = run("run", "execution", id, "--path", "Not A Path");
     expect(badPath.code).toBe(4);
     expect(JSON.parse(badPath.err).error.message).toContain("not a valid node path");
+    const waitNow = run("run", "wait", id, "--timeout", "5");
+    expect(waitNow.code, waitNow.err).toBe(5);
+    expect(JSON.parse(waitNow.out)).toMatchObject({
+      status: "waiting_approval",
+      timedOut: false,
+      needsAttention: [{ type: "approval" }],
+    });
+    const cursor = String(JSON.parse(compact.out).cursor);
+    const idle = run("run", "wait", id, "--timeout", "1", "--after", cursor);
+    expect(idle.code, idle.err).toBe(5);
+    expect(JSON.parse(idle.out)).toMatchObject({ timedOut: true, reasons: [] });
+    expect(run("run", "wait", id, "--until", "soon").code).toBe(4);
+    expect(run("run", "wait", id, "--timeout", "0").code).toBe(4);
     const tailAndCursor = run(
       "run",
       "transcript",
@@ -254,7 +267,21 @@ describe.skipIf(!existsSync(main))("agent CLI lifecycle", () => {
     const stale = [...args];
     stale[stale.indexOf("--expected-generation") + 1] = String(detail.expectedGeneration + 1);
     expect(run(...stale).code).toBe(4);
+    const waiter = spawn(
+      process.execPath,
+      [main, "run", "wait", id, "--timeout", "20", "--after", cursor, "--data-dir", data],
+      { stdio: ["ignore", "pipe", "pipe"] },
+    );
+    let waited = "";
+    waiter.stdout?.on("data", (chunk: Buffer) => {
+      waited += chunk.toString();
+    });
+    const waiterExit = new Promise<number | null>((done) => waiter.once("exit", done));
+    await new Promise((resolveWait) => setTimeout(resolveWait, 700));
     expect(run(...args).code).toBe(0);
+    expect(await waiterExit).toBe(0);
+    expect(JSON.parse(waited)).toMatchObject({ status: "succeeded", timedOut: false });
+    expect(JSON.parse(waited).reasons.length).toBeGreaterThan(0);
     const replay = run(
       "run",
       "watch",
