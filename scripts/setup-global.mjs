@@ -54,6 +54,8 @@ function run(command, commandArgs, options = {}) {
     cwd: root,
     encoding: "utf8",
     stdio: options.inherit ? "inherit" : "pipe",
+    // pnpm/npm/bun are .cmd shims on Windows, which only spawn through a shell.
+    shell: process.platform === "win32" && command !== process.execPath,
     ...options,
   });
 }
