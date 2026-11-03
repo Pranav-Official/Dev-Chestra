@@ -28,6 +28,7 @@ import { workflowApi } from "../editor/api/workflowApi.js";
 import { SETTINGS_SECTIONS, settingsPath } from "../pages/settings/sections.js";
 import { statusLabel } from "../ui/StatusPill.js";
 import { WorkspaceActions } from "../ui/WorkspaceActions.js";
+import { GithubMark, REPO_URL, StarNudge } from "./StarNudge.js";
 
 interface WorkflowNav {
   id: string;
@@ -375,6 +376,7 @@ export function Sidebar() {
           );
         })}
       </nav>
+      <StarNudge />
       <div className="sidebar-foot">
         <span className={`status-icon ${bootstrap.data ? "succeeded" : "idle"}`} aria-hidden="true">
           ●
@@ -384,6 +386,16 @@ export function Sidebar() {
             ? `DevChestra ${bootstrap.data.version} · ${bootstrap.data.counts.activeRuns} active`
             : "Not connected"}
         </span>
+        <a
+          className="sidebar-settings"
+          href={REPO_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="DevChestra on GitHub"
+          title="DevChestra on GitHub"
+        >
+          <GithubMark />
+        </a>
         <SettingsLink />
       </div>
     </aside>
