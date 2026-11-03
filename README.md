@@ -35,6 +35,35 @@ We built a PR review workflow that routes changes by risk and sends follow-up wo
 
 The workflow decides the order, handoffs, branches, and review points. The agents do the work inside each step, using the tools and access you give them.
 
+## A starter workflow: Fix failing tests
+
+Every new project is seeded with a small workflow you can run right away, "Fix failing tests":
+
+![Fix failing tests starter workflow](assets/images/workflow-starter.svg)
+
+1. **Run tests** with your project's test command (detected from `package.json`, `Cargo.toml`, `go.mod` or `pyproject.toml`).
+2. **Tests green?** If they already pass, the run ends as "Already green".
+3. Otherwise a **loop** hands the failing output to an agent, which makes the smallest fix it can, then reruns the tests. It repeats until they pass, for up to 3 rounds. If they still fail, the run ends as "Still failing" and keeps the last test output.
+4. **Keep these changes?** A person reviews the result. Approve and the run ends as "Fixed". Reject and it ends as "Declined".
+
+It's a good one to open first: it uses a shell step, an agent, a gate, a loop and an approval, so you can see how the pieces connect. It's best run in a fresh worktree so a rejected fix is easy to throw away.
+
+## Beyond code: an AI UGC video pipeline
+
+Workflows aren't limited to code. This one turns product images into a finished UGC-style short and posts it:
+
+![AI UGC video workflow](assets/images/workflow-ugc-video.svg)
+
+1. **Start** with the product images as a parameter.
+2. **Write the script.** An agent drafts the UGC script, broken into shots.
+3. **Cast influencers.** An agent proposes a few influencer options that fit the script, and **Pick best influencer** chooses one.
+4. **Generate shots.** A for-each step goes through the script's shots one at a time. Each round runs an agent connected to the Higgsfield MCP to generate that shot's video.
+5. **Edit with HyperFrames.** An agent assembles the shots, adds subtitles and finishes the cut.
+6. **Review video.** A reviewer agent checks the result against the script. If it finds defects, a **Fix pass** agent repairs them. If it finds none, the video moves straight on.
+7. **Post to social.** A join merges the "fixed" and "clean" paths, and a shell step posts the video.
+
+The agents do the creative work. The workflow decides the order, which tools each one gets, and when a defect sends the video back for another pass.
+
 ## What you build with
 
 The canvas and CLI use the same workflow vocabulary:
