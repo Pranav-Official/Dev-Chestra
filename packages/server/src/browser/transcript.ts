@@ -78,6 +78,23 @@ function parseLine(raw: string): TranscriptLine | null {
   };
 }
 
+/** Decodes one raw JSONL line, clipping oversized text; null for blank or unparseable lines. */
+function decodeLine(raw: string): TranscriptLine | null {
+  if (Buffer.byteLength(raw, "utf8") > MAX_LINE_BYTES) {
+    return {
+      ts: null,
+      kind: "notice",
+      text: `[transcript line omitted: ${Buffer.byteLength(raw, "utf8")} bytes]`,
+    };
+  }
+  const line = parseLine(raw);
+  if (line === null) return null;
+  const textBytes = Buffer.byteLength(line.text, "utf8");
+  if (textBytes <= MAX_TEXT_BYTES) return line;
+  const clipped = Buffer.from(line.text, "utf8").subarray(0, MAX_TEXT_BYTES).toString("utf8");
+  return { ts: line.ts, kind: line.kind, text: `${clipped}\n[truncated: ${textBytes} bytes]` };
+}
+
 export function unavailableTranscript(
   attempt: number | null,
   generation: number | null,
@@ -91,6 +108,8 @@ export function unavailableTranscript(
     attempt,
     generation,
     bytes: null,
+    endCursor: null,
+    updatedAt: null,
   };
 }
 
@@ -114,6 +133,7 @@ export async function readTranscriptPage(input: {
     return unavailableTranscript(input.attempt, input.generation);
   }
   let size = 0;
+  let updatedAt: string | null = null;
   try {
     const stat = fstatSync(fd);
     if (!stat.isFile()) {
@@ -121,6 +141,7 @@ export async function readTranscriptPage(input: {
       return unavailableTranscript(input.attempt, input.generation);
     }
     size = stat.size;
+    updatedAt = stat.mtime.toISOString();
   } catch {
     closeSync(fd);
     return unavailableTranscript(input.attempt, input.generation);
@@ -154,25 +175,7 @@ export async function readTranscriptPage(input: {
 
   const consume = (raw: string): void => {
     if (lineNumber >= input.cursor) {
-      let line: TranscriptLine | null;
-      if (Buffer.byteLength(raw, "utf8") > MAX_LINE_BYTES) {
-        line = notice(Buffer.byteLength(raw, "utf8"));
-      } else {
-        line = parseLine(raw);
-        if (line !== null) {
-          const textBytes = Buffer.byteLength(line.text, "utf8");
-          if (textBytes > MAX_TEXT_BYTES) {
-            const clipped = Buffer.from(line.text, "utf8")
-              .subarray(0, MAX_TEXT_BYTES)
-              .toString("utf8");
-            line = {
-              ts: line.ts,
-              kind: line.kind,
-              text: `${clipped}\n[truncated: ${textBytes} bytes]`,
-            };
-          }
-        }
-      }
+      const line = decodeLine(raw);
       if (line !== null && !push(line)) {
         full = true;
         return;
@@ -218,7 +221,9 @@ export async function readTranscriptPage(input: {
       }
     }
     if (!full && buffer !== "" && !discarding) {
-      consume(buffer.endsWith("\r") ? buffer.slice(0, -1) : buffer);
+      // An unterminated tail may be a record still being written; count it only once it parses.
+      const tail = buffer.endsWith("\r") ? buffer.slice(0, -1) : buffer;
+      if (parseLine(tail) !== null) consume(tail);
     } else if (!full && discarding) {
       if (lineNumber >= input.cursor) push(notice(discardedBytes));
       lineNumber += 1;
@@ -234,6 +239,114 @@ export async function readTranscriptPage(input: {
     attempt: input.attempt,
     generation: input.generation,
     bytes: size,
+    endCursor: String(lineNumber),
+    updatedAt,
+  };
+}
+
+/**
+ * The most recent `tail` records of a transcript, for watching a node that is
+ * still running. `endCursor` points past the last complete line, so the caller
+ * can continue with `cursor=<endCursor>` and receive only new lines.
+ */
+export async function readTranscriptTail(input: {
+  dataDir: string;
+  projectId: string;
+  runId: string;
+  path: string;
+  attempt: number;
+  generation: number;
+  tail: number;
+}): Promise<TranscriptPage> {
+  const file = transcriptPath(input);
+  if (file === null) return unavailableTranscript(input.attempt, input.generation);
+  const keep = Math.min(Math.max(input.tail, 1), MAX_LINES);
+  let fd: number;
+  try {
+    fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+  } catch {
+    return unavailableTranscript(input.attempt, input.generation);
+  }
+  let size: number;
+  let updatedAt: string;
+  try {
+    const stat = fstatSync(fd);
+    if (!stat.isFile()) {
+      closeSync(fd);
+      return unavailableTranscript(input.attempt, input.generation);
+    }
+    size = stat.size;
+    updatedAt = stat.mtime.toISOString();
+  } catch {
+    closeSync(fd);
+    return unavailableTranscript(input.attempt, input.generation);
+  }
+
+  const stream = createReadStream(file, { fd, autoClose: true, encoding: "utf8" });
+  const recent: TranscriptLine[] = [];
+  let total = 0;
+  let buffer = "";
+  let oversized = 0;
+  const finish = (raw: string): void => {
+    const line = decodeLine(raw.endsWith("\r") ? raw.slice(0, -1) : raw);
+    total += 1;
+    if (line === null) return;
+    recent.push(line);
+    if (recent.length > keep) recent.shift();
+  };
+  try {
+    for await (const chunk of stream) {
+      buffer += chunk;
+      let newline = buffer.indexOf("\n");
+      while (newline !== -1) {
+        const raw = buffer.slice(0, newline);
+        buffer = buffer.slice(newline + 1);
+        if (oversized > 0) {
+          const count = oversized + Buffer.byteLength(raw, "utf8");
+          oversized = 0;
+          total += 1;
+          recent.push({
+            ts: null,
+            kind: "notice",
+            text: `[transcript line omitted: ${count} bytes]`,
+          });
+          if (recent.length > keep) recent.shift();
+        } else {
+          finish(raw);
+        }
+        newline = buffer.indexOf("\n");
+      }
+      if (Buffer.byteLength(buffer, "utf8") > MAX_LINE_BYTES) {
+        oversized += Buffer.byteLength(buffer, "utf8");
+        buffer = "";
+      }
+    }
+    // An unterminated tail may be a record still being written; count it only once it parses.
+    if (oversized > 0) {
+      total += 1;
+      recent.push({
+        ts: null,
+        kind: "notice",
+        text: `[transcript line omitted: ${oversized} bytes]`,
+      });
+      if (recent.length > keep) recent.shift();
+    } else if (buffer !== "") {
+      const rest = buffer.endsWith("\r") ? buffer.slice(0, -1) : buffer;
+      if (parseLine(rest) !== null) finish(rest);
+    }
+  } finally {
+    stream.destroy();
+  }
+  return {
+    state: "available",
+    lines: recent,
+    nextCursor: String(total),
+    hasMore: false,
+    attempt: input.attempt,
+    generation: input.generation,
+    bytes: size,
+    endCursor: String(total),
+    updatedAt,
   };
 }
 

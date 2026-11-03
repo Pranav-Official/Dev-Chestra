@@ -87,7 +87,12 @@ import {
   StaticWebRoot,
   staticResponse,
 } from "./static.js";
-import { parseTranscriptCursor, readTranscriptPage, unavailableTranscript } from "./transcript.js";
+import {
+  parseTranscriptCursor,
+  readTranscriptPage,
+  readTranscriptTail,
+  unavailableTranscript,
+} from "./transcript.js";
 import { canonicalExistingDirectory } from "./workflow.js";
 
 export interface BrowserAppDeps {
@@ -494,6 +499,7 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
       const query = transcriptQuerySchema.safeParse({
         cursor: c.req.query("cursor"),
         limit: c.req.query("limit"),
+        tail: c.req.query("tail"),
       });
       if (!query.success) {
         return c.json(errorBody("E_VALIDATION", "Transcript query is invalid."), 400);
@@ -513,25 +519,30 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
         latest.generation === execution.generation
           ? latest
           : null;
+      // The ref event is only recorded when an attempt ends, but the file is written
+      // live from its start; a node that is still running is read by its current attempt.
+      const live = !isTerminalExecStatus(execution.status as ExecStatus);
+      const source =
+        ref ?? (live ? { attempt: execution.attempt, generation: execution.generation } : null);
       let page: TranscriptPage;
-      if (ref === null) {
-        const pending = !isTerminalExecStatus(execution.status as ExecStatus);
-        page = unavailableTranscript(
-          execution.attempt,
-          execution.generation,
-          pending ? "pending" : "unavailable",
-        );
+      if (source === null) {
+        page = unavailableTranscript(execution.attempt, execution.generation, "unavailable");
       } else {
-        page = await readTranscriptPage({
+        const read = {
           dataDir,
           projectId: run.projectId,
           runId,
           path,
-          attempt: ref.attempt,
-          generation: ref.generation,
-          cursor,
-          limit,
-        });
+          attempt: source.attempt,
+          generation: source.generation,
+        };
+        page =
+          query.data.tail === undefined
+            ? await readTranscriptPage({ ...read, cursor, limit })
+            : await readTranscriptTail({ ...read, tail: query.data.tail });
+        if (page.state === "unavailable" && ref === null) {
+          page = unavailableTranscript(execution.attempt, execution.generation, "pending");
+        }
       }
       validate("TranscriptPageResponse", page);
       return json(c, page);

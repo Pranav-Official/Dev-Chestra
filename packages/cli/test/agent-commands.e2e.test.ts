@@ -215,6 +215,23 @@ describe.skipIf(!existsSync(main))("agent CLI lifecycle", () => {
     const badPath = run("run", "execution", id, "--path", "Not A Path");
     expect(badPath.code).toBe(4);
     expect(JSON.parse(badPath.err).error.message).toContain("not a valid node path");
+    const tailAndCursor = run(
+      "run",
+      "transcript",
+      id,
+      "--path",
+      "approval",
+      "--tail",
+      "5",
+      "--cursor",
+      "1",
+    );
+    expect(tailAndCursor.code).toBe(4);
+    expect(JSON.parse(tailAndCursor.err).error.message).toContain("--cursor <endCursor>");
+    expect(run("run", "transcript", id, "--path", "approval", "--tail", "500").code).toBe(4);
+    const tailed = run("run", "transcript", id, "--path", "approval", "--tail", "5");
+    expect(tailed.code, tailed.err).toBe(0);
+    expect(JSON.parse(tailed.out)).toMatchObject({ lines: [], endCursor: null });
     const badStatus = run("run", "list", "--status", "done");
     expect(badStatus.code).toBe(4);
     expect(JSON.parse(badStatus.err).error.message).toContain("waiting_approval");

@@ -214,7 +214,7 @@ describe("compactRunStatus", () => {
               eventId: 5,
               ts: "t",
               path: "broken" as Path,
-              code: "E_AGENT",
+              code: "E_CLI_CRASH",
               message: "boom",
               details: null,
             },
@@ -240,7 +240,7 @@ describe("compactRunStatus", () => {
             attempt: 2,
             validationAttempts: 1,
             crashAttempts: 1,
-            lastError: { code: "E_AGENT", message: "x".repeat(500) },
+            lastError: { code: "E_CLI_CRASH", message: "x".repeat(500) },
           }),
         ],
       ),
@@ -261,7 +261,7 @@ describe("compactRunStatus", () => {
       { type: "paused", reason: "quota", detail: "claude quota window", path: "work" },
     ]);
     expect(status.nodes).toEqual({ failed: 1, running: 1, waiting: 1 });
-    expect(status.lastError).toEqual({ path: "broken", code: "E_AGENT", message: "boom" });
+    expect(status.lastError).toEqual({ path: "broken", code: "E_CLI_CRASH", message: "boom" });
   });
 
   it("bounds active entries, error text and large loop state", () => {

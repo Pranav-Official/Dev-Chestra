@@ -4,7 +4,6 @@ import {
   ApiClient,
   ApiTransportError,
   type CatalogCli,
-  compactRunStatus,
   type DecisionTestRequest,
   type GateTestRequest,
   type WorkflowGroupsDocument,
@@ -12,6 +11,7 @@ import {
 import { parsePath, RUN_STATUSES } from "@devchestra/core";
 import { parseWorkflow, type WorkflowFile, workflowJsonSchema } from "@devchestra/schema";
 import { defaultDataDir } from "./data-dir.js";
+import { fetchRunStatus } from "./run-status.js";
 import { attachToServer, readServerMetadata } from "./server-metadata.js";
 
 const HELP = `Agent CLI (all commands return JSON; watch returns JSONL):
@@ -138,8 +138,9 @@ export const COMMANDS: Record<string, CommandSpec> = {
   "run transcript": {
     min: 1,
     max: 1,
-    flags: ["path", ...pageFlags],
-    description: "Page an execution transcript",
+    flags: ["path", "tail", ...pageFlags],
+    description:
+      "Page an execution transcript (--tail N for the latest lines of a running node, then --cursor <endCursor> for new ones)",
   },
   "run output": { min: 2, max: 2, flags: [], description: "Inspect an output preview" },
   "run children": { min: 1, max: 1, flags: pageFlags, description: "List child runs" },
@@ -301,6 +302,7 @@ function parse(args: string[]): { positional: string[]; flags: Flags } {
     "after",
     "cursor",
     "limit",
+    "tail",
     "params-file",
     "param",
     "idempotency-key",
@@ -631,7 +633,7 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
       });
     } else if (action === "show" && flags.compact !== true) result = await client.getRun(runId());
     else if (action === "show" || action === "status")
-      result = compactRunStatus(await client.getRun(runId()));
+      result = (await fetchRunStatus(client, runId())).status;
     else if (action === "events")
       result = await client.listRunEvents(runId(), {
         ...(numberFlag(flags, "after") === undefined
@@ -643,9 +645,19 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
     else if (action === "archive") result = await client.setRunArchived(runId(), true);
     else if (action === "restore") result = await client.setRunArchived(runId(), false);
     else if (action === "execution") result = await client.getExecution(runId(), path());
-    else if (action === "transcript")
-      result = await client.getExecutionTranscript(runId(), path(), page);
-    else if (action === "output")
+    else if (action === "transcript") {
+      const tail = numberFlag(flags, "tail");
+      if (tail !== undefined && (tail < 1 || tail > 200))
+        throw new AgentUsageError("--tail must be between 1 and 200, for example --tail 20");
+      if (tail !== undefined && page.cursor !== undefined)
+        throw new AgentUsageError(
+          "--tail cannot be combined with --cursor. Use --tail first, then --cursor <endCursor> from its response to read only new lines",
+        );
+      result = await client.getExecutionTranscript(runId(), path(), {
+        ...page,
+        ...(tail === undefined ? {} : { tail }),
+      });
+    } else if (action === "output")
       result = await client.getRunOutput(runId(), required(extra, "output ID"));
     else if (action === "children") result = await client.listRunChildren(runId(), page);
     else if (action === "foreach")

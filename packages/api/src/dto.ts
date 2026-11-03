@@ -545,6 +545,13 @@ export interface TranscriptPageResponse {
   attempt: number | null;
   generation: number | null;
   bytes: number | null;
+  /**
+   * Cursor just past the last complete line read. Pass it as `cursor` to receive
+   * only lines written after this response; null when no transcript exists yet.
+   */
+  endCursor: string | null;
+  /** ISO time the transcript file was last written; null when no transcript exists yet. */
+  updatedAt: string | null;
 }
 
 export const transcriptPageResponseSchema = strict({
@@ -555,11 +562,17 @@ export const transcriptPageResponseSchema = strict({
   attempt: z.number().int().positive().nullable(),
   generation: z.number().int().positive().nullable(),
   bytes: z.number().int().nonnegative().nullable(),
+  endCursor: z.string().nullable(),
+  updatedAt: z.string().nullable(),
 }) as unknown as z.ZodType<TranscriptPageResponse>;
 
 export const transcriptQuerySchema = strict({
   cursor: cursorQuerySchema,
   limit: z.coerce.number().int().min(1).max(500).optional(),
+  /** Return only the most recent N lines (1-200). Cannot be combined with `cursor`. */
+  tail: z.coerce.number().int().min(1).max(200).optional(),
+}).refine((query) => query.tail === undefined || query.cursor === undefined, {
+  message: "tail cannot be combined with cursor",
 });
 
 export type TranscriptQuery = z.infer<typeof transcriptQuerySchema>;
