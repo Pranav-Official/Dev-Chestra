@@ -2,6 +2,7 @@
   "name": "devchestra-workspace",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "description": "DevChestra local workflow orchestrator workspace",
   "type": "module",
   "engines": {

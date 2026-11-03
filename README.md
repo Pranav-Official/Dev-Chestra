@@ -138,3 +138,7 @@ Local-first, single user, your files stay yours. No cloud account, no queue, no 
 ## Third-party icons
 
 The monochrome provider icons are vendored from [LobeHub Icons](https://github.com/lobehub/lobe-icons) (MIT, Copyright (c) 2023 LobeHub) and the official Pi mark from pi.dev. The marks belong to their respective owners and are used only to identify the matching CLI.
+
+## License
+
+[MIT](LICENSE)
