@@ -153,6 +153,11 @@ describe.skipIf(!existsSync(main))("agent CLI lifecycle", () => {
     const watch = run("run", "watch", id, "--timeout", "10");
     expect(watch.code, watch.err).toBe(5);
     const capabilities = JSON.parse(run("capabilities").out);
+    for (const name of ["run show", "run status", "run wait", "run transcript"]) {
+      expect(
+        capabilities.commands.find((command: { name: string }) => command.name === name).flags,
+      ).toContain("project");
+    }
     expect(
       capabilities.commands.find((command: { name: string }) => command.name === "run list").flags,
     ).toEqual(expect.arrayContaining(["workflow", "status", "archived"]));

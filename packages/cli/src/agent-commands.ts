@@ -224,13 +224,19 @@ Object.assign(COMMANDS, {
   "providers enable": { min: 0, max: 0, flags: ["cli"], description: "Enable a provider" },
   "providers disable": { min: 0, max: 0, flags: ["cli"], description: "Disable a provider" },
 } satisfies Record<string, CommandSpec>);
+/** Every run command that takes a run ID also accepts --project, to assert the run belongs to it. */
+function scopeFlags(name: string, spec: CommandSpec): string[] {
+  return name.startsWith("run ") && spec.min >= 1 && !spec.flags.includes("project")
+    ? ["project"]
+    : [];
+}
 export function capabilities(): unknown {
   return {
     contractVersion: 1,
     commands: Object.entries(COMMANDS).map(([name, spec]) => ({
       name: name.replace("groups-", "groups "),
       ...spec,
-      flags: [...common, ...spec.flags],
+      flags: [...common, ...spec.flags, ...scopeFlags(name, spec)],
     })),
     nodes: [
       "start",
@@ -270,10 +276,8 @@ function validateCommand(positional: string[], flags: Flags): void {
   const count = positional.length - 2;
   if (count < spec.min || count > spec.max)
     throw new AgentUsageError(`Wrong number of arguments for ${name}`);
-  // Every run command that takes a run ID also accepts --project, to assert the run belongs to it.
-  const scoped = name.startsWith("run ") && spec.min >= 1 ? ["project"] : [];
   for (const flag of Object.keys(flags))
-    if (![...common, ...spec.flags, ...scoped, "help"].includes(flag))
+    if (![...common, ...spec.flags, ...scopeFlags(name, spec), "help"].includes(flag))
       throw new AgentUsageError(`--${flag} is not valid for ${name}`);
   if (
     flags["retry-uncertain-shell"] !== true &&
