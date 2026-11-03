@@ -1,0 +1,177 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 560" width="1400" height="560" role="img" aria-labelledby="t d">
+<title id="t">AI UGC video workflow</title>
+<desc id="d">Product images go in. Agents write the script, cast influencer options and pick the best one. A for-each step generates each shot with the Higgsfield MCP, then an agent edits the video with HyperFrames. A reviewer checks it against the script: defects go to a fix pass, and clean or fixed videos are posted to social media by a shell step.</desc>
+<defs>
+<pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#c0c6cf"/></pattern>
+<style>
+text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.node{fill:#272a31;stroke:#41454f}
+.outline{fill:none;stroke:#41454f}
+.kind{font-size:10px;font-weight:500;letter-spacing:.04em;fill:#a9aeb9}
+.name{font-size:12.5px;font-weight:600;fill:#eceef1}
+.meta,.row{font:10.5px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#a9aeb9}
+.row{font-size:10px}
+.edge{fill:none;stroke:#7a818d;stroke-width:1.5}
+.handle{fill:#272a31;stroke:#5a5f6b;stroke-width:1.5}
+</style></defs>
+<rect x=".5" y=".5" width="1399" height="559" rx="12" fill="#e6e9ed" stroke="#cdd2d9"/>
+<rect x=".5" y=".5" width="1399" height="559" rx="12" fill="url(#grid)"/>
+<path class="edge" d="M198 226.5 C228.0 226.5 228.0 226.5 258 226.5"/>
+<path class="edge" d="M426 226.5 C456.0 226.5 456.0 226.5 486 226.5"/>
+<path class="edge" d="M654 226.5 C684.0 226.5 684.0 226.5 714 226.5"/>
+<path class="edge" d="M882 226.5 C912.0 226.5 912.0 226.5 942 226.5"/>
+<path class="edge" d="M1110 226.5 C1140.0 226.5 1140.0 226.5 1170 226.5"/>
+<path class="edge" d="M198 400.5 C228.0 400.5 228.0 400.5 258 400.5"/>
+<path class="edge" d="M426 426 C456.0 426 456.0 500.5 486 500.5"/>
+<path class="edge" d="M426 445 C570.0 445 570.0 445 714 445"/>
+<path class="edge" d="M654 500.5 C684.0 500.5 684.0 426 714 426"/>
+<path class="edge" d="M882 400.5 C912.0 400.5 912.0 400.5 942 400.5"/>
+<path class="edge" d="M1110 400.5 C1140.0 400.5 1140.0 400.5 1170 400.5"/>
+<path class="edge" d="M1338 226.5 H1356 a10 10 0 0 1 10 10 V290 a10 10 0 0 1 -10 10 H22 a10 10 0 0 0 -10 10 V390.5 a10 10 0 0 0 10 10 H30"/>
+<path d="M1026.0 190 V152" fill="none" stroke="#6b7280" stroke-dasharray="3 3"/>
+<rect x="906" y="20" width="240" height="132" rx="10" fill="none" stroke="#6b7280" stroke-dasharray="5 4"/><text class="row" x="922" y="40" style="letter-spacing:.04em;fill:#5b6270">FOR EACH SHOT · HIGGSFIELD MCP</text>
+<g transform="translate(942 52)">
+<rect class="node" x=".5" y=".5" width="167" height="72" rx="8"/>
+<path d="M.5 27 V8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8 V27 Z" fill="#2f323a"/>
+<path d="M.5 8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8" class="outline"/>
+<line x1="1" y1="27" x2="167" y2="27" stroke="#41454f"/>
+<g transform="translate(8 7) scale(0.5416666666666666)" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></g>
+<text class="kind" x="27" y="17">AGENT</text>
+<text class="name" x="8" y="45">Generate shot</text>
+<g transform="translate(8 51.5) scale(0.5)" fill="#a9aeb9"><path d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z"/></g>
+<text class="meta" x="23" y="62">default</text>
+</g>
+<g transform="translate(30 190)">
+<rect class="node" x=".5" y=".5" width="167" height="72" rx="8"/>
+<path d="M.5 27 V8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8 V27 Z" fill="#2f323a"/>
+<path d="M.5 8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8" class="outline"/>
+<line x1="1" y1="27" x2="167" y2="27" stroke="#41454f"/>
+<g transform="translate(8 7) scale(0.5416666666666666)" fill="none" stroke="#a3a8b1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"></path></g>
+<text class="kind" x="27" y="17">START</text>
+<text class="name" x="8" y="45">Start</text>
+<text class="meta" x="8" y="62">1 parameter</text>
+</g>
+<g transform="translate(258 190)">
+<rect class="node" x=".5" y=".5" width="167" height="72" rx="8"/>
+<path d="M.5 27 V8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8 V27 Z" fill="#2f323a"/>
+<path d="M.5 8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8" class="outline"/>
+<line x1="1" y1="27" x2="167" y2="27" stroke="#41454f"/>
+<g transform="translate(8 7) scale(0.5416666666666666)" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></g>
+<text class="kind" x="27" y="17">AGENT</text>
+<text class="name" x="8" y="45">Write the script</text>
+<g transform="translate(8 51.5) scale(0.5)" fill="#a9aeb9"><path d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z"/></g>
+<text class="meta" x="23" y="62">default</text>
+</g>
+<g transform="translate(486 190)">
+<rect class="node" x=".5" y=".5" width="167" height="72" rx="8"/>
+<path d="M.5 27 V8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8 V27 Z" fill="#2f323a"/>
+<path d="M.5 8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8" class="outline"/>
+<line x1="1" y1="27" x2="167" y2="27" stroke="#41454f"/>
+<g transform="translate(8 7) scale(0.5416666666666666)" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></g>
+<text class="kind" x="27" y="17">AGENT</text>
+<text class="name" x="8" y="45">Cast influencers</text>
+<g transform="translate(8 51.5) scale(0.5)" fill="#a9aeb9"><path d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z"/></g>
+<text class="meta" x="23" y="62">default</text>
+</g>
+<g transform="translate(714 190)">
+<rect class="node" x=".5" y=".5" width="167" height="72" rx="8"/>
+<path d="M.5 27 V8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8 V27 Z" fill="#2f323a"/>
+<path d="M.5 8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8" class="outline"/>
+<line x1="1" y1="27" x2="167" y2="27" stroke="#41454f"/>
+<g transform="translate(8 7) scale(0.5416666666666666)" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></g>
+<text class="kind" x="27" y="17">AGENT</text>
+<text class="name" x="8" y="45">Pick best influencer</text>
+<g transform="translate(8 51.5) scale(0.5)" fill="#a9aeb9"><path d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z"/></g>
+<text class="meta" x="23" y="62">default</text>
+</g>
+<g transform="translate(942 190)">
+<rect class="node" x=".5" y=".5" width="167" height="72" rx="8"/>
+<path d="M.5 27 V8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8 V27 Z" fill="#2f323a"/>
+<path d="M.5 8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8" class="outline"/>
+<line x1="1" y1="27" x2="167" y2="27" stroke="#41454f"/>
+<g transform="translate(8 7) scale(0.5416666666666666)" fill="none" stroke="#a3a8b1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5h10"></path><path d="M11 12h10"></path><path d="M11 19h10"></path><path d="M4 4h1v5"></path><path d="M4 9h2"></path><path d="M6.5 20H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02"></path></g>
+<text class="kind" x="27" y="17">FOREACH</text>
+<text class="name" x="8" y="45">Generate shots</text>
+<text class="meta" x="8" y="62">sequential · array · 1 b…</text>
+</g>
+<g transform="translate(1170 190)">
+<rect class="node" x=".5" y=".5" width="167" height="72" rx="8"/>
+<path d="M.5 27 V8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8 V27 Z" fill="#2f323a"/>
+<path d="M.5 8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8" class="outline"/>
+<line x1="1" y1="27" x2="167" y2="27" stroke="#41454f"/>
+<g transform="translate(8 7) scale(0.5416666666666666)" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></g>
+<text class="kind" x="27" y="17">AGENT</text>
+<text class="name" x="8" y="45">Edit with HyperFrames</text>
+<g transform="translate(8 51.5) scale(0.5)" fill="#a9aeb9"><path d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z"/></g>
+<text class="meta" x="23" y="62">default</text>
+</g>
+<g transform="translate(30 364)">
+<rect class="node" x=".5" y=".5" width="167" height="72" rx="8"/>
+<path d="M.5 27 V8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8 V27 Z" fill="#2f323a"/>
+<path d="M.5 8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8" class="outline"/>
+<line x1="1" y1="27" x2="167" y2="27" stroke="#41454f"/>
+<g transform="translate(8 7) scale(0.5416666666666666)" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></g>
+<text class="kind" x="27" y="17">AGENT</text>
+<text class="name" x="8" y="45">Review video</text>
+<g transform="translate(8 51.5) scale(0.5)" fill="#a9aeb9"><path d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z"/></g>
+<text class="meta" x="23" y="62">default</text>
+</g>
+<g transform="translate(258 341)">
+<rect class="node" x=".5" y=".5" width="167" height="118" rx="8"/>
+<path d="M.5 27 V8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8 V27 Z" fill="#2f323a"/>
+<path d="M.5 8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8" class="outline"/>
+<line x1="1" y1="27" x2="167" y2="27" stroke="#41454f"/>
+<g transform="translate(8 7) scale(0.5416666666666666)" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6a9 9 0 0 0-9 9V3"></path><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle></g>
+<text class="kind" x="27" y="17">GATE</text>
+<text class="name" x="8" y="45">Defects found?</text>
+<text class="meta" x="8" y="62">2 branches</text>
+<line x1="8" y1="73.5" x2="160" y2="73.5" stroke="#41454f" stroke-dasharray="3 3"/>
+<text class="row" x="158" y="88.5" text-anchor="end">defects</text>
+<text class="row" x="158" y="107.5" text-anchor="end">otherwise</text>
+</g>
+<g transform="translate(486 464)">
+<rect class="node" x=".5" y=".5" width="167" height="72" rx="8"/>
+<path d="M.5 27 V8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8 V27 Z" fill="#2f323a"/>
+<path d="M.5 8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8" class="outline"/>
+<line x1="1" y1="27" x2="167" y2="27" stroke="#41454f"/>
+<g transform="translate(8 7) scale(0.5416666666666666)" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></g>
+<text class="kind" x="27" y="17">AGENT</text>
+<text class="name" x="8" y="45">Fix pass</text>
+<g transform="translate(8 51.5) scale(0.5)" fill="#a9aeb9"><path d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z"/></g>
+<text class="meta" x="23" y="62">default</text>
+</g>
+<g transform="translate(714 341)">
+<rect class="node" x=".5" y=".5" width="167" height="118" rx="8"/>
+<path d="M.5 27 V8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8 V27 Z" fill="#2f323a"/>
+<path d="M.5 8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8" class="outline"/>
+<line x1="1" y1="27" x2="167" y2="27" stroke="#41454f"/>
+<g transform="translate(8 7) scale(0.5416666666666666)" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><path d="M6 21V9a9 9 0 0 0 9 9"></path></g>
+<text class="kind" x="27" y="17">JOIN</text>
+<text class="name" x="8" y="45">Reviewed video</text>
+<text class="meta" x="8" y="62">first · 2 inputs</text>
+<line x1="8" y1="73.5" x2="160" y2="73.5" stroke="#41454f" stroke-dasharray="3 3"/>
+<text class="row" x="10" y="88.5">fixed</text>
+<text class="row" x="10" y="107.5">clean</text>
+</g>
+<g transform="translate(942 364)">
+<rect class="node" x=".5" y=".5" width="167" height="72" rx="8"/>
+<path d="M.5 27 V8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8 V27 Z" fill="#2f323a"/>
+<path d="M.5 8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8" class="outline"/>
+<line x1="1" y1="27" x2="167" y2="27" stroke="#41454f"/>
+<g transform="translate(8 7) scale(0.5416666666666666)" fill="none" stroke="#a3a8b1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 11 2-2-2-2"></path><path d="M11 13h4"></path><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect></g>
+<text class="kind" x="27" y="17">SHELL</text>
+<text class="name" x="8" y="45">Post to social</text>
+<text class="meta" x="8" y="62">./post-to-social.sh</text>
+</g>
+<g transform="translate(1170 364)">
+<rect class="node" x=".5" y=".5" width="167" height="72" rx="8"/>
+<path d="M.5 27 V8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8 V27 Z" fill="#2f323a"/>
+<path d="M.5 8.5 a8 8 0 0 1 8 -8 H159.5 a8 8 0 0 1 8 8" class="outline"/>
+<line x1="1" y1="27" x2="167" y2="27" stroke="#41454f"/>
+<g transform="translate(8 7) scale(0.5416666666666666)" fill="none" stroke="#a3a8b1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528"></path></g>
+<text class="kind" x="27" y="17">END</text>
+<text class="name" x="8" y="45">Posted</text>
+<text class="meta" x="8" y="62">Ends as success</text>
+</g>
+<circle class="handle" cx="426" cy="226.5" r="4"/><circle class="handle" cx="714" cy="226.5" r="4"/><circle class="handle" cx="1110" cy="400.5" r="4"/><circle class="handle" cx="426" cy="445" r="4"/><circle class="handle" cx="258" cy="400.5" r="4"/><circle class="handle" cx="1110" cy="226.5" r="4"/><circle class="handle" cx="714" cy="445" r="4"/><circle class="handle" cx="258" cy="226.5" r="4"/><circle class="handle" cx="654" cy="226.5" r="4"/><circle class="handle" cx="426" cy="426" r="4"/><circle class="handle" cx="942" cy="400.5" r="4"/><circle class="handle" cx="942" cy="226.5" r="4"/><circle class="handle" cx="714" cy="426" r="4"/><circle class="handle" cx="654" cy="500.5" r="4"/><circle class="handle" cx="198" cy="400.5" r="4"/><circle class="handle" cx="198" cy="226.5" r="4"/><circle class="handle" cx="1338" cy="226.5" r="4"/><circle class="handle" cx="882" cy="400.5" r="4"/><circle class="handle" cx="882" cy="226.5" r="4"/><circle class="handle" cx="486" cy="226.5" r="4"/><circle class="handle" cx="30" cy="400.5" r="4"/><circle class="handle" cx="486" cy="500.5" r="4"/><circle class="handle" cx="1170" cy="400.5" r="4"/><circle class="handle" cx="1170" cy="226.5" r="4"/>
+</svg>
