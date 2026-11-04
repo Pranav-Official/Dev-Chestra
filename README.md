@@ -168,7 +168,7 @@ Local-first, single user, your files stay yours. No cloud account, no queue, no 
 
 Enable **Restrict commands** in the agent inspector, or add `permissions.shellPolicy` to a workflow, to opt into command guardrails on macOS and Linux. DevChestra disables the CLI's native shell and supplies an `exec` tool that checks the policy before starting a program. Removing `shellPolicy` restores the normal shell behavior; no server setting is required.
 
-**Allowed commands run with your normal OS permissions.** `permissions.network` and `permissions.write` control the agent CLI's tools; they do not restrict programs launched by gateway `exec`. For example, allowing `curl` can grant network access even with `network: false`, and allowing `touch` can write files even with `write: []`. Workflow validation, the inspector, and run review explain this distinction. Use narrow allowlists for workflows you trust.
+**Allowed commands run with your normal OS permissions.** `permissions.network` and `permissions.write` control the agent CLI's tools; they do not restrict programs launched by gateway `exec`. For example, allowing `curl` can grant network access even with `network: false`, and allowing `touch` can write files even with `write: []`. The inspector and run review explain this distinction. Use narrow allowlists for workflows you trust.
 
 In a workflow file the policy sits beside `shell` under `permissions`:
 

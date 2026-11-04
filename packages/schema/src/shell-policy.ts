@@ -20,7 +20,7 @@ import { issue } from "./validate-support.js";
 
 /** Shared explanation shown when a workflow opts into command guardrails. */
 export const SHELL_POLICY_GUARDRAIL_NOTICE =
-  "Shell policy filters commands sent to DevChestra exec. Allowed commands run with your OS permissions; network and write controls do not restrict them.";
+  "Allowed commands can still access files and the internet.";
 
 /** Longest single policy pattern in characters. */
 export const SHELL_POLICY_MAX_PATTERN_LENGTH = 512;
@@ -155,7 +155,7 @@ export function validateShellPolicy(policy: unknown): ShellPolicyProblem[] {
  * Full permissions-level check: `shell: false` with any policy is rejected,
  * then every `validateShellPolicy` problem becomes an `E_SHELL_POLICY` issue
  * under `${pointerBase}/shellPolicy`. `shell` omitted with a valid policy is
- * fine (treated as enabled). Valid policies carry a warning about host privileges.
+ * fine (treated as enabled). Host-access guidance belongs in the inspector.
  */
 export function shellPolicyIssues(
   permissions: { shell?: boolean; shellPolicy?: ShellPolicy },
@@ -181,17 +181,6 @@ export function shellPolicyIssues(
         "E_SHELL_POLICY",
         problem.message,
         `${pointerBase}/shellPolicy${problem.path}`,
-        nodeId,
-      ),
-    );
-  }
-  if (permissions.shellPolicy !== undefined && found.length === 0) {
-    found.push(
-      issue(
-        "warning",
-        "W_SHELL_POLICY_HOST_ACCESS",
-        SHELL_POLICY_GUARDRAIL_NOTICE,
-        `${pointerBase}/shellPolicy`,
         nodeId,
       ),
     );

@@ -12,8 +12,7 @@ import {
 } from "./shellPolicyModel.js";
 import type { PatchOf } from "./types.js";
 
-const SANDBOX_NOTE =
-  "Not an OS sandbox. Patterns see only the command text. Interpreters such as python, sh or node, plus env, xargs and find -exec, can run programs the patterns never see, and extra MCP servers with exec tools bypass this policy. Regexes are a guardrail, not a complete security boundary.";
+const SANDBOX_NOTE = "Only commands sent through DevChestra are checked.";
 
 function PatternRow({
   kind,
@@ -186,10 +185,7 @@ export function ShellPolicyEditor({
               data-testid="inspector-shell-policy-mcp-warning"
             >
               <AlertTriangle size={13} aria-hidden="true" />
-              <span>
-                Extra MCP servers are selected ({extraServers.map((entry) => entry.name).join(", ")}
-                ). A server with an exec tool can run commands outside this policy.
-              </span>
+              <span>Other connected tools may bypass these rules.</span>
             </p>
           ) : null}
           {listProblems.map((problem) => (
@@ -260,10 +256,6 @@ export function ShellPolicyEditor({
           />
           <p className="inspector-help" role="note" data-testid="inspector-shell-policy-sandbox">
             {SANDBOX_NOTE}
-          </p>
-          <p className="inspector-note amber" role="status">
-            Shell policy execution is currently unavailable until the gateway can enforce filesystem
-            and network permissions.
           </p>
           <ShellPolicyTester policy={policy} />
         </>

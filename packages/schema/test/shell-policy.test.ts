@@ -5,7 +5,6 @@ import {
   normalizeShellPolicy,
   normalizeWorkflow,
   parseWorkflow,
-  SHELL_POLICY_GUARDRAIL_NOTICE,
   SHELL_POLICY_MAX_COMMAND_BYTES,
   SHELL_POLICY_MAX_OUTPUT_BYTES_MAX,
   SHELL_POLICY_MAX_PATTERN_LENGTH,
@@ -87,24 +86,13 @@ describe("shellPolicy schema shape", () => {
 });
 
 describe("shellPolicy semantic validation", () => {
-  it("warns about host access without blocking a valid policy, including an empty policy", () => {
+  it("accepts valid policies without marking their nodes with host-access warnings", () => {
     for (const policy of [{}, { allow: ["^echo hello$"] }]) {
-      const report = validateWorkflow(parseOk(withPolicy(policy)));
+      const raw = withPolicy(policy);
+      node(raw, "agent").cli = "pi";
+      const report = validateWorkflow(parseOk(raw));
       expect(report.ok).toBe(true);
-      expect(report.warnings).toContainEqual({
-        severity: "warning",
-        code: "W_SHELL_POLICY_HOST_ACCESS",
-        message: SHELL_POLICY_GUARDRAIL_NOTICE,
-        pointer: "/graph/nodes/1/permissions/shellPolicy",
-        nodeId: "agent",
-      });
-    }
-    for (const raw of [chainRaw(), withPolicy({ allow: ["("] })]) {
-      expect(
-        validateWorkflow(parseOk(raw)).warnings.some(
-          (item) => item.code === "W_SHELL_POLICY_HOST_ACCESS",
-        ),
-      ).toBe(false);
+      expect(report.warnings).toEqual([]);
     }
   });
 
@@ -401,6 +389,7 @@ describe("shellPolicy normalization and hashing", () => {
 
   it("gives poll probes the same permissions shape", () => {
     const raw = chainRaw();
+    node(raw, "agent").cli = "pi";
     const start = node(raw, "start");
     start.polling = {
       enabled: true,
@@ -420,13 +409,7 @@ describe("shellPolicy normalization and hashing", () => {
     if (!parsed.ok) throw parsed.error;
     const validation = validateWorkflow(parsed.value);
     expect(validation.ok).toBe(true);
-    expect(validation.warnings).toContainEqual(
-      expect.objectContaining({
-        severity: "warning",
-        code: "W_SHELL_POLICY_HOST_ACCESS",
-        pointer: "/graph/nodes/0/polling/probe/permissions/shellPolicy",
-      }),
-    );
+    expect(validation.warnings).toEqual([]);
     const result = normalizeWorkflow(parsed.value);
     if (!result.ok) throw result.error;
     const startNode = result.value.graph.nodes.find((item) => item.id === "start");

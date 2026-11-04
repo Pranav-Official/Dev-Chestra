@@ -76,7 +76,7 @@ describe("ShellPolicyEditor host access", () => {
     expect(screen.queryByTestId("inspector-shell-policy-host-access")).toBeNull();
     fireEvent.click(screen.getByTestId("inspector-shell-policy-toggle"));
     expect(screen.getByTestId("inspector-shell-policy-host-access")).toHaveTextContent(
-      "Allowed commands run with your OS permissions; network and write controls do not restrict them.",
+      "Allowed commands can still access files and the internet.",
     );
     fireEvent.click(screen.getByTestId("inspector-shell-policy-toggle"));
     expect(screen.queryByTestId("inspector-shell-policy-host-access")).toBeNull();
@@ -261,21 +261,21 @@ describe("ShellPolicyEditor tester", () => {
 });
 
 describe("ShellPolicyEditor copy and warnings", () => {
-  it("states it is not an OS sandbox and names the bypasses", () => {
+  it("briefly explains the scope and omits the retired execution-disabled message", () => {
     renderEditor(withPolicy({ allow: ["^ls$"] }));
-    const note = screen.getByTestId("inspector-shell-policy-sandbox");
-    expect(note).toHaveTextContent("Not an OS sandbox.");
-    expect(note).toHaveTextContent(/python/);
-    expect(note).toHaveTextContent(/find -exec/);
-    expect(note).toHaveTextContent(/MCP servers/);
-    expect(note).toHaveTextContent(/not a complete security boundary/);
+    expect(screen.getByTestId("inspector-shell-policy-sandbox")).toHaveTextContent(
+      "Only commands sent through DevChestra are checked.",
+    );
+    expect(screen.queryByText(/execution is currently unavailable/)).toBeNull();
   });
 
   it("warns when extra MCP servers are selected alongside a policy", () => {
     renderEditor(
       withPolicy({ allow: ["^ls$"] }, { mcpServers: [{ name: "neon", scope: "global" }] }),
     );
-    expect(screen.getByTestId("inspector-shell-policy-mcp-warning")).toHaveTextContent(/neon/);
+    expect(screen.getByTestId("inspector-shell-policy-mcp-warning")).toHaveTextContent(
+      "Other connected tools may bypass these rules.",
+    );
   });
 
   it("shows no MCP warning without extra servers", () => {
