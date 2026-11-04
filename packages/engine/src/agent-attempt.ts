@@ -16,7 +16,7 @@ import {
   hashJson,
   type Path,
 } from "@devchestra/core";
-import type { McpSelection } from "@devchestra/schema";
+import type { McpSelection, ShellPolicy } from "@devchestra/schema";
 import type { AcceptedOutput, RunRecord } from "@devchestra/store";
 import { resolveInside, type ScratchWorkspace } from "@devchestra/workspaces";
 import { secretValues } from "./agent-support.js";
@@ -69,6 +69,31 @@ function readShellPermission(node: PlanNode): boolean | undefined {
   const shell = (permissions as { shell?: unknown }).shell;
   return typeof shell === "boolean" ? shell : undefined;
 }
+
+/**
+ * Server-owned shell policy from the node. Schema validation rejects malformed
+ * policies up front; this fails closed too, because a silently dropped policy
+ * would re-enable the native shell.
+ */
+function readShellPolicy(node: PlanNode): ShellPolicy | undefined {
+  const permissions = node.raw.permissions;
+  if (typeof permissions !== "object" || permissions === null) return undefined;
+  const policy = (permissions as { shellPolicy?: unknown }).shellPolicy;
+  if (policy === undefined) return undefined;
+  const shell = (permissions as { shell?: unknown }).shell;
+  if (typeof policy !== "object" || policy === null || Array.isArray(policy) || shell === false) {
+    throw new DevChestraError(
+      "E_VALIDATION",
+      "permissions.shellPolicy is not valid for this node.",
+    );
+  }
+  return policy as ShellPolicy;
+}
+
+/** Margin the shim allows above the policy deadline so the gateway result wins the race. */
+const SHELL_CALL_MARGIN_MS = 15_000;
+const SHELL_DEFAULT_TIMEOUT_SEC = 60;
+const SHELL_DEFAULT_OUTPUT_BYTES = 256 * 1024;
 
 function mcpLabel(selection: readonly McpSelection[]): string {
   return selection.map((item) => `${item.scope}:${item.name}`).join(", ");
@@ -217,7 +242,12 @@ export async function runSingleAttempt(
   const selection = readMcpSelection(node);
   const shell = readShellPermission(node);
   const attached = await resolveAgentMcp(ctx, run, node, selection);
-  const tools = { shell: shell ?? null, servers: mcpNames(selection) };
+  const shellPolicy = readShellPolicy(node);
+  const tools = {
+    shell: shell ?? null,
+    servers: mcpNames(selection),
+    ...(shellPolicy === undefined ? {} : { shellPolicy }),
+  };
   const inputs = { prompt, scope: prepared.scope, tools };
   const inputsHash = await hashJson(inputs);
   // Cancel race guard: resolveAgentMcp/hashJson await without holding the
@@ -228,12 +258,41 @@ export async function runSingleAttempt(
   // Resolve the exec root before minting any token: realpathSync can throw
   // and must not leak a minted token outside all cleanup catches.
   const execRoot = realpathSync.native(ctx.deps.dataDir);
+  // The exec scope pins the real workspace directory; resume re-mints it from the current workspace.
+  const shellCwd = shellPolicy === undefined ? undefined : realpathSync.native(workspace.dir);
+  const shellEnv = shellPolicy === undefined ? undefined : ctx.baseEnv("fake");
+  // The token must outlive a policy exec that started near the end of the run; the
+  // policy deadline can exceed the node timeout.
+  const shellDeadlineMs =
+    shellPolicy === undefined ? 0 : (shellPolicy.timeoutSec ?? SHELL_DEFAULT_TIMEOUT_SEC) * 1000;
   const issued = ctx.deps.gateway.issue({
     identity,
     outputSchema: node.raw.output as Record<string, unknown>,
     outputSchemaHash: prepared.schemaHash,
     validationLimit,
-    expiresAt: ctx.now() + timeoutMs + 30_000,
+    expiresAt: ctx.now() + Math.max(timeoutMs, shellDeadlineMs) + 30_000,
+    ...(shellPolicy === undefined || shellCwd === undefined || shellEnv === undefined
+      ? {}
+      : {
+          shell: {
+            policy: shellPolicy,
+            cwd: shellCwd,
+            env: shellEnv,
+            timeoutMs: (shellPolicy.timeoutSec ?? SHELL_DEFAULT_TIMEOUT_SEC) * 1000,
+            maxOutputBytes: shellPolicy.maxOutputBytes ?? SHELL_DEFAULT_OUTPUT_BYTES,
+            onToolEvent: (event: { kind: "tool" | "tool_result"; text: string }): void => {
+              // Best-effort: a late call after the transcript closed must not throw into the gateway.
+              try {
+                let text = event.text;
+                for (const secret of secretValues(ctx, issued.token))
+                  text = text.split(secret).join("[redacted]");
+                transcript.write({ ts: new Date().toISOString(), kind: event.kind, text });
+              } catch {
+                // Transcript closed; the attempt has already ended.
+              }
+            },
+          },
+        }),
   });
   const releaseSecret = ctx.store.security.registerSecret(issued.token, "exec-token");
   const revoke = (): void => {
@@ -405,6 +464,7 @@ export async function runSingleAttempt(
           | "project"
         )[],
         ...(shell === undefined ? {} : { shell }),
+        ...(shellPolicy === undefined ? {} : { shellPolicy }),
         extraReadDirs: [],
       },
       limits: { timeoutMs },
@@ -417,6 +477,23 @@ export async function runSingleAttempt(
           DEVCHESTRA_GATEWAY_URL: ctx.deps.gateway.url,
           DEVCHESTRA_TOOLSET: "agent",
           DEVCHESTRA_MCP_SHIM_ENTRY: ctx.deps.mcpShimEntry,
+          // Policy runs need a per-call deadline and response cap that cover the
+          // policy timeout/output; the 30s/256KiB shim defaults would silently cut them off.
+          ...(shellPolicy === undefined
+            ? {}
+            : {
+                DEVCHESTRA_DEFAULT_TIMEOUT_MS: String(
+                  (shellPolicy.timeoutSec ?? SHELL_DEFAULT_TIMEOUT_SEC) * 1000 +
+                    SHELL_CALL_MARGIN_MS,
+                ),
+                // JSON escaping can expand each output byte up to 6x; stdout and stderr each cap.
+                DEVCHESTRA_MAX_RESPONSE_BYTES: String(
+                  Math.max(
+                    256 * 1024,
+                    (shellPolicy.maxOutputBytes ?? SHELL_DEFAULT_OUTPUT_BYTES) * 12 + 64 * 1024,
+                  ),
+                ),
+              }),
         },
       },
       execDir,

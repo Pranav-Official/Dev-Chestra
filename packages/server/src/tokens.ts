@@ -1,5 +1,29 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { isAbsolute } from "node:path";
 import type { ExecutionIdentity } from "@devchestra/core";
+import type { ShellPolicy } from "@devchestra/schema";
+
+/** One transcript-facing event from an exec call; text is already redacted by the engine. */
+export interface ExecToolEvent {
+  kind: "tool" | "tool_result";
+  text: string;
+}
+
+/**
+ * Server-owned shell policy for one run, frozen into the exec token at mint
+ * time. Never read from tool arguments. `onToolEvent` is a function, so it is
+ * copied by reference and never passed through structuredClone.
+ */
+export interface ExecShellScope {
+  policy: ShellPolicy;
+  /** Absolute, real workspace directory (exec runs here, fixed). */
+  cwd: string;
+  /** Allowlisted child env. Must not carry provider credentials. */
+  env: Record<string, string>;
+  timeoutMs: number;
+  maxOutputBytes: number;
+  onToolEvent?: (event: ExecToolEvent) => void;
+}
 
 export interface ExecScope {
   identity: ExecutionIdentity;
@@ -11,6 +35,8 @@ export interface ExecScope {
   validationLimit: number;
   /** Absolute epoch milliseconds after which the token is invalid. */
   expiresAt: number;
+  /** Present only for agents with a shell policy; enables the `exec` tool. */
+  shell?: ExecShellScope;
 }
 
 export interface ExecTokenRegistryOptions {
@@ -48,7 +74,20 @@ function deepFreeze<T>(value: T): T {
   return value;
 }
 
+function cloneShell(shell: ExecShellScope): ExecShellScope {
+  const copy: ExecShellScope = {
+    policy: structuredClone(shell.policy),
+    cwd: shell.cwd,
+    env: { ...shell.env },
+    timeoutMs: shell.timeoutMs,
+    maxOutputBytes: shell.maxOutputBytes,
+  };
+  if (shell.onToolEvent !== undefined) copy.onToolEvent = shell.onToolEvent;
+  return copy;
+}
+
 function cloneScope(scope: ExecScope): ExecScope {
+  const shell = scope.shell === undefined ? undefined : cloneShell(scope.shell);
   return deepFreeze({
     identity: {
       runId: scope.identity.runId,
@@ -61,7 +100,23 @@ function cloneScope(scope: ExecScope): ExecScope {
     outputSchemaHash: scope.outputSchemaHash,
     validationLimit: scope.validationLimit,
     expiresAt: scope.expiresAt,
+    ...(shell === undefined ? {} : { shell }),
   });
+}
+
+function validateShell(shell: ExecShellScope): void {
+  if (typeof shell.cwd !== "string" || !isAbsolute(shell.cwd)) {
+    throw new Error("ExecScope shell cwd must be an absolute path.");
+  }
+  if (!Number.isSafeInteger(shell.timeoutMs) || shell.timeoutMs < 1) {
+    throw new Error("ExecScope shell timeoutMs must be a positive integer.");
+  }
+  if (!Number.isSafeInteger(shell.maxOutputBytes) || shell.maxOutputBytes < 1) {
+    throw new Error("ExecScope shell maxOutputBytes must be a positive integer.");
+  }
+  if (typeof shell.policy !== "object" || shell.policy === null) {
+    throw new Error("ExecScope shell policy is required.");
+  }
 }
 
 function validateScope(scope: ExecScope, now: number): void {
@@ -96,6 +151,7 @@ function validateScope(scope: ExecScope, now: number): void {
   if (!Number.isFinite(scope.expiresAt) || scope.expiresAt <= now) {
     throw new Error("ExecScope expiresAt must be a finite future timestamp.");
   }
+  if (scope.shell !== undefined) validateShell(scope.shell);
 }
 
 /**

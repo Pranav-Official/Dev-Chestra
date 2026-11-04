@@ -2,7 +2,7 @@ import { statSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { type DevChestraError, ok, type Result } from "@devchestra/core";
 import { clip, NdjsonParser, num, parseObject, record, str } from "./parsers.js";
-import { checkDir, classifyExit, fail, requireOptionKeys } from "./plan.js";
+import { checkDir, classifyExit, fail, nativeShellOff, requireOptionKeys } from "./plan.js";
 import { probeVersion } from "./probe.js";
 import { piStatic } from "./provider-config.js";
 import type {
@@ -442,7 +442,8 @@ function plan(req: RunRequest, bin: string): Result<Invocation, DevChestraError>
     if (req.permissions.write.length === 0) denied.push(...permissions.readOnlyDeniedTools);
     if (!req.permissions.network) denied.push(...permissions.networkTools);
     // Shell is independent of write when explicitly set; undefined keeps legacy.
-    if (req.permissions.shell === false) {
+    // A shell policy excludes the native shell even when shell is true/undefined.
+    if (nativeShellOff(req.permissions)) {
       for (const tool of ["bash", "powershell"]) {
         if (!denied.includes(tool)) denied.push(tool);
       }

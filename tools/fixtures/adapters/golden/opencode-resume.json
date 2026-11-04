@@ -1,7 +1,7 @@
 {
   "label": "SYNTHETIC golden argv expectation, not a live capture",
   "cli": "opencode",
-  "version": "1.19.4",
+  "version": "2.2.5",
   "case": "resume-readonly",
   "bin": "opencode",
   "args": [
@@ -9,8 +9,7 @@
     "Call submit_result once.",
     "--format",
     "json",
-    "--dir",
-    "/work",
+    "--standalone",
     "--session",
     "ses_494719016ffe85dkDMj0FPRbHK"
   ]

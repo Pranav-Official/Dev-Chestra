@@ -18,6 +18,7 @@ import type {
   NormalizedWorkflow,
   PollProbe,
   ProdCliId,
+  ShellPolicy,
 } from "@devchestra/schema";
 import type { Store } from "@devchestra/store";
 import type {
@@ -31,12 +32,34 @@ import type {
 
 export type EngineCli = ProdCliId | "fake";
 
+/** One transcript-facing event from a gateway `exec` call. The text is already redacted by the engine. */
+export interface GatewayToolEvent {
+  readonly kind: "tool" | "tool_result";
+  readonly text: string;
+}
+
+/**
+ * Server-owned shell policy for one run. Carried by the exec token only, never
+ * taken from tool arguments. `cwd` is the real workspace; `env` is the
+ * allowlisted child env (no provider credentials).
+ */
+export interface GatewayShellScope {
+  readonly policy: ShellPolicy;
+  readonly cwd: string;
+  readonly env: Readonly<Record<string, string>>;
+  readonly timeoutMs: number;
+  readonly maxOutputBytes: number;
+  readonly onToolEvent?: (event: GatewayToolEvent) => void;
+}
+
 export interface GatewayScope {
   readonly identity: ExecutionIdentity;
   readonly outputSchema: Record<string, unknown>;
   readonly outputSchemaHash: string;
   readonly validationLimit: number;
   readonly expiresAt: number;
+  /** Present only for agents with a shell policy; enables the `exec` tool. */
+  readonly shell?: GatewayShellScope;
 }
 
 export interface IssuedToken {

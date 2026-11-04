@@ -3,6 +3,13 @@ import { type Context, Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { DevChestraError, devchestraErrorCode, errorBody, toDevChestraError } from "./errors.js";
 import type { SubmissionPort, SubmitOutcome } from "./ports.js";
+import {
+  EXEC_GRACE_MS,
+  EXEC_TOOL_NAME,
+  execDescription,
+  execInputSchema,
+  runPolicyExec,
+} from "./shell-exec.js";
 import { type ExecScope, type ExecTokenRegistry, scopeKey } from "./tokens.js";
 import { formatIssues, type OutputValidator } from "./validate.js";
 
@@ -23,6 +30,8 @@ export interface AgentGatewayOptions {
   maxBodyBytes?: number;
   maxResponseBytes?: number;
   logger?: (line: string) => void;
+  /** Host platform for the exec guard; defaults to process.platform. Tests inject win32. */
+  execPlatform?: NodeJS.Platform;
 }
 
 type GatewayEnv = { Variables: { execScope: ExecScope; execToken: string } };
@@ -284,6 +293,7 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
   const currentPort = (): number =>
     typeof portProvider === "function" ? portProvider() : portProvider;
   const log = options.logger ?? ((): void => undefined);
+  const execPlatform = options.execPlatform ?? process.platform;
 
   const app = new Hono<GatewayEnv>();
 
@@ -356,6 +366,16 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
             "Submit the final structured result for this node. Arguments must match the output schema. Call exactly once when the work is complete.",
           inputSchema: scope.outputSchema,
         },
+        // Advertised only for tokens that carry a server-owned shell policy.
+        ...(scope.shell === undefined
+          ? []
+          : [
+              {
+                name: EXEC_TOOL_NAME,
+                description: execDescription(scope.shell.policy),
+                inputSchema: execInputSchema(),
+              },
+            ]),
       ],
     };
     const text = JSON.stringify(body);
@@ -386,7 +406,12 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
       return c.json(errorBody("E_VALIDATION", "Content-Type must be application/json."), 400);
     }
 
-    const timeoutMs = submitTimeoutMs;
+    // A policy exec may legitimately run for its own deadline; the request
+    // controller must outlive that deadline, not the 60s submit timer.
+    const timeoutMs =
+      scope.shell === undefined
+        ? submitTimeoutMs
+        : Math.max(submitTimeoutMs, scope.shell.timeoutMs + EXEC_GRACE_MS);
     const controller = new AbortController();
     const timer = setTimeout(() => {
       controller.abort();
@@ -408,6 +433,10 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
       }
       const name = body.name;
       const args = body.arguments;
+
+      if (name === EXEC_TOOL_NAME) {
+        return await execCall(c, scope, execToken, args, controller.signal);
+      }
 
       if (name !== "submit_result") {
         return c.json(
@@ -509,6 +538,54 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
       clearTimeout(timer);
     }
   });
+
+  /**
+   * Policy exec. The policy, cwd and env come only from the token scope; the
+   * arguments carry just the command string. Denials and run failures are HTTP
+   * 200 tool results so the model can recover.
+   */
+  async function execCall(
+    c: Context<GatewayEnv>,
+    scope: ExecScope,
+    execToken: string,
+    args: Record<string, unknown>,
+    signal: AbortSignal,
+  ): Promise<Response> {
+    if (scope.shell === undefined) {
+      throw new DevChestraError("E_FORBIDDEN", "That tool is not available to this execution.");
+    }
+    const keys = Object.keys(args);
+    if (keys.length !== 1 || keys[0] !== "command" || typeof args.command !== "string") {
+      throw new DevChestraError(
+        "E_VALIDATION",
+        "exec accepts exactly one string argument: command.",
+      );
+    }
+    if (args.command === "") {
+      throw new DevChestraError("E_VALIDATION", "exec command must not be empty.");
+    }
+    if (execPlatform === "win32") {
+      return c.json(
+        callResult(
+          "exec is POSIX-only: the shell policy command runner is not available on this host.",
+          true,
+        ),
+      );
+    }
+    const current = tokens.resolve(execToken, now());
+    if (current === null) {
+      throw new DevChestraError("E_AUTH", "The execution token is no longer valid.");
+    }
+    if (!sameScope(current, scope) || current.shell === undefined) {
+      throw new DevChestraError("E_CONFLICT", "This execution is no longer current.");
+    }
+    const outcome = await runPolicyExec({
+      shell: current.shell,
+      command: args.command,
+      signal,
+    });
+    return c.json(callResult(outcome.text, outcome.isError));
+  }
 
   app.notFound((c) => c.json(errorBody("E_NOT_FOUND", "Not found."), 404));
 
