@@ -1,4 +1,5 @@
 import { DevChestraError, isRecord } from "@devchestra/core";
+import { validateShellPolicy } from "@devchestra/schema";
 
 /** Node kinds whose config the engine validates here; richer kinds are planned in graph-plan. */
 export type BaseNodeKind = "start" | "agent" | "shell" | "end";
@@ -89,6 +90,7 @@ function validateAgent(node: Record<string, unknown>): void {
   if (!isRecord(node.permissions)) {
     throw invalid("Agent node permissions are required", node);
   }
+  validateAgentShellPolicy(node);
   const write = node.permissions.write;
   if (Array.isArray(write) && write.includes("project")) {
     throw new DevChestraError("E_WORKFLOW_INVALID", "Project write access is not supported", {
@@ -110,6 +112,29 @@ function validateAgent(node: Record<string, unknown>): void {
   }
   validateWorkspace(node, "agent");
   validateLimits(node);
+}
+
+function validateAgentShellPolicy(node: Record<string, unknown>): void {
+  const permissions = node.permissions as Record<string, unknown>;
+  const policy = permissions.shellPolicy;
+  if (policy === undefined) return;
+  if (permissions.shell === false) {
+    throw new DevChestraError(
+      "E_WORKFLOW_INVALID",
+      "Agent shellPolicy requires shell to be enabled",
+      {
+        details: { nodeId: node.id },
+      },
+    );
+  }
+  const problems = validateShellPolicy(policy);
+  if (problems.length > 0) {
+    throw new DevChestraError(
+      "E_WORKFLOW_INVALID",
+      `Agent shellPolicy is invalid: ${problems[0]?.message ?? "unknown error"}`,
+      { details: { nodeId: node.id, problems } },
+    );
+  }
 }
 
 function validateShell(node: Record<string, unknown>): void {

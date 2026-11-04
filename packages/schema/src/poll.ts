@@ -1,5 +1,6 @@
 import { DevChestraError, err, ok, type Result } from "@devchestra/core";
 import { validateParams } from "./params.js";
+import { shellPolicyIssues } from "./shell-policy.js";
 import { compileTemplate } from "./template.js";
 import {
   type Issue,
@@ -9,6 +10,7 @@ import {
   POLL_PROBE_ID,
   type PollProbe,
   PROD_CLIS,
+  type ShellPolicy,
   type StartNode,
   type ValidationContext,
   type WorkflowParam,
@@ -305,6 +307,13 @@ function validatePollAgentProbe(
           "permissions.shell must be a boolean.",
           `${probeBase}/permissions/shell`,
         );
+      }
+      for (const policyIssue of shellPolicyIssues(
+        permissions as { shell?: boolean; shellPolicy?: ShellPolicy },
+        `${probeBase}/permissions`,
+        undefined,
+      )) {
+        fail(policyIssue.code, policyIssue.message, policyIssue.pointer ?? probeBase);
       }
     }
   }

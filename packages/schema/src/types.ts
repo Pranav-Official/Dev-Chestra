@@ -165,6 +165,19 @@ export interface AgentPermissions {
   write: ("workspace" | "project")[];
   /** Built-in shell tool. Absent keeps the legacy rule: shell follows `write` being non-empty. */
   shell?: boolean;
+  /** Optional allowlist/denylist over shell commands. Only valid when `shell` is not `false`. */
+  shellPolicy?: ShellPolicy;
+}
+
+export interface ShellPolicy {
+  /** Allowlist regex sources matched against the canonical command. Non-empty means allowlist mode. */
+  allow?: string[];
+  /** Denylist regex sources matched against the canonical command. Evaluated before `allow`. */
+  deny?: string[];
+  /** Per-command timeout in seconds. */
+  timeoutSec?: number;
+  /** Per-command output cap in bytes. */
+  maxOutputBytes?: number;
 }
 
 export const MCP_SCOPES = ["global", "project", "connector"] as const;

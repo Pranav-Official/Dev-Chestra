@@ -152,10 +152,18 @@ const pollProbeBase = {
   env: z.array(z.string()).optional(),
 };
 
+const shellPolicySchema = z.strictObject({
+  allow: z.array(z.string()).optional(),
+  deny: z.array(z.string()).optional(),
+  timeoutSec: z.number().optional(),
+  maxOutputBytes: z.number().optional(),
+});
+
 const pollAgentPermissionsSchema = z.strictObject({
   network: z.boolean(),
   write: z.array(z.enum(["workspace", "project"])),
   shell: z.boolean().optional(),
+  shellPolicy: shellPolicySchema.optional(),
 });
 
 const pollShellProbeSchema = z.strictObject({
@@ -232,6 +240,7 @@ const agentNodeSchema = z.strictObject({
     network: z.boolean(),
     write: z.array(z.enum(["workspace", "project"])),
     shell: z.boolean().optional(),
+    shellPolicy: shellPolicySchema.optional(),
   }),
   mcpServers: mcpServersSchema.optional(),
   workspace: workspaceSchema.optional(),

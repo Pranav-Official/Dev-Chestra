@@ -96,4 +96,35 @@ describe("validateBaseNodeConfig", () => {
     promptFile.promptFile = "research.md";
     expect(rejection(promptFile)).toContain("promptFile");
   });
+
+  it("accepts a valid shellPolicy and rejects malformed ones", () => {
+    const valid = fixtureNode("research");
+    record(valid, "permissions").shellPolicy = {
+      allow: ["^curl .+$"],
+      deny: ["\\s(-o|--output)(\\s|$)"],
+      timeoutSec: 60,
+      maxOutputBytes: 262144,
+    };
+    expect(rejection(valid)).toBeNull();
+
+    const absent = fixtureNode("research");
+    expect(rejection(absent)).toBeNull();
+
+    const badPattern = fixtureNode("research");
+    record(badPattern, "permissions").shellPolicy = { allow: ["("] };
+    expect(rejection(badPattern)).toContain("shellPolicy");
+
+    const redos = fixtureNode("research");
+    record(redos, "permissions").shellPolicy = { deny: ["(a+)+"] };
+    expect(rejection(redos)).toContain("shellPolicy");
+
+    const badLimit = fixtureNode("research");
+    record(badLimit, "permissions").shellPolicy = { timeoutSec: 0 };
+    expect(rejection(badLimit)).toContain("shellPolicy");
+
+    const disabled = fixtureNode("research");
+    record(disabled, "permissions").shell = false;
+    record(disabled, "permissions").shellPolicy = { allow: ["^curl .+$"] };
+    expect(rejection(disabled)).toContain("shellPolicy");
+  });
 });
