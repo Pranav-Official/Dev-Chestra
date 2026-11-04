@@ -2,6 +2,7 @@ import { emptyRunView } from "@devchestra/core";
 import { describe, expect, it } from "vitest";
 import {
   ApiProtocolError,
+  ApiTransportError,
   parseGlobalStreamEvent,
   parseRunStreamEvent,
   readSse,
@@ -52,6 +53,15 @@ describe("SseParser", () => {
     const parser = new SseParser();
     expect(parser.push("id: 1\r\nevent: run\r\ndata: x\r\n")).toEqual([]);
     expect(parser.end()).toEqual([{ id: "1", event: "run", data: "x", retry: null }]);
+  });
+
+  it("classifies response body read failures as transport errors", async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.error(new TypeError("disconnected"));
+      },
+    });
+    await expect(readSse(body).next()).rejects.toBeInstanceOf(ApiTransportError);
   });
 
   it("reads a stream and preserves frame boundaries", async () => {

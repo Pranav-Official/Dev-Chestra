@@ -39,7 +39,7 @@ const SKILL_DESCRIPTIONS: Record<SkillName, string> = {
   "nodes-branch": "gate/join/approval/decision + routing example.",
   "nodes-compose": "loop/foreach/workflow calls.",
   triggers: "start.polling / start.webhook trigger blocks, arming, delivery contracts.",
-  ops: "workspace safety, limits, authoring checklist, CLI lifecycle, recovery.",
+  ops: "workspace safety, limits, authoring checklist, CLI lifecycle, monitoring runs (run status/wait), recovery.",
 };
 
 const skillCache = new Map<string, Buffer>();

@@ -446,7 +446,9 @@ export class ApiClientBase {
       "GET",
       ["runs", runId, "executions", path, "transcript"],
       transcriptPageResponseSchema,
-      this.req(options, { query: { cursor: query.cursor, limit: query.limit } }),
+      this.req(options, {
+        query: { cursor: query.cursor, limit: query.limit, tail: query.tail, format: "monitor" },
+      }),
     );
   }
 

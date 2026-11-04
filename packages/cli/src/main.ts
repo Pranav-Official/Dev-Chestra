@@ -10,9 +10,9 @@ import {
 } from "./agent-commands.js";
 import { type CliOptions, HELP, parseArgs, UsageError } from "./args.js";
 import { executeResume, executeRun } from "./commands.js";
+import { detachStart } from "./detach.js";
 import { printDoctor, runDoctor } from "./doctor.js";
 import { acquireDataDirLock, DataDirLockedError, type LockHandle } from "./lock.js";
-import { detachStart } from "./detach.js";
 import { exitCodeForError, safeError, writeSummary } from "./output.js";
 import { runStatus, runStop } from "./server-commands.js";
 import { executeStart } from "./start.js";
@@ -54,6 +54,8 @@ async function main(): Promise<number> {
     "start",
     "list",
     "show",
+    "status",
+    "wait",
     "watch",
     "events",
     "execution",
@@ -108,7 +110,11 @@ async function main(): Promise<number> {
       process.stderr.write(
         `${JSON.stringify({ contractVersion: 1, error: { code, message, ...(details === undefined ? {} : { details }), retryable, ...(hint === undefined ? {} : { hint }) } })}\n`,
       );
-      return code === "E_VALIDATION" || (error instanceof ApiError && error.status < 500) ? 4 : 1;
+      return code === "E_VALIDATION" ||
+        code === "E_NOT_FOUND" ||
+        (error instanceof ApiError && error.status < 500)
+        ? 4
+        : 1;
     }
   }
   let options: CliOptions;
