@@ -18,6 +18,7 @@ export type {
 export type { NormalizedWorkflow } from "@devchestra/schema";
 export * from "./approval-dto.js";
 export * from "./client.js";
+export * from "./compact.js";
 export * from "./constants.js";
 export * from "./decision-dto.js";
 export * from "./dto.js";

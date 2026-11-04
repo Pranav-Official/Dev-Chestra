@@ -153,6 +153,11 @@ describe.skipIf(!existsSync(main))("agent CLI lifecycle", () => {
     const watch = run("run", "watch", id, "--timeout", "10");
     expect(watch.code, watch.err).toBe(5);
     const capabilities = JSON.parse(run("capabilities").out);
+    for (const name of ["run show", "run status", "run wait", "run transcript"]) {
+      expect(
+        capabilities.commands.find((command: { name: string }) => command.name === name).flags,
+      ).toContain("project");
+    }
     expect(
       capabilities.commands.find((command: { name: string }) => command.name === "run list").flags,
     ).toEqual(expect.arrayContaining(["workflow", "status", "archived"]));
@@ -186,6 +191,68 @@ describe.skipIf(!existsSync(main))("agent CLI lifecycle", () => {
       error: { code: "E_TIMEOUT", retryable: true },
     });
     expect(JSON.parse(run("run", "show", id).out).view.status).toBe("waiting_approval");
+    const compact = run("run", "status", id);
+    expect(compact.code, compact.err).toBe(0);
+    expect(JSON.parse(compact.out)).toMatchObject({
+      contractVersion: 1,
+      runId: id,
+      workflow: "review",
+      status: "waiting_approval",
+      nodes: { succeeded: 1, waiting: 1 },
+      needsAttention: [{ type: "approval", path: "approval", message: "Review this" }],
+    });
+    expect(compact.out.length).toBeLessThan(1024);
+    const withoutElapsed = (out: string) => ({ ...JSON.parse(out), elapsedMs: 0 });
+    expect(withoutElapsed(run("run", "show", id, "--compact").out)).toEqual(
+      withoutElapsed(compact.out),
+    );
+    expect(JSON.parse(run("run", "show", id).out)).toHaveProperty("view.executions");
+    expect(run("run", "show", id, "--project", project).code).toBe(0);
+    const otherProject = join(root, "other-project");
+    mkdirSync(otherProject);
+    expect(run("project", "add", otherProject).code).toBe(0);
+    const wrongProject = run("run", "status", id, "--project", otherProject);
+    expect(wrongProject.code).toBe(4);
+    expect(JSON.parse(wrongProject.err).error.message).toContain("does not belong to project");
+    const noPath = run("run", "execution", id);
+    expect(noPath.code).toBe(4);
+    expect(JSON.parse(noPath.err).error.message).toContain("find#1/discover");
+    const badPath = run("run", "execution", id, "--path", "Not A Path");
+    expect(badPath.code).toBe(4);
+    expect(JSON.parse(badPath.err).error.message).toContain("not a valid node path");
+    const waitNow = run("run", "wait", id, "--timeout", "5");
+    expect(waitNow.code, waitNow.err).toBe(5);
+    expect(JSON.parse(waitNow.out)).toMatchObject({
+      status: "waiting_approval",
+      timedOut: false,
+      needsAttention: [{ type: "approval" }],
+    });
+    const cursor = String(JSON.parse(compact.out).cursor);
+    const idle = run("run", "wait", id, "--timeout", "1", "--after", cursor);
+    expect(idle.code, idle.err).toBe(5);
+    expect(JSON.parse(idle.out)).toMatchObject({ timedOut: true, reasons: [] });
+    expect(run("run", "wait", id, "--until", "soon").code).toBe(4);
+    expect(run("run", "wait", id, "--timeout", "0").code).toBe(4);
+    const tailAndCursor = run(
+      "run",
+      "transcript",
+      id,
+      "--path",
+      "approval",
+      "--tail",
+      "5",
+      "--cursor",
+      "1",
+    );
+    expect(tailAndCursor.code).toBe(4);
+    expect(JSON.parse(tailAndCursor.err).error.message).toContain("--cursor <endCursor>");
+    expect(run("run", "transcript", id, "--path", "approval", "--tail", "500").code).toBe(4);
+    const tailed = run("run", "transcript", id, "--path", "approval", "--tail", "5");
+    expect(tailed.code, tailed.err).toBe(0);
+    expect(JSON.parse(tailed.out)).toMatchObject({ lines: [], endCursor: null });
+    const badStatus = run("run", "list", "--status", "done");
+    expect(badStatus.code).toBe(4);
+    expect(JSON.parse(badStatus.err).error.message).toContain("waiting_approval");
     const detail = JSON.parse(run("approval", "list", "--run", id).out).items[0];
     const args = [
       "approval",
@@ -205,7 +272,21 @@ describe.skipIf(!existsSync(main))("agent CLI lifecycle", () => {
     const stale = [...args];
     stale[stale.indexOf("--expected-generation") + 1] = String(detail.expectedGeneration + 1);
     expect(run(...stale).code).toBe(4);
+    const waiter = spawn(
+      process.execPath,
+      [main, "run", "wait", id, "--timeout", "20", "--after", cursor, "--data-dir", data],
+      { stdio: ["ignore", "pipe", "pipe"] },
+    );
+    let waited = "";
+    waiter.stdout?.on("data", (chunk: Buffer) => {
+      waited += chunk.toString();
+    });
+    const waiterExit = new Promise<number | null>((done) => waiter.once("exit", done));
+    await new Promise((resolveWait) => setTimeout(resolveWait, 700));
     expect(run(...args).code).toBe(0);
+    expect(await waiterExit).toBe(0);
+    expect(JSON.parse(waited)).toMatchObject({ status: "succeeded", timedOut: false });
+    expect(JSON.parse(waited).reasons.length).toBeGreaterThan(0);
     const replay = run(
       "run",
       "watch",

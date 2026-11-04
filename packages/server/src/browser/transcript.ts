@@ -5,6 +5,7 @@ import {
   fstatSync,
   lstatSync,
   openSync,
+  readSync,
   realpathSync,
 } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -78,6 +79,23 @@ function parseLine(raw: string): TranscriptLine | null {
   };
 }
 
+/** Decodes one raw JSONL line, clipping oversized text; null for blank or unparseable lines. */
+function decodeLine(raw: string): TranscriptLine | null {
+  if (Buffer.byteLength(raw, "utf8") > MAX_LINE_BYTES) {
+    return {
+      ts: null,
+      kind: "notice",
+      text: `[transcript line omitted: ${Buffer.byteLength(raw, "utf8")} bytes]`,
+    };
+  }
+  const line = parseLine(raw);
+  if (line === null) return null;
+  const textBytes = Buffer.byteLength(line.text, "utf8");
+  if (textBytes <= MAX_TEXT_BYTES) return line;
+  const clipped = Buffer.from(line.text, "utf8").subarray(0, MAX_TEXT_BYTES).toString("utf8");
+  return { ts: line.ts, kind: line.kind, text: `${clipped}\n[truncated: ${textBytes} bytes]` };
+}
+
 export function unavailableTranscript(
   attempt: number | null,
   generation: number | null,
@@ -91,6 +109,8 @@ export function unavailableTranscript(
     attempt,
     generation,
     bytes: null,
+    endCursor: null,
+    updatedAt: null,
   };
 }
 
@@ -103,7 +123,9 @@ export async function readTranscriptPage(input: {
   generation: number;
   cursor: number;
   limit: number;
+  byteCursor?: boolean;
 }): Promise<TranscriptPage> {
+  if (input.byteCursor) return readBytePage(input);
   const file = transcriptPath(input);
   if (file === null) return unavailableTranscript(input.attempt, input.generation);
   const limit = Math.min(Math.max(input.limit, 1), MAX_LINES);
@@ -114,6 +136,7 @@ export async function readTranscriptPage(input: {
     return unavailableTranscript(input.attempt, input.generation);
   }
   let size = 0;
+  let updatedAt: string | null = null;
   try {
     const stat = fstatSync(fd);
     if (!stat.isFile()) {
@@ -121,6 +144,7 @@ export async function readTranscriptPage(input: {
       return unavailableTranscript(input.attempt, input.generation);
     }
     size = stat.size;
+    updatedAt = stat.mtime.toISOString();
   } catch {
     closeSync(fd);
     return unavailableTranscript(input.attempt, input.generation);
@@ -154,25 +178,7 @@ export async function readTranscriptPage(input: {
 
   const consume = (raw: string): void => {
     if (lineNumber >= input.cursor) {
-      let line: TranscriptLine | null;
-      if (Buffer.byteLength(raw, "utf8") > MAX_LINE_BYTES) {
-        line = notice(Buffer.byteLength(raw, "utf8"));
-      } else {
-        line = parseLine(raw);
-        if (line !== null) {
-          const textBytes = Buffer.byteLength(line.text, "utf8");
-          if (textBytes > MAX_TEXT_BYTES) {
-            const clipped = Buffer.from(line.text, "utf8")
-              .subarray(0, MAX_TEXT_BYTES)
-              .toString("utf8");
-            line = {
-              ts: line.ts,
-              kind: line.kind,
-              text: `${clipped}\n[truncated: ${textBytes} bytes]`,
-            };
-          }
-        }
-      }
+      const line = decodeLine(raw);
       if (line !== null && !push(line)) {
         full = true;
         return;
@@ -218,10 +224,9 @@ export async function readTranscriptPage(input: {
       }
     }
     if (!full && buffer !== "" && !discarding) {
-      consume(buffer.endsWith("\r") ? buffer.slice(0, -1) : buffer);
-    } else if (!full && discarding) {
-      if (lineNumber >= input.cursor) push(notice(discardedBytes));
-      lineNumber += 1;
+      // An unterminated tail may be a record still being written; count it only once it parses.
+      const tail = buffer.endsWith("\r") ? buffer.slice(0, -1) : buffer;
+      if (parseLine(tail) !== null) consume(tail);
     }
   } finally {
     stream.destroy();
@@ -234,12 +239,198 @@ export async function readTranscriptPage(input: {
     attempt: input.attempt,
     generation: input.generation,
     bytes: size,
+    endCursor: String(lineNumber),
+    updatedAt,
   };
+}
+
+/**
+ * The most recent `tail` records of a transcript, for watching a node that is
+ * still running. `endCursor` points past the last complete line, so the caller
+ * can continue with `cursor=<endCursor>` and receive only new lines.
+ */
+export async function readTranscriptTail(input: {
+  dataDir: string;
+  projectId: string;
+  runId: string;
+  path: string;
+  attempt: number;
+  generation: number;
+  tail: number;
+}): Promise<TranscriptPage> {
+  const file = transcriptPath(input);
+  if (file === null) return unavailableTranscript(input.attempt, input.generation);
+  const keep = Math.min(Math.max(input.tail, 1), MAX_LINES);
+  let fd: number;
+  try {
+    fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+  } catch {
+    return unavailableTranscript(input.attempt, input.generation);
+  }
+  let size: number;
+  let updatedAt: string;
+  try {
+    const stat = fstatSync(fd);
+    if (!stat.isFile()) {
+      closeSync(fd);
+      return unavailableTranscript(input.attempt, input.generation);
+    }
+    size = stat.size;
+    updatedAt = stat.mtime.toISOString();
+  } catch {
+    closeSync(fd);
+    return unavailableTranscript(input.attempt, input.generation);
+  }
+
+  // Search backwards for recent records, with a fixed cap even for enormous lines.
+  const cap = Math.min(size, 2 * MAX_LINE_BYTES);
+  const data = Buffer.alloc(cap);
+  const start = size - cap;
+  try {
+    let read = 0;
+    while (read < cap) {
+      const n = readSync(fd, data, read, cap - read, start + read);
+      if (n === 0) break;
+      read += n;
+    }
+    const actual = data.subarray(0, read);
+    const lastNewline = actual.lastIndexOf(10);
+    const end = lastNewline < 0 ? 0 : start + lastNewline + 1;
+    let begin = lastNewline;
+    let count = 0;
+    while (begin > 0 && count < keep) {
+      begin -= 1;
+      if (actual[begin] === 10) count += 1;
+    }
+    if (count === keep) begin += 1;
+    else if (start > 0) {
+      const boundary = actual.indexOf(10);
+      begin = boundary < 0 || boundary >= lastNewline ? lastNewline + 1 : boundary + 1;
+    } else begin = 0;
+    const lines =
+      lastNewline < 0
+        ? []
+        : actual
+            .subarray(begin, lastNewline + 1)
+            .toString("utf8")
+            .split("\n")
+            .slice(0, -1)
+            .map((raw) => decodeLine(raw.endsWith("\r") ? raw.slice(0, -1) : raw))
+            .filter((line): line is TranscriptLine => line !== null)
+            .slice(-keep);
+    if (start > 0 && count < keep && lastNewline >= 0) {
+      lines.unshift({ ts: null, kind: "notice", text: "[earlier transcript record omitted]" });
+      if (lines.length > keep) lines.shift();
+    }
+    const cursor = `b${end}`;
+    return {
+      state: "available",
+      lines,
+      nextCursor: cursor,
+      hasMore: false,
+      attempt: input.attempt,
+      generation: input.generation,
+      bytes: size,
+      endCursor: cursor,
+      updatedAt,
+    };
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/** Continue a monitoring cursor without rescanning historical records. */
+async function readBytePage(input: {
+  dataDir: string;
+  projectId: string;
+  runId: string;
+  path: string;
+  attempt: number;
+  generation: number;
+  cursor: number;
+  limit: number;
+}): Promise<TranscriptPage> {
+  const file = transcriptPath(input);
+  if (file === null) return unavailableTranscript(input.attempt, input.generation);
+  let fd: number;
+  try {
+    fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+  } catch {
+    return unavailableTranscript(input.attempt, input.generation);
+  }
+  try {
+    const stat = fstatSync(fd);
+    if (!stat.isFile()) return unavailableTranscript(input.attempt, input.generation);
+    let position = Math.min(input.cursor, stat.size);
+    let committed = position;
+    let parts: Buffer[] = [];
+    let length = 0;
+    const lines: TranscriptLine[] = [];
+    let cost = 0;
+    let full = false;
+    const chunk = Buffer.alloc(64 * 1024);
+    while (position < stat.size && !full) {
+      const n = readSync(fd, chunk, 0, Math.min(chunk.length, stat.size - position), position);
+      if (n === 0) break;
+      let from = 0;
+      for (let i = 0; i < n; i += 1) {
+        if (chunk[i] !== 10) continue;
+        const part = chunk.subarray(from, i);
+        length += part.length;
+        if (length <= MAX_LINE_BYTES) parts.push(Buffer.from(part));
+        const line =
+          length > MAX_LINE_BYTES
+            ? {
+                ts: null,
+                kind: "notice" as const,
+                text: `[transcript line omitted: ${length} bytes]`,
+              }
+            : decodeLine(Buffer.concat(parts).toString("utf8").replace(/\r$/u, ""));
+        const lineCost = line === null ? 0 : Buffer.byteLength(line.text, "utf8") + 64;
+        if (line !== null && lines.length > 0 && cost + lineCost > MAX_PAGE_BYTES) {
+          full = true;
+          break;
+        }
+        if (line !== null) {
+          lines.push(line);
+          cost += lineCost;
+        }
+        committed = position + i + 1;
+        parts = [];
+        length = 0;
+        from = i + 1;
+        if (lines.length >= Math.min(input.limit, MAX_LINES)) {
+          full = true;
+          break;
+        }
+      }
+      if (!full) {
+        const part = chunk.subarray(from, n);
+        length += part.length;
+        if (length <= MAX_LINE_BYTES) parts.push(Buffer.from(part));
+        position += n;
+      }
+    }
+    const cursor = `b${committed}`;
+    return {
+      state: "available",
+      lines,
+      nextCursor: full ? cursor : null,
+      hasMore: full,
+      attempt: input.attempt,
+      generation: input.generation,
+      bytes: stat.size,
+      endCursor: cursor,
+      updatedAt: stat.mtime.toISOString(),
+    };
+  } finally {
+    closeSync(fd);
+  }
 }
 
 export function parseTranscriptCursor(value: string | undefined): number {
   if (value === undefined || value === "") return 0;
-  if (!/^\d{1,9}$/u.test(value)) {
+  if (!/^\d{1,15}$/u.test(value) || !Number.isSafeInteger(Number(value))) {
     throw new Error("Invalid transcript cursor");
   }
   return Number(value);

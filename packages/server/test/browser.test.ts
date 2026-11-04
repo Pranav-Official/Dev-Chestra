@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -818,6 +818,121 @@ describe("browser read routes", () => {
     );
     const secondPage = (await second.json()) as TranscriptPageResponse;
     expect(secondPage.lines).toHaveLength(5);
+  });
+
+  it("reads a running node's transcript before its ref event exists", async () => {
+    const h = await harness();
+    h.store.history = { ...h.store.history, latestTranscript: null };
+    const transcriptDir = join(h.dataDir, "projects", "proj-1", "runs", RUN_ID, "transcripts");
+    await mkdir(transcriptDir, { recursive: true });
+    const record = (text: string) =>
+      `${JSON.stringify({ ts: new Date(NOW).toISOString(), kind: "text", text })}\n`;
+    const file = join(transcriptDir, "draft.a1.g1.jsonl");
+    await writeFile(file, record("working"));
+    const res = await h.app.request(
+      url(`/api/runs/${RUN_ID}/executions/draft/transcript?format=monitor`),
+      {
+        headers: cookieHeaders(),
+      },
+    );
+    const page = (await res.json()) as TranscriptPageResponse;
+    expect(page.state).toBe("available");
+    expect(page.lines.map((line) => line.text)).toEqual(["working"]);
+    expect(page.endCursor).toBe("1");
+    expect(typeof page.updatedAt).toBe("string");
+  });
+
+  it("tails the most recent lines and continues from the end cursor", async () => {
+    const h = await harness();
+    h.store.history = { ...h.store.history, latestTranscript: null };
+    const transcriptDir = join(h.dataDir, "projects", "proj-1", "runs", RUN_ID, "transcripts");
+    await mkdir(transcriptDir, { recursive: true });
+    const record = (text: string) =>
+      `${JSON.stringify({ ts: new Date(NOW).toISOString(), kind: "text", text })}\n`;
+    const file = join(transcriptDir, "draft.a1.g1.jsonl");
+    await writeFile(
+      file,
+      Array.from({ length: 10 }, (_, index) => record(`line-${index}`)).join(""),
+    );
+    const get = async (query: string) =>
+      (await (
+        await h.app.request(url(`/api/runs/${RUN_ID}/executions/draft/transcript?${query}`), {
+          headers: cookieHeaders(),
+        })
+      ).json()) as TranscriptPageResponse;
+    const tail = await get("tail=3");
+    expect(tail.lines.map((line) => line.text)).toEqual(["line-7", "line-8", "line-9"]);
+    expect(tail.endCursor).toBe(
+      `b${Buffer.byteLength(Array.from({ length: 10 }, (_, index) => record(`line-${index}`)).join(""))}`,
+    );
+    expect(tail.hasMore).toBe(false);
+
+    await writeFile(
+      file,
+      `${await readFile(file, "utf8")}${record("line-10")}${record("line-11")}`,
+    );
+    const next = await get(`cursor=${tail.endCursor}`);
+    expect(next.lines.map((line) => line.text)).toEqual(["line-10", "line-11"]);
+    expect(next.endCursor).toBe(`b${Buffer.byteLength(await readFile(file))}`);
+    const idle = await get(`cursor=${next.endCursor}`);
+    expect(idle.lines).toEqual([]);
+    expect(idle.endCursor).toBe(next.endCursor);
+
+    const both = await h.app.request(
+      url(`/api/runs/${RUN_ID}/executions/draft/transcript?tail=2&cursor=3`),
+      { headers: cookieHeaders() },
+    );
+    expect(both.status).toBe(400);
+  });
+
+  it("does not count a half-written trailing line", async () => {
+    const h = await harness();
+    h.store.history = { ...h.store.history, latestTranscript: null };
+    const transcriptDir = join(h.dataDir, "projects", "proj-1", "runs", RUN_ID, "transcripts");
+    await mkdir(transcriptDir, { recursive: true });
+    const whole = `${JSON.stringify({ ts: null, kind: "text", text: "done" })}\n`;
+    const file = join(transcriptDir, "draft.a1.g1.jsonl");
+    await writeFile(file, `${whole}{"ts":null,"kind":"te`);
+    const get = async (query: string) =>
+      (await (
+        await h.app.request(url(`/api/runs/${RUN_ID}/executions/draft/transcript?${query}`), {
+          headers: cookieHeaders(),
+        })
+      ).json()) as TranscriptPageResponse;
+    expect((await get("tail=5")).endCursor).toBe(`b${Buffer.byteLength(whole)}`);
+    expect((await get("limit=5&format=monitor")).endCursor).toBe("1");
+    await writeFile(file, `${whole}${JSON.stringify({ ts: null, kind: "text", text: "next" })}\n`);
+    const resumed = await get("cursor=1");
+    expect(resumed.lines.map((line) => line.text)).toEqual(["next"]);
+  });
+
+  it("preserves legacy transcript responses and incomplete oversized cursors", async () => {
+    const h = await harness();
+    h.store.history = { ...h.store.history, latestTranscript: null };
+    const dir = join(h.dataDir, "projects", "proj-1", "runs", RUN_ID, "transcripts");
+    await mkdir(dir, { recursive: true });
+    const file = join(dir, "draft.a1.g1.jsonl");
+    const whole = `${JSON.stringify({ kind: "text", text: "done" })}\n`;
+    const partial = `{"kind":"text","text":"${"a".repeat(1100000)}`;
+    await writeFile(file, whole + partial);
+    const get = async (query: string) =>
+      (await (
+        await h.app.request(url(`/api/runs/${RUN_ID}/executions/draft/transcript?${query}`), {
+          headers: cookieHeaders(),
+        })
+      ).json()) as TranscriptPageResponse;
+    const legacy = await get("");
+    expect(legacy).not.toHaveProperty("endCursor");
+    expect(legacy).not.toHaveProperty("updatedAt");
+    const page = await get("format=monitor");
+    const tail = await get("tail=5");
+    expect(page.endCursor).toBe("1");
+    expect(tail.endCursor).toBe(`b${Buffer.byteLength(whole)}`);
+    await writeFile(file, `${whole}${partial}"}\n`);
+    expect((await get(`cursor=${page.endCursor}&format=monitor`)).lines[0]?.kind).toBe("notice");
+    const resumed = await get(`cursor=${tail.endCursor}&format=monitor`);
+    expect(resumed.lines[0]?.kind).toBe("notice");
+    expect(resumed.endCursor).toBe(`b${Buffer.byteLength(await readFile(file))}`);
   });
 
   it("accepts cancel and resume commands with 202", async () => {
