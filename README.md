@@ -186,6 +186,8 @@ Shell policy configuration and preview are available, but execution of workflows
 - **Deny runs first.** A non-empty `allow` is an allowlist: a command that matches no allow pattern is refused. With no `allow`, every command that is not denied is allowed.
 - **Commands are plain argv, not shell scripts.** The command is matched as its words joined by single spaces; arguments containing whitespace, quotes, or backslashes are JSON-quoted to preserve their boundaries. Pipes, `;`, `&&`, redirects, `$`, backticks, globs and `~` are rejected rather than run, so there are no compounds.
 - **Planned execution environment.** When runtime support is enabled, commands will need to honor the node’s filesystem and network permissions as well as the configured resource limits.
+- **macOS and Linux only.** The command runner is POSIX-only. On Windows a workflow with a `shellPolicy` is rejected when the run is planned (`E_WORKFLOW_INVALID`), because a policy also turns the agent's native shell off and no command could run.
+- **Programs come from the PATH of the process that started DevChestra.** A rule like `^rg .*$` only works if `rg` is on the PATH of the shell you ran `devchestra start` or `devchestra run` from. Tools that a version manager such as nvm adds only in interactive shells will not be found otherwise. Relative PATH entries are ignored.
 - **This is not an OS sandbox.** Patterns see only the command text. Interpreters such as `python`, `sh` or `node`, plus `env`, `xargs` and `find -exec`, can run programs no pattern sees, and an extra MCP server with an exec tool bypasses the policy. Treat it as a guardrail, not a security boundary.
 
 ## Third-party icons

@@ -28,9 +28,13 @@ function record(owner: Node, key: string): Node {
 }
 
 /** Returns the rejection message, or null when the node is accepted. */
-function rejection(node: Node, kind: BaseNodeKind = "agent"): string | null {
+function rejection(
+  node: Node,
+  kind: BaseNodeKind = "agent",
+  platform: NodeJS.Platform = "linux",
+): string | null {
   try {
-    validateBaseNodeConfig(node, kind);
+    validateBaseNodeConfig(node, kind, platform);
     return null;
   } catch (error) {
     return error instanceof Error ? error.message : String(error);
@@ -126,5 +130,24 @@ describe("validateBaseNodeConfig", () => {
     record(disabled, "permissions").shell = false;
     record(disabled, "permissions").shellPolicy = { allow: ["^curl .+$"] };
     expect(rejection(disabled)).toContain("shellPolicy");
+  });
+
+  it("rejects shellPolicy on Windows before anything else, on a valid policy", () => {
+    const node = fixtureNode("research");
+    record(node, "permissions").shellPolicy = { allow: ["^echo .*$"] };
+    const message = rejection(node, "agent", "win32");
+    expect(message).toContain("not supported on Windows");
+    expect(message).toContain("POSIX-only");
+    // Same node on POSIX hosts reaches the later runtime-enforcement check instead.
+    for (const platform of ["linux", "darwin"] as const) {
+      expect(rejection(node, "agent", platform)).toContain("runtime enforcement");
+    }
+  });
+
+  it("still accepts agents without a shellPolicy on Windows", () => {
+    expect(rejection(fixtureNode("research"), "agent", "win32")).toBeNull();
+    const noShell = fixtureNode("research");
+    record(noShell, "permissions").shell = false;
+    expect(rejection(noShell, "agent", "win32")).toBeNull();
   });
 });

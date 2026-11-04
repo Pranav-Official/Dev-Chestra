@@ -13,9 +13,13 @@ function invalid(message: string, details?: unknown): DevChestraError {
 }
 
 /** Shared config validation for the node types the engine can execute. */
-export function validateBaseNodeConfig(node: Record<string, unknown>, kind: BaseNodeKind): void {
+export function validateBaseNodeConfig(
+  node: Record<string, unknown>,
+  kind: BaseNodeKind,
+  platform: NodeJS.Platform = process.platform,
+): void {
   if (kind === "start") validateStart(node);
-  if (kind === "agent") validateAgent(node);
+  if (kind === "agent") validateAgent(node, platform);
   if (kind === "shell") validateShell(node);
   if (kind === "end") validateEnd(node);
 }
@@ -69,7 +73,7 @@ function validateWorkspace(node: Record<string, unknown>, nodeType: string): voi
   );
 }
 
-function validateAgent(node: Record<string, unknown>): void {
+function validateAgent(node: Record<string, unknown>, platform: NodeJS.Platform): void {
   if (typeof node.cli !== "string" || node.cli === "") {
     throw invalid("Agent node must declare a cli", node);
   }
@@ -90,7 +94,7 @@ function validateAgent(node: Record<string, unknown>): void {
   if (!isRecord(node.permissions)) {
     throw invalid("Agent node permissions are required", node);
   }
-  validateAgentShellPolicy(node);
+  validateAgentShellPolicy(node, platform);
   const write = node.permissions.write;
   if (Array.isArray(write) && write.includes("project")) {
     throw new DevChestraError("E_WORKFLOW_INVALID", "Project write access is not supported", {
@@ -114,10 +118,20 @@ function validateAgent(node: Record<string, unknown>): void {
   validateLimits(node);
 }
 
-function validateAgentShellPolicy(node: Record<string, unknown>): void {
+function validateAgentShellPolicy(node: Record<string, unknown>, platform: NodeJS.Platform): void {
   const permissions = node.permissions as Record<string, unknown>;
   const policy = permissions.shellPolicy;
   if (policy === undefined) return;
+  // A policy turns the CLI's native shell off and routes every command through the
+  // gateway exec tool, which only runs on POSIX hosts. Failing here keeps a Windows
+  // run from starting an agent that could never execute a command.
+  if (platform === "win32") {
+    throw new DevChestraError(
+      "E_WORKFLOW_INVALID",
+      "Agent shellPolicy is not supported on Windows: the policy command runner is POSIX-only. Remove permissions.shellPolicy or run this workflow on macOS/Linux.",
+      { details: { nodeId: node.id, platform } },
+    );
+  }
   if (permissions.shell === false) {
     throw new DevChestraError(
       "E_WORKFLOW_INVALID",

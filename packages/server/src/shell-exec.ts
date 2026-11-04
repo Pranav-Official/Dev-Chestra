@@ -1,5 +1,5 @@
 import { accessSync, constants, statSync } from "node:fs";
-import { isAbsolute, join } from "node:path";
+import { delimiter, isAbsolute, join } from "node:path";
 import { runCommand } from "@devchestra/adapters";
 import { evaluateShellPolicy, type ShellPolicy } from "@devchestra/schema";
 import type { ExecShellScope, ExecToolEvent } from "./tokens.js";
@@ -24,7 +24,7 @@ export interface ExecOutcome {
 /** Absolute, non-empty PATH entries only. Relative entries (including "" and ".") are dropped. */
 export function sanitizedPathDirs(pathValue: string | undefined): string[] {
   if (pathValue === undefined || pathValue === "") return [];
-  return pathValue.split(":").filter((entry) => entry !== "" && isAbsolute(entry));
+  return pathValue.split(delimiter).filter((entry) => entry !== "" && isAbsolute(entry));
 }
 
 /** Resolve a bare program name through the sanitized PATH. Returns null when no executable matches. */
