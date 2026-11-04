@@ -513,6 +513,8 @@ export async function runSingleAttempt(
         generation: identity.generation,
       });
     } finally {
+      revoke();
+      await issued.drain?.();
       transcript.close();
     }
     if (finishTimer !== undefined) clearTimeout(finishTimer);
@@ -566,6 +568,7 @@ export async function runSingleAttempt(
     };
   } catch (error) {
     cleanup();
+    await issued.drain?.();
     if (error instanceof ProcessGroupAliveError) throw error;
     // Cancellation finalization lives in the retry-loop / outer guards
     // (single cancelAgentGeneration site): just normalize the pre-spawn

@@ -42,6 +42,7 @@ export async function startGateway(store: Store): Promise<RunningGateway> {
         });
         return {
           token,
+          drain: () => tokens.drain(token),
           revoke: (): void => {
             tokens.revoke(token);
           },

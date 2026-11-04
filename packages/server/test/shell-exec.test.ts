@@ -108,6 +108,7 @@ async function exec(
   rig: { app: Rig["app"] },
   token: string,
   args: Record<string, unknown>,
+  callId?: string,
 ): Promise<Response> {
   seq += 1;
   return rig.app.request(`http://127.0.0.1:${PORT}/internal/agent/call`, {
@@ -116,7 +117,7 @@ async function exec(
       Host: `127.0.0.1:${PORT}`,
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
-      "X-DevChestra-Call-Id": `exec-${seq}`,
+      "X-DevChestra-Call-Id": callId ?? `exec-${seq}`,
     },
     body: JSON.stringify({ name: "exec", arguments: args }),
   });
@@ -174,6 +175,39 @@ describe("exec tool advertisement", () => {
     expect(tool?.description).toContain("\\s-o\\b");
     expect(tool?.description).toContain("stateless");
     expect(tool?.inputSchema).toMatchObject({ required: ["command"], additionalProperties: false });
+  });
+});
+
+describe("exec retries and revocation", () => {
+  it("joins concurrent retries, caches results and rejects reused ids with different commands", async () => {
+    const rig = makeRig();
+    const [first, second] = await Promise.all([
+      exec(rig, rig.token, { command: "sleep 0.1" }, "same-call"),
+      exec(rig, rig.token, { command: "sleep 0.1" }, "same-call"),
+    ]);
+    expect(await first.json()).toEqual(await second.json());
+    const replay = await exec(rig, rig.token, { command: "sleep 0.1" }, "same-call");
+    expect(replay.status).toBe(200);
+    expect(rig.events.filter((event) => event.kind === "tool")).toHaveLength(1);
+    const conflict = await exec(rig, rig.token, { command: "echo different" }, "same-call");
+    expect(conflict.status).toBe(409);
+  });
+
+  it("aborts and drains an active command on revocation", async () => {
+    const rig = makeRig();
+    const pending = exec(rig, rig.token, { command: "sleep 30" });
+    for (let i = 0; i < 100 && rig.events.length === 0; i += 1)
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(rig.events).toHaveLength(1);
+    expect(rig.tokens.revoke(rig.token)).toBe(true);
+    await rig.tokens.drain(rig.token);
+    const body = (await (await pending).json()) as {
+      isError: boolean;
+      content: { text: string }[];
+    };
+    expect(body.isError).toBe(true);
+    expect(body.content[0]?.text).toContain("cancelled");
+    expect(rig.events.some((event) => event.kind === "tool_result")).toBe(true);
   });
 });
 

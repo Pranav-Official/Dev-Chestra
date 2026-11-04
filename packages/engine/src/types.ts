@@ -65,6 +65,7 @@ export interface GatewayScope {
 export interface IssuedToken {
   readonly token: string;
   revoke(): void;
+  drain?(): Promise<void>;
 }
 
 export interface GatewayPort {

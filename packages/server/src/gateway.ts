@@ -435,7 +435,7 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
       const args = body.arguments;
 
       if (name === EXEC_TOOL_NAME) {
-        return await execCall(c, scope, execToken, args, controller.signal);
+        return await execCall(c, scope, execToken, callId, args, controller.signal);
       }
 
       if (name !== "submit_result") {
@@ -548,6 +548,7 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
     c: Context<GatewayEnv>,
     scope: ExecScope,
     execToken: string,
+    callId: string,
     args: Record<string, unknown>,
     signal: AbortSignal,
   ): Promise<Response> {
@@ -579,11 +580,18 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
     if (!sameScope(current, scope) || current.shell === undefined) {
       throw new DevChestraError("E_CONFLICT", "This execution is no longer current.");
     }
-    const outcome = await runPolicyExec({
-      shell: current.shell,
-      command: args.command,
+    const command = args.command;
+    const shell = current.shell;
+    const outcome = await raceAbort(
+      tokens.execute(
+        execToken,
+        callId,
+        command,
+        (jobSignal) => runPolicyExec({ shell, command, signal: jobSignal }),
+        now(),
+      ),
       signal,
-    });
+    );
     return c.json(callResult(outcome.text, outcome.isError));
   }
 

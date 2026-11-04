@@ -2,6 +2,8 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { isAbsolute } from "node:path";
 import type { ExecutionIdentity } from "@devchestra/core";
 import type { ShellPolicy } from "@devchestra/schema";
+import { DevChestraError } from "./errors.js";
+import type { ExecOutcome } from "./shell-exec.js";
 
 /** One transcript-facing event from an exec call; text is already redacted by the engine. */
 export interface ExecToolEvent {
@@ -52,6 +54,8 @@ interface TokenEntry {
   digest: Buffer;
   scope: ExecScope;
   release?: () => void;
+  abort: AbortController;
+  calls: Map<string, { command: string; result: Promise<ExecOutcome> }>;
 }
 
 function digestToken(token: string): Buffer {
@@ -161,6 +165,7 @@ function validateScope(scope: ExecScope, now: number): void {
  */
 export class ExecTokenRegistry {
   readonly #entries = new Map<string, TokenEntry>();
+  readonly #retired = new Map<string, TokenEntry>();
   readonly #registerSecret: ExecTokenRegistryOptions["registerSecret"];
 
   constructor(options: ExecTokenRegistryOptions = {}) {
@@ -172,7 +177,12 @@ export class ExecTokenRegistry {
     const frozen = cloneScope(scope);
     const token = randomBytes(32).toString("base64url");
     const release = this.#registerSecret?.(token, "exec-token");
-    const entry: TokenEntry = { digest: digestToken(token), scope: frozen };
+    const entry: TokenEntry = {
+      digest: digestToken(token),
+      scope: frozen,
+      abort: new AbortController(),
+      calls: new Map(),
+    };
     if (typeof release === "function") {
       entry.release = release;
     }
@@ -199,6 +209,44 @@ export class ExecTokenRegistry {
       return null;
     }
     return entry.scope;
+  }
+
+  /** Join duplicate calls for this token; never repeat a side effect on transport retry. */
+  execute(
+    token: string,
+    callId: string,
+    command: string,
+    run: (signal: AbortSignal) => Promise<ExecOutcome>,
+    now: number,
+  ): Promise<ExecOutcome> {
+    if (this.resolve(token, now) === null)
+      throw new DevChestraError("E_AUTH", "The execution token is no longer valid.");
+    const entry = this.#entries.get(digestToken(token).toString("hex"));
+    if (entry === undefined)
+      throw new DevChestraError("E_AUTH", "The execution token is no longer valid.");
+    const existing = entry.calls.get(callId);
+    if (existing !== undefined) {
+      if (existing.command !== command)
+        throw new DevChestraError(
+          "E_CONFLICT",
+          "Call ID was already used with different arguments.",
+        );
+      return existing.result;
+    }
+    if (entry.calls.size >= 1000)
+      throw new DevChestraError("E_FORBIDDEN", "Execution call limit reached.");
+    const result = Promise.resolve().then(() => run(entry.abort.signal));
+    entry.calls.set(callId, { command, result });
+    return result;
+  }
+
+  /** Wait until all commands stopped after token revocation. */
+  async drain(token: string): Promise<void> {
+    const key = digestToken(token).toString("hex");
+    const entry = this.#entries.get(key) ?? this.#retired.get(key);
+    if (entry === undefined) return;
+    await Promise.allSettled([...entry.calls.values()].map((call) => call.result));
+    if (!this.#entries.has(key)) this.#retired.delete(key);
   }
 
   revoke(token: string): boolean {
@@ -243,6 +291,13 @@ export class ExecTokenRegistry {
 
   #delete(key: string, entry: TokenEntry): void {
     this.#entries.delete(key);
+    entry.abort.abort();
+    if (entry.calls.size > 0) {
+      this.#retired.set(key, entry);
+      void Promise.allSettled([...entry.calls.values()].map((call) => call.result)).then(() =>
+        this.#retired.delete(key),
+      );
+    }
     entry.release?.();
   }
 }
