@@ -87,7 +87,7 @@ describe("shellPolicy schema shape", () => {
 
 describe("shellPolicy semantic validation", () => {
   it("accepts compiling anchored patterns and rejects non-compiling ones", () => {
-    for (const pattern of ["^curl .+$", "rg .+", "\\s(-o|--output)(\\s|$)", "a", ""]) {
+    for (const pattern of ["^curl .+$", "rg .+", "\\s(-o|--output)(\\s|$)", "a"]) {
       const report = validateWorkflow(parseOk(withPolicy({ allow: [pattern] })));
       expect(report.ok, pattern).toBe(true);
     }
@@ -98,6 +98,7 @@ describe("shellPolicy semantic validation", () => {
       );
     }
     expect(validateShellPolicy({ allow: ["("] })).toHaveLength(1);
+    expect(validateShellPolicy({ deny: [""] })).toHaveLength(1);
   });
 
   it("enforces the 512-character pattern cap", () => {
@@ -202,6 +203,7 @@ describe("shellPolicy tokenization", () => {
       ["echo 'a\"b'", ["echo", 'a"b']],
       [`echo "a\\"b"`, ["echo", 'a"b']],
       ["echo a\\;b", ["echo", "a;b"]],
+      ['echo "a\\b"', ["echo", "a\\b"]],
       ["echo FOO=bar", ["echo", "FOO=bar"]],
     ];
     for (const [command, argv] of cases) {
@@ -313,6 +315,14 @@ describe("shellPolicy evaluation", () => {
     const args: ShellPolicy = { allow: ["curl https://[^ ]+"] };
     expect(evaluateShellPolicy(args, "curl    https://example.com").allow).toBe(true);
     expect(evaluateShellPolicy(args, "curl https://example.com extra").allow).toBe(false);
+  });
+
+  it("preserves argument boundaries and handles ambiguous alternation safely", () => {
+    const policy = { deny: ["git commit -m message --amend"] };
+    expect(evaluateShellPolicy(policy, 'git commit -m "message --amend"').allow).toBe(true);
+    expect(evaluateShellPolicy(policy, "git commit -m message --amend").allow).toBe(false);
+    expect(evaluateShellPolicy({ allow: ["(a|aa)+"] }, `${"a".repeat(4000)}b`).allow).toBe(false);
+    expect(evaluateShellPolicy({ deny: ["(?=x)x"] }, "x").allow).toBe(false);
   });
 
   it("caps commands at 4 KiB in UTF-8 bytes before matching", () => {

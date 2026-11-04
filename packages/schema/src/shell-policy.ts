@@ -1,10 +1,11 @@
+import { RE2JS } from "re2js";
 import type { Issue, ShellPolicy } from "./types.js";
 import { issue } from "./validate-support.js";
 
 /**
  * Per-agent shell command policy: regex allowlist/denylist over the canonical
  * command line, plus per-command resource caps. Pure and browser-safe: no Node
- * builtins, only `RegExp` and `TextEncoder` (both available in browsers and the
+ * builtins, a linear-time RE2 engine and `TextEncoder` (available in browsers and the
  * CSP-jitless Web Worker).
  *
  * The evaluator input is the raw string the model sends. Tokenization resolves
@@ -13,8 +14,8 @@ import { issue } from "./validate-support.js";
  * comments, `~`/`!` expansion and `VAR=value` prefixes. The gateway runs
  * `spawn(argv)` with no shell, so quoting is the only syntax and nothing
  * expands. `argv[0]` must not contain `/` (resolved through the sanitized PATH
- * only). The canonical command is the tokens joined by one space; policy
- * regexes run against it wrapped as `^(?:...)$`.
+ * only). The canonical command joins tokens with spaces and JSON-quotes tokens containing
+ * whitespace, quotes or backslashes, preserving argument boundaries. Patterns match the whole command.
  */
 
 /** Longest single policy pattern in characters. */
@@ -88,12 +89,16 @@ export function validateShellPolicy(policy: unknown): ShellPolicyProblem[] {
         });
         continue;
       }
+      if (pattern.trim() === "") {
+        problems.push({ path, message: `shellPolicy.${field}[${index}] must not be blank.` });
+        continue;
+      }
       try {
-        new RegExp(pattern);
+        RE2JS.compile(pattern);
       } catch {
         problems.push({
           path,
-          message: `shellPolicy.${field}[${index}] does not compile as a JavaScript RegExp.`,
+          message: `shellPolicy.${field}[${index}] is not a supported RE2 regular expression.`,
         });
         continue;
       }
@@ -275,7 +280,7 @@ export function tokenizeShellCommand(command: string): TokenizeResult {
         if (next === "$" || next === "`") {
           return fail("command must not contain '$' or backticks (no expansion or substitution).");
         }
-        current += next;
+        current += next === '"' || next === "\\" ? next : `\\${next}`;
         started = true;
         index += 2;
         continue;
@@ -334,7 +339,7 @@ const ENV_PREFIX = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
 function matchRule(pattern: string, canonical: string): boolean {
   try {
-    return new RegExp(`^(?:${pattern})$`).test(canonical);
+    return RE2JS.compile(pattern).matches(canonical);
   } catch {
     // Validation rejects non-compiling patterns; never match closed here.
     return false;
@@ -379,7 +384,12 @@ export function evaluateShellPolicy(
       reason: `command must not set environment variables ('${program}').`,
     };
   }
-  const canonical = argv.join(" ");
+  const problems = validateShellPolicy(policy);
+  if (problems.length > 0)
+    return { allow: false, reason: `invalid shell policy: ${problems[0]?.message}` };
+  const canonical = argv
+    .map((arg) => (/^[^\s"\\]+$/u.test(arg) ? arg : JSON.stringify(arg)))
+    .join(" ");
   for (const rule of policy?.deny ?? []) {
     if (matchRule(rule, canonical)) {
       return { allow: false, reason: `command matched deny rule "${rule}".`, rule };

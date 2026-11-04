@@ -97,7 +97,7 @@ describe("validateBaseNodeConfig", () => {
     expect(rejection(promptFile)).toContain("promptFile");
   });
 
-  it("accepts a valid shellPolicy and rejects malformed ones", () => {
+  it("rejects shellPolicy until runtime enforcement is installed", () => {
     const valid = fixtureNode("research");
     record(valid, "permissions").shellPolicy = {
       allow: ["^curl .+$"],
@@ -105,7 +105,7 @@ describe("validateBaseNodeConfig", () => {
       timeoutSec: 60,
       maxOutputBytes: 262144,
     };
-    expect(rejection(valid)).toBeNull();
+    expect(rejection(valid)).toContain("runtime enforcement");
 
     const absent = fixtureNode("research");
     expect(rejection(absent)).toBeNull();

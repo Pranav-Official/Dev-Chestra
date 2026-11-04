@@ -135,6 +135,11 @@ function validateAgentShellPolicy(node: Record<string, unknown>): void {
       { details: { nodeId: node.id, problems } },
     );
   }
+  throw new DevChestraError(
+    "E_WORKFLOW_INVALID",
+    "Agent shellPolicy is unavailable until runtime enforcement is installed",
+    { details: { nodeId: node.id } },
+  );
 }
 
 function validateShell(node: Record<string, unknown>): void {

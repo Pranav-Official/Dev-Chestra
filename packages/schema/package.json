@@ -27,6 +27,7 @@
   "dependencies": {
     "@devchestra/core": "*",
     "jsonata": "2.2.2",
+    "re2js": "^2.9.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
