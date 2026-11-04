@@ -78,6 +78,31 @@ describe("Usage settings page", () => {
     expect(screen.getByText("16,000,000")).toBeInTheDocument();
   });
 
+  it("shows full model identifiers when their final segments match", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          ...SUMMARY,
+          byProvider: [
+            {
+              provider: "pi",
+              usd: 2,
+              tokens: 200,
+              byModel: [
+                { model: "first/shared", usd: 1, tokens: 100 },
+                { model: "second/shared", usd: 1, tokens: 100 },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+    renderAt("/settings/usage");
+    expect(await screen.findByText("pi / first/shared")).toBeInTheDocument();
+    expect(screen.getByText("pi / second/shared")).toBeInTheDocument();
+  });
+
   it("shows overall usage even when opened from inside a project", async () => {
     const fetchMock = stubUsageApi();
     renderAt("/p/p-job/settings/usage");
@@ -147,6 +172,41 @@ describe("Usage settings page", () => {
 
     fireEvent.click(within(second).getByRole("button", { name: "Clear" }));
     expect(screen.queryByRole("region", { name: /Provider split/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Job Hunt/ })).toHaveFocus();
+  });
+
+  it("keeps a zero-value selection reflected in the chart after changing metrics", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          ...SUMMARY,
+          byProject: [
+            ...SUMMARY.byProject,
+            {
+              projectId: "p-free",
+              name: "Free project",
+              removed: false,
+              usd: 0,
+              tokens: 500,
+              byProvider: [provider("codex", 0, 500)],
+            },
+          ],
+        }),
+      ),
+    );
+    renderAt("/settings/usage");
+    const row = await screen.findByRole("button", { name: /Free project/ });
+    fireEvent.click(screen.getByRole("button", { name: "Tokens" }));
+    fireEvent.click(row);
+    fireEvent.click(screen.getByRole("button", { name: "Cost" }));
+    expect(row).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.getByRole("region", { name: "Provider split for Free project" }),
+    ).toBeInTheDocument();
+    const chart = screen.getByRole("img", { name: "Usage by project donut chart" });
+    expect(chart.querySelectorAll("circle.usage-slice.dim")).toHaveLength(3);
+    expect(chart.parentElement).toHaveTextContent("Free project$0.00");
   });
 
   it("selects a project from its donut slice and toggles it off on a second click", async () => {

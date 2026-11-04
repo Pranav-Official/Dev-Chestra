@@ -11,12 +11,10 @@ import {
   type UsageSummary,
 } from "./usage/shared.js";
 
-function shortModel(provider: string, model: string): string {
+function modelLabel(provider: string, model: string): string {
   if (provider === "unknown" && model === "unknown") return "unattributed";
   if (model === "unknown") return provider;
-  // Strip redundant provider prefix ("opencode-go/muse-spark…" → "muse-spark…").
-  const tail = model.split("/").pop() ?? model;
-  return provider === "unknown" ? tail : `${provider} / ${tail}`;
+  return provider === "unknown" ? model : `${provider} / ${model}`;
 }
 
 /** Usage is always the overall picture; a single project's split is drilled into on the page. */
@@ -110,6 +108,7 @@ function CostDonut({
           display: "grid",
           gap: 10,
           flex: "1 1 260px",
+          minWidth: 0,
         }}
       >
         {models.map((item, index) => {
@@ -117,11 +116,8 @@ function CostDonut({
           return (
             <li
               key={`${item.provider}/${item.model}`}
+              className="usage-model-row"
               style={{
-                display: "grid",
-                gridTemplateColumns: "minmax(140px, 1fr) auto auto",
-                gap: 14,
-                alignItems: "center",
                 paddingBottom: index < models.length - 1 ? 10 : 0,
                 borderBottom: index < models.length - 1 ? "1px solid var(--border)" : "none",
               }}
@@ -137,26 +133,16 @@ function CostDonut({
                     background: modelColors[index],
                   }}
                 />
-                <span
-                  className="mono"
-                  style={{
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                  title={shortModel(item.provider, item.model)}
-                >
-                  {shortModel(item.provider, item.model)}
-                </span>
+                <span className="mono usage-name">{modelLabel(item.provider, item.model)}</span>
               </span>
               <span
-                className="faint mono"
-                style={{ fontVariantNumeric: "tabular-nums", textAlign: "right" }}
+                className="faint mono usage-model-secondary"
+                style={{ fontVariantNumeric: "tabular-nums" }}
               >
                 {formatTokens(item.tokens)} tok
               </span>
               <span
-                className="mono"
+                className="mono usage-model-primary"
                 style={{
                   minWidth: 108,
                   textAlign: "right",
@@ -240,7 +226,7 @@ export function UsagePanel() {
       <ProjectUsage projects={data.byProject} colorMap={colorMap} />
 
       <div className="card">
-        <div className="card-head" style={{ justifyContent: "space-between" }}>
+        <div className="card-head usage-card-head" style={{ justifyContent: "space-between" }}>
           <h2 style={{ margin: 0, fontSize: 14 }}>Tokens by provider</h2>
           <span className="faint" style={{ fontSize: 12, fontWeight: 400 }}>
             Volume &amp; spend per harness
@@ -252,7 +238,7 @@ export function UsagePanel() {
       </div>
 
       <div className="card">
-        <div className="card-head" style={{ justifyContent: "space-between" }}>
+        <div className="card-head usage-card-head" style={{ justifyContent: "space-between" }}>
           <h2 style={{ margin: 0, fontSize: 14 }}>Cost by model</h2>
           <span className="faint" style={{ fontSize: 12, fontWeight: 400 }}>
             Spend share across models

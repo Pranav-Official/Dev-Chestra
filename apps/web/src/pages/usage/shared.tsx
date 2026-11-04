@@ -76,14 +76,7 @@ export function ProviderBars({
         const pct = totalTokens > 0 ? (item.tokens / totalTokens) * 100 : 0;
         return (
           <li key={item.provider} style={{ display: "grid", gap: 6 }}>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "minmax(120px, 1fr) auto auto",
-                gap: 16,
-                alignItems: "baseline",
-              }}
-            >
+            <div className="usage-provider-row">
               <span className="row" style={{ gap: 8, minWidth: 0 }}>
                 <span
                   aria-hidden="true"
@@ -95,22 +88,13 @@ export function ProviderBars({
                     background: color,
                   }}
                 />
-                <span
-                  className="mono"
-                  style={{
-                    fontWeight: 500,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                  title={item.provider}
-                >
+                <span className="mono usage-name" style={{ fontWeight: 500 }}>
                   {item.provider}
                 </span>
               </span>
               <span
-                className="mono"
-                style={{ fontVariantNumeric: "tabular-nums", textAlign: "right" }}
+                className="mono usage-provider-tokens"
+                style={{ fontVariantNumeric: "tabular-nums" }}
               >
                 {formatTokens(item.tokens)}{" "}
                 <span className="faint">
@@ -118,7 +102,7 @@ export function ProviderBars({
                 </span>
               </span>
               <span
-                className="mono muted"
+                className="mono muted usage-provider-cost"
                 style={{
                   minWidth: 68,
                   textAlign: "right",

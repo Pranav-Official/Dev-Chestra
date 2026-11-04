@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import "../../styles/usage.css";
 import { formatCost, formatTokens } from "../../ui/format.js";
 import { colorAt, ProviderBars, type UsageByProject } from "./shared.js";
@@ -129,6 +129,7 @@ export function ProjectUsage({
   const [metric, setMetric] = useState<Metric>("usd");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const detailId = useId();
+  const rowRefs = useRef(new Map<string, HTMLButtonElement>());
 
   // Projects with no activity would only be empty rows.
   const active = projects.filter((project) => project.usd > 0 || project.tokens > 0);
@@ -152,13 +153,20 @@ export function ProjectUsage({
       color: colors.get(project.projectId) ?? colorAt(0),
     }));
   const selectedProject = ordered.find((project) => project.projectId === selectedId);
-  const selectedSlice = slices.find((slice) => slice.id === selectedId);
+  const selectedSlice = selectedProject
+    ? {
+        id: selectedProject.projectId,
+        name: selectedProject.name,
+        value: selectedProject[metric],
+        color: colors.get(selectedProject.projectId) ?? colorAt(0),
+      }
+    : undefined;
   const toggle = (id: string) => setSelectedId((current) => (current === id ? null : id));
   const detailProviders = selectedProject?.byProvider.filter((p) => p.usd > 0 || p.tokens > 0);
 
   return (
     <div className="card">
-      <div className="card-head" style={{ justifyContent: "space-between" }}>
+      <div className="card-head usage-card-head" style={{ justifyContent: "space-between" }}>
         <h2 style={{ margin: 0, fontSize: 14 }}>Usage by project</h2>
         <fieldset className="usage-metric" aria-label="Chart metric">
           {(
@@ -206,6 +214,7 @@ export function ProjectUsage({
                   display: "grid",
                   gap: 2,
                   flex: "1 1 260px",
+                  minWidth: 0,
                 }}
               >
                 {ordered.map((project) => {
@@ -214,9 +223,13 @@ export function ProjectUsage({
                     <li key={project.projectId}>
                       <button
                         type="button"
+                        ref={(element) => {
+                          if (element) rowRefs.current.set(project.projectId, element);
+                          else rowRefs.current.delete(project.projectId);
+                        }}
                         className="usage-project-row"
                         aria-pressed={project.projectId === selectedId}
-                        aria-controls={selectedProject === undefined ? undefined : detailId}
+                        aria-controls={project.projectId === selectedId ? detailId : undefined}
                         onClick={() => toggle(project.projectId)}
                       >
                         <span className="row" style={{ gap: 8, minWidth: 0 }}>
@@ -230,15 +243,7 @@ export function ProjectUsage({
                               background: colors.get(project.projectId),
                             }}
                           />
-                          <span
-                            style={{
-                              fontWeight: 500,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                            title={project.name}
-                          >
+                          <span className="usage-name" style={{ fontWeight: 500 }}>
                             {project.name}
                           </span>
                           {project.removed ? (
@@ -249,12 +254,12 @@ export function ProjectUsage({
                         </span>
                         <span
                           className="faint mono usage-project-secondary"
-                          style={{ fontVariantNumeric: "tabular-nums", textAlign: "right" }}
+                          style={{ fontVariantNumeric: "tabular-nums" }}
                         >
                           {formatMetric(metric === "usd" ? "tokens" : "usd", project[other])}
                         </span>
                         <span
-                          className="mono"
+                          className="mono usage-project-primary"
                           style={{
                             minWidth: 108,
                             textAlign: "right",
@@ -285,7 +290,7 @@ export function ProjectUsage({
                     style={{ justifyContent: "space-between", marginBottom: 14, gap: 12 }}
                   >
                     <div style={{ minWidth: 0 }}>
-                      <h3 style={{ margin: 0, fontSize: 13 }}>
+                      <h3 className="usage-name" style={{ margin: 0, fontSize: 13 }}>
                         {selectedProject.name} · providers
                       </h3>
                       <div className="faint mono" style={{ fontSize: 11, marginTop: 2 }}>
@@ -296,7 +301,11 @@ export function ProjectUsage({
                     <button
                       type="button"
                       className="btn ghost sm"
-                      onClick={() => setSelectedId(null)}
+                      style={{ flexShrink: 0 }}
+                      onClick={() => {
+                        rowRefs.current.get(selectedProject.projectId)?.focus();
+                        setSelectedId(null);
+                      }}
                     >
                       Clear
                     </button>
