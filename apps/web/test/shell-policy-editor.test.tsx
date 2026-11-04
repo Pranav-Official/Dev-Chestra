@@ -112,19 +112,19 @@ describe("ShellPolicyEditor rows", () => {
     expect(lastPermissions(onPatch).shellPolicy).toEqual({ allow: ["^whoami$"] });
   });
 
-  it("shows an inline error for an invalid regex and does not commit it", () => {
+  it("persists invalid text so validation and preview cannot use an old rule", () => {
     const onPatch = renderEditor(withPolicy({ allow: ["^ls$"] }));
     fireEvent.change(screen.getByTestId("inspector-shell-policy-allow-0"), {
       target: { value: "(unclosed" },
     });
     expect(screen.getByRole("alert")).toHaveTextContent(
-      /Pattern 1 does not compile as a JavaScript RegExp/,
+      /Pattern 1 is not a supported RE2 regular expression/,
     );
     expect(screen.getByTestId("inspector-shell-policy-allow-0")).toHaveAttribute(
       "aria-invalid",
       "true",
     );
-    expect(onPatch).not.toHaveBeenCalled();
+    expect(lastPermissions(onPatch).shellPolicy).toEqual({ allow: ["(unclosed"] });
   });
 
   it("flags nested-quantifier ReDoS shapes through the schema check", () => {
@@ -134,7 +134,7 @@ describe("ShellPolicyEditor rows", () => {
       target: { value: "(a+)+b" },
     });
     expect(screen.getByRole("alert")).toHaveTextContent(/nested-quantifier/);
-    expect(onPatch).toHaveBeenCalledTimes(1);
+    expect(onPatch).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -200,6 +200,7 @@ describe("ShellPolicyEditor tester", () => {
       ["read-only-git", "git push origin main", "deny"],
       ["repo-search", "rg needle src", "allow"],
       ["repo-search", "git grep -O less needle", "deny"],
+      ["repo-search", "git grep -nOsh needle", "deny"],
       ["repo-search", "git grep needle", "allow"],
       ["repo-search", "env rg needle", "deny"],
     ];
@@ -207,6 +208,17 @@ describe("ShellPolicyEditor tester", () => {
       const decision = evaluateShellPolicy(sample(id), command);
       expect(decision.allow, `${id}: ${command}`).toBe(expected === "allow");
     }
+  });
+
+  it("hides previous results while a visible deny rule is invalid", () => {
+    renderEditor(withPolicy({ deny: ["^rm .*$"] }));
+    typeCommand("ls");
+    expect(screen.getByTestId("shell-policy-tester-allow")).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("inspector-shell-policy-deny-0"), {
+      target: { value: "(" },
+    });
+    expect(screen.getByTestId("shell-policy-tester-run")).toBeDisabled();
+    expect(screen.queryByTestId("shell-policy-tester-allow")).toBeNull();
   });
 
   it("rejects compounds, redirects and expansion without running anything", () => {
@@ -269,6 +281,15 @@ describe("ShellPolicyEditor restriction toggle", () => {
     const permissions = lastPermissions(onPatch);
     expect(permissions.shell).toBe(true);
     expect(permissions.shellPolicy).toEqual({ allow: [], deny: [] });
+  });
+
+  it("preserves shell enabled implicitly by a policy when restrictions are removed", () => {
+    const onPatch = renderEditor({
+      ...base,
+      permissions: { network: false, write: [], shellPolicy: { allow: ["^ls$"] } },
+    });
+    fireEvent.click(screen.getByTestId("inspector-shell-policy-toggle"));
+    expect(lastPermissions(onPatch)).toEqual({ network: false, write: [], shell: true });
   });
 
   it("clearing restriction removes shellPolicy and leaves shell alone", () => {

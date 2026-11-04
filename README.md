@@ -166,7 +166,7 @@ Local-first, single user, your files stay yours. No cloud account, no queue, no 
 
 ## Shell policy
 
-An agent's shell access is all or nothing unless you narrow it. Open the agent, go to **Tools**, turn on **Restrict commands**, and add allow and deny patterns, or start from a preset. In a workflow file the policy sits beside `shell` under `permissions`:
+Shell policy configuration and preview are available, but execution of workflows with a shell policy is currently disabled until the gateway can enforce filesystem and network permissions. In a workflow file the policy sits beside `shell` under `permissions`:
 
 ```json
 "permissions": {
@@ -182,10 +182,10 @@ An agent's shell access is all or nothing unless you narrow it. Open the agent, 
 }
 ```
 
-- **Patterns are JavaScript regular expressions that must match the whole command.** End a rule with `.*` to cover its arguments.
+- **Patterns are RE2 regular expressions that must match the whole command.** End a rule with `.*` to cover its arguments.
 - **Deny runs first.** A non-empty `allow` is an allowlist: a command that matches no allow pattern is refused. With no `allow`, every command that is not denied is allowed.
-- **Commands are plain argv, not shell scripts.** The command is matched as its words joined by single spaces, after quotes are resolved. Pipes, `;`, `&&`, redirects, `$`, backticks, globs and `~` are rejected rather than run, so there are no compounds.
-- **Fixed environment.** Commands run in the workspace with a fixed working directory, an allowlisted environment, and the `timeoutSec` and `maxOutputBytes` caps. v1 supports POSIX shells only.
+- **Commands are plain argv, not shell scripts.** The command is matched as its words joined by single spaces; arguments containing whitespace, quotes, or backslashes are JSON-quoted to preserve their boundaries. Pipes, `;`, `&&`, redirects, `$`, backticks, globs and `~` are rejected rather than run, so there are no compounds.
+- **Planned execution environment.** When runtime support is enabled, commands will need to honor the node’s filesystem and network permissions as well as the configured resource limits.
 - **This is not an OS sandbox.** Patterns see only the command text. Interpreters such as `python`, `sh` or `node`, plus `env`, `xargs` and `find -exec`, can run programs no pattern sees, and an extra MCP server with an exec tool bypasses the policy. Treat it as a guardrail, not a security boundary.
 
 ## Third-party icons

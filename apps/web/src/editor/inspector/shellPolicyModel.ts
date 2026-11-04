@@ -52,7 +52,7 @@ export const SHELL_POLICY_PRESETS: readonly ShellPolicyPreset[] = [
     id: "repo-search",
     label: "Repo search",
     description: "rg, git grep and ls. Blocks pagers, rg --pre and shells.",
-    allow: ["^rg [^;|&<>$`]+$", "^git grep [^;|&<>$`]+$", "^ls$", "^ls [^;|&<>$`]*$"],
+    allow: ["^rg [^;|&<>$`]+$", "^git grep [A-Za-z0-9_./: ]+$", "^ls$", "^ls [^;|&<>$`]*$"],
     deny: [
       "^rg\\b.*\\s(--pre|--hostname-bin)(\\s.*|=.*|$)",
       "^git grep\\b.*\\s(-O.*|--open-files-in-pager.*)$",
@@ -82,15 +82,8 @@ export function shellPatternProblem(
 }
 
 /**
- * Messages that make a policy unsafe to preview: schema problems plus blank
- * patterns, which the schema accepts but which never match anything.
+ * Messages that make a policy unsafe to preview: schema problems, including blank patterns.
  */
 export function shellPolicyProblems(policy: ShellPolicy): string[] {
-  const messages = validateShellPolicy(policy).map((problem) => problem.message);
-  for (const kind of ["allow", "deny"] as const) {
-    (policy[kind] ?? []).forEach((pattern, index) => {
-      if (pattern.trim() === "") messages.push(`Pattern ${index + 1} in ${kind} is empty.`);
-    });
-  }
-  return messages;
+  return validateShellPolicy(policy).map((problem) => problem.message);
 }

@@ -1,8 +1,8 @@
 import type { AgentNode, ShellPolicy } from "@devchestra/schema";
 import { validateShellPolicy } from "@devchestra/schema";
 import { AlertCircle, AlertTriangle } from "lucide-react";
+import { useBufferFlag } from "./BufferContext.js";
 import { CheckboxField, describedBy, Field } from "./fields/fields.js";
-import { useBufferedText } from "./fields/useBufferedText.js";
 import { ShellPolicyTester } from "./ShellPolicyTester.js";
 import {
   permissionsWithoutShellPolicy,
@@ -29,12 +29,8 @@ function PatternRow({
   onRemove: (index: number) => void;
 }) {
   const id = `inspector-shell-policy-${kind}-${index}`;
-  const { text, onChange, localError } = useBufferedText(
-    pattern,
-    (next) => shellPatternProblem(kind, index, next),
-    (next) => onCommit(index, next),
-    id,
-  );
+  const localError = shellPatternProblem(kind, index, pattern);
+  useBufferFlag(id, localError);
   return (
     <div className="inspector-inline" data-testid={`${id}-row`}>
       <input
@@ -45,11 +41,11 @@ function PatternRow({
         spellCheck={false}
         autoComplete="off"
         placeholder="^rg [^;|&<>$`]+$"
-        value={text}
+        value={pattern}
         aria-label={`${kind} pattern ${index + 1}`}
         aria-invalid={localError ? true : undefined}
         aria-describedby={describedBy(id, undefined, localError)}
-        onChange={(event) => onChange(event.currentTarget.value)}
+        onChange={(event) => onCommit(index, event.currentTarget.value)}
       />
       <button
         type="button"
@@ -151,7 +147,7 @@ export function ShellPolicyEditor({
   const setPolicy = (next: ShellPolicy | undefined, enable = false): void => {
     const permissions =
       next === undefined
-        ? permissionsWithoutShellPolicy(node.permissions)
+        ? { ...permissionsWithoutShellPolicy(node.permissions), shell: true }
         : {
             ...node.permissions,
             ...(enable ? { shell: true } : {}),
@@ -171,7 +167,7 @@ export function ShellPolicyEditor({
         label="Restrict commands"
         hint="Allow or deny patterns over each command"
         checked={restricted}
-        help="Turning this on also turns shell commands on. Deny runs first; a non-empty allow list is an allowlist. Patterns are JavaScript regular expressions that must match the whole canonical command (argv joined by single spaces), so end a rule with .* to cover its arguments. Compounds, redirects, pipes, globbing and $ expansion are rejected. POSIX shells only in v1."
+        help="Turning this on also turns shell commands on. Deny runs first; a non-empty allow list is an allowlist. Patterns use RE2 regular expressions and match the whole canonical command. Arguments containing spaces, quotes, or backslashes are JSON-quoted, so boundaries remain visible. End a rule with .* to cover its arguments. Compounds, redirects, pipes, globbing and $ expansion are rejected. POSIX shells only in v1."
         onChange={(enabled) => {
           if (enabled) setPolicy({ allow: [], deny: [] }, true);
           else setPolicy(undefined);
@@ -260,6 +256,10 @@ export function ShellPolicyEditor({
           />
           <p className="inspector-help" role="note" data-testid="inspector-shell-policy-sandbox">
             {SANDBOX_NOTE}
+          </p>
+          <p className="inspector-note amber" role="status">
+            Shell policy execution is currently unavailable until the gateway can enforce filesystem
+            and network permissions.
           </p>
           <ShellPolicyTester policy={policy} />
         </>
