@@ -1435,13 +1435,21 @@ describe("usage summary endpoint", () => {
 
     const empty = await app.request(url("/api/usage"), { headers: cookieHeaders() });
     expect(empty.status).toBe(200);
-    expect(await empty.json()).toEqual({ total: { usd: 0, tokens: 0 }, byProvider: [] });
+    expect(await empty.json()).toEqual({
+      total: { usd: 0, tokens: 0 },
+      byProvider: [],
+      byProject: [],
+    });
 
     const scoped = await app.request(url("/api/usage?scope=project&projectId=proj-usage"), {
       headers: cookieHeaders(),
     });
     expect(scoped.status).toBe(200);
-    expect(await scoped.json()).toEqual({ total: { usd: 0, tokens: 0 }, byProvider: [] });
+    expect(await scoped.json()).toEqual({
+      total: { usd: 0, tokens: 0 },
+      byProvider: [],
+      byProject: [],
+    });
 
     const missingScope = await app.request(url("/api/usage?scope=project"), {
       headers: cookieHeaders(),
