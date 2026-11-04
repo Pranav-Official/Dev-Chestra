@@ -70,6 +70,19 @@ function typeCommand(command: string): void {
   fireEvent.click(screen.getByTestId("shell-policy-tester-run"));
 }
 
+describe("ShellPolicyEditor host access", () => {
+  it("explains host permissions only when command guardrails are enabled", () => {
+    renderEditor(withPolicy(undefined));
+    expect(screen.queryByTestId("inspector-shell-policy-host-access")).toBeNull();
+    fireEvent.click(screen.getByTestId("inspector-shell-policy-toggle"));
+    expect(screen.getByTestId("inspector-shell-policy-host-access")).toHaveTextContent(
+      "Allowed commands run with your OS permissions; network and write controls do not restrict them.",
+    );
+    fireEvent.click(screen.getByTestId("inspector-shell-policy-toggle"));
+    expect(screen.queryByTestId("inspector-shell-policy-host-access")).toBeNull();
+  });
+});
+
 describe("ShellPolicyEditor presets", () => {
   it("ships presets that pass the exported schema validator", () => {
     for (const preset of SHELL_POLICY_PRESETS) {

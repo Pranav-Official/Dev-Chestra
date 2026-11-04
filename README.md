@@ -166,7 +166,11 @@ Local-first, single user, your files stay yours. No cloud account, no queue, no 
 
 ## Shell policy
 
-Shell policy configuration and preview are available, but execution of workflows with a shell policy is currently disabled until the gateway can enforce filesystem and network permissions. In a workflow file the policy sits beside `shell` under `permissions`:
+Enable **Restrict commands** in the agent inspector, or add `permissions.shellPolicy` to a workflow, to opt into command guardrails on macOS and Linux. DevChestra disables the CLI's native shell and supplies an `exec` tool that checks the policy before starting a program. Removing `shellPolicy` restores the normal shell behavior; no server setting is required.
+
+**Allowed commands run with your normal OS permissions.** `permissions.network` and `permissions.write` control the agent CLI's tools; they do not restrict programs launched by gateway `exec`. For example, allowing `curl` can grant network access even with `network: false`, and allowing `touch` can write files even with `write: []`. Workflow validation, the inspector, and run review explain this distinction. Use narrow allowlists for workflows you trust.
+
+In a workflow file the policy sits beside `shell` under `permissions`:
 
 ```json
 "permissions": {
@@ -185,7 +189,7 @@ Shell policy configuration and preview are available, but execution of workflows
 - **Patterns are RE2 regular expressions that must match the whole command.** End a rule with `.*` to cover its arguments.
 - **Deny runs first.** A non-empty `allow` is an allowlist: a command that matches no allow pattern is refused. With no `allow`, every command that is not denied is allowed.
 - **Commands are plain argv, not shell scripts.** The command is matched as its words joined by single spaces; arguments containing whitespace, quotes, or backslashes are JSON-quoted to preserve their boundaries. Pipes, `;`, `&&`, redirects, `$`, backticks, globs and `~` are rejected rather than run, so there are no compounds.
-- **Planned execution environment.** When runtime support is enabled, commands will need to honor the node’s filesystem and network permissions as well as the configured resource limits.
+- **Execution environment.** Commands start in the run workspace with an allowlisted environment and the configured timeout/output limits. The workspace is a starting directory, not a filesystem boundary. Denials return a tool error without launching a program; the agent can report the denial through `submit_result`. Retries with the same call ID reuse the result, and cancellation or token revocation stops in-flight commands.
 - **macOS and Linux only.** The command runner is POSIX-only. On Windows a workflow with a `shellPolicy` is rejected when the run is planned (`E_WORKFLOW_INVALID`), because a policy also turns the agent's native shell off and no command could run.
 - **Programs come from the PATH of the process that started DevChestra.** A rule like `^rg .*$` only works if `rg` is on the PATH of the shell you ran `devchestra start` or `devchestra run` from. Tools that a version manager such as nvm adds only in interactive shells will not be found otherwise. Relative PATH entries are ignored.
 - **This is not an OS sandbox.** Patterns see only the command text. Interpreters such as `python`, `sh` or `node`, plus `env`, `xargs` and `find -exec`, can run programs no pattern sees, and an extra MCP server with an exec tool bypasses the policy. Treat it as a guardrail, not a security boundary.

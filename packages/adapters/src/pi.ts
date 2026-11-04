@@ -528,7 +528,7 @@ export function createPiAdapter(options: AdapterOptions = {}): CliAdapter {
         "toolResult ok comes from ToolResultMessage.isError; turn_end error comes from stopReason/errorMessage",
         "extraMcp verified live 2026-10-28 (pi 1.4.0, opencode-go/deepseek-v4.1-flash): fixture stdio server in the isolated mcp.json called as mcp__fixture__fixture_echo (model found it via codemode searchTools; extras default to codemode exposure, only devchestra is direct); canonical-home unselected server not started",
         "permissions.shell verified live 2026-10-28: false+write excludes bash+powershell (model reports no bash tool); true+read-only runs bash (echo hi -> hi)",
-        "live-run caveats 2026-10-28: isolated runs reinstall settings `packages` (npm is absent on this machine, so the run used settings minus packages); nvidia catalog models 404 for this account, ollama provider is down; opencode-go/deepseek-v4.1-flash worked",
+        "live-run caveats 2026-10-28: isolated runs reinstall settings `packages` and need npm on the launching process PATH (version managers may expose it only in interactive shells); nvidia catalog models 404 for this account, ollama provider is down; opencode-go/deepseek-v4.1-flash worked",
       ],
     },
     plan: (req) => plan(req, bin),

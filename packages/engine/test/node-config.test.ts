@@ -101,7 +101,7 @@ describe("validateBaseNodeConfig", () => {
     expect(rejection(promptFile)).toContain("promptFile");
   });
 
-  it("rejects shellPolicy until runtime enforcement is installed", () => {
+  it("accepts valid command guardrails and rejects invalid policies", () => {
     const valid = fixtureNode("research");
     record(valid, "permissions").shellPolicy = {
       allow: ["^curl .+$"],
@@ -109,7 +109,7 @@ describe("validateBaseNodeConfig", () => {
       timeoutSec: 60,
       maxOutputBytes: 262144,
     };
-    expect(rejection(valid)).toContain("runtime enforcement");
+    expect(rejection(valid)).toBeNull();
 
     const absent = fixtureNode("research");
     expect(rejection(absent)).toBeNull();
@@ -138,9 +138,9 @@ describe("validateBaseNodeConfig", () => {
     const message = rejection(node, "agent", "win32");
     expect(message).toContain("not supported on Windows");
     expect(message).toContain("POSIX-only");
-    // Same node on POSIX hosts reaches the later runtime-enforcement check instead.
+    // The same command guardrail is available on supported POSIX hosts.
     for (const platform of ["linux", "darwin"] as const) {
-      expect(rejection(node, "agent", platform)).toContain("runtime enforcement");
+      expect(rejection(node, "agent", platform)).toBeNull();
     }
   });
 

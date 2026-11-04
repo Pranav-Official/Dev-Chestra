@@ -165,7 +165,11 @@ export interface AgentPermissions {
   write: ("workspace" | "project")[];
   /** Built-in shell tool. Absent keeps the legacy rule: shell follows `write` being non-empty. */
   shell?: boolean;
-  /** Optional allowlist/denylist over shell commands. Only valid when `shell` is not `false`. */
+  /**
+   * Opt into command guardrails through DevChestra exec, with the native shell off.
+   * Allowed programs retain host filesystem/network access, independently of network/write.
+   * Only valid when `shell` is not `false`; supported on macOS/Linux.
+   */
   shellPolicy?: ShellPolicy;
 }
 

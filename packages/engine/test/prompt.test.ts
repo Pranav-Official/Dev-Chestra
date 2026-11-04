@@ -26,6 +26,17 @@ describe("submit contract", () => {
     expect(contract).not.toContain("Large inputs");
   });
 
+  it("names the adapter's policy exec tool only when command guardrails are enabled", () => {
+    const contract = renderSubmitContract({
+      submitRef: "devchestra_submit_result",
+      execRef: "devchestra_exec",
+    });
+    expect(contract).toContain('devchestra_exec with {"command":"..."}');
+    expect(contract).toContain("native shell is disabled");
+    expect(contract).toContain("denial is an observed tool result");
+    expect(renderSubmitContract({ submitRef: "submit_result" })).not.toContain("native shell");
+  });
+
   it("appends the contract after the rendered prompt", () => {
     const prompt = composeAgentPrompt("Do the task.\n", "(contract)");
     expect(prompt).toBe("Do the task.\n\n(contract)");

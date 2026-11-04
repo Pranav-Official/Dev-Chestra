@@ -149,11 +149,8 @@ function validateAgentShellPolicy(node: Record<string, unknown>, platform: NodeJ
       { details: { nodeId: node.id, problems } },
     );
   }
-  throw new DevChestraError(
-    "E_WORKFLOW_INVALID",
-    "Agent shellPolicy is unavailable until runtime enforcement is installed",
-    { details: { nodeId: node.id } },
-  );
+  // A shellPolicy explicitly opts into command filtering through gateway exec.
+  // This is a tool guardrail: allowed commands retain the user's OS permissions.
 }
 
 function validateShell(node: Record<string, unknown>): void {

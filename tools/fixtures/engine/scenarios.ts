@@ -62,7 +62,7 @@ function makeEngine(script: unknown[], extra: { maxNodeTimeoutMs?: number } = {}
           ...(scope.shell === undefined ? {} : { shell: scope.shell }),
         });
         issued.push(token);
-        return { token, revoke: () => tokens.revoke(token) };
+        return { token, revoke: () => tokens.revoke(token), drain: () => tokens.drain(token) };
       },
     },
     dataDir: temp,
@@ -457,7 +457,20 @@ try {
       }
     });
     const first = engine.run(input(shellSnapshot));
-    await spawnedPromise;
+    // Surface planning failures instead of waiting forever for an impossible spawn.
+    try {
+      await Promise.race([
+        spawnedPromise,
+        first.then((result) => {
+          if (!result.ok) throw result.error;
+          throw new Error(`Policy scenario ended before spawning research: ${result.value.status}`);
+        }),
+      ]);
+    } catch (error) {
+      unsubscribe();
+      await engine.stop();
+      throw error;
+    }
     await new Promise((resolve) => setTimeout(resolve, 1_000));
     await engine.stop();
     unsubscribe();

@@ -2,7 +2,9 @@ import { accessSync, constants, statSync } from "node:fs";
 import { delimiter, isAbsolute, join } from "node:path";
 import { runCommand } from "@devchestra/adapters";
 import { evaluateShellPolicy, type ShellPolicy } from "@devchestra/schema";
-import type { ExecShellScope, ExecToolEvent } from "./tokens.js";
+import type { ExecOutcome, ExecShellScope, ExecToolEvent } from "./tokens.js";
+
+export type { ExecOutcome } from "./tokens.js";
 
 /**
  * Gateway-side `exec` for policy agents. POSIX only: the win32 guard lives in
@@ -15,11 +17,6 @@ export const EXEC_TOOL_NAME = "exec";
 /** Gateway grace above the policy deadline before the request controller aborts. */
 export const EXEC_GRACE_MS = 10_000;
 const DESCRIPTION_MAX_CHARS = 1_500;
-
-export interface ExecOutcome {
-  text: string;
-  isError: boolean;
-}
 
 /** Absolute, non-empty PATH entries only. Relative entries (including "" and ".") are dropped. */
 export function sanitizedPathDirs(pathValue: string | undefined): string[] {
@@ -54,6 +51,7 @@ export function execDescription(policy: ShellPolicy): string {
       : "Any command is allowed unless a deny pattern matches.",
     deny.length > 0 ? `Always denied when it matches: ${deny.join(" | ")}.` : "",
     "Each call is stateless and runs in the fixed workspace directory; cd, pipes, redirects, globbing, $ expansion and command chaining are not supported.",
+    "Allowed programs run with the user's OS permissions; the agent's network/write tool settings do not sandbox these commands.",
   ].filter((part) => part !== "");
   const text = parts.join(" ");
   return text.length > DESCRIPTION_MAX_CHARS

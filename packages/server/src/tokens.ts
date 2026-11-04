@@ -3,7 +3,12 @@ import { isAbsolute } from "node:path";
 import type { ExecutionIdentity } from "@devchestra/core";
 import type { ShellPolicy } from "@devchestra/schema";
 import { DevChestraError } from "./errors.js";
-import type { ExecOutcome } from "./shell-exec.js";
+
+/** A cached command result shared by the runner and execution-token registry. */
+export interface ExecOutcome {
+  text: string;
+  isError: boolean;
+}
 
 /** One transcript-facing event from an exec call; text is already redacted by the engine. */
 export interface ExecToolEvent {

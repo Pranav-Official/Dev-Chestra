@@ -1,5 +1,5 @@
 import type { AgentNode, ShellPolicy } from "@devchestra/schema";
-import { validateShellPolicy } from "@devchestra/schema";
+import { SHELL_POLICY_GUARDRAIL_NOTICE, validateShellPolicy } from "@devchestra/schema";
 import { AlertCircle, AlertTriangle } from "lucide-react";
 import { useBufferFlag } from "./BufferContext.js";
 import { CheckboxField, describedBy, Field } from "./fields/fields.js";
@@ -165,9 +165,9 @@ export function ShellPolicyEditor({
       <CheckboxField
         id="inspector-shell-policy-toggle"
         label="Restrict commands"
-        hint="Allow or deny patterns over each command"
+        hint="Filter commands through DevChestra exec"
         checked={restricted}
-        help="Turning this on also turns shell commands on. Deny runs first; a non-empty allow list is an allowlist. Patterns use RE2 regular expressions and match the whole canonical command. Arguments containing spaces, quotes, or backslashes are JSON-quoted, so boundaries remain visible. End a rule with .* to cover its arguments. Compounds, redirects, pipes, globbing and $ expansion are rejected. POSIX shells only in v1."
+        help="Turning this on also turns shell commands on. Deny runs first; a non-empty allow list is an allowlist. Patterns use RE2 regular expressions and match the whole canonical command. Arguments containing spaces, quotes, or backslashes are JSON-quoted, so boundaries remain visible. End a rule with .* to cover its arguments. Compounds, redirects, pipes, globbing and $ expansion are rejected. Available on macOS and Linux."
         onChange={(enabled) => {
           if (enabled) setPolicy({ allow: [], deny: [] }, true);
           else setPolicy(undefined);
@@ -175,6 +175,10 @@ export function ShellPolicyEditor({
       />
       {policy === undefined ? null : (
         <>
+          <p className="inspector-note amber" data-testid="inspector-shell-policy-host-access">
+            <AlertTriangle size={13} aria-hidden="true" />
+            <span>{SHELL_POLICY_GUARDRAIL_NOTICE}</span>
+          </p>
           {extraServers.length > 0 ? (
             <p
               className="inspector-note amber"

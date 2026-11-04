@@ -380,12 +380,18 @@ function setup(
     },
     gateway: {
       url: "http://127.0.0.1:1",
-      issue: () => ({
-        token: GATEWAY_TOKEN,
-        revoke: () => {
-          revokes += 1;
-        },
-      }),
+      issue: () => {
+        let revoked = false;
+        return {
+          token: GATEWAY_TOKEN,
+          revoke: () => {
+            // Match ExecTokenRegistry: count effective revocations, not cleanup calls.
+            if (revoked) return;
+            revoked = true;
+            revokes += 1;
+          },
+        };
+      },
     },
     dataDir,
     nodeBin: process.execPath,
@@ -655,9 +661,8 @@ describe("runAttempts outcome classification", () => {
     expect(error).toMatchObject({ code: "E_CLI_MISSING" });
     expect(String((error as Error).message)).toContain("binary is missing");
     expect(h.runAgentCalls()).toBe(1);
-    // The token is revoked on the happy path AND again in the catch cleanup,
-    // so revoke must be idempotent.
-    expect(h.revokes()).toBe(2);
+    // Cleanup may revoke repeatedly, but the issued token is invalidated once.
+    expect(h.revokes()).toBe(1);
   });
 
   it("cancel kills the execution, finalizes cancelled and throws StopSignal", async () => {
@@ -669,8 +674,8 @@ describe("runAttempts outcome classification", () => {
     expect(h.finalizes()).toEqual([{ outcome: "cancelled", reason: "killed" }]);
     expect(h.ctx.execution(h.runId, "a").status).toBe("cancelled");
     expect(stoppedReasons(h)).toEqual(["killed"]);
-    // Revoked once after the stop, then again by the StopSignal cleanup.
-    expect(h.revokes()).toBe(2);
+    // Stop and catch cleanup share the same idempotent revocation.
+    expect(h.revokes()).toBe(1);
     expect(h.active.tokens.size).toBe(0);
   });
 

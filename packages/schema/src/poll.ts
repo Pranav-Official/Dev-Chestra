@@ -313,7 +313,12 @@ function validatePollAgentProbe(
         `${probeBase}/permissions`,
         undefined,
       )) {
-        fail(policyIssue.code, policyIssue.message, policyIssue.pointer ?? probeBase);
+        add(
+          policyIssue.severity,
+          policyIssue.code,
+          policyIssue.message,
+          policyIssue.pointer ?? probeBase,
+        );
       }
     }
   }

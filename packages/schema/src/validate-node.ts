@@ -419,7 +419,8 @@ export function validateSingleNode(
         `${pointer}/permissions`,
         node.id,
       )) {
-        addError(policyIssue);
+        if (policyIssue.severity === "warning") addWarning(policyIssue);
+        else addError(policyIssue);
       }
     }
 

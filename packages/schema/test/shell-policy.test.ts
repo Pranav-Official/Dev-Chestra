@@ -5,6 +5,7 @@ import {
   normalizeShellPolicy,
   normalizeWorkflow,
   parseWorkflow,
+  SHELL_POLICY_GUARDRAIL_NOTICE,
   SHELL_POLICY_MAX_COMMAND_BYTES,
   SHELL_POLICY_MAX_OUTPUT_BYTES_MAX,
   SHELL_POLICY_MAX_PATTERN_LENGTH,
@@ -86,6 +87,27 @@ describe("shellPolicy schema shape", () => {
 });
 
 describe("shellPolicy semantic validation", () => {
+  it("warns about host access without blocking a valid policy, including an empty policy", () => {
+    for (const policy of [{}, { allow: ["^echo hello$"] }]) {
+      const report = validateWorkflow(parseOk(withPolicy(policy)));
+      expect(report.ok).toBe(true);
+      expect(report.warnings).toContainEqual({
+        severity: "warning",
+        code: "W_SHELL_POLICY_HOST_ACCESS",
+        message: SHELL_POLICY_GUARDRAIL_NOTICE,
+        pointer: "/graph/nodes/1/permissions/shellPolicy",
+        nodeId: "agent",
+      });
+    }
+    for (const raw of [chainRaw(), withPolicy({ allow: ["("] })]) {
+      expect(
+        validateWorkflow(parseOk(raw)).warnings.some(
+          (item) => item.code === "W_SHELL_POLICY_HOST_ACCESS",
+        ),
+      ).toBe(false);
+    }
+  });
+
   it("accepts compiling anchored patterns and rejects non-compiling ones", () => {
     for (const pattern of ["^curl .+$", "rg .+", "\\s(-o|--output)(\\s|$)", "a"]) {
       const report = validateWorkflow(parseOk(withPolicy({ allow: [pattern] })));
@@ -396,7 +418,15 @@ describe("shellPolicy normalization and hashing", () => {
     const parsed = parseWorkflow(raw);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) throw parsed.error;
-    expect(validateWorkflow(parsed.value).ok).toBe(true);
+    const validation = validateWorkflow(parsed.value);
+    expect(validation.ok).toBe(true);
+    expect(validation.warnings).toContainEqual(
+      expect.objectContaining({
+        severity: "warning",
+        code: "W_SHELL_POLICY_HOST_ACCESS",
+        pointer: "/graph/nodes/0/polling/probe/permissions/shellPolicy",
+      }),
+    );
     const result = normalizeWorkflow(parsed.value);
     if (!result.ok) throw result.error;
     const startNode = result.value.graph.nodes.find((item) => item.id === "start");
