@@ -1,5 +1,5 @@
 import type { EventEnvelope, RunId, RunStatus } from "@devchestra/core";
-import { ApiProtocolError } from "./errors.js";
+import { ApiProtocolError, ApiTransportError } from "./errors.js";
 import { eventEnvelopeSchema } from "./events.js";
 import {
   epochMsSchema,
@@ -274,7 +274,14 @@ export async function* readSse(
   try {
     for (;;) {
       if (signal?.aborted === true) throw abortError();
-      const { done, value } = await reader.read();
+      let result: ReadableStreamReadResult<Uint8Array>;
+      try {
+        result = await reader.read();
+      } catch (error) {
+        if (signal?.aborted) throw error;
+        throw new ApiTransportError("Event stream read failed", error);
+      }
+      const { done, value } = result;
       if (done) break;
       const text = decoder.decode(value, { stream: true });
       if (text.length > 0) {

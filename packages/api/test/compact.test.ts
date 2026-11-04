@@ -357,6 +357,8 @@ describe("wakeReason", () => {
     const approval = event("approval.requested", "review");
     const node = event("node.state", "work", { to: "succeeded" });
     expect(wakeReason(approval, kindOf, "approval")).not.toBeNull();
+    expect(wakeReason(approval, kindOf, "status")).not.toBeNull();
+    expect(wakeReason(event("approval.resolved", "review"), kindOf, "status")).not.toBeNull();
     expect(wakeReason(node, kindOf, "approval")).toBeNull();
     expect(wakeReason(approval, kindOf, "node-done")).toBeNull();
     expect(wakeReason(node, kindOf, "node-done")).not.toBeNull();

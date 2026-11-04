@@ -500,14 +500,18 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
         cursor: c.req.query("cursor"),
         limit: c.req.query("limit"),
         tail: c.req.query("tail"),
+        format: c.req.query("format"),
       });
       if (!query.success) {
         return c.json(errorBody("E_VALIDATION", "Transcript query is invalid."), 400);
       }
       const limit = Math.min(query.data.limit ?? 200, 200);
       let cursor: number;
+      const byteCursor = query.data.cursor?.startsWith("b") === true;
       try {
-        cursor = parseTranscriptCursor(query.data.cursor);
+        cursor = byteCursor
+          ? parseTranscriptCursor(query.data.cursor?.slice(1))
+          : parseTranscriptCursor(query.data.cursor);
       } catch {
         return c.json(errorBody("E_VALIDATION", "Invalid transcript cursor."), 400);
       }
@@ -538,13 +542,17 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
         };
         page =
           query.data.tail === undefined
-            ? await readTranscriptPage({ ...read, cursor, limit })
+            ? await readTranscriptPage({ ...read, cursor, limit, byteCursor })
             : await readTranscriptTail({ ...read, tail: query.data.tail });
         if (page.state === "unavailable" && ref === null) {
           page = unavailableTranscript(execution.attempt, execution.generation, "pending");
         }
       }
       validate("TranscriptPageResponse", page);
+      if (query.data.format !== "monitor" && query.data.tail === undefined && !byteCursor) {
+        const { endCursor: _endCursor, updatedAt: _updatedAt, ...legacy } = page;
+        return json(c, legacy);
+      }
       return json(c, page);
     }
 

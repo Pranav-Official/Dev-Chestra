@@ -567,7 +567,8 @@ export const transcriptPageResponseSchema = strict({
 }) as unknown as z.ZodType<TranscriptPageResponse>;
 
 export const transcriptQuerySchema = strict({
-  cursor: cursorQuerySchema,
+  cursor: z.string().max(32).optional(),
+  format: z.literal("monitor").optional(),
   limit: z.coerce.number().int().min(1).max(500).optional(),
   /** Return only the most recent N lines (1-200). Cannot be combined with `cursor`. */
   tail: z.coerce.number().int().min(1).max(200).optional(),

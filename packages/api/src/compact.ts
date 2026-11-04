@@ -377,6 +377,9 @@ export function wakeReason(
     case "approval.requested":
       found = { category: "approval", reason: `approval requested at ${path}` };
       break;
+    case "approval.resolved":
+      found = { category: "status", reason: `approval resolved at ${path}` };
+      break;
     case "loop.iteration.decided":
       found = {
         category: "node-done",
@@ -407,5 +410,9 @@ export function wakeReason(
       return null;
   }
   if (found === null) return null;
-  return until === "any" || until === found.category ? found : null;
+  return until === "any" ||
+    until === found.category ||
+    (until === "status" && event.type === "approval.requested")
+    ? found
+    : null;
 }
