@@ -152,7 +152,8 @@ const pollProbeBase = {
   env: z.array(z.string()).optional(),
 };
 
-const shellPolicySchema = z.strictObject({
+/** Structural policy shape shared by workflow files and frozen run snapshots. */
+export const shellPolicySchema = z.strictObject({
   allow: z.array(z.string()).optional(),
   deny: z.array(z.string()).optional(),
   timeoutSec: z.number().optional(),

@@ -1,6 +1,6 @@
-import { parseWorkflowDraft, validateWorkflow } from "@devchestra/schema";
+import { normalizeWorkflow, parseWorkflowDraft, validateWorkflow } from "@devchestra/schema";
 import { describe, expect, it } from "vitest";
-import { workflowDraftSchema } from "../src/index.js";
+import { normalizedWorkflowSchema, workflowDraftSchema } from "../src/index.js";
 
 /** Minimal draft: start -> agent -> end, with the given agent permissions. */
 function draftWith(permissions: Record<string, unknown>): Record<string, unknown> {
@@ -99,5 +99,61 @@ describe("workflow draft DTO shellPolicy pass-through", () => {
     if (!parsed.ok) throw parsed.error;
     const codes = validateWorkflow(parsed.value).errors.map((item) => item.code);
     expect(codes).toContain("E_SHELL_POLICY");
+  });
+});
+
+describe("frozen workflow DTO shellPolicy pass-through", () => {
+  function normalize(raw: unknown) {
+    const parsed = parseWorkflowDraft(raw);
+    if (!parsed.ok) throw parsed.error;
+    const result = normalizeWorkflow(parsed.value);
+    if (!result.ok) throw result.error;
+    return result.value;
+  }
+
+  it("accepts normalized agent policies without losing rules or resource limits", () => {
+    for (const policy of [
+      {},
+      { allow: ["^echo allowed$"] },
+      { deny: ["^echo denied$"] },
+      { allow: ["^echo .*$"], deny: ["^echo denied$"], timeoutSec: 30, maxOutputBytes: 4096 },
+    ]) {
+      const snapshot = normalize(
+        draftWith({ network: false, write: [], shell: true, shellPolicy: policy }),
+      );
+      const parsed = normalizedWorkflowSchema.safeParse(snapshot);
+      expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
+      expect(parsed.data).toEqual(snapshot);
+    }
+  });
+
+  it("preserves policies in normalized polling agent probes as well as ordinary agents", () => {
+    const policy = { allow: ["^echo probe$"], timeoutSec: 10 };
+    const draft = draftWith({ network: false, write: [] });
+    const start = (draft.graph as { nodes: Record<string, unknown>[] }).nodes[0];
+    if (start === undefined) throw new Error("Missing start");
+    start.polling = {
+      enabled: true,
+      probe: {
+        type: "agent",
+        cli: "codex",
+        prompt: "Check for work.",
+        permissions: { network: false, write: [], shellPolicy: policy },
+      },
+    };
+    const snapshot = normalize(draft);
+    const parsed = normalizedWorkflowSchema.safeParse(snapshot);
+    expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
+    expect(parsed.data).toEqual(snapshot);
+  });
+
+  it("still rejects malformed policy fields in a frozen snapshot", () => {
+    const snapshot = normalize(draftWith({ network: false, write: [], shellPolicy: {} }));
+    const agent = snapshot.graph.nodes.find((item) => item.type === "agent");
+    if (agent?.type !== "agent") throw new Error("Missing agent");
+    Object.assign(agent.permissions, { shellPolicy: { allow: "echo" } });
+    expect(normalizedWorkflowSchema.safeParse(snapshot).success).toBe(false);
+    Object.assign(agent.permissions, { shellPolicy: { unexpected: true } });
+    expect(normalizedWorkflowSchema.safeParse(snapshot).success).toBe(false);
   });
 });
