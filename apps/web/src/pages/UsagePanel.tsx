@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { useParams } from "react-router-dom";
-import { LoadingState } from "../ui/states.js";
+import { Link, useParams } from "react-router-dom";
+import { useBootstrap } from "../api/hooks.js";
 import { formatCost, formatTokens } from "../ui/format.js";
+import { LoadingState } from "../ui/states.js";
+import { settingsPath } from "./settings/sections.js";
 
 export interface UsageByModel {
   model: string;
@@ -128,7 +130,9 @@ function ProviderBars({
                 style={{ fontVariantNumeric: "tabular-nums", textAlign: "right" }}
               >
                 {formatTokens(item.tokens)}{" "}
-                <span className="faint">({pct >= 0.1 || pct === 0 ? pct.toFixed(1) : "<0.1"}%)</span>
+                <span className="faint">
+                  ({pct >= 0.1 || pct === 0 ? pct.toFixed(1) : "<0.1"}%)
+                </span>
               </span>
               <span
                 className="mono muted"
@@ -245,7 +249,16 @@ function CostDonut({
         </div>
       </div>
 
-      <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 10, flex: "1 1 260px" }}>
+      <ul
+        style={{
+          listStyle: "none",
+          margin: 0,
+          padding: 0,
+          display: "grid",
+          gap: 10,
+          flex: "1 1 260px",
+        }}
+      >
         {models.map((item, index) => {
           const share = (item.usd / total) * 100;
           return (
@@ -309,6 +322,33 @@ function CostDonut({
   );
 }
 
+/**
+ * Usage is project-scoped under /p/:pid/settings and global under /settings, and the
+ * sidebar's Settings link keeps the current project. Say which one this is, and let
+ * the reader switch, so a project's totals are never mistaken for the whole picture.
+ */
+function UsageScope({ projectId }: { projectId: string | undefined }) {
+  const bootstrap = useBootstrap();
+  if (projectId === undefined) {
+    return (
+      <p className="faint" style={{ margin: 0 }}>
+        Showing usage across all projects.
+      </p>
+    );
+  }
+  const name = bootstrap.data?.projects.find((project) => project.id === projectId)?.name;
+  return (
+    <nav className="tabs" style={{ padding: 0 }} aria-label="Usage scope">
+      <Link className="tab" to={settingsPath(undefined, "usage")}>
+        All projects
+      </Link>
+      <Link className="tab active" to={settingsPath(projectId, "usage")} aria-current="page">
+        {name ?? "This project"}
+      </Link>
+    </nav>
+  );
+}
+
 export function UsagePanel() {
   const { pid } = useParams();
   const projectId = pid !== "" && pid !== undefined ? pid : undefined;
@@ -337,6 +377,7 @@ export function UsagePanel() {
 
   return (
     <div className="stack" style={{ gap: 16 }}>
+      <UsageScope projectId={projectId} />
       <div
         style={{
           display: "grid",
