@@ -164,6 +164,30 @@ Use the canvas when you want to see the whole process. Use the CLI when you're w
 
 Local-first, single user, your files stay yours. No cloud account, no queue, no sandbox magic — steps run with your normal permissions in the workspace you chose.
 
+## Shell policy
+
+An agent's shell access is all or nothing unless you narrow it. Open the agent, go to **Tools**, turn on **Restrict commands**, and add allow and deny patterns, or start from a preset. In a workflow file the policy sits beside `shell` under `permissions`:
+
+```json
+"permissions": {
+  "network": true,
+  "write": [],
+  "shell": true,
+  "shellPolicy": {
+    "allow": ["^curl -s[SL]* https?://[^ ]+$", "^rg [^;|&<>$`]+$"],
+    "deny": ["^curl\\b.*\\s(-o|-O|--output)(\\s.*|=.*|$)", "^(sh|bash|python3?|node|env|xargs|find)\\b.*$"],
+    "timeoutSec": 60,
+    "maxOutputBytes": 262144
+  }
+}
+```
+
+- **Patterns are JavaScript regular expressions that must match the whole command.** End a rule with `.*` to cover its arguments.
+- **Deny runs first.** A non-empty `allow` is an allowlist: a command that matches no allow pattern is refused. With no `allow`, every command that is not denied is allowed.
+- **Commands are plain argv, not shell scripts.** The command is matched as its words joined by single spaces, after quotes are resolved. Pipes, `;`, `&&`, redirects, `$`, backticks, globs and `~` are rejected rather than run, so there are no compounds.
+- **Fixed environment.** Commands run in the workspace with a fixed working directory, an allowlisted environment, and the `timeoutSec` and `maxOutputBytes` caps. v1 supports POSIX shells only.
+- **This is not an OS sandbox.** Patterns see only the command text. Interpreters such as `python`, `sh` or `node`, plus `env`, `xargs` and `find -exec`, can run programs no pattern sees, and an extra MCP server with an exec tool bypasses the policy. Treat it as a guardrail, not a security boundary.
+
 ## Third-party icons
 
 The monochrome provider icons are vendored from [LobeHub Icons](https://github.com/lobehub/lobe-icons) (MIT, Copyright (c) 2023 LobeHub) and the official Pi mark from pi.dev. The marks belong to their respective owners and are used only to identify the matching CLI.
