@@ -91,10 +91,31 @@ describe("settings files", () => {
     );
   });
 
-  it("warns about unknown top-level keys instead of failing", () => {
-    const parsed = parseSettings('{"version":1,"variables":{"a":1}}');
+  it("keeps unknown top-level keys verbatim and warns instead of failing", () => {
+    const parsed = parseSettings(
+      '{"version":1,"variables":{"a":1},"models":{"low":{"cli":"pi"}},"z":[1]}',
+    );
     if (!parsed.ok) throw parsed.error;
-    expect(parsed.value.warnings).toEqual(["Ignoring unknown settings key 'variables'."]);
+    expect(parsed.value.warnings).toEqual([
+      "Keeping unknown settings key 'variables' unchanged.",
+      "Keeping unknown settings key 'z' unchanged.",
+    ]);
+    expect(parsed.value.extras).toEqual({ variables: { a: 1 }, z: [1] });
+    expect(Object.keys(parsed.value.extras)).toEqual(["variables", "z"]);
+    expect(serializeSettings(parsed.value.file, parsed.value.extras)).toBe(
+      `${JSON.stringify({ version: 1, variables: { a: 1 }, z: [1], models: { low: { cli: "pi" } } }, null, 2)}\n`,
+    );
+  });
+
+  it("round-trips a __proto__ key as plain data", () => {
+    const parsed = parseSettings('{"version":1,"__proto__":{"polluted":true}}');
+    if (!parsed.ok) throw parsed.error;
+    expect(Object.getPrototypeOf(parsed.value.extras)).toBe(Object.prototype);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect(Object.keys(parsed.value.extras)).toEqual(["__proto__"]);
+    const text = serializeSettings(parsed.value.file, parsed.value.extras);
+    expect(Object.hasOwn(JSON.parse(text), "__proto__")).toBe(true);
+    expect(text).toContain('"__proto__": {\n    "polluted": true\n  }');
   });
 
   it.each([

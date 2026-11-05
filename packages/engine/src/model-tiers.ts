@@ -3,6 +3,25 @@ import { applyModelTiers, collectModelTierUses, unmappedTierMessage } from "@dev
 import type { ModelTierSource } from "./types.js";
 
 /**
+ * Wraps a tier source so settings are read at most once, on first use, and every caller shares
+ * that one result (a failed load included). One run launch uses one wrapper for the root and
+ * every child workflow, so a settings edit made mid-launch cannot give them different mappings.
+ * Never reuse a wrapper across launches: each launch must see the settings as they are then.
+ */
+export function memoizeModelTierSource(
+  source: ModelTierSource | undefined,
+): ModelTierSource | undefined {
+  if (source === undefined) return undefined;
+  let loaded: ReturnType<ModelTierSource["load"]> | undefined;
+  return {
+    load(projectId) {
+      loaded ??= source.load(projectId);
+      return loaded;
+    },
+  };
+}
+
+/**
  * Replaces every tiered agent node in a snapshot with the provider and model this machine
  * maps that tier to. A snapshot with no tiered nodes is returned untouched and never reads
  * settings. Throws `E_MODEL_TIER` before any run side effect when a tier cannot be resolved,

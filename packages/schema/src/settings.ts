@@ -38,11 +38,19 @@ export interface SettingsFile {
   models?: ModelTierMap;
 }
 
-/** What a settings file parse returns: the file plus notes about anything it ignored. */
+/**
+ * What a settings file parse returns: the file, notes about anything this version does not
+ * understand, and those unknown top-level keys verbatim (in file order) so a save can write
+ * them back. A teammate on a newer version or another tool may own them.
+ */
 export interface ParsedSettings {
   file: SettingsFile;
   warnings: string[];
+  extras: SettingsExtras;
 }
+
+/** Unknown top-level keys of a settings file, kept untouched across read and write. */
+export type SettingsExtras = Record<string, unknown>;
 
 export type EffectiveModelTier = { ref: ModelRef; source: SettingsScope };
 export type EffectiveModelTiers = Partial<Record<ModelTierId, EffectiveModelTier>>;
@@ -117,7 +125,7 @@ export function parseModelTierMap(
   return ok(out);
 }
 
-/** Validates an already-parsed JSON value as a settings file. Unknown top-level keys are ignored with a warning. */
+/** Validates an already-parsed JSON value as a settings file. Unknown top-level keys are kept in `extras` with a warning. */
 export function parseSettingsValue(value: unknown): Result<ParsedSettings, DevChestraError> {
   if (!isRecord(value)) return err(invalid("Settings must be a JSON object.", ""));
   if (value.version !== SETTINGS_VERSION) {
@@ -125,16 +133,20 @@ export function parseSettingsValue(value: unknown): Result<ParsedSettings, DevCh
   }
   const file: SettingsFile = { version: SETTINGS_VERSION };
   const warnings: string[] = [];
+  const extraEntries: [string, unknown][] = [];
   for (const key of Object.keys(value)) {
     if (key === "version" || key === "models") continue;
-    warnings.push(`Ignoring unknown settings key '${key}'.`);
+    warnings.push(`Keeping unknown settings key '${key}' unchanged.`);
+    extraEntries.push([key, value[key]]);
   }
+  // fromEntries defines own properties, so a `__proto__` key stays plain data.
+  const extras: SettingsExtras = Object.fromEntries(extraEntries);
   if (value.models !== undefined) {
     const models = parseModelTierMap(value.models);
     if (!models.ok) return models;
     if (Object.keys(models.value).length > 0) file.models = models.value;
   }
-  return ok({ file, warnings });
+  return ok({ file, warnings, extras });
 }
 
 /** Parses the text of a settings file. */
@@ -161,9 +173,21 @@ export function parseSettings(text: string): Result<ParsedSettings, DevChestraEr
   return parseSettingsValue(json);
 }
 
-/** Canonical text for a settings file: tiers in high, medium, low order, two-space indent, trailing newline. */
-export function serializeSettings(file: SettingsFile): string {
+/**
+ * Canonical text for a settings file: version, then any unknown top-level keys in their
+ * original order, then tiers in high, medium, low order; two-space indent, trailing newline.
+ */
+export function serializeSettings(file: SettingsFile, extras: SettingsExtras = {}): string {
   const out: Record<string, unknown> = { version: SETTINGS_VERSION };
+  for (const [key, value] of Object.entries(extras)) {
+    if (key === "version" || key === "models") continue;
+    Object.defineProperty(out, key, {
+      value,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
   if (file.models !== undefined) {
     const models: Record<string, ModelRef> = {};
     for (const tier of MODEL_TIERS) {

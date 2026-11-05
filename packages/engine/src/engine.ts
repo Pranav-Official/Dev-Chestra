@@ -33,7 +33,7 @@ import { executeShell } from "./exec-shell.js";
 import { analyzeWorkflowPlan, type PlanNode, type WorkflowPlan } from "./graph-plan.js";
 import { derivePlanRouting, joinRoutingFor } from "./graph-run.js";
 import { assertLoopWorkspaceAvailable } from "./loop-workspace.js";
-import { resolveModelTiers } from "./model-tiers.js";
+import { memoizeModelTierSource, resolveModelTiers } from "./model-tiers.js";
 import { buildProbeSnapshot, POLL_PROBE_NODE_ID, probeStartNode } from "./probe.js";
 import { recoverAll } from "./recovery.js";
 import { validateRunOptions } from "./run-options.js";
@@ -202,12 +202,32 @@ class LinearEngine implements Engine {
       if (this.#stopping) {
         throw new DevChestraError("E_CONFLICT", "Engine is shutting down; no new run was created");
       }
+      // A retry of a delivery that was already accepted needs no new run, so it must not
+      // depend on the current tier mapping: answer it before anything is resolved or frozen.
+      // The transactional claim below stays the authority for deliveries seen for the first time.
+      if (input.delivery !== undefined) {
+        const seen = this.#ctx.store.webhooks.peekDelivery({
+          hookId: input.delivery.hookId,
+          deliveryId: input.delivery.deliveryId,
+          fingerprint: input.delivery.fingerprint,
+        });
+        if (seen.kind === "duplicate") {
+          return ok({
+            runId: seen.runId,
+            duplicate: true,
+            completion: this.#duplicateCompletion(seen.runId),
+          });
+        }
+      }
       // Tiers resolve here, once, before any side effect. The run stores the resolved snapshot
       // (so resume and replay never re-read settings); the hash below stays on the authored one.
+      // One memoized source serves the root and every child, so the whole launch shares a
+      // single mapping even if the settings files change while the bundle is being frozen.
+      const tierSource = memoizeModelTierSource(this.#ctx.deps.modelTiers);
       const snapshot = await resolveModelTiers({
         projectId: input.projectId,
         snapshot: input.snapshot,
-        source: this.#ctx.deps.modelTiers,
+        source: tierSource,
       });
       const planResult = analyzeWorkflowPlan(snapshot);
       if (!planResult.ok) return err(planResult.error);
@@ -251,7 +271,7 @@ class LinearEngine implements Engine {
             resolveModelTiers({
               projectId: input.projectId,
               snapshot: child,
-              source: this.#ctx.deps.modelTiers,
+              source: tierSource,
             }),
           ...(input.workflowDependencies === undefined
             ? {}

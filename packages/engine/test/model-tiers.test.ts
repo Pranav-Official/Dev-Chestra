@@ -2,13 +2,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type AdapterRegistry, type CliId, createAdapterRegistry } from "@devchestra/adapters";
-import { DevChestraError, err, hashJson, ok } from "@devchestra/core";
+import { DevChestraError, err, hashJson, ok, type RunId } from "@devchestra/core";
 import type { EffectiveModelTiers } from "@devchestra/schema";
 import { openStore, type Store } from "@devchestra/store";
 import { afterEach, describe, expect, it } from "vitest";
 import { createEngine } from "../src/engine.js";
 import { freezeWorkflowBundle } from "../src/freeze.js";
-import { resolveModelTiers } from "../src/model-tiers.js";
+import { memoizeModelTierSource, resolveModelTiers } from "../src/model-tiers.js";
 import type {
   Engine,
   EngineDeps,
@@ -211,7 +211,7 @@ describe("model tiers at launch", () => {
     if (!launched.ok) throw launched.error;
     await launched.value.completion;
     expect(tiers.calls).toEqual(["p1"]);
-    const run = s.store.runs.get(launched.value.runId);
+    const run = s.store.runs.get(launched.value.runId as RunId);
     if (run === null) throw new Error("run was not stored");
     const snapshot = run.snapshot as {
       graph: { nodes: { id: string; cli?: string; model?: string; tier?: string }[] };
@@ -228,7 +228,7 @@ describe("model tiers at launch", () => {
     const launched = await s.engine.launch(input(loopWorkflow({ tier: "low" }), "tier-loop"));
     if (!launched.ok) throw launched.error;
     await launched.value.completion;
-    expect(JSON.stringify(s.store.runs.get(launched.value.runId)?.snapshot)).toContain(
+    expect(JSON.stringify(s.store.runs.get(launched.value.runId as RunId)?.snapshot)).toContain(
       '"cli":"codex"',
     );
   });
@@ -330,5 +330,146 @@ describe("model tiers in frozen bundles", () => {
         resolveModelTiers({ projectId: "p1", snapshot, source: source(mapped) }),
     });
     expect(JSON.stringify(frozen.bundle.kid)).toContain('"cli":"claude-code","model":"opus"');
+  });
+});
+
+describe("one tier mapping per launch", () => {
+  /** Hands out the first mapping, then the second on every later load. */
+  function changing(first: EffectiveModelTiers, later: EffectiveModelTiers) {
+    let loads = 0;
+    const src: ModelTierSource & { loads: () => number } = {
+      loads: () => loads,
+      load: async () => {
+        loads += 1;
+        return ok(loads === 1 ? first : later);
+      },
+    };
+    return src;
+  }
+  const other: EffectiveModelTiers = { high: { ref: { cli: "codex" }, source: "local" } };
+
+  it("memoizes the load, a failed one included, and stays lazy", async () => {
+    const calls: string[] = [];
+    const failing: ModelTierSource = {
+      load: async (projectId) => {
+        calls.push(projectId);
+        return err(new DevChestraError("E_MODEL_TIER", "broken settings"));
+      },
+    };
+    const wrapped = memoizeModelTierSource(failing);
+    if (wrapped === undefined) throw new Error("expected a wrapped source");
+    expect(calls).toEqual([]);
+    const a = await wrapped.load("p1");
+    const b = await wrapped.load("p1");
+    expect(a.ok).toBe(false);
+    expect(b).toBe(a);
+    expect(calls).toEqual(["p1"]);
+    expect(memoizeModelTierSource(undefined)).toBeUndefined();
+  });
+
+  it("applies the same mapping to the root and a child even if settings change between loads", async () => {
+    const tiers = changing(mapped, other);
+    const s = setup({ modelTiers: tiers });
+    const root = {
+      schemaVersion: 1,
+      id: "parent",
+      name: "Parent",
+      graph: {
+        nodes: [
+          { id: "start", type: "start", name: "Start", params: [] },
+          agentNode("rootwork", { tier: "high" }),
+          { id: "call", type: "workflow", name: "Call", workflowId: "kid", inputs: {} },
+          { id: "end", type: "end", name: "End", status: "success", result: "{}" },
+        ],
+        edges: [
+          { id: "e1", from: "start", to: "rootwork" },
+          { id: "e2", from: "rootwork", to: "call" },
+          { id: "e3", from: "call", to: "end" },
+        ],
+      },
+    };
+    const launched = await s.engine.launch({
+      ...input(root, "parent"),
+      workflowDependencies: { kid: flatWorkflow({ tier: "high" }) },
+    });
+    if (!launched.ok) throw launched.error;
+    await launched.value.completion;
+    expect(tiers.loads()).toBe(1);
+    const run = s.store.runs.get(launched.value.runId as RunId);
+    expect(JSON.stringify(run?.snapshot)).toContain('"cli":"claude-code","model":"opus"');
+    expect(
+      JSON.stringify(s.store.workflowCalls.getBundle(launched.value.runId as RunId)),
+    ).toContain('"cli":"claude-code","model":"opus"');
+  });
+
+  it("reads settings again on the next launch", async () => {
+    const tiers = changing(mapped, other);
+    const s = setup({ modelTiers: tiers });
+    for (const id of ["one", "two"]) {
+      const launched = await s.engine.launch(input(flatWorkflow({ tier: "high" }), id));
+      if (!launched.ok) throw launched.error;
+      await launched.value.completion;
+    }
+    expect(tiers.loads()).toBe(2);
+  });
+});
+
+describe("webhook retries and tiers", () => {
+  const fixture = { hookId: "whk_t", deliveryId: "d-1", fingerprint: "fp-1" };
+
+  function armedHook(s: Setup, snapshot: unknown): void {
+    s.store.webhooks.create({
+      hookId: fixture.hookId,
+      projectId: "p1",
+      workflowId: "tier-test",
+      signingSecret: "test-signing-secret",
+    });
+    s.store.webhooks.arm(fixture.hookId, {
+      armedRevision: "rev-1",
+      snapshot,
+      snapshotRaw: JSON.stringify(snapshot),
+      bundle: {},
+    });
+  }
+
+  it("returns the existing run for a retry even after the tier mapping was removed", async () => {
+    let tiers: EffectiveModelTiers = mapped;
+    let loads = 0;
+    const s = setup({
+      modelTiers: {
+        load: async () => {
+          loads += 1;
+          return ok(tiers);
+        },
+      },
+    });
+    const authored = flatWorkflow({ tier: "high" });
+    armedHook(s, authored);
+    const delivery = { ...fixture, armedRevision: "rev-1" };
+    const first = await s.engine.launch({ ...input(authored, "tier-test"), delivery });
+    if (!first.ok) throw first.error;
+    expect(first.value.duplicate).toBe(false);
+    await first.value.completion.catch(() => undefined);
+
+    tiers = {};
+    const loadsBefore = loads;
+    const retry = await s.engine.launch({ ...input(authored, "tier-test"), delivery });
+    if (!retry.ok) throw retry.error;
+    expect(retry.value.duplicate).toBe(true);
+    expect(retry.value.runId).toBe(first.value.runId);
+    expect(loads).toBe(loadsBefore);
+  });
+
+  it("still refuses a new delivery whose tier is unmapped", async () => {
+    const s = setup({ modelTiers: source({}) });
+    const authored = flatWorkflow({ tier: "high" });
+    armedHook(s, authored);
+    const launched = await s.engine.launch({
+      ...input(authored, "tier-test"),
+      delivery: { ...fixture, armedRevision: "rev-1" },
+    });
+    expect(launched.ok).toBe(false);
+    if (launched.ok) throw new Error("expected E_MODEL_TIER refusal");
+    expect(launched.error.code).toBe("E_MODEL_TIER");
   });
 });

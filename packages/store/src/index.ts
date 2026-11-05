@@ -126,5 +126,6 @@ export type {
   TriggerRuntime,
   WebhookClaim,
   WebhookClaimInput,
+  WebhookDuplicate,
 } from "./webhooks.js";
 export { WEBHOOK_DELIVERY_RETENTION_MS } from "./webhooks.js";
