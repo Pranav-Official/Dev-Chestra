@@ -359,7 +359,7 @@ function TierRow({
         id={selectId}
         className="input"
         data-testid={`settings-tier-cli-${rowId}`}
-        aria-label={`${label} provider`}
+        aria-label={`${label} provider, ${SCOPES[scope].title}`}
         value={cli ?? ""}
         disabled={disabled}
         onChange={(event) => {
@@ -382,6 +382,7 @@ function TierRow({
         <div className="tier-row-model" data-testid={`settings-tier-model-${rowId}`}>
           <AgentModelPicker
             id={`settings-tier-model-${rowId}`}
+            label={`${label} model, ${SCOPES[scope].title}`}
             cli={cli}
             cliLabel={PROD_CLI_LABELS[cli]}
             value={value?.model}

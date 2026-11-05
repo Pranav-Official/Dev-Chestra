@@ -19,6 +19,7 @@ import type { CatalogLoading } from "./model/useCliModelCatalog.js";
 
 export interface AgentModelPickerProps {
   id: string;
+  label?: string | undefined;
   cli: AgentCli;
   cliLabel: string;
   value: string | undefined;
@@ -184,6 +185,7 @@ function footerTitle(catalog: CliModelCatalog | null): string | undefined {
 
 export function AgentModelPicker({
   id,
+  label,
   cli,
   cliLabel,
   value,
@@ -421,6 +423,18 @@ export function AgentModelPicker({
         id={id}
         type="button"
         className="model-picker-trigger"
+        aria-label={
+          label === undefined
+            ? undefined
+            : [
+                label,
+                isDefault ? "CLI default" : isUnknown ? "Custom" : selectedItem?.label,
+                value !== undefined && value !== selectedItem?.label ? value : undefined,
+                isUnknown && catalog !== null ? "not in catalog" : undefined,
+              ]
+                .filter(Boolean)
+                .join(", ")
+        }
         data-testid="inspector-agent-model-trigger"
         aria-haspopup="listbox"
         aria-expanded={isOpen}

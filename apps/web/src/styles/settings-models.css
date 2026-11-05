@@ -47,9 +47,7 @@
 
 .tier-result-value {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 /* A row without a provider icon still lines its value up with rows that have one. */

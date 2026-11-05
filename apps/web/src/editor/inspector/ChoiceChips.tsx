@@ -92,6 +92,7 @@ export function ChoiceChips<T extends string>({
             aria-checked={selected}
             tabIndex={selected || (selectedIndex === -1 && index === 0) ? 0 : -1}
             className="provider-chip"
+            data-tagged={option.tag === undefined ? undefined : "true"}
             data-selected={selected ? "true" : undefined}
             data-testid={`${testId}-${option.id}`}
             onClick={() => {
