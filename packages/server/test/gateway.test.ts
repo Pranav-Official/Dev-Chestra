@@ -319,6 +319,7 @@ describe("agent gateway authentication and transport hardening", () => {
 
   it("times out a stalled submission", async () => {
     const stalled: SubmissionPort = {
+      get: () => null,
       submit: (() => new Promise<never>(() => undefined)) as unknown as SubmissionPort["submit"],
       accepted: () => null,
       validationLeft: () => 1,

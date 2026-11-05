@@ -445,6 +445,8 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
         );
       }
 
+      // Synchronous reservation shares the exec namespace before submit can await or write.
+      tokens.claimSubmission(execToken, callId, args, now());
       const identity = scope.identity;
       const compiled = validator.compile(scope.outputSchema);
       const validation = compiled.validate(args);
@@ -579,6 +581,10 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
     }
     if (!sameScope(current, scope) || current.shell === undefined) {
       throw new DevChestraError("E_CONFLICT", "This execution is no longer current.");
+    }
+    // Durable submission receipts also protect reminted tokens after a gateway restart.
+    if (submissions.get(current.identity, callId) !== null) {
+      throw new DevChestraError("E_CONFLICT", "Call ID was already used by submit_result.");
     }
     const command = args.command;
     const shell = current.shell;

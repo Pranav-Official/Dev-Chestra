@@ -44,6 +44,7 @@ function workspace(): string {
 }
 
 const submissions: SubmissionPort = {
+  get: () => null,
   submit: () => {
     throw new Error("submit must not be called by exec tests");
   },
