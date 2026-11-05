@@ -11,6 +11,26 @@ export type ProdCliId = (typeof PROD_CLIS)[number];
 /** Back-compat alias of {@link ProdCliId} for workflow shape fields. */
 export type AgentCli = ProdCliId;
 
+/** Machine-mapped model tiers an agent node can name instead of a fixed provider and model.
+ * This is the only declaration of the set. */
+export const MODEL_TIERS = ["high", "medium", "low"] as const;
+
+export type ModelTierId = (typeof MODEL_TIERS)[number];
+
+/** Display labels, keyed by {@link ModelTierId}. */
+export const MODEL_TIER_LABELS: Record<ModelTierId, string> = {
+  high: "High",
+  medium: "Medium",
+  low: "Low",
+};
+
+const modelTierIds: readonly string[] = MODEL_TIERS;
+
+/** Type guard for {@link ModelTierId}. */
+export function isModelTierId(value: unknown): value is ModelTierId {
+  return typeof value === "string" && modelTierIds.includes(value);
+}
+
 /** Canonical display labels, keyed by {@link ProdCliId}. Provider metadata
  * and the web offline fallback both read these, so each label string is
  * declared exactly once. */
@@ -190,7 +210,10 @@ export interface AgentContext {
 
 export interface AgentNode extends NodeBase {
   type: "agent";
-  cli: AgentCli;
+  /** Set `cli` (and optionally `model`) for a fixed provider, or `tier` to use this machine's mapping. Exactly one. */
+  cli?: AgentCli;
+  /** Model tier resolved from the project's settings when a run starts. Excludes `cli` and `model`. */
+  tier?: ModelTierId;
   model?: string;
   prompt?: string;
   promptFile?: string;
@@ -407,7 +430,10 @@ export interface NormalizedStartNode extends NormalizedNodeBase {
 
 export interface NormalizedAgentNode extends NormalizedNodeBase {
   type: "agent";
-  cli: AgentCli;
+  /** Absent on a tiered node until the engine resolves it when a run starts. */
+  cli?: AgentCli;
+  /** Present until a run starts; the engine replaces it with `cli` and `model` from settings. */
+  tier?: ModelTierId;
   model?: string;
   prompt: string;
   output: JsonSchemaObject;
@@ -538,6 +564,8 @@ export interface Issue {
 
 export interface RequiresSummary {
   clis: AgentCli[];
+  /** Model tiers the workflow's agent nodes use; each must be mapped in settings on the machine that runs it. */
+  tiers: ModelTierId[];
   /** Legacy per-node metadata only; ignored for fresh run-level workspaces. */
   networkNodes: { nodeId: string; name: string }[];
   shellCommands: { nodeId: string; command: string; rawSubstitution: boolean }[];

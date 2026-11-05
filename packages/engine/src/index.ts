@@ -2,6 +2,7 @@ export * from "./engine.js";
 export * from "./exec-approval.js";
 export * from "./exec-decision.js";
 export { freezeWorkflowBundle } from "./freeze.js";
+export { resolveModelTiers } from "./model-tiers.js";
 export * from "./node-config.js";
 export * from "./plan.js";
 export * from "./probe.js";

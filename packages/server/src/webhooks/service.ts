@@ -619,7 +619,12 @@ function launchError(error: unknown): DevChestraError | null {
       reason === undefined ? undefined : { reason },
     );
   }
-  if (code === "E_CLI_DISABLED" || code === "E_WORKFLOW_INVALID" || code === "E_VALIDATION") {
+  if (
+    code === "E_CLI_DISABLED" ||
+    code === "E_MODEL_TIER" ||
+    code === "E_WORKFLOW_INVALID" ||
+    code === "E_VALIDATION"
+  ) {
     return new DevChestraError(code, messageOf(error));
   }
   return null;

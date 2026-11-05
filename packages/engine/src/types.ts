@@ -13,6 +13,7 @@ import type {
 } from "@devchestra/core";
 import type { DecisionService } from "@devchestra/decisions";
 import type {
+  EffectiveModelTiers,
   McpScope,
   McpSelection,
   NormalizedWorkflow,
@@ -129,6 +130,15 @@ export interface WorkflowResolver {
   ): Promise<Result<ResolvedChildWorkflow, DevChestraError>>;
 }
 
+/**
+ * Source of the project's effective model-tier mapping (committed settings merged with
+ * the machine-local file). The engine reads it once when a run is launched, so a settings
+ * edit made mid-run never changes a run that already started.
+ */
+export interface ModelTierSource {
+  load(projectId: string): Promise<Result<EffectiveModelTiers, DevChestraError>>;
+}
+
 export interface EngineDeps {
   readonly store: Store;
   readonly adapters: AdapterRegistry;
@@ -166,6 +176,8 @@ export interface EngineDeps {
   readonly mcpResolver?: McpResolver;
   /** Project-bound child workflow reader; required when a plan contains workflow/foreach bodies. */
   readonly workflowResolver?: WorkflowResolver;
+  /** Model-tier mapping for agent nodes that name a tier. Without it such a workflow cannot launch. */
+  readonly modelTiers?: ModelTierSource;
 }
 
 export interface RunIdempotency {

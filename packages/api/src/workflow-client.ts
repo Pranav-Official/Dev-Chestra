@@ -26,6 +26,15 @@ import {
 } from "./poll-dto.js";
 import { etagSchema, quoteEtag } from "./primitives.js";
 import {
+  type EffectiveSettingsResponse,
+  effectiveSettingsResponseSchema,
+  type SettingsDocument,
+  type SettingsResponse,
+  type SettingsScopeValue,
+  settingsDocumentSchema,
+  settingsResponseSchema,
+} from "./settings-dto.js";
+import {
   type ExecutionSettings,
   type ExecutionSettingsResponse,
   executionSettingsResponseSchema,
@@ -75,6 +84,52 @@ export interface StartWorkflowOptions extends ApiRequestOptions {
  * source file small. The base owns transport, auth, CSRF and ETag header rules.
  */
 export class ApiClient extends ApiClientBase {
+  getSettings(
+    projectId: string,
+    scope: SettingsScopeValue,
+    options: ApiRequestOptions = {},
+  ): Promise<SettingsResponse> {
+    return this.request(
+      "GET",
+      ["projects", projectId, "settings", scope],
+      settingsResponseSchema,
+      this.req(options),
+    );
+  }
+
+  saveSettings(
+    projectId: string,
+    scope: SettingsScopeValue,
+    document: SettingsDocument,
+    ifMatch: string,
+  ): Promise<SettingsResponse> {
+    return this.request(
+      "PUT",
+      ["projects", projectId, "settings", scope],
+      settingsResponseSchema,
+      this.req(
+        {},
+        {
+          body: settingsDocumentSchema.parse(document),
+          mutation: true,
+          extraHeaders: { [IF_MATCH_HEADER]: quoteEtag(etagSchema.parse(ifMatch)) },
+        },
+      ),
+    );
+  }
+
+  getEffectiveSettings(
+    projectId: string,
+    options: ApiRequestOptions = {},
+  ): Promise<EffectiveSettingsResponse> {
+    return this.request(
+      "GET",
+      ["projects", projectId, "settings", "effective"],
+      effectiveSettingsResponseSchema,
+      this.req(options),
+    );
+  }
+
   getWorkflowGroups(
     projectId: string,
     options: ApiRequestOptions = {},

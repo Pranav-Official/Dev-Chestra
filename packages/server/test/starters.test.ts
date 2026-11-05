@@ -1,7 +1,8 @@
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { validateWorkflow } from "@devchestra/schema";
+import { validateWorkflow, workflowNodes } from "@devchestra/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { BrowserQueryPort, ProjectView } from "../src/index.js";
 import { type RunningBrowserServer, startBrowserServer } from "../src/index.js";
@@ -42,12 +43,23 @@ async function seeded(): Promise<string[]> {
 describe("starter templates", () => {
   for (const kind of ["git", "folder"] as const) {
     it(`validate cleanly for a ${kind} project`, () => {
-      for (const workflow of starterWorkflows({ cli: "claude-code", testCommand: "npm test" })) {
+      for (const workflow of starterWorkflows({ testCommand: "npm test" })) {
         const report = validateWorkflow(workflow, { projectKind: kind });
         expect(report.errors, workflow.id).toEqual([]);
       }
     });
   }
+
+  it("names model tiers instead of a provider so the starters stay portable", () => {
+    for (const workflow of starterWorkflows({ testCommand: "npm test" })) {
+      const agents = [...workflowNodes(workflow.graph)].filter((node) => node.type === "agent");
+      expect(agents.length, workflow.id).toBeGreaterThan(0);
+      for (const agent of agents) {
+        expect(agent, workflow.id).toHaveProperty("tier");
+        expect(agent, workflow.id).not.toHaveProperty("cli");
+      }
+    }
+  });
 
   it("picks the first ready, enabled CLI and falls back to claude-code", () => {
     expect(pickStarterCli(new Set(["pi", "codex"]))).toBe("codex");
@@ -64,12 +76,12 @@ describe("starter templates", () => {
   it("seeds once and never overwrites an existing workflow", async () => {
     const service = new ManagedWorkflowService({ dataDir });
     const project = { id: "p", path: projectPath, kind: "folder" as const, missing: false };
-    expect(await seedStarterWorkflows(service, project, { cli: "codex" })).toEqual({
+    expect(await seedStarterWorkflows(service, project)).toEqual({
       created: ["project-tour", "fix-until-green"],
       failed: [],
     });
     expect(await seeded()).toEqual(["fix-until-green.json", "project-tour.json"]);
-    expect(await seedStarterWorkflows(service, project, { cli: "codex" })).toEqual({
+    expect(await seedStarterWorkflows(service, project)).toEqual({
       created: [],
       failed: [],
     });
@@ -137,21 +149,46 @@ describe("POST /api/projects seeding", () => {
     });
   }
 
-  it("seeds a new project with the first detected CLI, and skips re-registration", async () => {
+  it("seeds a new project with tiered starters mapped to the first detected CLI, and skips re-registration", async () => {
     expect((await register({ path: projectPath })).status).toBe(200);
     expect(await seeded()).toEqual(["fix-until-green.json", "project-tour.json"]);
     const tour = await readFile(
       join(projectPath, ".devchestra/workflows/project-tour.json"),
       "utf8",
     );
-    expect(tour).toContain('"cli": "codex"');
+    expect(tour).toContain('"tier": "medium"');
+    expect(tour).not.toContain('"cli"');
+    const local = JSON.parse(
+      await readFile(join(projectPath, ".devchestra/settings.local.json"), "utf8"),
+    );
+    expect(local).toEqual({
+      version: 1,
+      models: { high: { cli: "codex" }, medium: { cli: "codex" }, low: { cli: "codex" } },
+    });
+    expect(await readFile(join(projectPath, ".devchestra/.gitignore"), "utf8")).toContain(
+      "settings.local.json",
+    );
     await rm(join(projectPath, ".devchestra"), { recursive: true });
     expect((await register({ path: projectPath })).status).toBe(200);
     expect(await seeded()).toEqual([]);
   });
 
-  it("does not seed when seedStarters is false", async () => {
+  it("writes nothing into the project when seedStarters is false", async () => {
     expect((await register({ path: projectPath, seedStarters: false })).status).toBe(200);
     expect(await seeded()).toEqual([]);
+    expect(existsSync(join(projectPath, ".devchestra"))).toBe(false);
+  });
+
+  it("keeps tiers a committed settings file already maps", async () => {
+    await mkdir(join(projectPath, ".devchestra"), { recursive: true });
+    await writeFile(
+      join(projectPath, ".devchestra/settings.json"),
+      JSON.stringify({ version: 1, models: { high: { cli: "claude-code", model: "opus" } } }),
+    );
+    expect((await register({ path: projectPath })).status).toBe(200);
+    const local = JSON.parse(
+      await readFile(join(projectPath, ".devchestra/settings.local.json"), "utf8"),
+    );
+    expect(local.models).toEqual({ medium: { cli: "codex" }, low: { cli: "codex" } });
   });
 });

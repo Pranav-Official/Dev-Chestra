@@ -338,7 +338,7 @@ Usage:
   devchestra version
   devchestra skill [<name>|--all]
   devchestra capabilities --json
-  devchestra project|workflow|run|approval|providers --help
+  devchestra project|workflow|run|approval|providers|settings --help
 
 Options:
   --port N                    Start only: 0 = ephemeral; on EADDRINUSE retries ephemeral

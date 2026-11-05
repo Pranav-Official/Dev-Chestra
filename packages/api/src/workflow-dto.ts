@@ -5,7 +5,7 @@ import type {
   ValidationReport,
   WorkflowFile,
 } from "@devchestra/schema";
-import { PROD_CLIS, parseWorkflowDraft } from "@devchestra/schema";
+import { MODEL_TIERS, PROD_CLIS, parseWorkflowDraft } from "@devchestra/schema";
 import { relativeWorkflowFileSchema } from "./dto.js";
 import {
   cursorQuerySchema,
@@ -45,6 +45,7 @@ export const workflowIssueSchema = strict({
 
 export const requiresSummarySchema = strict({
   clis: z.array(agentCliSchema) as unknown as z.ZodType<AgentCli[]>,
+  tiers: z.array(z.enum(MODEL_TIERS)),
   networkNodes: z.array(strict({ nodeId: z.string(), name: z.string() })),
   shellCommands: z.array(
     strict({ nodeId: z.string(), command: z.string(), rawSubstitution: z.boolean() }),

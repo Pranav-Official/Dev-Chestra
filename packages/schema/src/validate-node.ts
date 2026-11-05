@@ -18,7 +18,14 @@ import type {
   StartNode,
   WorkflowNode,
 } from "./types.js";
-import { MCP_SCOPES, PROD_CLI_LABELS, PROD_CLIS, type ValidationContext } from "./types.js";
+import {
+  isModelTierId,
+  MCP_SCOPES,
+  MODEL_TIERS,
+  PROD_CLI_LABELS,
+  PROD_CLIS,
+  type ValidationContext,
+} from "./types.js";
 import { validateApproval } from "./validate-approval.js";
 import { validateDecision } from "./validate-decision.js";
 import {
@@ -222,7 +229,38 @@ export function validateSingleNode(
   if (node.type === "agent") {
     const agent = node as AgentNode;
     const prodClis: readonly string[] = PROD_CLIS;
-    if (!prodClis.includes(agent.cli)) {
+    const tiered = agent.tier !== undefined;
+    if (tiered) {
+      if (!isModelTierId(agent.tier)) {
+        addError(
+          issue(
+            "error",
+            "E_WORKFLOW_INVALID",
+            `Agent tier '${String(agent.tier)}' is not supported; use ${MODEL_TIERS.join(", ")}.`,
+            `${pointer}/tier`,
+            node.id,
+          ),
+        );
+      }
+      for (const field of ["cli", "model"] as const) {
+        if (agent[field] !== undefined) {
+          addError(
+            issue(
+              "error",
+              "E_WORKFLOW_INVALID",
+              `An agent with a tier must not set ${field}; the tier supplies the provider and model on each machine.`,
+              `${pointer}/${field}`,
+              node.id,
+            ),
+          );
+        }
+      }
+    }
+    if (!tiered && agent.cli === undefined) {
+      addError(
+        issue("error", "E_WORKFLOW_INVALID", "Agent must set cli or tier.", `${pointer}`, node.id),
+      );
+    } else if (!tiered && agent.cli !== undefined && !prodClis.includes(agent.cli)) {
       if (agent.cli === ("fake" as string)) {
         addWarning(
           issue(
@@ -245,7 +283,7 @@ export function validateSingleNode(
         );
       }
     }
-    if (ctx.disabledClis?.includes(agent.cli)) {
+    if (agent.cli !== undefined && ctx.disabledClis?.includes(agent.cli)) {
       const label = PROD_CLI_LABELS[agent.cli] ?? agent.cli;
       addWarning(
         issue(

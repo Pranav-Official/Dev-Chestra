@@ -92,6 +92,7 @@ export function exitCodeForError(error: unknown): ExitCode {
     code === "E_FORBIDDEN_PATH" ||
     code === "E_CLI_MISSING" ||
     code === "E_CLI_DISABLED" ||
+    code === "E_MODEL_TIER" ||
     code === "E_WORKSPACE" ||
     code === "E_EXPR" ||
     code === "E_LOCKED" ||

@@ -18,6 +18,7 @@ export * from "./parse.js";
 export * from "./poll.js";
 export * from "./requires.js";
 export * from "./serialize.js";
+export * from "./settings.js";
 export * from "./template.js";
 export * from "./types.js";
 export * from "./validate.js";

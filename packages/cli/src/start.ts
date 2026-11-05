@@ -310,7 +310,14 @@ function controllerFor(
               },
             }),
       });
-      if (!launched.ok) throw launched.error;
+      if (!launched.ok) {
+        // These two carry a message written for a person (which tier or provider to fix).
+        const code = launched.error.code;
+        if (code === "E_MODEL_TIER" || code === "E_CLI_DISABLED") {
+          throw new ServerDevChestraError(code, launched.error.message, launched.error.details);
+        }
+        throw launched.error;
+      }
       observe(launched.value.runId, launched.value.completion);
       return {
         runId: launched.value.runId as RunId,

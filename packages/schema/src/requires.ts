@@ -1,4 +1,10 @@
-import type { AgentCli, RequiresSummary, WorkflowBudget, WorkflowNode } from "./types.js";
+import type {
+  AgentCli,
+  ModelTierId,
+  RequiresSummary,
+  WorkflowBudget,
+  WorkflowNode,
+} from "./types.js";
 
 function byNodeId<T extends { nodeId: string }>(items: T[]): T[] {
   return items.sort((left, right) => left.nodeId.localeCompare(right.nodeId));
@@ -31,6 +37,7 @@ export function buildRequires(
   budget?: WorkflowBudget,
 ): RequiresSummary {
   const clis = new Set<AgentCli>();
+  const tiers = new Set<ModelTierId>();
   const envVars = new Set<string>();
   const networkNodes: { nodeId: string; name: string }[] = [];
   const shellCommands: { nodeId: string; command: string; rawSubstitution: boolean }[] = [];
@@ -44,7 +51,8 @@ export function buildRequires(
       irreversibleApprovals.push(node.id);
     }
     if (node.type === "agent") {
-      clis.add(node.cli);
+      if (node.cli !== undefined) clis.add(node.cli);
+      if (node.tier !== undefined) tiers.add(node.tier);
       if (node.permissions.network) {
         networkNodes.push({ nodeId: node.id, name: node.name });
       }
@@ -64,6 +72,7 @@ export function buildRequires(
 
   return {
     clis: [...clis].sort(),
+    tiers: [...tiers].sort(),
     networkNodes: byNodeId(networkNodes),
     shellCommands: byNodeId(shellCommands),
     projectWriteNodes: byNodeId(projectWriteNodes),

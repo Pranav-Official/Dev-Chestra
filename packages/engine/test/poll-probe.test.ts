@@ -237,6 +237,25 @@ describe("buildProbeSnapshot", () => {
     });
   });
 
+  it("keeps a probe's tier so each machine resolves it when the probe launches", () => {
+    const snap = buildProbeSnapshot(
+      "wf",
+      START,
+      {
+        id: "probe",
+        type: "agent",
+        name: "Poll probe",
+        tier: "low",
+        prompt: "Check.",
+        permissions: { network: true, write: [], shell: true },
+      } as unknown as PollProbe,
+      2,
+    );
+    const probe = snap.graph.nodes.find((node) => node.id === POLL_PROBE_NODE_ID);
+    expect(probe).toMatchObject({ type: "agent", tier: "low" });
+    expect(probe).not.toHaveProperty("cli");
+  });
+
   it("refuses a snapshot without a start node", () => {
     expect(() =>
       probeStartNode({ schemaVersion: 1, id: "x", name: "x", graph: { nodes: [], edges: [] } }),

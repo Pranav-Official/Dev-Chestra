@@ -1,6 +1,12 @@
 import { DevChestraError, err, ok, type Result } from "@devchestra/core";
 import { MAX_WORKFLOW_FILE_BYTES } from "./ids.js";
-import { DECISION_PROVIDERS, POLL_PROBE_ID, PROD_CLIS, type WorkflowFile } from "./types.js";
+import {
+  DECISION_PROVIDERS,
+  MODEL_TIERS,
+  POLL_PROBE_ID,
+  PROD_CLIS,
+  type WorkflowFile,
+} from "./types.js";
 import { z } from "./zod.js";
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -174,7 +180,8 @@ const pollAgentProbeSchema = z.strictObject({
   type: z.literal("agent"),
   // Structural parse allows fake everywhere (warning in validateWorkflow).
   // Run-time layers enforce the DEVCHESTRA_ALLOW_FAKE=1 test-only gate.
-  cli: z.enum([...PROD_CLIS, "fake"]),
+  cli: z.enum([...PROD_CLIS, "fake"]).optional(),
+  tier: z.enum(MODEL_TIERS).optional(),
   model: z.string().optional(),
   prompt: z.string().optional(),
   permissions: pollAgentPermissionsSchema.optional(),
@@ -223,7 +230,8 @@ const agentNodeSchema = z.strictObject({
   // Run-time layers (CLI startup/run gates, adapter registry) enforce the
   // DEVCHESTRA_ALLOW_FAKE=1 test-only requirement; API DTO schemas keep their own
   // gate for direct API writes.
-  cli: z.enum([...PROD_CLIS, "fake"]),
+  cli: z.enum([...PROD_CLIS, "fake"]).optional(),
+  tier: z.enum(MODEL_TIERS).optional(),
   model: z.string().optional(),
   prompt: z.string().optional(),
   promptFile: z.string().optional(),
