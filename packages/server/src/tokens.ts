@@ -46,7 +46,25 @@ export interface ExecScope {
   shell?: ExecShellScope;
 }
 
+/** Most distinct exec calls one token may issue. */
+export const EXEC_CALL_LIMIT = 1000;
+/**
+ * Most completed exec output one token keeps for replaying a retried call. Past it, the oldest
+ * results are replaced by a short marker; a retry of such a call is answered with the marker and
+ * never runs the command again.
+ */
+export const EXEC_RECEIPT_BUDGET_BYTES = 4 * 1024 * 1024;
+const EXEC_EVICTED_OUTCOME: ExecOutcome = {
+  text: "The output of this call is no longer retained. It already ran; do not repeat it.",
+  isError: true,
+};
+
+/** Tools that share one call-id namespace per token. */
+export type CallTool = "exec" | "submit_result";
+
 export interface ExecTokenRegistryOptions {
+  /** Retained exec output per token, in bytes. Defaults to {@link EXEC_RECEIPT_BUDGET_BYTES}. */
+  execReceiptBudgetBytes?: number;
   /**
    * Optional persistence-sink hook. The composition root registers the bearer
    * with the store's secret guard and receives a release callback. The token
@@ -55,12 +73,23 @@ export interface ExecTokenRegistryOptions {
   registerSecret?: (token: string, name?: string) => (() => void) | undefined;
 }
 
+interface ExecCall {
+  /** sha256 of the command, so a reused id with other arguments is caught without keeping the text. */
+  fingerprint: string;
+  result: Promise<ExecOutcome>;
+  /** Bytes of retained output; zero until the call completes. */
+  bytes: number;
+}
+
 interface TokenEntry {
   digest: Buffer;
   scope: ExecScope;
   release?: () => void;
   abort: AbortController;
-  calls: Map<string, { command: string; result: Promise<ExecOutcome> }>;
+  calls: Map<string, ExecCall>;
+  retainedBytes: number;
+  /** Ids already used for submit_result; an exec may not reuse them. */
+  submitCalls: Set<string>;
 }
 
 function digestToken(token: string): Buffer {
@@ -172,9 +201,11 @@ export class ExecTokenRegistry {
   readonly #entries = new Map<string, TokenEntry>();
   readonly #retired = new Map<string, TokenEntry>();
   readonly #registerSecret: ExecTokenRegistryOptions["registerSecret"];
+  readonly #receiptBudget: number;
 
   constructor(options: ExecTokenRegistryOptions = {}) {
     this.#registerSecret = options.registerSecret;
+    this.#receiptBudget = options.execReceiptBudgetBytes ?? EXEC_RECEIPT_BUDGET_BYTES;
   }
 
   issue(scope: ExecScope, now: number = Date.now()): string {
@@ -187,6 +218,8 @@ export class ExecTokenRegistry {
       scope: frozen,
       abort: new AbortController(),
       calls: new Map(),
+      retainedBytes: 0,
+      submitCalls: new Set(),
     };
     if (typeof release === "function") {
       entry.release = release;
@@ -216,7 +249,11 @@ export class ExecTokenRegistry {
     return entry.scope;
   }
 
-  /** Join duplicate calls for this token; never repeat a side effect on transport retry. */
+  /**
+   * Join duplicate calls for this token; never repeat a side effect on transport retry. The
+   * registry keeps only a fingerprint of the command and a bounded amount of finished output, so
+   * a client cannot grow server memory by issuing many or large calls.
+   */
   execute(
     token: string,
     callId: string,
@@ -229,20 +266,65 @@ export class ExecTokenRegistry {
     const entry = this.#entries.get(digestToken(token).toString("hex"));
     if (entry === undefined)
       throw new DevChestraError("E_AUTH", "The execution token is no longer valid.");
+    const fingerprint = createHash("sha256").update(command).digest("hex");
     const existing = entry.calls.get(callId);
     if (existing !== undefined) {
-      if (existing.command !== command)
+      if (existing.fingerprint !== fingerprint)
         throw new DevChestraError(
           "E_CONFLICT",
           "Call ID was already used with different arguments.",
         );
       return existing.result;
     }
-    if (entry.calls.size >= 1000)
+    if (entry.submitCalls.has(callId))
+      throw new DevChestraError("E_CONFLICT", "Call ID was already used by a different tool.");
+    if (entry.calls.size >= EXEC_CALL_LIMIT)
       throw new DevChestraError("E_FORBIDDEN", "Execution call limit reached.");
-    const result = Promise.resolve().then(() => run(entry.abort.signal));
-    entry.calls.set(callId, { command, result });
-    return result;
+    const call: ExecCall = {
+      fingerprint,
+      result: Promise.resolve().then(() => run(entry.abort.signal)),
+      bytes: 0,
+    };
+    entry.calls.set(callId, call);
+    void call.result.then(
+      (outcome) => {
+        call.bytes = Buffer.byteLength(outcome.text);
+        entry.retainedBytes += call.bytes;
+        this.#trim(entry);
+      },
+      () => undefined,
+    );
+    return call.result;
+  }
+
+  /**
+   * Claim a call id for submit_result. An id already used by an exec is refused, so one id can
+   * never trigger two different tools. The same tool may reuse its own id (a retry).
+   */
+  claimSubmitCall(token: string, callId: string, now: number): void {
+    if (this.resolve(token, now) === null)
+      throw new DevChestraError("E_AUTH", "The execution token is no longer valid.");
+    const entry = this.#entries.get(digestToken(token).toString("hex"));
+    if (entry === undefined)
+      throw new DevChestraError("E_AUTH", "The execution token is no longer valid.");
+    if (entry.calls.has(callId))
+      throw new DevChestraError("E_CONFLICT", "Call ID was already used by a different tool.");
+    if (entry.submitCalls.size >= EXEC_CALL_LIMIT && !entry.submitCalls.has(callId))
+      throw new DevChestraError("E_FORBIDDEN", "Call limit reached.");
+    entry.submitCalls.add(callId);
+  }
+
+  /** Replace the oldest finished results with a marker until the retained output fits the budget. */
+  #trim(entry: TokenEntry): void {
+    if (entry.retainedBytes <= this.#receiptBudget) return;
+    const markerBytes = Buffer.byteLength(EXEC_EVICTED_OUTCOME.text);
+    for (const call of entry.calls.values()) {
+      if (entry.retainedBytes <= this.#receiptBudget) return;
+      if (call.bytes <= markerBytes) continue;
+      entry.retainedBytes -= call.bytes - markerBytes;
+      call.bytes = markerBytes;
+      call.result = Promise.resolve(EXEC_EVICTED_OUTCOME);
+    }
   }
 
   /** Wait until all commands stopped after token revocation. */

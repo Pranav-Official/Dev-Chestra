@@ -47,6 +47,7 @@ const submissions: SubmissionPort = {
   submit: () => {
     throw new Error("submit must not be called by exec tests");
   },
+  get: () => null,
 } as unknown as SubmissionPort;
 
 interface Rig {
@@ -65,11 +66,17 @@ function makeRig(
     maxOutputBytes?: number;
     execPlatform?: NodeJS.Platform;
     withShell?: boolean;
+    submissions?: SubmissionPort;
+    execReceiptBudgetBytes?: number;
   } = {},
 ): Rig & { token: string; tokens: ExecTokenRegistry } {
   const cwd = options.cwd ?? workspace();
   const events: ExecToolEvent[] = [];
-  const tokens = new ExecTokenRegistry();
+  const tokens = new ExecTokenRegistry(
+    options.execReceiptBudgetBytes === undefined
+      ? {}
+      : { execReceiptBudgetBytes: options.execReceiptBudgetBytes },
+  );
   const shell: ExecShellScope = {
     policy: options.policy ?? {
       allow: ["^echo .+$", "^pwd$", "^env$", "^seq .+$", "^sleep .+$", "^ls .+$"],
@@ -92,7 +99,7 @@ function makeRig(
   const token = tokens.issue(scope);
   const app = createAgentGateway({
     tokens,
-    submissions,
+    submissions: options.submissions ?? submissions,
     validator: new OutputValidator(),
     port: PORT,
     rateLimit: { capacity: 1000, refillPerSecond: 1000 },
@@ -208,6 +215,95 @@ describe("exec retries and revocation", () => {
     expect(body.isError).toBe(true);
     expect(body.content[0]?.text).toContain("cancelled");
     expect(rig.events.some((event) => event.kind === "tool_result")).toBe(true);
+  });
+});
+
+describe("exec receipt memory", () => {
+  it("denies an oversized command without running it or retaining it", async () => {
+    const rig = makeRig();
+    const huge = `echo ${"x".repeat(5_000)}`;
+    const first = await run(rig, huge);
+    expect(first.isError).toBe(true);
+    expect(first.text).toContain("4096-byte limit");
+    // Nothing was retained, so the same id may be reused with a different command.
+    const reuse = await exec(rig, rig.token, { command: "echo small" }, "reused");
+    const again = await exec(rig, rig.token, { command: huge }, "reused");
+    expect(reuse.status).toBe(200);
+    expect(again.status).toBe(200);
+    expect(rig.events.filter((event) => event.kind === "tool")).toHaveLength(3);
+  });
+
+  it("keeps a bounded amount of finished output and never reruns an evicted call", async () => {
+    const rig = makeRig({ execReceiptBudgetBytes: 1_500 });
+    const text = async (callId: string, command: string) =>
+      (
+        (await (await exec(rig, rig.token, { command }, callId)).json()) as {
+          content: { text: string }[];
+        }
+      ).content[0]?.text ?? "";
+    const long = "y".repeat(800);
+    expect(await text("c1", `echo ${long}`)).toContain(long);
+    expect(await text("c2", `echo ${long}`)).toContain(long);
+    expect(await text("c3", `echo ${long}`)).toContain(long);
+    // c1 and c2 were pushed out of the budget; c3 is the newest and is still kept whole.
+    const calls = rig.events.filter((event) => event.kind === "tool").length;
+    expect(await text("c1", `echo ${long}`)).toContain("no longer retained");
+    expect(await text("c3", `echo ${long}`)).toContain(long);
+    expect(rig.events.filter((event) => event.kind === "tool")).toHaveLength(calls);
+    const conflict = await exec(rig, rig.token, { command: "echo other" }, "c1");
+    expect(conflict.status).toBe(409);
+  });
+});
+
+describe("exec and submit_result share one call-id namespace", () => {
+  async function submit(rig: { app: Rig["app"]; token: string }, callId: string) {
+    return rig.app.request(`http://127.0.0.1:${PORT}/internal/agent/call`, {
+      method: "POST",
+      headers: {
+        Host: `127.0.0.1:${PORT}`,
+        Authorization: `Bearer ${rig.token}`,
+        "Content-Type": "application/json",
+        "X-DevChestra-Call-Id": callId,
+      },
+      body: JSON.stringify({ name: "submit_result", arguments: { answer: "ok" } }),
+    });
+  }
+
+  it("refuses to submit with an id an exec already used", async () => {
+    const rig = makeRig();
+    expect((await exec(rig, rig.token, { command: "echo hi" }, "shared")).status).toBe(200);
+    // The submissions double throws if reached, so a 409 proves the store was never called.
+    const res = await submit(rig, "shared");
+    expect(res.status).toBe(409);
+  });
+
+  it("refuses to exec with an id a submission already used", async () => {
+    const rig = makeRig({
+      submissions: {
+        submit: () => {
+          throw new Error("unused");
+        },
+        get: () => ({ callId: "shared" }),
+      } as unknown as SubmissionPort,
+    });
+    const res = await exec(rig, rig.token, { command: "echo hi" }, "shared");
+    expect(res.status).toBe(409);
+    expect(rig.events).toHaveLength(0);
+  });
+
+  it("refuses to exec with an id this token already claimed for a submission", async () => {
+    const rig = makeRig({
+      submissions: {
+        submit: () => ({ kind: "accepted", duplicate: false }),
+        get: () => null,
+        accepted: () => null,
+        validationLeft: () => 1,
+      } as unknown as SubmissionPort,
+    });
+    expect((await submit(rig, "claimed")).status).toBe(200);
+    const res = await exec(rig, rig.token, { command: "echo hi" }, "claimed");
+    expect(res.status).toBe(409);
+    expect(rig.events).toHaveLength(0);
   });
 });
 

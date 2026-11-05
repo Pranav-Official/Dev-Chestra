@@ -11,7 +11,7 @@ import type {
  * may pass a structural double. Types come from @devchestra/store so the gateway
  * never grows a second copy of the durable submission contract.
  */
-export type SubmissionPort = Pick<SubmissionsApi, "submit" | "accepted" | "validationLeft">;
+export type SubmissionPort = Pick<SubmissionsApi, "submit" | "get" | "accepted" | "validationLeft">;
 
 export type SubmissionRequest = {
   name: string;

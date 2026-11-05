@@ -1,4 +1,5 @@
 import { isRecord } from "@devchestra/core";
+import { SHELL_POLICY_MAX_COMMAND_BYTES } from "@devchestra/schema";
 import { type Context, Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { DevChestraError, devchestraErrorCode, errorBody, toDevChestraError } from "./errors.js";
@@ -445,6 +446,8 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
         );
       }
 
+      // exec and submit_result share one call-id namespace: an id never selects a second tool.
+      tokens.claimSubmitCall(execToken, callId, now());
       const identity = scope.identity;
       const compiled = validator.compile(scope.outputSchema);
       const validation = compiled.validate(args);
@@ -582,6 +585,15 @@ export function createAgentGateway(options: AgentGatewayOptions): Hono<GatewayEn
     }
     const command = args.command;
     const shell = current.shell;
+    if (submissions.get(scope.identity, callId) !== null) {
+      throw new DevChestraError("E_CONFLICT", "Call ID was already used by a different tool.");
+    }
+    // An oversized command is denied without running or being retained, so a client cannot park
+    // large payloads in server memory; the denial is deterministic, so no receipt is needed.
+    if (Buffer.byteLength(command) > SHELL_POLICY_MAX_COMMAND_BYTES) {
+      const denied = await runPolicyExec({ shell, command, signal });
+      return c.json(callResult(denied.text, denied.isError));
+    }
     const outcome = await raceAbort(
       tokens.execute(
         execToken,
