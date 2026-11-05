@@ -7,6 +7,10 @@
   min-width: 0;
 }
 
+.provider-chips[data-columns="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .provider-chip {
   display: flex;
   align-items: center;
@@ -372,4 +376,41 @@
   .model-picker-listbox {
     max-height: 40vh;
   }
+}
+
+/* Tier preview: what the chosen tier resolves to on this machine */
+
+.tier-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: var(--ins-control, 34px);
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--ins-radius, 8px);
+  background: var(--ins-field, var(--bg-subtle));
+  color: var(--text);
+  font-size: 13px;
+}
+
+.tier-preview > svg {
+  flex: none;
+  color: var(--text-3);
+}
+
+.tier-preview-value {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tier-preview-source {
+  flex: none;
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: 11.5px;
+  white-space: nowrap;
 }

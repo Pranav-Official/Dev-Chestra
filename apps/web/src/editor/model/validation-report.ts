@@ -3,6 +3,7 @@ import type { Issue, RequiresSummary, ValidationReport } from "@devchestra/schem
 export function emptyRequires(): RequiresSummary {
   return {
     clis: [],
+    tiers: [],
     networkNodes: [],
     shellCommands: [],
     projectWriteNodes: [],

@@ -122,18 +122,24 @@ function ServerRow({
 export function AgentTools({
   node,
   projectId,
+  resolvedCli,
   onPatch,
   mcpClient,
 }: {
   node: AgentNode;
   projectId?: string | undefined;
+  /** The provider to list servers for. Defaults to the node's own; a tiered node passes the one its tier maps to here. */
+  resolvedCli?: AgentCli | undefined;
   onPatch: (patch: PatchOf<AgentNode>) => void;
   mcpClient?: McpServersClient | undefined;
 }) {
-  const cliLabel = PROD_CLI_LABELS[node.cli];
+  const cli = resolvedCli ?? node.cli;
+  const cliLabel = cli === undefined ? "the provider" : PROD_CLI_LABELS[cli];
+  const tiered = node.tier !== undefined;
   const { data, loading, error, refresh } = useCliMcpServers({
-    projectId,
-    cli: node.cli,
+    // No provider to ask yet (a tier that is not set on this machine): list nothing.
+    projectId: cli === undefined ? undefined : projectId,
+    cli: cli ?? "claude-code",
     nodeId: node.id,
     client: mcpClient,
   });
@@ -174,6 +180,11 @@ export function AgentTools({
             />
           </button>
         </div>
+        {tiered && cli !== undefined ? (
+          <p className="inspector-muted" data-testid="inspector-tools-tier-note">
+            Listing servers for {cliLabel}, this machine&apos;s provider for the tier.
+          </p>
+        ) : null}
         <ul className="inspector-tools-list">
           <li
             className="inspector-tools-row inspector-tools-locked"
@@ -194,14 +205,19 @@ export function AgentTools({
           <p className="inspector-error" data-testid="inspector-tools-error" role="alert">
             {error}
           </p>
+        ) : cli === undefined ? (
+          <p className="inspector-muted" data-testid="inspector-tools-notier">
+            {tiered
+              ? "Servers are listed once this tier is set on this machine."
+              : "Pick a provider to list its MCP servers."}
+          </p>
         ) : data === null ? (
           <p className="inspector-muted" data-testid="inspector-tools-noproject">
             Open a project to list the CLI&apos;s MCP servers.
           </p>
         ) : servers.length === 0 && !showMissing ? (
           <p className="inspector-muted" data-testid="inspector-tools-empty">
-            No MCP servers found. Add one with{" "}
-            <span className="mono">{ADD_COMMANDS[node.cli]}</span>.
+            No MCP servers found. Add one with <span className="mono">{ADD_COMMANDS[cli]}</span>.
           </p>
         ) : (
           <>

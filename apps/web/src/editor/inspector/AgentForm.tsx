@@ -1,7 +1,7 @@
 import { isRecord } from "@devchestra/core";
 import type { AgentNode } from "@devchestra/schema";
 import { AgentLimits } from "./AgentLimits.js";
-import { AgentModelField } from "./AgentModelField.js";
+import { AgentModelSection } from "./AgentModelSection.js";
 import { AgentPermissions } from "./AgentPermissions.js";
 import { AgentPrompt } from "./AgentPrompt.js";
 import { AgentTools } from "./AgentTools.js";
@@ -9,7 +9,7 @@ import { ExpandableTextarea } from "./fields/ExpandableTextarea.js";
 import { describedBy, Field } from "./fields/fields.js";
 import { fieldIssue } from "./issues.js";
 import { useAvailableClis } from "./model/useAvailableClis.js";
-import { ProviderChips } from "./ProviderChips.js";
+import { useEffectiveTiers } from "./model/useEffectiveTiers.js";
 import { InspectorSection } from "./Section.js";
 import { SchemaEditor } from "./schema/SchemaEditor.js";
 import type { FormProps } from "./types.js";
@@ -64,9 +64,13 @@ export function AgentForm({
   projectId,
   probeMode = false,
 }: FormProps<AgentNode> & { projectId?: string | undefined; probeMode?: boolean }) {
-  const cliIssue = fieldIssue(issues, "/cli");
   const { clis } = useAvailableClis();
-  const selected = clis.find((entry) => entry.id === node.cli);
+  const effective = useEffectiveTiers(projectId, node.tier !== undefined);
+  // A tiered node has no single provider; its tools follow the tier's mapping on this machine.
+  const resolvedCli = node.tier === undefined ? node.cli : effective.mappings?.[node.tier]?.ref.cli;
+  const selected = clis.find((entry) => entry.id === resolvedCli);
+  const providerHelpHref =
+    projectId === undefined ? "/settings/providers" : `/p/${projectId}/settings/providers`;
   const properties = isRecord(node.output?.properties) ? Object.keys(node.output.properties) : [];
   const failure = probeMode ? probeFailure(issues) : null;
 
@@ -82,46 +86,23 @@ export function AgentForm({
           <ProbePrompt node={node} issues={issues} onPatch={onPatch} />
         </InspectorSection>
         <InspectorSection sectionKey="agent:agent" title="Model">
-          <div className="inspector-stack">
-            <Field id="inspector-agent-cli" label="Provider" required error={cliIssue}>
-              <ProviderChips
-                clis={clis}
-                value={node.cli}
-                invalid={cliIssue !== null}
-                describedBy={describedBy("inspector-agent-cli", undefined, cliIssue)}
-                onSelect={(next) => {
-                  if (next !== node.cli) onPatch({ cli: next, model: undefined });
-                }}
-              />
-              {selected?.enabled === false ? (
-                <p className="inspector-help" role="status" data-testid="inspector-agent-cli-off">
-                  {selected.label} is turned off. Runs that use this node are blocked. Turn it on in{" "}
-                  <a
-                    href={
-                      projectId === undefined
-                        ? "/settings/providers"
-                        : `/p/${projectId}/settings/providers`
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Settings
-                  </a>
-                  , or pick another provider.
-                </p>
-              ) : null}
-            </Field>
-            <AgentModelField
-              key={`${node.id}:${node.cli}`}
-              node={node}
-              projectId={projectId}
-              issues={issues}
-              onPatch={onPatch}
-            />
-          </div>
+          <AgentModelSection
+            node={node}
+            issues={issues}
+            projectId={projectId}
+            clis={clis}
+            effective={effective}
+            providerHelpHref={providerHelpHref}
+            onPatch={onPatch}
+          />
         </InspectorSection>
         <InspectorSection sectionKey="agent:tools" title="Tools">
-          <AgentTools node={node} projectId={projectId} onPatch={onPatch} />
+          <AgentTools
+            node={node}
+            projectId={projectId}
+            resolvedCli={resolvedCli}
+            onPatch={onPatch}
+          />
         </InspectorSection>
         <InspectorSection sectionKey="agent:output" title="Output">
           <p className="inspector-help" role="note">
@@ -149,46 +130,18 @@ export function AgentForm({
         <AgentPrompt node={node} issues={issues} onPatch={onPatch} />
       </InspectorSection>
       <InspectorSection sectionKey="agent:agent" title="Model">
-        <div className="inspector-stack">
-          <Field id="inspector-agent-cli" label="Provider" required error={cliIssue}>
-            <ProviderChips
-              clis={clis}
-              value={node.cli}
-              invalid={cliIssue !== null}
-              describedBy={describedBy("inspector-agent-cli", undefined, cliIssue)}
-              onSelect={(next) => {
-                if (next !== node.cli) onPatch({ cli: next, model: undefined });
-              }}
-            />
-            {selected?.enabled === false ? (
-              <p className="inspector-help" role="status" data-testid="inspector-agent-cli-off">
-                {selected.label} is turned off. Runs that use this node are blocked. Turn it on in{" "}
-                <a
-                  href={
-                    projectId === undefined
-                      ? "/settings/providers"
-                      : `/p/${projectId}/settings/providers`
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Settings
-                </a>
-                , or pick another provider.
-              </p>
-            ) : null}
-          </Field>
-          <AgentModelField
-            key={`${node.id}:${node.cli}`}
-            node={node}
-            projectId={projectId}
-            issues={issues}
-            onPatch={onPatch}
-          />
-        </div>
+        <AgentModelSection
+          node={node}
+          issues={issues}
+          projectId={projectId}
+          clis={clis}
+          effective={effective}
+          providerHelpHref={providerHelpHref}
+          onPatch={onPatch}
+        />
       </InspectorSection>
       <InspectorSection sectionKey="agent:tools" title="Tools">
-        <AgentTools node={node} projectId={projectId} onPatch={onPatch} />
+        <AgentTools node={node} projectId={projectId} resolvedCli={resolvedCli} onPatch={onPatch} />
       </InspectorSection>
       <InspectorSection sectionKey="agent:output" title="Output" badge={`${properties.length}`}>
         <SchemaEditor

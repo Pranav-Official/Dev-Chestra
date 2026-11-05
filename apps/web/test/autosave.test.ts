@@ -25,6 +25,7 @@ const REPORT = {
   warnings: [],
   requires: {
     clis: [],
+    tiers: [],
     networkNodes: [],
     shellCommands: [],
     projectWriteNodes: [],

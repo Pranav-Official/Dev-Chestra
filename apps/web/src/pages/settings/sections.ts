@@ -1,4 +1,4 @@
-import { BarChart3, Gauge, Plug } from "lucide-react";
+import { BarChart3, Gauge, Layers, Plug } from "lucide-react";
 
 /**
  * Settings pages in nav order. The page and the sidebar menu both read this list.
@@ -7,6 +7,7 @@ import { BarChart3, Gauge, Plug } from "lucide-react";
 export const SETTINGS_SECTIONS = [
   { id: "usage", label: "Usage", icon: BarChart3 },
   { id: "providers", label: "Providers", icon: Plug },
+  { id: "models", label: "Model tiers", icon: Layers },
   { id: "execution", label: "Execution", icon: Gauge },
 ] as const;
 

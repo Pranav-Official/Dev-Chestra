@@ -186,18 +186,15 @@ function input(snapshot: unknown, workflowId: string): StartRunInput {
   };
 }
 
-function failureCode(store: Store, runId: string): string | undefined {
-  for (const event of store.events.list(runId as never, { limit: 10_000 })) {
-    if (event.type !== "run.completed") continue;
-    const payload = event.payload as { error?: { code?: string } };
-    if (payload.error?.code !== undefined) return payload.error.code;
-  }
-  return undefined;
-}
-
 function source(tiers: EffectiveModelTiers): ModelTierSource & { calls: string[] } {
   const calls: string[] = [];
-  return { calls, load: async (projectId) => (calls.push(projectId), ok(tiers)) };
+  return {
+    calls,
+    load: async (projectId) => {
+      calls.push(projectId);
+      return ok(tiers);
+    },
+  };
 }
 
 const mapped: EffectiveModelTiers = {
