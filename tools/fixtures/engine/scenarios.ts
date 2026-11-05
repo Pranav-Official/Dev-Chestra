@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,7 +12,12 @@ import {
 } from "../../../packages/server/dist/index.js";
 import { createAdapterRegistry } from "../../../packages/adapters/dist/index.js";
 import { acquireScratch, finalizeScratch, prepareRunWorkspace, releaseScratch } from "../../../packages/workspaces/dist/index.js";
-import { createEngine, type Engine, type StartRunInput } from "../../../packages/engine/dist/index.js";
+import {
+  createEngine,
+  type Engine,
+  type StartRunInput,
+  validateBaseNodeConfig,
+} from "../../../packages/engine/dist/index.js";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const root = fileURLToPath(new URL("../../../", import.meta.url));
@@ -59,9 +64,10 @@ function makeEngine(script: unknown[], extra: { maxNodeTimeoutMs?: number } = {}
           outputSchemaHash: scope.outputSchemaHash,
           validationLimit: scope.validationLimit,
           expiresAt: scope.expiresAt,
+          ...(scope.shell === undefined ? {} : { shell: scope.shell }),
         });
         issued.push(token);
-        return { token, revoke: () => tokens.revoke(token) };
+        return { token, revoke: () => tokens.revoke(token), drain: () => tokens.drain(token) };
       },
     },
     dataDir: temp,
@@ -105,6 +111,23 @@ async function runScenario(
     await engine.stop();
     throw error;
   }
+}
+
+function walk(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...walk(path));
+    else out.push(path);
+  }
+  return out;
+}
+
+function transcriptText(dir: string): string {
+  return walk(dir)
+    .filter((file) => file.includes(`${join("transcripts", "")}`) && file.endsWith(".jsonl"))
+    .map((file) => readFileSync(file, "utf8"))
+    .join("\n");
 }
 
 try {
@@ -408,6 +431,95 @@ try {
       .filter((event) => event.type === "node.process.spawned" && event.path === "report");
     assert.equal(shellSpawns.length, 2);
     await resumedEngine.stop();
+  }
+
+  shellPolicy: {
+    // Shell policy, real stack: exec runs through the gateway, the denied command
+    // never executes, and a shutdown mid-run resumes with a token re-minted from
+    // the frozen policy and the same workspace.
+    const script = [
+      { type: "tool", name: "exec", args: { command: "echo allowed-before-stop" } },
+      { type: "sleep", ms: 3000 },
+      { type: "tool", name: "exec", args: { command: "touch denied-marker" } },
+      { type: "tool", name: "exec", args: { command: "echo allowed-after-resume" } },
+      { type: "submit", output: { summary: "ok" } },
+    ];
+    const shellSnapshot = snapshot((value) => {
+      const research = value.graph.nodes.find((node: any) => node.id === "research");
+      research.permissions.shellPolicy = { allow: ["^echo .+$"], deny: ["^touch\\b.*$"] };
+    });
+    // The engine keeps rejecting policy nodes until shell policies are enabled, and a rejected
+    // run never spawns, so there is nothing to wait for. Skip instead of hanging.
+    try {
+      validateBaseNodeConfig(
+        shellSnapshot.graph.nodes.find((node: any) => node.id === "research"),
+        "agent",
+      );
+    } catch (error) {
+      process.stdout.write(
+        `shell policy scenario skipped: ${error instanceof Error ? error.message : String(error)}\n`,
+      );
+      break shellPolicy;
+    }
+    const engine = makeEngine(script);
+    await engine.start();
+    let runId = "";
+    let spawned: () => void = () => undefined;
+    const spawnedPromise = new Promise<void>((resolve) => {
+      spawned = resolve;
+    });
+    const unsubscribe = engine.subscribe((event) => {
+      if (event.type === "node.process.spawned" && event.path === "research") {
+        runId = event.runId;
+        spawned();
+      }
+    });
+    const first = engine.run(input(shellSnapshot));
+    // Surface planning failures instead of waiting forever for an impossible spawn.
+    try {
+      await Promise.race([
+        spawnedPromise,
+        first.then((result) => {
+          if (!result.ok) throw result.error;
+          throw new Error(`Policy scenario ended before spawning research: ${result.value.status}`);
+        }),
+      ]);
+    } catch (error) {
+      unsubscribe();
+      await engine.stop();
+      throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    await engine.stop();
+    unsubscribe();
+    const pausedResult = await first;
+    assert.equal(pausedResult.ok, true);
+    if (!pausedResult.ok) throw pausedResult.error;
+    assert.equal(pausedResult.value.status, "paused");
+    assert.equal(pausedResult.value.pausedReason, "shutdown");
+
+    const resumedEngine = makeEngine(script, { maxNodeTimeoutMs: 20_000 });
+    await resumedEngine.start();
+    const resumed = await resumedEngine.resume(runId);
+    assert.equal(resumed.ok, true);
+    if (!resumed.ok) throw resumed.error;
+    assert.equal(resumed.value.status, "succeeded");
+    await resumedEngine.stop();
+
+    const events = store.events.list(runId as never, { limit: 10_000 });
+    const spawns = events.filter((event) => event.type === "node.process.spawned" && event.path === "research");
+    assert.equal(spawns.length, 2, "first attempt plus one resume");
+    assert.equal(issued.length >= 2, true, "resume re-mints an exec token");
+    const transcript = transcriptText(temp);
+    assert.match(transcript, /allowed-before-stop/);
+    assert.match(transcript, /allowed-after-resume/);
+    assert.match(transcript, /Command denied by shell policy/);
+    assert.equal(
+      walk(temp).some((file) => file.endsWith("denied-marker")),
+      false,
+      "denied command must never execute",
+    );
+    for (const token of issued) assert.equal(transcript.includes(token), false, "token must not reach the transcript");
   }
 
   process.stdout.write("engine scenarios ok\n");

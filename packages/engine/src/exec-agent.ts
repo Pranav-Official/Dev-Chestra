@@ -170,7 +170,12 @@ async function runAttempts(
   const scope = buildScopeData(run.params, ancestors);
   const rendered = await ctx.render(String(stripUi(node.raw).prompt ?? ""), scope);
   const submitRef = adapter.toolRef("submit_result");
-  const contract = renderSubmitContract({ submitRef });
+  const usesShellPolicy =
+    (node.raw.permissions as { shellPolicy?: unknown }).shellPolicy !== undefined;
+  const contract = renderSubmitContract({
+    submitRef,
+    ...(usesShellPolicy ? { execRef: adapter.toolRef("exec") } : {}),
+  });
   const inputContext = renderAgentInputContext(scope);
   const basePrompt = composeAgentPrompt(rendered.text, contract, inputContext);
   const prepared: AttemptPrepared = {

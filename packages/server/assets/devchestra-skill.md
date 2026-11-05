@@ -245,7 +245,7 @@ Outputs are capped (see section 12) and every output is stored and scanned. For 
 | `model` | optional, only with `cli`. If set it is passed unchanged to the CLI; use an exact id from the CLI's model catalog (the editor's model picker lists them). Omit it to use the CLI's default. Never guess a model id. |
 | `prompt` | required, inline text template. See "No `promptFile`" below. Warns if empty. |
 | `output` | required JSON Schema for the result (section 8) |
-| `permissions` | required: `network` (boolean), `write` (array), optional `shell` (boolean). See below. |
+| `permissions` | required: `network` (boolean), `write` (array), optional `shell` (boolean) and `shellPolicy` (object). See below. |
 | `mcpServers` | optional list of `{ "name", "scope" }`. See below. |
 | `limits` | optional: `timeoutMin` (integer 1-480, default 30), `validationRetries` (integer 0-10, default 2), `crashRetries` (integer 0-10, default 1). `maxQuotaWaitHours` is not supported. |
 
@@ -273,8 +273,11 @@ Read and change mappings with `devchestra settings show [--scope effective|local
 | Field | Meaning |
 | --- | --- |
 | `network` | `true` lets the CLI use its web/network tools; `false` denies them (best effort and enforced differently per CLI, for example tool allow/deny lists or a sandbox network flag). Loopback access to DevChestra's own submit tool always works. |
-| `write` | `[]` = read-only agent. `["workspace"]` = may write files in the **run workspace**. `["project"]` is **not supported** and is rejected. |
+| `write` | `[]` = file editing tools disabled. `["workspace"]` = may write files in the **run workspace**. `["project"]` is **not supported** and is rejected. |
 | `shell` | optional boolean for the CLI's built-in shell tool. When omitted, shell follows `write` (writable means shell allowed). Set `false` for a writable agent that must not run commands, or `true` to let a read-only agent run commands. |
+| `shellPolicy` | optional command guardrail: `{ "allow": ["^echo hello$"], "deny": [], "timeoutSec": 60, "maxOutputBytes": 262144 }`. macOS/Linux only. Disables the native shell and provides DevChestra `exec`; incompatible with `shell: false`. Deny wins; non-empty allow lists reject unlisted commands. Patterns are RE2 expressions matching the whole canonical command. Remove the property to turn filtering off. |
+
+**Shell policy opts into host command execution.** Allowed programs run with the user's normal filesystem and network access, even with `network: false` or `write: []`. These fields control CLI tools, not gateway commands. Use narrow allowlists; interpreters and other MCP servers can bypass command filtering. `exec` accepts one command string, rejects shell expansion/chaining/redirects, and returns an explicit tool error for policy denials. To test a policy, inspect the actual tool response before reporting `blocked` or `executed`.
 
 These are tool-level controls on **agent** nodes, not an operating-system sandbox. **Shell nodes are ordinary processes and are not governed by `permissions`.** Least privilege: default to `{"network": false, "write": []}` and add only what the task needs.
 

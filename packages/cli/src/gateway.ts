@@ -37,9 +37,12 @@ export async function startGateway(store: Store): Promise<RunningGateway> {
           outputSchemaHash: scope.outputSchemaHash,
           validationLimit: scope.validationLimit,
           expiresAt: scope.expiresAt,
+          // Server-owned policy scope, minted per attempt; never taken from the shim.
+          ...(scope.shell === undefined ? {} : { shell: scope.shell }),
         });
         return {
           token,
+          drain: () => tokens.drain(token),
           revoke: (): void => {
             tokens.revoke(token);
           },

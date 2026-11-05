@@ -121,7 +121,7 @@ describe("opencode plan", () => {
     expect(JSON.stringify(result.value.env.OPENCODE_CONFIG_CONTENT)).toContain(TOKEN);
   });
 
-  it("matches resume argv with --session and reuses --dir", () => {
+  it("matches resume argv with --session and uses --standalone and no --dir", () => {
     const adapter = createAdapter("opencode");
     const result = adapter.plan(
       request({ mode: "resume", sessionId: "ses_494719016ffe85dkDMj0FPRbHK" }),
@@ -192,7 +192,8 @@ describe("opencode plan", () => {
     const joined = planned.value.args.join(" ");
     expect(joined).not.toContain("bypass");
     expect(joined).not.toContain("danger");
-    expect(joined).toContain("--dir /work");
+    expect(joined).toContain("--standalone");
+    expect(joined).not.toContain("--dir");
   });
 });
 

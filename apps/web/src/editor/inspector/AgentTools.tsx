@@ -4,6 +4,8 @@ import { Lock, RefreshCw } from "lucide-react";
 import { CheckboxField } from "./fields/fields.js";
 import type { DiscoveredMcpServer, McpServersClient } from "./model/mcp-servers.js";
 import { useCliMcpServers } from "./model/useCliMcpServers.js";
+import { ShellPolicyEditor } from "./ShellPolicyEditor.js";
+import { permissionsWithoutShellPolicy } from "./shellPolicyModel.js";
 import type { PatchOf } from "./types.js";
 
 const SCOPE_ORDER: Record<McpScope, number> = { global: 0, project: 1, connector: 2 };
@@ -29,9 +31,14 @@ const ADD_COMMANDS: Record<AgentCli, string> = {
   pi: "pi mcp add",
 };
 
-/** Effective shell access: explicit `permissions.shell`, else the legacy write rule. */
+/**
+ * Effective shell access: explicit `permissions.shell`; otherwise a present
+ * shell policy turns shell on, and without one the legacy write rule decides.
+ */
 export function effectiveShell(node: AgentNode): boolean {
-  return node.permissions.shell ?? node.permissions.write.length > 0;
+  const { shell, shellPolicy, write } = node.permissions;
+  if (shell !== undefined) return shell;
+  return shellPolicy !== undefined || write.length > 0;
 }
 
 function statusReason(server: DiscoveredMcpServer, cliLabel: string): string | null {
@@ -158,9 +165,16 @@ export function AgentTools({
         label="Shell commands"
         hint="Let the agent run commands in the workspace"
         checked={effectiveShell(node)}
-        onChange={(shell) => onPatch({ permissions: { ...node.permissions, shell } })}
+        onChange={(shell) =>
+          onPatch({
+            permissions: shell
+              ? { ...node.permissions, shell: true }
+              : { ...permissionsWithoutShellPolicy(node.permissions), shell: false },
+          })
+        }
         help="The CLI's built-in shell tool. Advisory only: DevChestra is not an OS sandbox."
       />
+      <ShellPolicyEditor node={node} onPatch={onPatch} />
       <div className="inspector-tools-block">
         <div className="inspector-tools-head">
           <span className="inspector-tools-title">MCP servers</span>

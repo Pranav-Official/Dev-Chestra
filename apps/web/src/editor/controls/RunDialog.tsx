@@ -473,11 +473,18 @@ export function RunDialog({
                           : `${MODEL_TIER_LABELS[node.tier]} tier`}
                       </span>
                       <div className="muted">
-                        Network {node.permissions.network ? "enabled" : "disabled"}; write:{" "}
+                        CLI tools: network {node.permissions.network ? "enabled" : "disabled"}
+                        {"; write: "}
                         {node.permissions.write.length === 0
                           ? "none"
                           : node.permissions.write.join(", ")}
                       </div>
+                      {node.permissions.shellPolicy === undefined ? null : (
+                        <p className="muted">
+                          Commands are filtered by shell policy. Allowed commands retain your
+                          filesystem and network access, regardless of the CLI tool settings above.
+                        </p>
+                      )}
                     </li>
                   ) : null,
                 )}

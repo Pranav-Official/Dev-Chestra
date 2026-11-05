@@ -2,7 +2,7 @@ import { statSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { type DevChestraError, ok, type Result } from "@devchestra/core";
 import { clip, NdjsonParser, num, parseObject, record, str } from "./parsers.js";
-import { checkDir, classifyExit, fail, requireOptionKeys } from "./plan.js";
+import { checkDir, classifyExit, fail, nativeShellOff, requireOptionKeys } from "./plan.js";
 import { probeVersion } from "./probe.js";
 import { piStatic } from "./provider-config.js";
 import type {
@@ -442,7 +442,8 @@ function plan(req: RunRequest, bin: string): Result<Invocation, DevChestraError>
     if (req.permissions.write.length === 0) denied.push(...permissions.readOnlyDeniedTools);
     if (!req.permissions.network) denied.push(...permissions.networkTools);
     // Shell is independent of write when explicitly set; undefined keeps legacy.
-    if (req.permissions.shell === false) {
+    // A shell policy excludes the native shell even when shell is true/undefined.
+    if (nativeShellOff(req.permissions)) {
       for (const tool of ["bash", "powershell"]) {
         if (!denied.includes(tool)) denied.push(tool);
       }
@@ -527,7 +528,7 @@ export function createPiAdapter(options: AdapterOptions = {}): CliAdapter {
         "toolResult ok comes from ToolResultMessage.isError; turn_end error comes from stopReason/errorMessage",
         "extraMcp verified live 2026-10-28 (pi 1.4.0, opencode-go/deepseek-v4.1-flash): fixture stdio server in the isolated mcp.json called as mcp__fixture__fixture_echo (model found it via codemode searchTools; extras default to codemode exposure, only devchestra is direct); canonical-home unselected server not started",
         "permissions.shell verified live 2026-10-28: false+write excludes bash+powershell (model reports no bash tool); true+read-only runs bash (echo hi -> hi)",
-        "live-run caveats 2026-10-28: isolated runs reinstall settings `packages` (npm is absent on this machine, so the run used settings minus packages); nvidia catalog models 404 for this account, ollama provider is down; opencode-go/deepseek-v4.1-flash worked",
+        "live-run caveats 2026-10-28: isolated runs reinstall settings `packages` and need npm on the launching process PATH (version managers may expose it only in interactive shells); nvidia catalog models 404 for this account, ollama provider is down; opencode-go/deepseek-v4.1-flash worked",
       ],
     },
     plan: (req) => plan(req, bin),

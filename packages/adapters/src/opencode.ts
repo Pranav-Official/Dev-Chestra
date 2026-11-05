@@ -1,7 +1,7 @@
 import { type DevChestraError, ok, type Result } from "@devchestra/core";
 import { hasControl } from "./discovery-util.js";
 import { clip, NdjsonParser, num, parseObject, record, str } from "./parsers.js";
-import { checkDir, classifyExit, fail, requireOptionKeys } from "./plan.js";
+import { checkDir, classifyExit, fail, nativeShellOff, requireOptionKeys } from "./plan.js";
 import { probeVersion } from "./probe.js";
 import { opencodeStatic } from "./provider-config.js";
 import type {
@@ -194,7 +194,8 @@ function mcpConfigContent(req: RunRequest): string {
   const config: Record<string, unknown> = { mcp };
   // Built-in shell tool: undefined keeps the legacy rule (no shell switch);
   // false denies bash. Verified live against opencode 1.19.4 (see evidence).
-  if (req.permissions.shell === false) config.permission = { bash: "deny" };
+  // A policy disables the native shell too; the DevChestra exec tool is the only command route.
+  if (nativeShellOff(req.permissions)) config.permission = { bash: "deny" };
   return JSON.stringify(config);
 }
 
@@ -225,7 +226,10 @@ function plan(req: RunRequest, bin: string): Result<Invocation, DevChestraError>
 
     const args = ["run", req.prompt];
     if (model !== undefined) args.push(opencodeStatic.modelArg, model);
-    args.push("--format", "json", "--dir", req.cwd);
+    // --standalone: OPENCODE_CONFIG_CONTENT is honored only by a private server;
+    // the shared background service silently ignores per-run config (SPIKES 2026-11-04).
+    // No --dir: 2.2.5 rejects it, the cwd below is the working directory.
+    args.push("--format", "json", "--standalone");
     if (req.mode === "resume") {
       const session = req.sessionId;
       if (session === undefined || !SESSION_RE.test(session)) {
@@ -265,16 +269,17 @@ export function createOpencodeAdapter(options: AdapterOptions = {}): CliAdapter 
       maxPromptArgBytes: PROMPT_MAX_BYTES,
     },
     evidence: {
-      cliVersion: "1.19.4",
+      cliVersion: "2.2.5",
       argvSource: "help-fixture",
       behaviorVerified: false,
       notes: [
-        "argv from opencode 1.19.4 run --help: run [prompt] --model provider/model --format json --dir <cwd> --session <ses_...>",
+        "argv from opencode 2.2.5 run --help: run [prompt] --model provider/model --format json --standalone --session <ses_...>; cwd is the process working directory (2.2.5 rejects --dir)",
+        'LIVE opencode 2.2.5 (standalone, `OPENCODE_CONFIG_CONTENT` `permission:{bash:"deny"}`): no `tool_use`, model reports NOSHELL; without it the same prompt runs `echo hi` via the `shell` tool. The `bash` permission key still gates the renamed `shell` tool. Caution: only `--standalone` (private server) honors per-run `OPENCODE_CONFIG_CONTENT`; against the shared background service the deny is silently ignored. Adapter `run --dir` is rejected by 2.2.5 (stale argv from 1.19.4); 1.x flat `mcp` inline shape still attaches.',
         "prompt travels as argv (promptViaStdin false), capped at 256 KiB; --session resumes, no --cd/--sandbox flags exist",
         "MCP server attaches via OPENCODE_CONFIG_CONTENT inline JSON (type local, command [shim, ...args], environment, enabled); env travels on fresh and resume",
         "LIVE opencode 1.19.4: inline JSON merges with the user config - a user-configured fixture server starts when the inline config only carries devchestra, and does NOT start when the inline config adds mcp.<name>.enabled=false",
         "LIVE: inline local extra starts and is callable as <server>_<tool> (fixture_fixture_echo, log: start+call); remote extras use {type:remote,url,headers,enabled:true} per the installed config shape (no live remote server exercised)",
-        "LIVE: inline permission:{bash:deny} removes the built-in bash tool (model reports NOSHELL, no tool_use); without it the same prompt runs echo. tools.bash=false was not needed and stays untested",
+        "LIVE 1.19.4: inline permission:{bash:deny} removes the built-in bash tool (model reports NOSHELL, no tool_use); without it the same prompt runs echo. tools.bash=false was not needed and stays untested",
         "LIVE route-around: with bash denied, the model ran the same echo via an attached MCP exec tool (linremote_shell) - shell:false is advisory, never a sandbox",
         "MCP tools register as <server>_<tool>; splitOpencodeMcpTool attributes them to known servers (longest prefix wins); devchestra_submit_result is the submit ref",
         "JSON stream shapes (step_start/text/tool_use/step_finish/error) confirmed against live --format json output",

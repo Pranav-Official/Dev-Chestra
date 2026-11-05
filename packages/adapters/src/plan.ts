@@ -1,5 +1,18 @@
 import { DevChestraError, err, type Result } from "@devchestra/core";
-import type { ExitInfo, FailureClass, Invocation } from "./types.js";
+import type { ExitInfo, FailureClass, Invocation, RunPermissions } from "./types.js";
+
+/**
+ * True when the CLI's native shell must be off: an explicit `shell:false`, or a
+ * DevChestra shell policy (the exec tool is then the only command route).
+ */
+export function nativeShellOff(permissions: RunPermissions): boolean {
+  return permissions.shell === false || permissions.shellPolicy !== undefined;
+}
+
+/** Native shell is explicitly enabled: `shell:true` and no policy. */
+export function nativeShellOn(permissions: RunPermissions): boolean {
+  return permissions.shell === true && permissions.shellPolicy === undefined;
+}
 
 export function classifyExit(exit: ExitInfo): FailureClass {
   if (exit.killedBy === "timeout") return { kind: "timeout" };

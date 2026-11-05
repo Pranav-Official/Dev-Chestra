@@ -128,6 +128,8 @@ export async function runCommand(
   const timer = setTimeout(() => kill("timeout"), Math.max(1, req.timeoutMs));
   const onAbort = (): void => kill("cancel");
   signal?.addEventListener("abort", onAbort, { once: true });
+  // Abort may have arrived while awaiting the child spawn. The cast re-widens `aborted`, which the early check narrowed to false across the await.
+  if ((signal as AbortSignal | undefined)?.aborted === true) onAbort();
 
   child.stdout?.on("data", (chunk: Buffer) => {
     stdoutBytes += chunk.length;

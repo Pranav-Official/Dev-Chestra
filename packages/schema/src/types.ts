@@ -185,6 +185,23 @@ export interface AgentPermissions {
   write: ("workspace" | "project")[];
   /** Built-in shell tool. Absent keeps the legacy rule: shell follows `write` being non-empty. */
   shell?: boolean;
+  /**
+   * Opt into command guardrails through DevChestra exec, with the native shell off.
+   * Allowed programs retain host filesystem/network access, independently of network/write.
+   * Only valid when `shell` is not `false`; supported on macOS/Linux.
+   */
+  shellPolicy?: ShellPolicy;
+}
+
+export interface ShellPolicy {
+  /** Allowlist regex sources matched against the canonical command. Non-empty means allowlist mode. */
+  allow?: string[];
+  /** Denylist regex sources matched against the canonical command. Evaluated before `allow`. */
+  deny?: string[];
+  /** Per-command timeout in seconds. */
+  timeoutSec?: number;
+  /** Per-command output cap in bytes. */
+  maxOutputBytes?: number;
 }
 
 export const MCP_SCOPES = ["global", "project", "connector"] as const;
