@@ -2,7 +2,14 @@ import { join } from "node:path";
 import { type DevChestraError, isRecord, ok, type Result } from "@devchestra/core";
 import { hasControl } from "./discovery-util.js";
 import { clip, NdjsonParser, num, parseObject, record, str, UsageDelta } from "./parsers.js";
-import { checkDir, classifyExit, fail, requireOptionKeys, stringList } from "./plan.js";
+import {
+  checkDir,
+  classifyExit,
+  fail,
+  nativeShellOff,
+  requireOptionKeys,
+  stringList,
+} from "./plan.js";
 import { probeVersion } from "./probe.js";
 import { codexStatic } from "./provider-config.js";
 import type {
@@ -343,12 +350,15 @@ function plan(req: RunRequest, bin: string): Result<Invocation, DevChestraError>
     args.push("-c", `mcp_servers.devchestra.env_vars=${JSON.stringify(envNames)}`);
     args.push("-c", `mcp_servers.devchestra.default_tools_approval_mode=${toml("approve")}`);
     args.push("-c", "mcp_servers.devchestra.startup_timeout_sec=20");
-    args.push("-c", "mcp_servers.devchestra.tool_timeout_sec=120");
+    // Codex kills a silent MCP call at tool_timeout_sec; exec runs under the policy
+    // timeout, so the tool timeout must cover it (plus the shim's own margin).
+    const toolTimeoutSec = Math.max(120, (req.permissions.shellPolicy?.timeoutSec ?? 0) + 30);
+    args.push("-c", `mcp_servers.devchestra.tool_timeout_sec=${toolTimeoutSec}`);
     const extraMcp = planExtraMcp(req);
     args.push(...extraMcp.flags);
     // Built-in shell tool: undefined keeps the legacy rule (shell follows the
     // sandbox mode above); false asks the CLI to remove it, true leaves it.
-    if (req.permissions.shell === false) args.push("-c", "features.shell_tool=false");
+    if (nativeShellOff(req.permissions)) args.push("-c", "features.shell_tool=false");
     args.push(...overrides);
     args.push("-o", join(req.execDir, "last-message.txt"));
 
@@ -379,15 +389,17 @@ export function createCodexAdapter(options: AdapterOptions = {}): CliAdapter {
       maxPromptArgBytes: 0,
     },
     evidence: {
-      cliVersion: "0.164.0",
+      cliVersion: "0.166.0",
       argvSource: "help-fixture",
       behaviorVerified: false,
       notes: [
         "resume rejects --sandbox/--cd/--add-dir/-a/-p; sandbox_mode is passed via -c",
+        'LIVE codex 0.166.0 (shell-kill): features.shell_tool=false with the prompt "run echo hi by any means" produced no command_execution, shell or mcp_tool_call item; the model reported no shell tool and exited 0 (PASS). LIVE codex 0.166.0 (MCP error recovery): an isError denial reaches the model in the mcp_tool_call result content (codex does not set the error field), and the model recovered with a second tool call (PASS). Shell policy exec relies on both.',
         "LIVE codex 0.164.0: stdio extra attached via -c mcp_servers.<name>.command/args/env_vars/enabled=true started AND was called (fixture log: start+call, turn completed); headless calls need default_tools_approval_mode=approve or the turn is denied (approval policy is never)",
         "LIVE: known-but-unselected server (mcp_servers.other.enabled=false, server present in CODEX_HOME config) never started while the selected extra ran; exact selection holds for listed servers",
         "mcp_servers.<unknown>.enabled=false FAILS the run (codex: invalid transport): disables only work for servers present in codex's loaded config (global or trusted-project); stale/untrusted names fail fast instead of silently leaving servers on",
-        "LIVE: features.shell_tool=false removes the shell tool (model reports NOSHELL, no command_execution items); without the flag the same prompt runs echo. Shell true/undefined leaves the sandbox-mode rule untouched",
+        "LIVE: features.shell_tool=false removes the shell tool (model reports NOSHELL, no command_execution items); without the flag the same prompt runs echo. Shell true/undefined leaves the sandbox-mode rule untouched. A shell policy sets the same flag",
+        "tool_timeout_sec = max(120, policy timeoutSec + 30): codex abandons a silent MCP call at tool_timeout_sec, so a policy exec must not be cut off by the default 120s before its own deadline",
         "connectors: no selection -> features.apps=false (coarse off, live run succeeds); selection -> features.apps=true + apps.default.enabled=false + apps.<connectorId>.enabled=true. Key shapes pass --strict-config, but per-connector tool filtering is UNVERIFIED (verifying would invoke real account tools)",
         "http extras use url + env_http_headers (header values only in the child env); key shapes pass --strict-config but no live HTTP MCP server was exercised",
         "live turns occasionally stall with no output (model-side flake); retries of the identical invocation completed",

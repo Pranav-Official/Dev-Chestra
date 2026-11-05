@@ -28,9 +28,13 @@ function record(owner: Node, key: string): Node {
 }
 
 /** Returns the rejection message, or null when the node is accepted. */
-function rejection(node: Node, kind: BaseNodeKind = "agent"): string | null {
+function rejection(
+  node: Node,
+  kind: BaseNodeKind = "agent",
+  platform: NodeJS.Platform = "linux",
+): string | null {
   try {
-    validateBaseNodeConfig(node, kind);
+    validateBaseNodeConfig(node, kind, platform);
     return null;
   } catch (error) {
     return error instanceof Error ? error.message : String(error);
@@ -95,5 +99,55 @@ describe("validateBaseNodeConfig", () => {
     const promptFile = fixtureNode("research");
     promptFile.promptFile = "research.md";
     expect(rejection(promptFile)).toContain("promptFile");
+  });
+
+  it("accepts valid command guardrails and rejects invalid policies", () => {
+    const valid = fixtureNode("research");
+    record(valid, "permissions").shellPolicy = {
+      allow: ["^curl .+$"],
+      deny: ["\\s(-o|--output)(\\s|$)"],
+      timeoutSec: 60,
+      maxOutputBytes: 262144,
+    };
+    expect(rejection(valid)).toBeNull();
+
+    const absent = fixtureNode("research");
+    expect(rejection(absent)).toBeNull();
+
+    const badPattern = fixtureNode("research");
+    record(badPattern, "permissions").shellPolicy = { allow: ["("] };
+    expect(rejection(badPattern)).toContain("shellPolicy");
+
+    const redos = fixtureNode("research");
+    record(redos, "permissions").shellPolicy = { deny: ["(a+)+"] };
+    expect(rejection(redos)).toContain("shellPolicy");
+
+    const badLimit = fixtureNode("research");
+    record(badLimit, "permissions").shellPolicy = { timeoutSec: 0 };
+    expect(rejection(badLimit)).toContain("shellPolicy");
+
+    const disabled = fixtureNode("research");
+    record(disabled, "permissions").shell = false;
+    record(disabled, "permissions").shellPolicy = { allow: ["^curl .+$"] };
+    expect(rejection(disabled)).toContain("shellPolicy");
+  });
+
+  it("rejects shellPolicy on Windows before anything else, on a valid policy", () => {
+    const node = fixtureNode("research");
+    record(node, "permissions").shellPolicy = { allow: ["^echo .*$"] };
+    const message = rejection(node, "agent", "win32");
+    expect(message).toContain("not supported on Windows");
+    expect(message).toContain("POSIX-only");
+    // The same command guardrail is available on supported POSIX hosts.
+    for (const platform of ["linux", "darwin"] as const) {
+      expect(rejection(node, "agent", platform)).toBeNull();
+    }
+  });
+
+  it("still accepts agents without a shellPolicy on Windows", () => {
+    expect(rejection(fixtureNode("research"), "agent", "win32")).toBeNull();
+    const noShell = fixtureNode("research");
+    record(noShell, "permissions").shell = false;
+    expect(rejection(noShell, "agent", "win32")).toBeNull();
   });
 });

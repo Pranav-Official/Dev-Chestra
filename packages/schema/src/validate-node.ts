@@ -4,6 +4,7 @@ import { joinOutputIssues } from "./join.js";
 import { normalizeOutputSchema } from "./output-schema.js";
 import { validateParamDefinitions, validateWebhookConfig } from "./params.js";
 import { validatePollingConfig } from "./poll.js";
+import { shellPolicyIssues } from "./shell-policy.js";
 import { compileTemplate } from "./template.js";
 import type {
   AgentNode,
@@ -412,6 +413,14 @@ export function validateSingleNode(
             node.id,
           ),
         );
+      }
+      for (const policyIssue of shellPolicyIssues(
+        agent.permissions,
+        `${pointer}/permissions`,
+        node.id,
+      )) {
+        if (policyIssue.severity === "warning") addWarning(policyIssue);
+        else addError(policyIssue);
       }
     }
 

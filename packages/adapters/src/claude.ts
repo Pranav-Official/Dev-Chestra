@@ -6,6 +6,7 @@ import {
   checkToolNames,
   classifyExit,
   fail,
+  nativeShellOff,
   requireOptionKeys,
   stringList,
   uuid,
@@ -221,7 +222,8 @@ function plan(req: RunRequest, bin: string): Result<Invocation, DevChestraError>
     if (req.permissions.network) for (const tool of permissions.networkTools) allowed.add(tool);
     else for (const tool of permissions.networkTools) denied.add(tool);
     // Shell is independent of write when explicitly set; undefined keeps legacy.
-    if (req.permissions.shell === false) {
+    // A shell policy turns the native Bash off even when shell is true/undefined.
+    if (nativeShellOff(req.permissions)) {
       denied.add("Bash");
       allowed.delete("Bash");
     } else if (req.permissions.shell === true) {

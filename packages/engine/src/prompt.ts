@@ -8,6 +8,7 @@ export const MAX_AGENT_PROMPT_BYTES = 1024 * 1024;
 
 export interface SubmitContractInput {
   readonly submitRef: string;
+  readonly execRef?: string;
   readonly contextRead?: boolean;
   readonly contextWrite?: boolean;
   readonly inputsDir?: string;
@@ -22,6 +23,12 @@ export function renderSubmitContract(input: SubmitContractInput): string {
     `- If ${input.submitRef} returns an error, fix the listed problems and call it again.`,
     "- Files produced for later steps must be referenced by path in the matching result field.",
   ];
+  if (input.execRef !== undefined) {
+    lines.push(
+      `- Shell commands use ${input.execRef} with {"command":"..."}; the native shell is disabled.`,
+      "  Wait for its response. A shell-policy denial is an observed tool result; report it without bypassing the policy.",
+    );
+  }
   if (input.contextRead === true) {
     lines.push(
       "- Shared notes are available through the devchestra context tools.",

@@ -1,5 +1,6 @@
 import { DevChestraError, err, hashJson, ok, type Result } from "@devchestra/core";
 import { normalizeOutputSchema } from "./output-schema.js";
+import { normalizeShellPolicy } from "./shell-policy.js";
 import type {
   AgentNode,
   AgentPermissions,
@@ -216,6 +217,9 @@ function normalizeAgent(
       network: node.permissions.network,
       write: [...new Set(node.permissions.write)].sort(),
       ...(node.permissions.shell === undefined ? {} : { shell: node.permissions.shell }),
+      ...(node.permissions.shellPolicy === undefined
+        ? {}
+        : { shellPolicy: normalizeShellPolicy(node.permissions.shellPolicy) }),
     },
     workspace: normalizeWorkspace(node.workspace),
     limits: {

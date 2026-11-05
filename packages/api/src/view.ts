@@ -1,5 +1,10 @@
 import type { ForeachView, RunView, WorkflowView } from "@devchestra/core";
-import { DECISION_PROVIDERS, type NormalizedWorkflow, PROD_CLIS } from "@devchestra/schema";
+import {
+  DECISION_PROVIDERS,
+  type NormalizedWorkflow,
+  PROD_CLIS,
+  shellPolicySchema,
+} from "@devchestra/schema";
 import { coreErrorCodeSchema } from "./errors.js";
 import {
   decisionOutputSchema,
@@ -314,6 +319,7 @@ const normalizedStartNodeSchema = strict({
           network: z.boolean(),
           write: z.array(z.enum(["workspace", "project"])),
           shell: z.boolean().optional(),
+          shellPolicy: shellPolicySchema.optional(),
         }),
         mcpServers: z
           .array(
@@ -349,6 +355,7 @@ const normalizedAgentNodeSchema = strict({
     network: z.boolean(),
     write: z.array(z.enum(["workspace", "project"])),
     shell: z.boolean().optional(),
+    shellPolicy: shellPolicySchema.optional(),
   }),
   mcpServers: z
     .array(

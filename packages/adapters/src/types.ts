@@ -1,5 +1,5 @@
 import type { DevChestraError, Result } from "@devchestra/core";
-import { isProdCliId, type ProdCliId } from "@devchestra/schema";
+import { isProdCliId, type ProdCliId, type ShellPolicy } from "@devchestra/schema";
 
 export type { ProdCliId };
 export { isProdCliId };
@@ -34,6 +34,12 @@ export interface RunPermissions {
   write: ("workspace" | "project")[];
   /** Built-in shell tool. Undefined keeps the legacy rule: shell follows `write` being non-empty. */
   shell?: boolean;
+  /**
+   * Per-agent command policy enforced by the DevChestra `exec` tool. Setting it
+   * disables the CLI's native shell in every adapter, exactly like `shell:false`,
+   * regardless of `shell` (true/undefined), and CLI options can never re-enable it.
+   */
+  shellPolicy?: ShellPolicy;
   extraReadDirs: string[];
 }
 
