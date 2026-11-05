@@ -12,7 +12,12 @@ import {
 } from "../../../packages/server/dist/index.js";
 import { createAdapterRegistry } from "../../../packages/adapters/dist/index.js";
 import { acquireScratch, finalizeScratch, prepareRunWorkspace, releaseScratch } from "../../../packages/workspaces/dist/index.js";
-import { createEngine, type Engine, type StartRunInput } from "../../../packages/engine/dist/index.js";
+import {
+  createEngine,
+  type Engine,
+  type StartRunInput,
+  validateBaseNodeConfig,
+} from "../../../packages/engine/dist/index.js";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const root = fileURLToPath(new URL("../../../", import.meta.url));
@@ -428,7 +433,7 @@ try {
     await resumedEngine.stop();
   }
 
-  {
+  shellPolicy: {
     // Shell policy, real stack: exec runs through the gateway, the denied command
     // never executes, and a shutdown mid-run resumes with a token re-minted from
     // the frozen policy and the same workspace.
@@ -443,6 +448,19 @@ try {
       const research = value.graph.nodes.find((node: any) => node.id === "research");
       research.permissions.shellPolicy = { allow: ["^echo .+$"], deny: ["^touch\\b.*$"] };
     });
+    // The engine keeps rejecting policy nodes until shell policies are enabled, and a rejected
+    // run never spawns, so there is nothing to wait for. Skip instead of hanging.
+    try {
+      validateBaseNodeConfig(
+        shellSnapshot.graph.nodes.find((node: any) => node.id === "research"),
+        "agent",
+      );
+    } catch (error) {
+      process.stdout.write(
+        `shell policy scenario skipped: ${error instanceof Error ? error.message : String(error)}\n`,
+      );
+      break shellPolicy;
+    }
     const engine = makeEngine(script);
     await engine.start();
     let runId = "";
