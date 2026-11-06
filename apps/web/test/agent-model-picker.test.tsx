@@ -434,6 +434,26 @@ describe("AgentModelPicker banners", () => {
   });
 });
 
+describe("AgentModelPicker inside a modal dialog", () => {
+  it("portals the popover into the enclosing dialog so it is not left under the top layer", () => {
+    render(
+      <dialog open data-testid="host-dialog">
+        <Harness />
+      </dialog>,
+    );
+    openPicker();
+    expect(screen.getByTestId("host-dialog")).toContainElement(
+      screen.getByTestId("inspector-agent-model-popover"),
+    );
+  });
+
+  it("portals to the body when there is no enclosing dialog", () => {
+    render(<Harness />);
+    openPicker();
+    expect(screen.getByTestId("inspector-agent-model-popover").parentElement).toBe(document.body);
+  });
+});
+
 describe("catalogAgeLabel", () => {
   const now = 10_000_000_000;
   it("formats minutes, hours and days", () => {
