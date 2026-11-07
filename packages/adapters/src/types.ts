@@ -170,6 +170,8 @@ export interface CliAdapter {
   readonly evidence: AdapterEvidence;
   probe(ctx: ProbeCtx, signal: AbortSignal): Promise<ProbeResult>;
   plan(req: RunRequest): Result<Invocation, DevChestraError>;
+  /** Runtime planning with bounded CLI capability probes. Prefer this over plan when present. */
+  planAsync?(req: RunRequest, signal: AbortSignal): Promise<Result<Invocation, DevChestraError>>;
   parser(): StreamParser;
   classify(exit: ExitInfo, tail: Tail): FailureClass;
   toolRef(tool: string): string;

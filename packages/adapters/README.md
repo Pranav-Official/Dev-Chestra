@@ -4,6 +4,21 @@ Headless CLI profiles, pure planning, stream parsing and a POSIX process
 runner for DevChestra. The engine depends only on this package's generic interface,
 never on a CLI's flags.
 
+Claude Code, Codex, OpenCode and Pi send workflow prompts through stdin on
+Windows, Linux and macOS. Prompt length does not consume the OS command-line
+budget. OpenCode retains its 256 KiB input cap; Pi trims surrounding whitespace
+from piped input. Fresh and resumed invocations use the same transport, and the
+runner waits for `onSpawn` persistence before writing the prompt and closing stdin.
+Windows additionally checks the quoted target and supervisor command lines
+against the 32,767 UTF-16-character limit. Oversized configuration arguments fail
+with `E_VALIDATION` before launch; the error contains sizes, never argument contents.
+
+Transport validation on 2026-11-07: installed OpenCode 2.2.6 and Pi 1.5.0
+completed fresh and resumed Windows runs using a 40,000-character padding block
+over stdin. Hermetic subprocess checks also delivered 180,000-byte prompts byte for
+byte on Windows and Linux (WSL). Automated transport tests run in the existing
+Linux/macOS CI suite and the Windows native workflow; macOS was not run locally.
+
 No live calls are made by this package itself. Bounded research runs on
 2026-10-26 passed fresh+resume submission for Claude Code 2.1.310 and Codex
 0.164.0 (including per-server MCP approval `approve` and env_vars forwarding).

@@ -1,4 +1,5 @@
 import { type DevChestraError, ok, type Result } from "@devchestra/core";
+import { runCommand } from "./command.js";
 import { hasControl } from "./discovery-util.js";
 import { clip, NdjsonParser, num, parseObject, record, str } from "./parsers.js";
 import { checkDir, classifyExit, fail, nativeShellOff, requireOptionKeys } from "./plan.js";
@@ -199,7 +200,11 @@ function mcpConfigContent(req: RunRequest): string {
   return JSON.stringify(config);
 }
 
-function plan(req: RunRequest, bin: string): Result<Invocation, DevChestraError> {
+function plan(
+  req: RunRequest,
+  bin: string,
+  standalone = true,
+): Result<Invocation, DevChestraError> {
   try {
     checkDir(req.cwd, "cwd");
     checkDir(req.execDir, "execDir");
@@ -224,12 +229,15 @@ function plan(req: RunRequest, bin: string): Result<Invocation, DevChestraError>
       model = req.model;
     }
 
-    const args = ["run", req.prompt];
+    // Both legacy and standalone CLIs read the message from piped stdin.
+    // Keep it out of argv: Windows and Unix impose smaller process limits.
+    const args = ["run"];
     if (model !== undefined) args.push(opencodeStatic.modelArg, model);
     // --standalone: OPENCODE_CONFIG_CONTENT is honored only by a private server;
     // the shared background service silently ignores per-run config (SPIKES 2026-11-04).
     // No --dir: 2.2.5 rejects it, the cwd below is the working directory.
-    args.push("--format", "json", "--standalone");
+    args.push("--format", "json");
+    if (standalone) args.push("--standalone");
     if (req.mode === "resume") {
       const session = req.sessionId;
       if (session === undefined || !SESSION_RE.test(session)) {
@@ -248,11 +256,55 @@ function plan(req: RunRequest, bin: string): Result<Invocation, DevChestraError>
       // Env travels on every invocation, so resume re-attaches the MCP
       // server through the same inline config.
       env: { ...req.env, ...req.mcp.env, OPENCODE_CONFIG_CONTENT: mcpConfigContent(req) },
+      stdin: req.prompt,
       files: [],
     });
   } catch (error) {
     return fail(error instanceof Error ? error.message : String(error));
   }
+}
+
+/** Probe before sending any prompt. 1.x runs locally without --attach; newer
+ * shared-service releases need --standalone to receive per-invocation config. */
+async function planAsync(
+  req: RunRequest,
+  bin: string,
+  signal: AbortSignal,
+): Promise<Result<Invocation, DevChestraError>> {
+  const validated = plan(req, bin);
+  if (!validated.ok) return validated;
+  const probe = (args: string[]) =>
+    runCommand(
+      {
+        cmd: bin,
+        args,
+        cwd: req.cwd,
+        env: req.env,
+        timeoutMs: Math.min(10_000, req.limits.timeoutMs),
+        maxStdoutBytes: 128 * 1024,
+        maxStderrBytes: 128 * 1024,
+      },
+      {},
+      signal,
+    );
+  const help = await probe(["run", "--help"]);
+  if (help.exitCode !== 0 || help.killedBy !== null || !help.groupStopped) {
+    return fail("Could not inspect OpenCode run capabilities; no agent was started.");
+  }
+  const text = `${help.stdout}\n${help.stderr}`;
+  if (/^\s*(?:-\w,\s*)?--standalone\b/m.test(text)) return validated;
+  const version = await probe(["--version"]);
+  if (
+    version.exitCode === 0 &&
+    version.killedBy === null &&
+    version.groupStopped &&
+    /^\s*(?:opencode\s+)?v?1\.\d+\.\d+(?:[-+][\w.-]+)?\s*$/i.test(version.stdout)
+  ) {
+    return plan(req, bin, false);
+  }
+  return fail(
+    "OpenCode does not advertise --standalone and could not be identified as a legacy 1.x CLI. Per-run MCP and permission settings require a private server; no agent was started.",
+  );
 }
 
 export function createOpencodeAdapter(options: AdapterOptions = {}): CliAdapter {
@@ -265,17 +317,18 @@ export function createOpencodeAdapter(options: AdapterOptions = {}): CliAdapter 
       resumeSupportsMcp: true,
       reportsCost: true,
       usageIsCumulative: false,
-      promptViaStdin: false,
-      maxPromptArgBytes: PROMPT_MAX_BYTES,
+      promptViaStdin: true,
+      maxPromptArgBytes: 0,
     },
     evidence: {
       cliVersion: "2.2.5",
       argvSource: "help-fixture",
       behaviorVerified: false,
       notes: [
+        "Runtime planAsync inspects run --help before launching: advertised --standalone uses a private server; identified 1.x releases omit it and run locally without --attach. Synchronous plan is a current-profile preview.",
         "argv from opencode 2.2.5 run --help: run [prompt] --model provider/model --format json --standalone --session <ses_...>; cwd is the process working directory (2.2.5 rejects --dir)",
         'LIVE opencode 2.2.5 (standalone, `OPENCODE_CONFIG_CONTENT` `permission:{bash:"deny"}`): no `tool_use`, model reports NOSHELL; without it the same prompt runs `echo hi` via the `shell` tool. The `bash` permission key still gates the renamed `shell` tool. Caution: only `--standalone` (private server) honors per-run `OPENCODE_CONFIG_CONTENT`; against the shared background service the deny is silently ignored. Adapter `run --dir` is rejected by 2.2.5 (stale argv from 1.19.4); 1.x flat `mcp` inline shape still attaches.',
-        "prompt travels as argv (promptViaStdin false), capped at 256 KiB; --session resumes, no --cd/--sandbox flags exist",
+        "prompt travels through stdin, capped at 256 KiB independently of OS argument limits; --session resumes, no --cd/--sandbox flags exist",
         "MCP server attaches via OPENCODE_CONFIG_CONTENT inline JSON (type local, command [shim, ...args], environment, enabled); env travels on fresh and resume",
         "LIVE opencode 1.19.4: inline JSON merges with the user config - a user-configured fixture server starts when the inline config only carries devchestra, and does NOT start when the inline config adds mcp.<name>.enabled=false",
         "LIVE: inline local extra starts and is callable as <server>_<tool> (fixture_fixture_echo, log: start+call); remote extras use {type:remote,url,headers,enabled:true} per the installed config shape (no live remote server exercised)",
@@ -287,6 +340,7 @@ export function createOpencodeAdapter(options: AdapterOptions = {}): CliAdapter 
       ],
     },
     plan: (req) => plan(req, bin),
+    planAsync: (req, signal) => planAsync(req, bin, signal),
     parser: (): StreamParser => new OpencodeParser(),
     classify: (exit: ExitInfo, _tail: Tail): FailureClass => classifyExit(exit),
     toolRef: (tool) => `devchestra_${tool}`,

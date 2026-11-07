@@ -6,7 +6,6 @@
   "bin": "opencode",
   "args": [
     "run",
-    "Call submit_result once.",
     "--format",
     "json",
     "--standalone",

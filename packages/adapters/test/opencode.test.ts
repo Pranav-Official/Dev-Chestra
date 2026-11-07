@@ -8,6 +8,7 @@ import {
   discoverOpencodeModels,
   type OpencodeModelDiscoveryRequest,
   opencodeConfigIdentity,
+  runCommand,
 } from "../src/index.js";
 import { splitOpencodeMcpTool } from "../src/opencode.js";
 import { FIXTURES, fixtureJson, fixtureText, request, TOKEN } from "./helpers.js";
@@ -101,7 +102,7 @@ describe("opencode plan", () => {
     expect(JSON.stringify(result.value.args)).not.toContain(TOKEN);
     expect(JSON.stringify(describeInvocation(result.value))).not.toContain(TOKEN);
     expect(result.value.files).toEqual([]);
-    expect(result.value.stdin).toBeUndefined();
+    expect(result.value.stdin).toBe("Call submit_result once.");
     expect(result.value.env.DEVCHESTRA_EXEC_TOKEN).toBe(TOKEN);
     // MCP attaches through inline config, not argv or files: env alone
     // never registers a server with the child.
@@ -617,5 +618,99 @@ describe("opencode probe", () => {
     const failed = await missing.probe({}, controller.signal);
     expect(failed.ok).toBe(false);
     expect(failed.version).toBeNull();
+  });
+});
+
+describe("opencode runtime compatibility", () => {
+  async function runtimePlan(
+    scenario: Record<string, unknown>,
+    overrides: Parameters<typeof request>[0] = {},
+    signal = new AbortController().signal,
+  ) {
+    const h = await harness();
+    await writeFile(h.scenarioPath, JSON.stringify(scenario));
+    const adapter = createAdapter("opencode", { opencodeBin: h.bin });
+    const result = await adapter.planAsync?.(
+      request({
+        ...overrides,
+        cwd: h.dir,
+        execDir: h.dir,
+        env: {
+          PATH: process.env.PATH ?? "",
+          STUB_SCENARIO: h.scenarioPath,
+          STUB_LOG: h.logPath,
+        },
+      }),
+      signal,
+    );
+    if (result === undefined) throw new Error("OpenCode needs runtime planning");
+    const calls = (await readFile(h.logPath, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as Call);
+    return { result, calls };
+  }
+
+  it.each(["fresh", "resume"] as const)("runs 1.x %s without --standalone", async (mode) => {
+    const { result, calls } = await runtimePlan(
+      { version: "1.19.4" },
+      {
+        mode,
+        ...(mode === "resume" ? { sessionId: "ses_legacy123" } : {}),
+        permissions: { network: false, write: [], extraReadDirs: [], shell: false },
+      },
+    );
+    expect(calls.map((call) => call.argv)).toEqual([["run", "--help"], ["--version"]]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.args).not.toContain("--standalone");
+    expect(result.value.args).not.toContain("--attach");
+    expect(result.value.args).not.toContain("--dir");
+    if (mode === "resume") expect(result.value.args).toContain("ses_legacy123");
+    const config = JSON.parse(result.value.env.OPENCODE_CONFIG_CONTENT ?? "{}");
+    expect(config.permission).toEqual({ bash: "deny" });
+    expect(config.mcp.devchestra.enabled).toBe(true);
+    // The legacy stand-in rejects --standalone, so actually execute the planned argv.
+    const executed = await runCommand(
+      { cmd: result.value.bin, ...result.value, timeoutMs: 5_000 },
+      {},
+    );
+    expect(executed.exitCode).toBe(0);
+    expect(executed.stdout).toContain("step_finish");
+  });
+
+  it.each(["2.2.5", "3.0.0", "1.99.0"])(
+    "uses advertised standalone support without a version lock (%s)",
+    async (version) => {
+      const { result, calls } = await runtimePlan({
+        version,
+        runHelp: "opencode run [message..]\n  --standalone  Run a private server\n",
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.args).toContain("--standalone");
+      expect(calls.map((call) => call.argv)).toEqual([["run", "--help"]]);
+    },
+  );
+
+  it.each(["2.2.5", "unknown"])(
+    "refuses an unrecognized server mode without starting an agent (%s)",
+    async (version) => {
+      const { result, calls } = await runtimePlan({ version });
+      expect(result.ok).toBe(false);
+      expect(calls.map((call) => call.argv)).toEqual([["run", "--help"], ["--version"]]);
+    },
+  );
+
+  it("does not treat failed help as a legacy CLI", async () => {
+    const { result, calls } = await runtimePlan({ helpExitCode: 2 });
+    expect(result.ok).toBe(false);
+    expect(calls.map((call) => call.argv)).toEqual([["run", "--help"]]);
+  });
+
+  it("honors cancellation before any CLI process starts", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(runtimePlan({}, {}, controller.signal)).rejects.toThrow(/cancelled/i);
   });
 });

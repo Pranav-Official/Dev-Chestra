@@ -502,7 +502,9 @@ export async function runSingleAttempt(
       ...(attached.knownMcp === undefined ? {} : { knownMcp: attached.knownMcp }),
       ...(fakeCheckpoint === undefined ? {} : { cliOptions: { checkpoint: fakeCheckpoint } }),
     };
-    const planned = adapter.plan(request);
+    const planned = adapter.planAsync
+      ? await adapter.planAsync(request, active.abort.signal)
+      : adapter.plan(request);
     if (!planned.ok) throw planned.error;
     let exit: Awaited<ReturnType<typeof runAgent>>;
     try {

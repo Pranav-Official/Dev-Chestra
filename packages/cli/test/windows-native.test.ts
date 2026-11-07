@@ -34,6 +34,7 @@ import { stopServer } from "../src/server-control.js";
 import {
   createInstanceId,
   createSessionToken,
+  readServerMetadata,
   writeServerMetadata,
 } from "../src/server-metadata.js";
 
@@ -70,12 +71,78 @@ function cli(args: string[], cwd: string) {
   });
 }
 afterEach(async () => {
-  for (const child of children.splice(0)) child.kill("SIGKILL");
+  await Promise.all(
+    children.splice(0).map(
+      (child) =>
+        new Promise<void>((done) => {
+          if (child.exitCode !== null || child.signalCode !== null) return done();
+          child.once("exit", () => done());
+          child.kill("SIGKILL");
+        }),
+    ),
+  );
   for (const dir of directories.splice(0))
     rmSync(dir, { recursive: true, force: true, maxRetries: 15, retryDelay: 100 });
 });
 
 describe.skipIf(process.platform !== "win32")("Windows native", () => {
+  it.each(["exiting", "alive"] as const)(
+    "handles a missing shutdown pipe while the recorded process is %s",
+    async (state) => {
+      const cwd = directory();
+      const lock = await acquireDataDirLock(cwd);
+      try {
+        const child = spawn(
+          process.execPath,
+          [
+            "-e",
+            "process.stdin.resume();process.stdin.on('end',()=>process.exit(0));console.log('ready')",
+          ],
+          { cwd, windowsHide: true, stdio: ["pipe", "pipe", "ignore"] },
+        );
+        children.push(child);
+        await new Promise<void>((resolve) => child.stdout?.once("data", () => resolve()));
+        const identity = await readProcessIdentity(child.pid as number);
+        if (identity === null) throw new Error("Missing process identity");
+        await writeServerMetadata(cwd, {
+          version: "0.1.0",
+          pid: child.pid as number,
+          pidStart: identity.pidStart,
+          port: 1,
+          token: createSessionToken(),
+          instanceId: createInstanceId(),
+          startedAt: Date.now(),
+        });
+        const result = await stopServer(
+          cwd,
+          { force: false, timeoutMs: state === "exiting" ? 5000 : 0 },
+          {
+            fetch: async () => new Response(JSON.stringify({ counts: { activeRuns: 0 } })),
+            sleep: async (ms) => {
+              // Simulate shutdown already in progress after its pipe was closed.
+              if (state === "exiting") child.stdin?.end();
+              await new Promise((resolve) => setTimeout(resolve, ms));
+            },
+          },
+        );
+        if (state === "exiting") {
+          expect(result).toMatchObject({ result: "stopped", killed: false });
+          expect((await readServerMetadata(cwd)).status).toBe("missing");
+        } else {
+          expect(result).toMatchObject({
+            result: "failed",
+            reason: expect.stringMatching(/shutdown pipe.*--force/i),
+          });
+          expect(alive(child.pid as number)).toBe(true);
+          expect((await readServerMetadata(cwd)).status).toBe("valid");
+        }
+      } finally {
+        await lock.release();
+      }
+    },
+    20000,
+  );
+
   it("force-stops an identity-checked server when its control pipe is unavailable", async () => {
     const cwd = directory();
     const lock = await acquireDataDirLock(cwd);

@@ -105,20 +105,57 @@ export function windowsCommand(
     : { bin: process.execPath, args: [target, ...args] };
 }
 
+/** UTF-16 length including quotes, separators and terminating NUL. Matches
+ * the native supervisor's CRT quoting; also bounds Node's helper argv. */
+export function windowsCommandLineLength(bin: string, args: readonly string[]): number {
+  let length = 0;
+  for (const value of [bin, ...args]) {
+    if (length > 0) length++;
+    length += 2;
+    let slashes = 0;
+    for (const char of value) {
+      if (char === "\\") {
+        slashes++;
+        continue;
+      }
+      length += char === '"' ? slashes * 2 + 2 : slashes + char.length;
+      slashes = 0;
+    }
+    length += slashes * 2;
+  }
+  return length + 1;
+}
+
+export function assertWindowsCommandLine(bin: string, args: readonly string[]): void {
+  const chars = windowsCommandLineLength(bin, args);
+  if (chars > 32_767) {
+    throw new DevChestraError(
+      "E_VALIDATION",
+      `Windows command line requires ${chars} UTF-16 characters (limit 32767); reduce CLI configuration arguments or pass large inputs through stdin or files`,
+      { details: { step: "command_line_size", chars, maxChars: 32_767 } },
+    );
+  }
+}
+
 /** POSIX process groups on Unix; a suspended launch into a kill-on-close Job Object on Windows. */
 export function spawnOwned(bin: string, args: string[], options: SpawnOptions) {
   if (process.platform !== "win32") return spawn(bin, args, { ...options, detached: true });
   const env = options.env ?? process.env;
   const command = windowsCommand(bin, args, env, String(options.cwd ?? process.cwd()));
+  assertWindowsCommandLine(command.bin, command.args);
   const parent = windowsProcessIdentity(process.pid);
   if (parent === null) throw new Error("Cannot verify the Windows supervisor process");
-  return spawn(
-    helper,
-    ["run", String(process.pid), parent.pidStart.slice(8), command.bin, ...command.args],
-    {
-      ...options,
-      detached: false,
-      windowsHide: true,
-    },
-  );
+  const helperArgs = [
+    "run",
+    String(process.pid),
+    parent.pidStart.slice(8),
+    command.bin,
+    ...command.args,
+  ];
+  assertWindowsCommandLine(helper, helperArgs);
+  return spawn(helper, helperArgs, {
+    ...options,
+    detached: false,
+    windowsHide: true,
+  });
 }

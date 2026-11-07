@@ -6,7 +6,6 @@
   "bin": "opencode",
   "args": [
     "run",
-    "Call submit_result once.",
     "--model",
     "opencode/gpt-5",
     "--format",
