@@ -1197,9 +1197,11 @@ describe("static serving", () => {
     for (const path of [
       "/settings",
       "/settings/providers",
+      "/settings/models",
       "/settings/usage",
       "/p/proj-1/settings",
       "/p/proj-1/settings/providers",
+      "/p/proj-1/settings/models",
       "/p/proj-1/settings/usage",
     ]) {
       const settings = await h.app.request(url(path), { headers: cookieHeaders() });

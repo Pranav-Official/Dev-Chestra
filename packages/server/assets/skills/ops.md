@@ -55,7 +55,7 @@ Workflow `budget` and `supervisor`; node `supervise` other than `default`; node 
 - [ ] Gate/decision/approval/loop edges use handles; every gate has exactly one trailing `otherwise`; every decision's `uncertain` is wired.
 - [ ] Every expression/template only references `start` and ancestors (or `loop`/`result` where listed); templates use `{{ }}`, bare-expression fields do not.
 - [ ] Gate `when`, loop `until` always return a boolean, even when values are missing.
-- [ ] Every agent has `cli`, an inline `prompt`, an `output` schema in the restricted profile (arrays have `maxItems`), and `permissions`.
+- [ ] Every agent has a `tier` (or, only if the user asked for one provider, a `cli`), an inline `prompt`, an `output` schema in the restricted profile (arrays have `maxItems`), and `permissions`.
 - [ ] Shell placeholders are outside quotes; no heredocs; destructive commands sit behind an approval.
 - [ ] Loops: `maxIterations` set, body has one start (no params) and one success end, `result` and `until` are evidence-based, `.exhausted` is wired to a failed end, state/result stay small.
 - [ ] Foreach: `source` set (expression over outer scope, or relative csv template), `maxItems`/`onItemFailure` defaulted, body has one start (no params) and one success end, `result` over end ancestors plus `foreach`, per-item `output` set.

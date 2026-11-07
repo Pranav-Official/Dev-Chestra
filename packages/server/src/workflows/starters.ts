@@ -8,7 +8,6 @@ import type { ManagedWorkflowService, WorkflowProject } from "./service.js";
 export type StarterCli = (typeof PROD_CLIS)[number];
 
 export interface StarterOptions {
-  cli: StarterCli;
   testCommand: string;
 }
 
@@ -36,7 +35,7 @@ export function pickStarterCli(
   return PROD_CLIS.find((cli) => ready.has(cli) && !disabled.has(cli)) ?? DEFAULT_STARTER_CLI;
 }
 
-function projectTour({ cli }: StarterOptions): WorkflowFile {
+function projectTour(): WorkflowFile {
   return {
     schemaVersion: 1,
     id: "project-tour",
@@ -65,7 +64,7 @@ function projectTour({ cli }: StarterOptions): WorkflowFile {
           type: "agent",
           name: "Survey the project",
           ui: { x: 320, y: 160 },
-          cli,
+          tier: "medium",
           prompt:
             "Survey this project with a {{ start.focus }} focus. Read the README, the manifest files and the top-level layout. Report only what you verified in the files; do not modify anything.",
           output: {
@@ -128,7 +127,7 @@ function projectTour({ cli }: StarterOptions): WorkflowFile {
   };
 }
 
-function fixUntilGreen({ cli, testCommand }: StarterOptions): WorkflowFile {
+function fixUntilGreen({ testCommand }: StarterOptions): WorkflowFile {
   return {
     schemaVersion: 1,
     id: "fix-until-green",
@@ -205,7 +204,7 @@ function fixUntilGreen({ cli, testCommand }: StarterOptions): WorkflowFile {
                 type: "agent",
                 name: "Fix the failure",
                 ui: { x: 300, y: 120 },
-                cli,
+                tier: "high",
                 prompt:
                   "The project's tests are failing. This is round {{ loop.iteration }} of {{ loop.maxIterations }}.\nLatest test output:\n{{ loop.state.failure }}\nFind the root cause and make the smallest change that fixes it, editing files in the workspace. Do not weaken or delete tests. A later step reruns the tests.",
                 output: {
@@ -297,23 +296,24 @@ function fixUntilGreen({ cli, testCommand }: StarterOptions): WorkflowFile {
 }
 
 export function starterWorkflows(options: StarterOptions): WorkflowFile[] {
-  return [projectTour(options), fixUntilGreen(options)];
+  return [projectTour(), fixUntilGreen(options)];
 }
 
 /**
- * Writes the starter workflows into a freshly registered project. Existing
- * ids are left alone; any other failure is returned as the list of ids that
- * could not be written so the caller can log it without failing registration.
+ * Writes the starter workflows into a freshly registered project. They name model tiers, not a
+ * provider, so they stay portable when committed. Existing ids are left alone; any other failure
+ * is returned as the list of ids that could not be written so the caller can log it without
+ * failing registration.
  */
 export async function seedStarterWorkflows(
   service: ManagedWorkflowService,
   project: WorkflowProject,
-  options: Omit<StarterOptions, "testCommand"> & { testCommand?: string },
+  options: { testCommand?: string } = {},
 ): Promise<{ created: string[]; failed: string[] }> {
   const testCommand = options.testCommand ?? detectTestCommand(project.path);
   const created: string[] = [];
   const failed: string[] = [];
-  for (const workflow of starterWorkflows({ cli: options.cli, testCommand })) {
+  for (const workflow of starterWorkflows({ testCommand })) {
     try {
       await service.create(project, { id: workflow.id, name: workflow.name, workflow });
       created.push(workflow.id);

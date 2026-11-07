@@ -276,6 +276,51 @@ describe("webhook delivery claims", () => {
     ).toBe("E_CONFLICT");
   });
 
+  it("peeks without claiming: unseen stays unseen, a bound claim reports its run", () => {
+    const { store } = setup();
+    armed(store);
+    const input = { hookId: "whk_d", deliveryId: "p-1", fingerprint: "fp-p" };
+    expect(store.webhooks.peekDelivery(input)).toEqual({ kind: "unseen" });
+    // Peeking wrote nothing, so the delivery is still claimable.
+    expect(store.webhooks.claimDelivery(input)).toEqual({ kind: "claimed", key: "p-1" });
+    const run = store.runs.enqueue(runInput());
+    store.webhooks.bindDelivery("whk_d", "p-1", run.runId);
+    expect(store.webhooks.peekDelivery(input)).toEqual({ kind: "duplicate", runId: run.runId });
+    // A replay of the body under a new or missing ID is a duplicate too.
+    expect(
+      store.webhooks.peekDelivery({ hookId: "whk_d", deliveryId: "p-2", fingerprint: "fp-p" }),
+    ).toEqual({ kind: "duplicate", runId: run.runId });
+    expect(store.webhooks.peekDelivery({ hookId: "whk_d", fingerprint: "fp-p" })).toEqual({
+      kind: "duplicate",
+      runId: run.runId,
+    });
+  });
+
+  it("peeks a reused delivery ID with another payload as a conflict", () => {
+    const { store } = setup();
+    armed(store);
+    store.webhooks.claimDelivery({ hookId: "whk_d", deliveryId: "p-3", fingerprint: "fp-a" });
+    const run = store.runs.enqueue(runInput());
+    store.webhooks.bindDelivery("whk_d", "p-3", run.runId);
+    expect(
+      codeOf(() =>
+        store.webhooks.peekDelivery({ hookId: "whk_d", deliveryId: "p-3", fingerprint: "fp-b" }),
+      ),
+    ).toBe("E_CONFLICT");
+  });
+
+  it("does not peek an expired claim as a duplicate", () => {
+    const { store, clock } = setup();
+    armed(store);
+    store.webhooks.claimDelivery({ hookId: "whk_d", deliveryId: "p-4", fingerprint: "fp-x" });
+    const run = store.runs.enqueue(runInput());
+    store.webhooks.bindDelivery("whk_d", "p-4", run.runId);
+    clock.advance(WEBHOOK_DELIVERY_RETENTION_MS + 1);
+    expect(
+      store.webhooks.peekDelivery({ hookId: "whk_d", deliveryId: "p-4", fingerprint: "fp-x" }),
+    ).toEqual({ kind: "unseen" });
+  });
+
   it("reclaims an expired claim and prunes expired rows in bounded batches", () => {
     const { store, clock } = setup();
     armed(store);

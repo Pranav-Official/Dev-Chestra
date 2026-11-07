@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { Topbar } from "../shell/Topbar.js";
 import { ExecutionPanel } from "./settings/ExecutionPanel.js";
+import { ModelsPanel } from "./settings/ModelsPanel.js";
 import { ProvidersPanel } from "./settings/ProvidersPanel.js";
 import { SETTINGS_SECTIONS, settingsPath } from "./settings/sections.js";
 import { UsagePanel } from "./UsagePanel.js";
@@ -9,6 +10,7 @@ import { UsagePanel } from "./UsagePanel.js";
 /** One panel per registry id. A new section without an entry here fails the typecheck. */
 const PANELS: Record<(typeof SETTINGS_SECTIONS)[number]["id"], ComponentType> = {
   providers: ProvidersPanel,
+  models: ModelsPanel,
   usage: UsagePanel,
   execution: ExecutionPanel,
 };
@@ -38,7 +40,7 @@ export function SettingsPage() {
           <div className="page-head">
             <div className="grow">
               <h1>Settings</h1>
-              <p>Providers, token use, cost and run execution.</p>
+              <p>Providers, model tiers, token use, cost and run execution.</p>
             </div>
           </div>
           <div className="row wrap" style={{ gap: 24, alignItems: "flex-start" }}>

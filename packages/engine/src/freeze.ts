@@ -1,4 +1,5 @@
 import { DevChestraError, hashJson, isRecord } from "@devchestra/core";
+import { applyModelTiers, type EffectiveModelTiers, MODEL_TIERS } from "@devchestra/schema";
 import { analyzeWorkflowPlan } from "./graph-plan.js";
 import type { WorkflowResolver } from "./types.js";
 
@@ -20,6 +21,16 @@ export function referencedWorkflowIds(snapshot: unknown): string[] {
   return [...ids];
 }
 
+/** Stand-in mapping so a still-tiered definition can be structurally analyzed. Never stored or run. */
+const ANALYSIS_TIERS: EffectiveModelTiers = Object.fromEntries(
+  MODEL_TIERS.map((tier) => [tier, { ref: { cli: "claude-code" }, source: "project" }]),
+);
+
+/** Structure checks need a provider on every agent; a tier only has one once a machine maps it. */
+function analyzable(snapshot: unknown): unknown {
+  return applyModelTiers(snapshot, ANALYSIS_TIERS).snapshot;
+}
+
 /**
  * Canonical, project-scoped dependency freeze before any run side effects.
  * Definitions are loaded once; DFS checks cycles and memoizes subtree height,
@@ -31,8 +42,14 @@ export async function freezeWorkflowBundle(options: {
   rootWorkflowId: string;
   dependencies?: Readonly<Record<string, unknown>> | undefined;
   resolver?: WorkflowResolver | undefined;
+  /**
+   * Applied to every child definition before it is stored in the bundle (model tiers). Without
+   * it the bundle keeps the authored definitions, which is what a trigger stores when armed so
+   * each firing resolves tiers on the machine that runs it.
+   */
+  transform?: ((snapshot: unknown) => Promise<unknown>) | undefined;
 }): Promise<{ bundle: Record<string, unknown>; hashes: Record<string, string> }> {
-  const rootPlan = analyzeWorkflowPlan(options.rootSnapshot);
+  const rootPlan = analyzeWorkflowPlan(analyzable(options.rootSnapshot));
   if (!rootPlan.ok) throw rootPlan.error;
   const bundle: Record<string, unknown> = Object.create(null);
   const hashes: Record<string, string> = Object.create(null);
@@ -84,7 +101,8 @@ export async function freezeWorkflowBundle(options: {
       }
       snapshot = resolved.value.normalized;
     }
-    const plan = analyzeWorkflowPlan(snapshot);
+    if (options.transform !== undefined) snapshot = await options.transform(snapshot);
+    const plan = analyzeWorkflowPlan(analyzable(snapshot));
     if (!plan.ok) throw plan.error;
     bundle[id] = snapshot;
     hashes[id] = await hashJson(snapshot);

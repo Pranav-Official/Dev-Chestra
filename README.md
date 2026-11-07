@@ -92,7 +92,7 @@ End — finish the run.
 
 ## How a run feels
 
-1. Register your project once by pointing DevChestra at a folder. A new project comes with two starter workflows, "Tour this project" (read-only survey) and "Fix failing tests" (test, fix, retest, ask for approval), using the first coding CLI it finds. Pass `--no-starters` to `devchestra project add` to skip them.
+1. Register your project once by pointing DevChestra at a folder. A new project comes with two starter workflows, "Tour this project" (read-only survey) and "Fix failing tests" (test, fix, retest, ask for approval), using the first coding CLI it finds (through the model tiers below). Pass `--no-starters` to `devchestra project add` to skip them.
 2. Build a workflow on the canvas, or ask your coding agent to create and validate one through the CLI.
 3. Start a run in the editor or from the CLI. Pick where it runs — your project folder as-is, an existing worktree, or a fresh worktree per run.
 4. Follow events and transcripts in the editor, or let your agent watch the run, inspect errors and usage, and bring human review gates back to you through the CLI.
@@ -157,6 +157,38 @@ See the [CLI guide](packages/cli/README.md) for validation, approvals, recovery,
 Works with the CLIs you already signed in to: Claude Code, Codex, OpenCode, and Pi. DevChestra never asks for their keys, it just uses what's there.
 
 Decision nodes are the one exception — they need their own keys. `setup:global` can set them up for you (see above), or copy `.env.example` to `.env` and fill in only the provider you use.
+
+## Model tiers: one workflow, any machine
+
+A workflow you commit shouldn't care which coding CLIs a teammate has installed. Instead of naming a CLI and model, an agent step can pick a **tier**: `high`, `medium` or `low`. Each machine maps the tiers to whatever it has, so the same workflow file runs everywhere without edits.
+
+Mappings live in the project's `.devchestra/` folder, in two files with the same shape:
+
+| File | Shared? | Use it for |
+| --- | --- | --- |
+| `settings.local.json` | No, git-ignored | This machine's providers and models. Created when you register a project. |
+| `settings.json` | Yes, committed | An optional team default. The local file wins for any tier it sets. |
+
+```json
+{
+  "version": 1,
+  "models": {
+    "high": { "cli": "claude-code", "model": "opus" },
+    "medium": { "cli": "claude-code" },
+    "low": { "cli": "pi" }
+  }
+}
+```
+
+`model` is optional; leave it out to use the CLI's own default. Edit the mappings in **Project settings** in the editor, or from the terminal:
+
+```sh
+devchestra settings show --project .                       # what a run here would use, and where each came from
+devchestra settings set high claude-code opus --project .  # this machine (--scope project to commit it)
+devchestra settings unset high --project .
+```
+
+In the agent step's inspector, choose **Tier** instead of a specific model. Tiers are resolved once when a run starts. If a tier isn't mapped on the machine, the run is refused up front and tells you which one to set. Settings never hold secrets.
 
 ## It lives where you already work
 

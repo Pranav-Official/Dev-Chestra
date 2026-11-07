@@ -58,7 +58,8 @@ export interface WebhookClaimInput {
 }
 
 /** `key` is the stored claim key, which the run is bound to once it exists. */
-export type WebhookClaim = { kind: "claimed"; key: string } | { kind: "duplicate"; runId: string };
+export type WebhookDuplicate = { kind: "duplicate"; runId: string };
+export type WebhookClaim = { kind: "claimed"; key: string } | WebhookDuplicate;
 
 /**
  * Stored key for a delivery that carried no provider ID. The space makes it fail the
@@ -282,27 +283,27 @@ export function assertArmedRevision(runtime: Runtime, hookId: string, revision: 
 
 type ClaimRow = { fingerprint: string; run_id: string | null; created_at: number };
 
-function duplicateOf(row: ClaimRow): WebhookClaim {
+function duplicateOf(row: ClaimRow): WebhookDuplicate {
   if (row.run_id === null) fail("E_INTERNAL", "Stored webhook delivery has no run");
   return { kind: "duplicate", runId: row.run_id };
 }
 
 /**
- * Claims one delivery for this hook, inside the caller's transaction. Three outcomes:
+ * Finds the run an earlier delivery already created for this one, or null when it is new.
+ * Writes nothing. Two matches count:
  *
  * - The provider ID was seen within the window: the same payload returns the run it
  *   created, and a different payload is a conflict.
  * - The body was seen within the window under any ID, or with none: the replay returns
  *   the run it created. A provider retry with a new ID, or a captured request resent
  *   without one, therefore cannot start a second run.
- * - Otherwise the delivery is claimed, and the caller binds its run to the returned key.
- *
- * Expired claims are reclaimed.
  */
-export function claimDelivery(runtime: Runtime, input: WebhookClaimInput): WebhookClaim {
-  const at = now(runtime);
-  const cutoff = at - WEBHOOK_DELIVERY_RETENTION_MS;
-  const key = input.deliveryId ?? noIdKey(input.fingerprint);
+function findDuplicate(
+  runtime: Runtime,
+  input: WebhookClaimInput,
+  key: string,
+  cutoff: number,
+): WebhookDuplicate | null {
   const sameKey = runtime.db
     .prepare(
       "SELECT fingerprint, run_id, created_at FROM webhook_deliveries WHERE hook_id = ? AND delivery_id = ?",
@@ -316,18 +317,44 @@ export function claimDelivery(runtime: Runtime, input: WebhookClaimInput): Webho
     }
     return duplicateOf(sameKey);
   }
-  if (sameKey !== undefined) {
-    runtime.db
-      .prepare("DELETE FROM webhook_deliveries WHERE hook_id = ? AND delivery_id = ?")
-      .run(input.hookId, key);
-  }
   const replay = runtime.db
     .prepare(
       `SELECT fingerprint, run_id, created_at FROM webhook_deliveries
        WHERE hook_id = ? AND fingerprint = ? AND created_at >= ? LIMIT 1`,
     )
     .get(input.hookId, input.fingerprint, cutoff) as ClaimRow | undefined;
-  if (replay !== undefined) return duplicateOf(replay);
+  return replay === undefined ? null : duplicateOf(replay);
+}
+
+/**
+ * Read-only check for a retry of an accepted delivery: the same duplicate outcomes as
+ * `claimDelivery` (including the reused-ID conflict), but a delivery that is new is reported
+ * as `unseen` and nothing is claimed or written.
+ */
+export function peekDelivery(
+  runtime: Runtime,
+  input: WebhookClaimInput,
+): WebhookDuplicate | { kind: "unseen" } {
+  const cutoff = now(runtime) - WEBHOOK_DELIVERY_RETENTION_MS;
+  const key = input.deliveryId ?? noIdKey(input.fingerprint);
+  return findDuplicate(runtime, input, key, cutoff) ?? { kind: "unseen" };
+}
+
+/**
+ * Claims one delivery for this hook, inside the caller's transaction: a duplicate (see
+ * `findDuplicate`) returns the run it created; otherwise the delivery is claimed and the
+ * caller binds its run to the returned key. Expired claims are reclaimed.
+ */
+export function claimDelivery(runtime: Runtime, input: WebhookClaimInput): WebhookClaim {
+  const at = now(runtime);
+  const cutoff = at - WEBHOOK_DELIVERY_RETENTION_MS;
+  const key = input.deliveryId ?? noIdKey(input.fingerprint);
+  const duplicate = findDuplicate(runtime, input, key, cutoff);
+  if (duplicate !== null) return duplicate;
+  // Anything still stored under this key is expired, since a fresh one would be a duplicate.
+  runtime.db
+    .prepare("DELETE FROM webhook_deliveries WHERE hook_id = ? AND delivery_id = ?")
+    .run(input.hookId, key);
   runtime.db
     .prepare(
       `INSERT INTO webhook_deliveries (hook_id, delivery_id, fingerprint, run_id, created_at)

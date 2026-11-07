@@ -94,6 +94,7 @@ const REPORT: ValidationReport = {
   warnings: [],
   requires: {
     clis: [],
+    tiers: [],
     networkNodes: [],
     shellCommands: [],
     projectWriteNodes: [],

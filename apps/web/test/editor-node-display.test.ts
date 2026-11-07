@@ -187,3 +187,24 @@ describe("handleSignature pins current output per node type", () => {
     expect(handleSignature(loop)).toBe(`loop:${loop.id}`);
   });
 });
+
+describe("tiered agent node display", () => {
+  const tiered: AgentNode = {
+    id: "agent",
+    type: "agent",
+    name: "Agent",
+    tier: "high",
+    output: { type: "object" },
+    permissions: { network: false, write: [] },
+  };
+
+  it("names the tier instead of a provider and model", () => {
+    expect(subtitle(tiered)).toBe("High tier");
+    expect(subtitle({ ...tiered, tier: "low" })).toBe("Low tier");
+  });
+
+  it("does not print 'undefined' for a node with neither provider nor tier", () => {
+    const { tier: _tier, ...bare } = tiered;
+    expect(subtitle(bare)).toBe("No provider");
+  });
+});

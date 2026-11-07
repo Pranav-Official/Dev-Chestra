@@ -7,6 +7,7 @@ export type DevChestraErrorCode =
   | "E_NOT_SUPPORTED"
   | "E_CONFLICT"
   | "E_CLI_DISABLED"
+  | "E_MODEL_TIER"
   | "E_QUEUE_FULL"
   | "E_PAYLOAD_TOO_LARGE"
   | "E_RATE_LIMIT"
@@ -22,6 +23,7 @@ const STATUS: Record<DevChestraErrorCode, number> = {
   E_NOT_SUPPORTED: 501,
   E_CONFLICT: 409,
   E_CLI_DISABLED: 409,
+  E_MODEL_TIER: 409,
   E_QUEUE_FULL: 503,
   E_PAYLOAD_TOO_LARGE: 413,
   E_RATE_LIMIT: 429,

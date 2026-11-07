@@ -3,6 +3,8 @@ import {
   decisionHandles,
   type Issue,
   LOOP_EXHAUSTED_HANDLE,
+  MODEL_TIER_LABELS,
+  type ModelTierId,
   type NodeType,
   type PollProbe,
   type StartPollingConfig,
@@ -16,6 +18,7 @@ import {
   Flag,
   GitBranch,
   GitMerge,
+  Layers,
   ListOrdered,
   Play,
   Repeat,
@@ -114,6 +117,11 @@ export function handleSignature(node: WorkflowNode): string | null {
   }
 }
 
+/** "High tier": how a tiered agent node names its model on the canvas. */
+export function tierLabel(tier: ModelTierId): string {
+  return `${MODEL_TIER_LABELS[tier]} tier`;
+}
+
 /** Short model name for a node's meta line: no provider prefix, capped at 22 characters. */
 export function shortModel(model: string | undefined): string {
   if (model === undefined || model === "") return "default";
@@ -126,6 +134,8 @@ export function subtitle(node: WorkflowNode): string {
     case "start":
       return plural(node.params.length, "parameter");
     case "agent":
+      if (node.tier !== undefined) return tierLabel(node.tier);
+      if (node.cli === undefined) return "No provider";
       return node.model === undefined ? node.cli : `${node.cli} · ${node.model}`;
     case "shell":
       return node.command;
@@ -217,7 +227,7 @@ export function EditorNodeView({ data, selected }: NodeProps<EditorFlowNode>) {
   const workflow = !unsupported && node.type === "workflow" ? node : null;
   const agent = !unsupported && node.type === "agent" ? node : null;
   const providers = useProviderState();
-  const providerOff = agent !== null && providers.isDisabled(agent.cli);
+  const providerOff = agent !== null && agent.cli !== undefined && providers.isDisabled(agent.cli);
   const agentTitle =
     agent === null ? "" : `${subtitle(agent)}${providerOff ? " · turned off in Settings" : ""}`;
   return (
@@ -294,9 +304,15 @@ export function EditorNodeView({ data, selected }: NodeProps<EditorFlowNode>) {
             className={providerOff ? "ed-node-provider is-off" : "ed-node-provider"}
             title={agentTitle}
           >
-            <ProviderIcon cli={agent.cli} size={12} />
+            {agent.tier !== undefined ? (
+              <Layers size={12} aria-hidden="true" />
+            ) : agent.cli === undefined ? null : (
+              <ProviderIcon cli={agent.cli} size={12} />
+            )}
             {providerOff ? <span className="ed-node-provider-dot" aria-hidden="true" /> : null}
-            <span aria-hidden="true">{shortModel(agent.model)}</span>
+            <span aria-hidden="true">
+              {agent.tier !== undefined ? tierLabel(agent.tier) : shortModel(agent.model)}
+            </span>
             <span className="sr-only">{agentTitle}</span>
           </span>
         )}

@@ -93,14 +93,16 @@ describe("skill.md embedded examples", () => {
         expect(report.ok).toBe(true);
       });
 
-      it("uses a canonical id, real CLIs only, and normalizes", () => {
+      it("uses a canonical id, model tiers only, and normalizes", () => {
         if (!parsed.ok) throw parsed.error;
         const file: WorkflowFile = parsed.value;
         expect(file.id).toMatch(/^[a-z0-9-]{1,64}$/u);
         for (const node of workflowNodes(file.graph)) {
           expect(node.id).toMatch(/^[a-z][a-z0-9_]{0,47}$/u);
           if (node.type === "agent") {
-            expect(["claude-code", "codex", "opencode", "pi"]).toContain(node.cli);
+            // The guide teaches tiers first, so its examples stay portable between machines.
+            expect(["high", "medium", "low"]).toContain(node.tier);
+            expect(node.cli).toBeUndefined();
             expect(node.promptFile).toBeUndefined();
             expect(node.cliOptions).toBeUndefined();
             expect(node.workspace).toBeUndefined();

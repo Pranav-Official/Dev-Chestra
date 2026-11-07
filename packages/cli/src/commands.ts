@@ -21,6 +21,7 @@ import {
 import type { CliOptions } from "./args.js";
 import { loadFakeScript, requireFakeScript } from "./fake-script.js";
 import { type RunningGateway, startGateway } from "./gateway.js";
+import { createModelTierSource } from "./model-tier-source.js";
 import { type ExitCode, exitCodeForOutcome, notice, writeEvent, writeSummary } from "./output.js";
 import {
   createCliWorkflowResolver,
@@ -100,6 +101,7 @@ export function createCliEngine(
     // process.env. Never passed to agent CLIs or shell nodes.
     decisions: createDecisionService(),
     mcpResolver: createMcpResolver(),
+    modelTiers: createModelTierSource(store),
     // Project-bound single-id child reader for the engine's canonical freeze.
     // The engine owns recursive resolution, cycle detection and depth limits.
     ...({ workflowResolver: createCliWorkflowResolver(store) } as Record<string, unknown>),

@@ -9,6 +9,7 @@ import {
   commandResponseSchema,
   decisionProvidersResponseSchema,
   decisionTestResultSchema,
+  effectiveSettingsResponseSchema,
   eventPageResponseSchema,
   executionDetailResponseSchema,
   executionSettingsResponseSchema,
@@ -26,6 +27,7 @@ import {
   runContextResponseSchema,
   runDetailResponseSchema,
   runListResponseSchema,
+  settingsResponseSchema,
   startRunResponseSchema,
   transcriptPageResponseSchema,
   usageSummaryResponseSchema,
@@ -86,6 +88,8 @@ const RESPONSE_SCHEMAS: Readonly<Record<string, SafeSchema>> = {
   PollProbeResult: pollProbeResultSchema,
   ExecutionSettingsResponse: executionSettingsResponseSchema,
   WebhookSettings: webhookSettingsSchema,
+  SettingsResponse: settingsResponseSchema,
+  EffectiveSettingsResponse: effectiveSettingsResponseSchema,
 } as unknown as Readonly<Record<string, SafeSchema>>;
 
 export function makeResponseValidator(

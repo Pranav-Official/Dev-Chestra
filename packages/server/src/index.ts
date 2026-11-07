@@ -86,6 +86,13 @@ export type {
   SubmitInput,
   SubmitOutcome,
 } from "./ports.js";
+export {
+  loadEffectiveModelTiers,
+  readSettingsLayer,
+  type SettingsLayer,
+  saveSettingsLayer,
+  seedLocalModelTiers,
+} from "./settings/store.js";
 export type {
   GlobalStreamEventName,
   GlobalStreamHint,

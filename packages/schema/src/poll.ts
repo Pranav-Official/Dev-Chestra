@@ -4,8 +4,10 @@ import { shellPolicyIssues } from "./shell-policy.js";
 import { compileTemplate } from "./template.js";
 import {
   type Issue,
+  isModelTierId,
   type JsonSchemaObject,
   MCP_SCOPES,
+  MODEL_TIERS,
   type NormalizedStartNode,
   POLL_PROBE_ID,
   type PollProbe,
@@ -203,7 +205,26 @@ function validatePollAgentProbe(
   }
   const prodClis: readonly string[] = PROD_CLIS;
   const cli = typed.cli;
-  if (typeof cli !== "string" || !prodClis.includes(cli)) {
+  if (typed.tier !== undefined) {
+    if (!isModelTierId(typed.tier)) {
+      fail(
+        "E_WORKFLOW_INVALID",
+        `Agent tier '${String(typed.tier)}' is not supported; use ${MODEL_TIERS.join(", ")}.`,
+        `${probeBase}/tier`,
+      );
+    }
+    for (const field of ["cli", "model"] as const) {
+      if (typed[field] !== undefined) {
+        fail(
+          "E_WORKFLOW_INVALID",
+          `A poll agent probe with a tier must not set ${field}; the tier supplies the provider and model on each machine.`,
+          `${probeBase}/${field}`,
+        );
+      }
+    }
+  } else if (cli === undefined) {
+    fail("E_WORKFLOW_INVALID", "Poll agent probe must set cli or tier.", `${probeBase}/cli`);
+  } else if (typeof cli !== "string" || !prodClis.includes(cli)) {
     if (cli === "fake") {
       add(
         "warning",

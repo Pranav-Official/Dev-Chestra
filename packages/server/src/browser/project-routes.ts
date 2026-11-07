@@ -6,6 +6,7 @@ import {
 } from "@devchestra/api";
 import type { Hono } from "hono";
 import { DevChestraError, errorBody } from "../errors.js";
+import { seedLocalModelTiers } from "../settings/store.js";
 import type { ManagedWorkflowService } from "../workflows/service.js";
 import { pickStarterCli, seedStarterWorkflows } from "../workflows/starters.js";
 import type { ProviderStatusService } from "./provider-status.js";
@@ -188,9 +189,11 @@ export function mountProjectRoutes(app: Hono, deps: ProjectRouteDeps): void {
       kind: projectKind(canonical),
     });
     if (isNew && deps.workflowService !== undefined) {
+      // The starters name model tiers, so map any tier the project does not set yet to the
+      // first ready provider; they then run here without editing. Best effort, like the starters.
       try {
-        const cli = await starterCli(deps);
-        await seedStarterWorkflows(deps.workflowService, project, { cli });
+        await seedLocalModelTiers(canonical, await starterCli(deps));
+        await seedStarterWorkflows(deps.workflowService, project);
       } catch {
         // Starters are a convenience; registration already succeeded.
       }

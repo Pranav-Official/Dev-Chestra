@@ -30,6 +30,20 @@ The server binds loopback only and stores owner-only server metadata in the data
 
 Budget enforcement is not supported by the embedded runner. Provider usage can be missing or estimated; a numeric zero alone does not establish that no cost was incurred. An uncertain shell effect requires inspection and explicit authorization before retrying; embedded resume provides `--retry-uncertain-shell`.
 
+### Model tiers and settings
+
+An agent node can name a model tier (`high`, `medium` or `low`) instead of a CLI and model. Each machine maps the tiers in the project's `.devchestra/settings.local.json` (git-ignored) or the committed `.devchestra/settings.json`; the local file wins per tier. Tiers are resolved once when a run starts, and a run whose tier is not mapped is refused with `E_MODEL_TIER` (exit code 4) before anything starts.
+
+```sh
+devchestra settings show --project /path/to/project                  # effective mapping and its source (default)
+devchestra settings show --project /path/to/project --scope local    # one file: local or project
+devchestra settings set high claude-code opus --project /path/to/project
+devchestra settings set low pi --scope project --project /path/to/project
+devchestra settings unset high --project /path/to/project
+```
+
+`settings set <tier> <cli> [model]` and `settings unset <tier>` default to `--scope local` and use the file's ETag, so a concurrent edit is reported as a conflict instead of overwritten. Settings never hold secrets.
+
 ### Agent contract and recovery
 
 The agent command contract is version 1. Each finite response and each JSONL stream item contains `contractVersion: 1`; errors on stderr include `error.code`, `message`, `retryable` and optional `details` and `hint`. An agent should reject unknown major contract versions. Inspection command success describes the command, not whether the run succeeded. Use `devchestra capabilities --json` for commands and flags; `devchestra workflow schema --json` returns the structural JSON Schema without a server. Graph and project rules require `workflow validate`.

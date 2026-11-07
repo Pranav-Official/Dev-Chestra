@@ -212,6 +212,7 @@ import {
   getTriggerAuth,
   getTriggerRuntime,
   listTriggerSecrets,
+  peekDelivery,
   pruneExpiredDeliveries,
   replaceArmedRevision,
   rotateTriggerCredentials,
@@ -221,6 +222,7 @@ import {
   type TriggerRuntime,
   type WebhookClaim,
   type WebhookClaimInput,
+  type WebhookDuplicate,
 } from "./webhooks.js";
 import {
   recordForeachItemDecided,
@@ -298,6 +300,8 @@ export interface WebhooksApi {
   rotateCredentials(hookId: string, signingSecret: string): void;
   setRefreshError(hookId: string, message: string | null): void;
   claimDelivery(input: WebhookClaimInput): WebhookClaim;
+  /** Read-only: the run an earlier delivery created, or `unseen`. Never claims or writes. */
+  peekDelivery(input: WebhookClaimInput): WebhookDuplicate | { kind: "unseen" };
   bindDelivery(hookId: string, deliveryId: string, runId: string): void;
   assertArmedRevision(hookId: string, revision: string): void;
   pruneExpiredDeliveries(limit: number): number;
@@ -604,6 +608,7 @@ export class Store {
       setRefreshError: (hookId, message) =>
         this.tx(() => setTriggerRefreshError(this.#runtime, hookId, message)),
       claimDelivery: (input) => this.tx(() => claimDelivery(this.#runtime, input)),
+      peekDelivery: (input) => peekDelivery(this.#runtime, input),
       bindDelivery: (hookId, deliveryId, runId) =>
         this.tx(() => bindDeliveryRun(this.#runtime, hookId, deliveryId, runId)),
       assertArmedRevision: (hookId, revision) =>

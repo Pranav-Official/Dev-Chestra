@@ -33,6 +33,7 @@ const VALIDATION = {
   warnings: [],
   requires: {
     clis: ["fake"],
+    tiers: [],
     networkNodes: [],
     shellCommands: [],
     projectWriteNodes: [],

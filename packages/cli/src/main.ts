@@ -49,7 +49,15 @@ async function main(): Promise<number> {
     process.stdout.write(skillTemplate(name));
     return 0;
   }
-  const agentGroups = ["project", "workflow", "approval", "providers", "gate", "decision"];
+  const agentGroups = [
+    "project",
+    "workflow",
+    "approval",
+    "providers",
+    "settings",
+    "gate",
+    "decision",
+  ];
   const runActions = [
     "start",
     "list",

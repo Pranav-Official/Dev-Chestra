@@ -6,7 +6,8 @@ import type { AvailableCli } from "./model/useAvailableClis.js";
 
 export interface ProviderChipsProps {
   clis: AvailableCli[];
-  value: AgentCli;
+  /** Undefined when the node names no provider yet; no chip is selected then. */
+  value: AgentCli | undefined;
   onSelect(cli: AgentCli): void;
   invalid?: boolean;
   describedBy?: string | undefined;

@@ -33,6 +33,7 @@ import { executeShell } from "./exec-shell.js";
 import { analyzeWorkflowPlan, type PlanNode, type WorkflowPlan } from "./graph-plan.js";
 import { derivePlanRouting, joinRoutingFor } from "./graph-run.js";
 import { assertLoopWorkspaceAvailable } from "./loop-workspace.js";
+import { memoizeModelTierSource, resolveModelTiers } from "./model-tiers.js";
 import { buildProbeSnapshot, POLL_PROBE_NODE_ID, probeStartNode } from "./probe.js";
 import { recoverAll } from "./recovery.js";
 import { validateRunOptions } from "./run-options.js";
@@ -201,11 +202,38 @@ class LinearEngine implements Engine {
       if (this.#stopping) {
         throw new DevChestraError("E_CONFLICT", "Engine is shutting down; no new run was created");
       }
-      const planResult = analyzeWorkflowPlan(input.snapshot);
+      // A retry of a delivery that was already accepted needs no new run, so it must not
+      // depend on the current tier mapping: answer it before anything is resolved or frozen.
+      // The transactional claim below stays the authority for deliveries seen for the first time.
+      if (input.delivery !== undefined) {
+        const seen = this.#ctx.store.webhooks.peekDelivery({
+          hookId: input.delivery.hookId,
+          deliveryId: input.delivery.deliveryId,
+          fingerprint: input.delivery.fingerprint,
+        });
+        if (seen.kind === "duplicate") {
+          return ok({
+            runId: seen.runId,
+            duplicate: true,
+            completion: this.#duplicateCompletion(seen.runId),
+          });
+        }
+      }
+      // Tiers resolve here, once, before any side effect. The run stores the resolved snapshot
+      // (so resume and replay never re-read settings); the hash below stays on the authored one.
+      // One memoized source serves the root and every child, so the whole launch shares a
+      // single mapping even if the settings files change while the bundle is being frozen.
+      const tierSource = memoizeModelTierSource(this.#ctx.deps.modelTiers);
+      const snapshot = await resolveModelTiers({
+        projectId: input.projectId,
+        snapshot: input.snapshot,
+        source: tierSource,
+      });
+      const planResult = analyzeWorkflowPlan(snapshot);
       if (!planResult.ok) return err(planResult.error);
       const plan = planResult.value;
       const options = validateRunOptions({
-        snapshot: input.snapshot,
+        snapshot,
         budgets: input.budgets,
         baseSha: input.baseSha,
         kind: input.kind ?? "run",
@@ -237,8 +265,14 @@ class LinearEngine implements Engine {
       if (needsBundle || input.workflowDependencies !== undefined) {
         const frozen = await freezeWorkflowBundle({
           projectId: input.projectId,
-          rootSnapshot: input.snapshot,
+          rootSnapshot: snapshot,
           rootWorkflowId: input.workflowId,
+          transform: (child) =>
+            resolveModelTiers({
+              projectId: input.projectId,
+              snapshot: child,
+              source: tierSource,
+            }),
           ...(input.workflowDependencies === undefined
             ? {}
             : { dependencies: input.workflowDependencies }),
@@ -262,7 +296,7 @@ class LinearEngine implements Engine {
         projectId: input.projectId,
         workflowId: input.workflowId,
         workflowHash,
-        snapshot: input.snapshot,
+        snapshot,
         snapshotRaw: input.snapshotRaw,
         params: params.value as never,
         ...(input.budgets === undefined ? {} : { budgets: input.budgets }),

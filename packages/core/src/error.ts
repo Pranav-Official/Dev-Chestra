@@ -27,6 +27,7 @@ export type ErrorCode =
   | "E_CANCELLED"
   | "E_LOOP_LIMIT"
   | "E_POLL_PROBE"
+  | "E_MODEL_TIER"
   | "E_INTERNAL";
 
 export interface DevChestraErrorOptions {

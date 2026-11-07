@@ -37,8 +37,7 @@ Use when: nodes-core — start/agent/shell/end + output schemas.
   "type": "agent",
   "name": "Review the change",
   "ui": { "x": 340, "y": 160 },
-  "cli": "claude-code",
-  "model": "optional-exact-model-id",
+  "tier": "medium",
   "prompt": "Review {{ start.target }}. Report problems you can verify.",
   "output": {
     "type": "object",
@@ -56,13 +55,29 @@ Use when: nodes-core — start/agent/shell/end + output schemas.
 
 | Field | Rule |
 | --- | --- |
-| `cli` | one of `claude-code`, `codex`, `opencode`, `pi`. (`fake` is test-only and must not be used.) |
-| `model` | optional. If set it is passed unchanged to the CLI; use an exact id from the CLI's model catalog (the editor's model picker lists them). Omit it to use the CLI's default. Never guess a model id. |
+| `tier` | `high`, `medium` or `low`. **Use this by default.** Each machine maps the tier to a provider and model in its own settings (see "Model tiers" below), so a committed workflow runs on any developer's machine without edits. An agent sets either `tier` or `cli`, never both, and a tiered agent must not set `model`. |
+| `cli` | only when the user asks for one specific provider: one of `claude-code`, `codex`, `opencode`, `pi`. Excludes `tier`. (`fake` is test-only and must not be used.) |
+| `model` | optional, only with `cli`. If set it is passed unchanged to the CLI; use an exact id from the CLI's model catalog (the editor's model picker lists them). Omit it to use the CLI's default. Never guess a model id. |
 | `prompt` | required, inline text template. See "No `promptFile`" below. Warns if empty. |
 | `output` | required JSON Schema for the result (section 8) |
 | `permissions` | required: `network` (boolean), `write` (array), optional `shell` (boolean) and `shellPolicy` (object). See below. |
 | `mcpServers` | optional list of `{ "name", "scope" }`. See below. |
 | `limits` | optional: `timeoutMin` (integer 1-480, default 30), `validationRetries` (integer 0-10, default 2), `crashRetries` (integer 0-10, default 1). `maxQuotaWaitHours` is not supported. |
+
+#### Model tiers
+
+A tier is a machine-specific choice of provider and model. Pick by the job: `high` for hard reasoning and code changes, `medium` as the everyday default, `low` for cheap routing, extraction and summaries.
+
+Mappings live in the project's `.devchestra/` folder in two files with the same shape, and the local one wins per tier:
+
+- `settings.local.json`: this machine only, ignored by git. Created for you when a project is registered (every tier points at the first installed provider's default model).
+- `settings.json`: committed and shared. Use it for a team default. Never put secrets in either file.
+
+```text
+{ "version": 1, "models": { "high": { "cli": "claude-code", "model": "opus" }, "medium": { "cli": "claude-code" }, "low": { "cli": "pi" } } }
+```
+
+Read and change mappings with `devchestra settings show [--scope effective|local|project]`, `devchestra settings set <high|medium|low> <cli> [model] [--scope local|project]` and `devchestra settings unset <tier>`. Tiers are resolved once when a run starts, so editing settings never changes a run that is already going. If a tier a workflow uses is not mapped on the machine, the run is refused before it starts with `E_MODEL_TIER` naming the tier: map it and start again. Do not edit another developer's `settings.local.json`.
 
 **No `promptFile` in managed workflows.** The schema accepts `promptFile`, but runs started from the editor/HTTP API reject it (`E_NOT_SUPPORTED`). Always write the prompt inline in `prompt`. Do not set both.
 

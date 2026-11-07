@@ -1,5 +1,6 @@
 import { isApiError, type RunWorkspaceSelection } from "@devchestra/api";
 import {
+  MODEL_TIER_LABELS,
   type ValidationReport,
   validateParams,
   type WorkflowFile,
@@ -465,7 +466,12 @@ export function RunDialog({
                 {agents.map((node) =>
                   node.type === "agent" ? (
                     <li key={node.id}>
-                      <b>{node.name}</b> · <span className="mono">{node.cli}</span>
+                      <b>{node.name}</b> ·{" "}
+                      <span className="mono">
+                        {node.tier === undefined
+                          ? node.cli
+                          : `${MODEL_TIER_LABELS[node.tier]} tier`}
+                      </span>
                       <div className="muted">
                         CLI tools: network {node.permissions.network ? "enabled" : "disabled"}
                         {"; write: "}

@@ -23,6 +23,7 @@ import { DevChestraError, errorBody } from "../errors.js";
 import type { BrowserPollPorts } from "../polling/ports.js";
 import { mountPollRoutes } from "../polling/routes.js";
 import { PollService } from "../polling/service.js";
+import { mountSettingsRoutes } from "../settings/routes.js";
 import { mountWebhookIngress } from "../webhooks/ingress.js";
 import type { BrowserWebhookPorts } from "../webhooks/ports.js";
 import { mountWebhookRoutes } from "../webhooks/routes.js";
@@ -410,6 +411,7 @@ export function createBrowserApp(deps: BrowserAppDeps): Hono {
     ...(pollService === null ? {} : { polling: pollService }),
     validate,
   });
+  mountSettingsRoutes(app, { store: deps.store, dataDir, validate });
   mountWebhookRoutes(app, { store: deps.store, service: webhookService, validate });
   mountPollRoutes(app, { store: deps.store, service: pollService, validate });
 

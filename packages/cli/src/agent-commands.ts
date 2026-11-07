@@ -11,7 +11,15 @@ import {
   type WorkflowGroupsDocument,
 } from "@devchestra/api";
 import { parsePath, RUN_STATUSES } from "@devchestra/core";
-import { parseWorkflow, type WorkflowFile, workflowJsonSchema } from "@devchestra/schema";
+import {
+  isModelTierId,
+  isProdCliId,
+  MODEL_TIERS,
+  PROD_CLIS,
+  parseWorkflow,
+  type WorkflowFile,
+  workflowJsonSchema,
+} from "@devchestra/schema";
 import { defaultDataDir } from "./data-dir.js";
 import { fetchRunStatus } from "./run-status.js";
 import { waitForRun } from "./run-wait.js";
@@ -23,6 +31,7 @@ const HELP = `Agent CLI (all commands return JSON; watch returns JSONL):
   devchestra run start|list|show|status|wait|watch|events|execution|transcript|output|children|usage|cancel|resume [ID] [options]
   devchestra approval list|show|resolve [RUN-ID] [options]
   devchestra providers list|models|mcp [--project PROJECT] [--cli CLI]
+  devchestra settings show|set|unset [TIER] [CLI] [MODEL] --project PROJECT [--scope effective|local|project]
 Use --data-dir DIR to select the server. FILE may be - for stdin.
 `;
 
@@ -221,6 +230,27 @@ Object.assign(COMMANDS, {
     description: "Refresh provider model discovery",
   },
   "providers probe": { min: 0, max: 0, flags: ["cli"], description: "Probe provider status" },
+  "settings show": {
+    min: 0,
+    max: 0,
+    flags: ["project", "scope"],
+    description:
+      "Show project settings: --scope effective (default, what a run here would use), local (this machine, git-ignored) or project (committed)",
+  },
+  "settings set": {
+    min: 2,
+    max: 3,
+    flags: ["project", "scope"],
+    description:
+      "Map a model tier to a provider: settings set <high|medium|low> <cli> [model]; --scope local (default) or project",
+  },
+  "settings unset": {
+    min: 1,
+    max: 1,
+    flags: ["project", "scope"],
+    description:
+      "Clear a model tier mapping: settings unset <high|medium|low>; --scope local (default) or project",
+  },
   "providers enable": { min: 0, max: 0, flags: ["cli"], description: "Enable a provider" },
   "providers disable": { min: 0, max: 0, flags: ["cli"], description: "Disable a provider" },
 } satisfies Record<string, CommandSpec>);
@@ -323,6 +353,7 @@ function parse(args: string[]): { positional: string[]; flags: Flags } {
     "workspace",
     "worktree-path",
     "cli",
+    "scope",
     "timeout",
     "until",
     "source",
@@ -875,6 +906,38 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
         required(value(flags, "cli"), "--cli") as CatalogCli,
       );
     else throw new Error(`Unknown providers action: ${action}`);
+  } else if (group === "settings") {
+    const scope = value(flags, "scope");
+    if (action === "show") {
+      if (scope === undefined || scope === "effective")
+        result = await client.getEffectiveSettings(await pid());
+      else if (scope === "project" || scope === "local")
+        result = await client.getSettings(await pid(), scope);
+      else throw new AgentUsageError("--scope must be effective, local or project");
+    } else if (action === "set" || action === "unset") {
+      const target = scope ?? "local";
+      if (target !== "project" && target !== "local")
+        throw new AgentUsageError("--scope must be local or project");
+      const tier = required(id, "tier");
+      if (!isModelTierId(tier))
+        throw new AgentUsageError(`tier must be one of: ${MODEL_TIERS.join(", ")}`);
+      const project = await pid();
+      const current = await client.getSettings(project, target);
+      const models = { ...(current.document.models ?? {}) };
+      if (action === "set") {
+        const cli = required(extra, "cli");
+        if (!isProdCliId(cli))
+          throw new AgentUsageError(`cli must be one of: ${PROD_CLIS.join(", ")}`);
+        const model = positional[4];
+        models[tier] = model === undefined ? { cli } : { cli, model };
+      } else delete models[tier];
+      result = await client.saveSettings(
+        project,
+        target,
+        { version: 1, ...(Object.keys(models).length === 0 ? {} : { models }) },
+        current.etag,
+      );
+    } else throw new Error(`Unknown settings action: ${action}`);
   } else throw new Error(`Unknown command: ${group}`);
   print(result);
   return 0;
