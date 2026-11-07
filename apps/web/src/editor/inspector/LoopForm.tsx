@@ -532,26 +532,30 @@ export function ControllerBodyEditor({
           />
         </div>
         <aside
-          className="loop-body-properties"
+          className="loop-body-properties inspector"
           data-testid={`${testPrefix}-inspector`}
           aria-label="Body node properties"
         >
-          <h3>{selected?.name ?? "Node properties"}</h3>
-          {selected === null ? (
-            <p className="faint">
-              Select a body node to edit it. Start takes no parameters; End must stay success.
-            </p>
-          ) : (
-            <BodyNodeInspector
-              selected={selected}
-              edges={bodyFile.graph.edges}
-              draft={draft}
-              controllerId={node.id}
-              controllerType={node.type}
-              setDraft={setDraft}
-              renderBodyInspector={renderBodyInspector}
-            />
-          )}
+          <div className="inspector-body">
+            <div className="inspector-content">
+              <h3>{selected?.name ?? "Node properties"}</h3>
+              {selected === null ? (
+                <p className="faint">
+                  Select a body node to edit it. Start takes no parameters; End must stay success.
+                </p>
+              ) : (
+                <BodyNodeInspector
+                  selected={selected}
+                  edges={bodyFile.graph.edges}
+                  draft={draft}
+                  controllerId={node.id}
+                  controllerType={node.type}
+                  setDraft={setDraft}
+                  renderBodyInspector={renderBodyInspector}
+                />
+              )}
+            </div>
+          </div>
         </aside>
       </div>
     </div>

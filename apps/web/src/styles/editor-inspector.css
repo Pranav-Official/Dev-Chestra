@@ -1009,15 +1009,37 @@ textarea.inspector-input:read-only {
   border-radius: 8px;
   overflow: hidden;
 }
-.loop-body-properties {
+/* The body editor's side panel reuses the inspector's tokens and padding, but fills its grid
+   column instead of the fixed panel width, and never scrolls sideways. */
+.loop-body-properties.inspector {
+  width: auto;
+  height: auto;
   min-height: 0;
   min-width: 0;
-  overflow: auto;
-  border-left: 1px solid var(--border);
+  overflow-x: hidden;
+  overflow-y: auto;
 }
-.loop-body-properties > h3,
-.loop-body-properties > .faint {
-  margin: 12px 16px;
+/* Tooltips span the panel width so the clipped aside never cuts them off. */
+.loop-body-properties .inspector-content {
+  position: relative;
+}
+.loop-body-properties .inspector-tip {
+  position: static;
+}
+.loop-body-properties .inspector-tip-pop {
+  top: auto;
+  right: 0;
+  left: 0;
+  width: auto;
+  max-width: none;
+  margin-top: 22px;
+}
+.loop-body-properties .inspector-content > h3 {
+  margin: 16px 0 12px;
+  font-size: 13px;
+}
+.loop-body-properties .inspector-content > .faint {
+  margin: 0 0 12px;
 }
 
 @media (max-width: 1100px) {

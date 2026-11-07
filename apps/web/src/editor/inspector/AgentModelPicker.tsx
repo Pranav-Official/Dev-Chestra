@@ -573,7 +573,11 @@ export function AgentModelPicker({
                 </button>
               </div>
             </div>,
-            document.body,
+            // Inside the enclosing modal <dialog> (top layer) when there is one: a
+            // popover portaled to body would render beneath the dialog and be inert.
+            anchorRef.current?.closest("dialog") ??
+              anchorRef.current?.ownerDocument.body ??
+              document.body,
           )
         : null}
     </fieldset>
