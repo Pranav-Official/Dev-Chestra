@@ -12,7 +12,7 @@ vi.mock("@devchestra/adapters", async (importOriginal) => {
   return { ...actual, runAgent: mocks.runAgent };
 });
 
-import type { AdapterRegistry, RunRequest } from "@devchestra/adapters";
+import type { AdapterRegistry, CliAdapter, RunRequest } from "@devchestra/adapters";
 import type { McpSelection } from "@devchestra/schema";
 import { type ActiveRunState, EngineContext } from "../src/context.js";
 import { executeAgent } from "../src/exec-agent.js";
@@ -80,6 +80,7 @@ afterEach(() => {
 function setup(options: {
   agent?: Record<string, unknown>;
   planError?: DevChestraError;
+  planAsync?: CliAdapter["planAsync"];
   acquireError?: DevChestraError;
   resolver?: McpResolver;
 }): Harness {
@@ -136,6 +137,7 @@ function setup(options: {
       notes: [],
     },
     toolRef: (tool: string) => tool,
+    ...(options.planAsync === undefined ? {} : { planAsync: options.planAsync }),
     plan: (_request: RunRequest) => {
       if (options.planError !== undefined) return err(options.planError);
       return ok({
@@ -255,6 +257,26 @@ describe("agent setup failures", () => {
     // Workspace was acquired, finalized as failed, and released.
     expect(h.counters.acquire).toBe(1);
     expect(h.counters.finalize).toBe(1);
+    expect(h.counters.finalizeOutcomes).toEqual(["failed"]);
+    expect(h.counters.release).toBe(1);
+  });
+
+  it("awaits runtime planning and releases resources when capability detection fails", async () => {
+    const runtimeError = new DevChestraError("E_VALIDATION", "unsupported server mode");
+    const planAsync = vi.fn(async (_request: RunRequest, signal: AbortSignal) => {
+      expect(signal.aborted).toBe(false);
+      return err(runtimeError);
+    });
+    const h = setup({ planAsync });
+    await expect(
+      executeAgent(h.ctx, h.ctx.run(h.runId), isolated(h.plan), h.node, h.active),
+    ).rejects.toThrow("unsupported server mode");
+    expect(planAsync).toHaveBeenCalledOnce();
+    expect(execStatus(h)).toBe("failed");
+    expect(h.runAgentCalls()).toBe(0);
+    expect(h.counters.issue).toBe(1);
+    expect(h.counters.revoke).toBe(1);
+    expect(h.active.tokens.size).toBe(0);
     expect(h.counters.finalizeOutcomes).toEqual(["failed"]);
     expect(h.counters.release).toBe(1);
   });

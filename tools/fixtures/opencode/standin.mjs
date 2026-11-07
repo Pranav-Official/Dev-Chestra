@@ -50,6 +50,14 @@ if (command === "models") {
   process.exit(scenario.exitCode ?? 0);
 }
 if (command === "run") {
+  if (rest.includes("--help")) {
+    process.stdout.write(scenario.runHelp ?? "opencode run [message..]\n  --format  Output format\n  --session  Session ID\n");
+    process.exit(scenario.helpExitCode ?? scenario.exitCode ?? 0);
+  }
+  if (rest.includes("--standalone") && !(scenario.runHelp ?? "").includes("--standalone")) {
+    process.stderr.write("Unknown argument: standalone\n");
+    process.exit(2);
+  }
   const events = scenario.events ?? [
     '{"type":"step_start","timestamp":1,"sessionID":"ses_standin0000000000000001","part":{"id":"prt_1","type":"step-start"}}',
     '{"type":"text","timestamp":2,"sessionID":"ses_standin0000000000000001","part":{"id":"prt_2","type":"text","text":"ok"}}',

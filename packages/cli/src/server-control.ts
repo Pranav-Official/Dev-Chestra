@@ -172,13 +172,19 @@ export async function stopServer(
     isZombie(pid) ||
     (pidStart !== null && processIdentity(pid) !== null && processIdentity(pid) !== pidStart);
 
+  let missingWindowsPipe = false;
   try {
     if (process.platform === "win32" && deps.kill === undefined)
       await requestWindowsStop(meta.value);
     else kill(pid, "SIGTERM");
   } catch (error) {
+    missingWindowsPipe =
+      process.platform === "win32" &&
+      deps.kill === undefined &&
+      (error as NodeJS.ErrnoException).code === "ENOENT";
     if (
       (error as NodeJS.ErrnoException).code !== "ESRCH" &&
+      !missingWindowsPipe &&
       !(process.platform === "win32" && options.force && deps.kill === undefined)
     ) {
       return { result: "failed", status, reason: `could not signal the server: ${String(error)}` };
@@ -194,7 +200,9 @@ export async function stopServer(
       return {
         result: "failed",
         status,
-        reason: `the server did not exit within ${Math.round(options.timeoutMs / 1000)}s (it may still be finishing runs). Wait, or pass --force to kill it.`,
+        reason: missingWindowsPipe
+          ? "the Windows shutdown pipe is unavailable and the recorded server is still running. It may be shutting down or running an older build. Wait and retry, or run devchestra stop --force to terminate it."
+          : `the server did not exit within ${Math.round(options.timeoutMs / 1000)}s (it may still be finishing runs). Wait, or pass --force to kill it.`,
       };
     }
     if (!isSameProcess(meta.value)) {

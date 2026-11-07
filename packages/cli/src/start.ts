@@ -608,9 +608,10 @@ export async function executeStart(
       instanceId,
       startedAt: Date.now(),
     };
-    await writeServerMetadata(dataDir, metadata);
     if (process.platform === "win32")
       closeWindowsControl = await listenWindowsControl(metadata, () => windowsStop.abort());
+    // A published record must be immediately stoppable, including detached starts.
+    await writeServerMetadata(dataDir, metadata);
 
     const ready = {
       type: "devchestra.ready",

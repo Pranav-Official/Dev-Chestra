@@ -22,5 +22,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test:windows
+      - run: pnpm --filter @devchestra/adapters exec vitest run --maxWorkers=1 test/prompt-transport.test.ts test/windows-command-line.test.ts test/opencode.test.ts test/pi.test.ts
       - run: pnpm --filter @devchestra/engine exec vitest run test/loops.test.ts test/loops-integration.test.ts
       - run: pnpm --filter @devchestra/cli exec vitest run test/loops-workflow.test.ts

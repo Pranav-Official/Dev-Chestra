@@ -63,11 +63,16 @@ export function Dialog({
       {...(description === undefined ? {} : { "aria-describedby": descriptionId })}
       {...(testId === undefined ? {} : { "data-testid": testId })}
       onCancel={(event) => {
+        // React propagates nested dialog events even though native events do not bubble.
+        if (event.target !== event.currentTarget) return;
+        event.stopPropagation();
         event.preventDefault();
         if (cancelGuard?.() === true) return;
         if (open) onClose();
       }}
-      onClose={() => {
+      onClose={(event) => {
+        if (event.target !== event.currentTarget) return;
+        event.stopPropagation();
         if (open) onClose();
       }}
     >

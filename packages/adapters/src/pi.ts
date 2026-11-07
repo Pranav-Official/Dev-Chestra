@@ -457,8 +457,8 @@ function plan(req: RunRequest, bin: string): Result<Invocation, DevChestraError>
     // Default --no-approve: ignore trust-gated project-local files unless the
     // caller explicitly opts into project trust.
     args.push(options.approve === true ? "--approve" : "--no-approve");
-    // Prompt travels as argv after -- so a leading dash is not parsed as a flag.
-    args.push("--", req.prompt);
+    // Print/JSON mode reads a piped message through EOF, including on resume.
+    // Do not put user content in argv (OS length limits and option parsing).
 
     const piHome = join(req.execDir, "pi-home");
     const mcpPath = join(piHome, "mcp.json");
@@ -494,6 +494,7 @@ function plan(req: RunRequest, bin: string): Result<Invocation, DevChestraError>
       args,
       cwd: req.cwd,
       env: { ...req.env, ...req.mcp.env, PI_CODING_AGENT_DIR: piHome },
+      stdin: req.prompt,
       files,
     });
   } catch (error) {
@@ -513,7 +514,7 @@ export function createPiAdapter(options: AdapterOptions = {}): CliAdapter {
       // Pi's wire usage is cumulative per assistant response, not per run:
       // each completed message_end carries that response's own totals.
       usageIsCumulative: false,
-      promptViaStdin: false,
+      promptViaStdin: true,
       maxPromptArgBytes: 0,
     },
     evidence: {
@@ -521,6 +522,7 @@ export function createPiAdapter(options: AdapterOptions = {}): CliAdapter {
       argvSource: "help-fixture",
       behaviorVerified: false,
       notes: [
+        "prompt travels through stdin in print/JSON mode on fresh and resumed sessions; Pi trims surrounding whitespace from piped input",
         "argv from pi 1.4.0 --help plus docs/json.md, docs/message-types.md, docs/cli.md, docs/mcp.md; no live tool-call run captured",
         "--session-id creates the id when absent (pi warns); resume of a foreign id starts a new session",
         "isolated PI_CODING_AGENT_DIR carries devchestra mcp.json plus symlinks to the canonical auth.json/models.json/settings.json when present; API-key providers also pass through documented env vars",

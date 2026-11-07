@@ -9,7 +9,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -17,6 +17,7 @@ import {
   createAdapter,
   describeInvocation,
   discoverPiModels,
+  finalizeInvocation,
   getProvider,
   materializeInvocation,
   type PiModelDiscoveryRequest,
@@ -98,7 +99,7 @@ const STREAM = [
 ].join("\n");
 
 describe("pi plan", () => {
-  it("builds -p --mode json argv with prompt after -- and token only in files/env", () => {
+  it("builds -p --mode json argv with prompt on stdin and token only in files/env", () => {
     const adapter = createAdapter("pi", { piBin: "/bin/pi" });
     const result = adapter.plan(request({ model: "opencode-go/kimi-k3", prompt: "-do it" }));
     expect(result.ok).toBe(true);
@@ -109,7 +110,7 @@ describe("pi plan", () => {
       "--mode",
       "json",
       "--session-dir",
-      "/pi-sessions",
+      join(resolve("/run"), "..", "pi-sessions"),
       "--provider",
       "opencode-go",
       "--model",
@@ -117,23 +118,21 @@ describe("pi plan", () => {
       "--exclude-tools",
       "edit,write,bash,powershell,web_search,web_fetch",
       "--no-approve",
-      "--",
-      "-do it",
     ]);
     expect(result.value.cwd).toBe("/work");
     expect(JSON.stringify(result.value.args)).not.toContain(TOKEN);
     expect(JSON.stringify(describeInvocation(result.value))).not.toContain(TOKEN);
     expect(result.value.files).toHaveLength(1);
-    expect(result.value.files[0]?.path).toBe("/run/pi-home/mcp.json");
+    expect(result.value.files[0]?.path).toBe(join("/run", "pi-home", "mcp.json"));
     expect(result.value.files[0]?.mode).toBe(0o600);
     const mcp = JSON.parse(result.value.files[0]?.content ?? "{}") as {
       mcpServers: { devchestra: { exposure: string; env: Record<string, string> } };
     };
     expect(mcp.mcpServers.devchestra.exposure).toBe("direct");
     expect(mcp.mcpServers.devchestra.env.DEVCHESTRA_EXEC_TOKEN).toBe(TOKEN);
-    expect(result.value.env.PI_CODING_AGENT_DIR).toBe("/run/pi-home");
+    expect(result.value.env.PI_CODING_AGENT_DIR).toBe(join("/run", "pi-home"));
     expect(result.value.env.DEVCHESTRA_EXEC_TOKEN).toBe(TOKEN);
-    expect(result.value.stdin).toBeUndefined();
+    expect(result.value.stdin).toBe("-do it");
   });
 
   it("resumes via --session-id and honors explicit approve/provider", () => {
@@ -354,11 +353,18 @@ describe("pi discovery", () => {
     expect(links.every((file) => file.symlink?.startsWith(canonical))).toBe(true);
     expect(result.value.env.OPENCODE_API_KEY).toBe("oc-test-key");
     await materializeInvocation(result.value);
-    expect(await readlink(join(execDir, "pi-home", "auth.json"))).toBe(
-      join(canonical, "auth.json"),
-    );
-    // Writes through the link persist back to the canonical store.
+    if (process.platform === "win32") {
+      expect(await readFile(join(execDir, "pi-home", "auth.json"), "utf8")).toBe(
+        await readFile(join(canonical, "auth.json"), "utf8"),
+      );
+    } else {
+      expect(await readlink(join(execDir, "pi-home", "auth.json"))).toBe(
+        join(canonical, "auth.json"),
+      );
+    }
+    // Unix writes through the link; Windows reconciles its private copy.
     await writeFile(join(execDir, "pi-home", "auth.json"), '{"refreshed":true}\n');
+    await finalizeInvocation(result.value);
     expect(await readFile(join(canonical, "auth.json"), "utf8")).toBe('{"refreshed":true}\n');
   });
 
@@ -383,7 +389,7 @@ describe("pi discovery", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.files).toHaveLength(1);
-    expect(result.value.files[0]).toMatchObject({ path: "/run/pi-home/mcp.json" });
+    expect(result.value.files[0]).toMatchObject({ path: join("/run", "pi-home", "mcp.json") });
   });
 
   it("maps empty catalogs to authRequired and missing binaries to unavailable", async () => {
