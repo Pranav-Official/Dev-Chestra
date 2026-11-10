@@ -11,6 +11,7 @@ import {
   type RunRequest,
   resolveForgeCredentials,
   runAgent,
+  runCommand,
 } from "@devchestra/adapters";
 import {
   DevChestraError,
@@ -496,6 +497,40 @@ export async function runSingleAttempt(
     const baseEnv = container
       ? { ...containerBaseEnv(prepared.baseEnv, adapter.id), ...forge.env }
       : prepared.baseEnv;
+    let containerKnownMcp: RunRequest["knownMcp"];
+    if (container && adapter.id === "codex") {
+      const catalog = await runCommand(
+        {
+          cmd: "codex",
+          args: ["mcp", "list", "--json"],
+          cwd: workspace.dir,
+          env: baseEnv,
+          container: { ...container, network: false, readOnlyWorkspace: true },
+          timeoutMs: 15_000,
+          maxStdoutBytes: 1024 * 1024,
+          maxStderrBytes: 4096,
+        },
+        {},
+        active.abort.signal,
+      );
+      if (catalog.exitCode !== 0 || catalog.killedBy || !catalog.groupStopped)
+        throw new DevChestraError(
+          "E_VALIDATION",
+          "Cannot inspect container Codex MCP configuration; no agent was started",
+        );
+      let entries: unknown;
+      try {
+        entries = JSON.parse(catalog.stdout);
+      } catch {
+        throw new DevChestraError("E_VALIDATION", "Container Codex MCP catalog is invalid");
+      }
+      if (!Array.isArray(entries) || entries.some((item) => !item || typeof item.name !== "string"))
+        throw new DevChestraError("E_VALIDATION", "Container Codex MCP catalog is invalid");
+      containerKnownMcp = entries.map((item: { name: string }) => ({
+        name: item.name,
+        scope: "global" as const,
+      }));
+    }
     const request = {
       mode: effectiveMode,
       ...(effectiveMode === "resume" && loop.sessionId !== undefined
@@ -550,7 +585,11 @@ export async function runSingleAttempt(
       ...(container ? { container: true } : {}),
       env: baseEnv,
       ...(attached.extraMcp === undefined ? {} : { extraMcp: attached.extraMcp }),
-      ...(attached.knownMcp === undefined ? {} : { knownMcp: attached.knownMcp }),
+      ...(containerKnownMcp !== undefined
+        ? { knownMcp: containerKnownMcp }
+        : attached.knownMcp === undefined
+          ? {}
+          : { knownMcp: attached.knownMcp }),
       ...(fakeCheckpoint === undefined ? {} : { cliOptions: { checkpoint: fakeCheckpoint } }),
     };
     const planned =

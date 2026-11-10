@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync }
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
+import { createCodexAdapter } from "../src/codex.js";
 import { runCommand } from "../src/command.js";
 import {
   type ContainerExecution,
@@ -14,6 +15,7 @@ import {
   runtimeCommand,
   wrapContainerInvocation,
 } from "../src/container.js";
+import { runAgent } from "../src/process.js";
 
 const enabled = process.env.DEVCHESTRA_TEST_CONTAINER === "1";
 const roots: string[] = [];
@@ -175,4 +177,97 @@ describe.skipIf(!enabled)("live container execution", () => {
       }).status,
     ).not.toBe(0);
   }, 30_000);
+  it("streams agent stdin and protocol events through the container invocation wrapper", async () => {
+    const spec = fixture();
+    const sessions: string[] = [];
+    const script =
+      "process.stdin.resume(); process.stdin.on('end',()=>{console.log(JSON.stringify({type:'thread.started',thread_id:'container-session'}));console.log(JSON.stringify({type:'turn.completed',usage:{input_tokens:1,output_tokens:1}}));});";
+    const result = await runAgent(
+      {
+        bin: "node",
+        args: ["-e", script],
+        cwd: spec.cwd,
+        env: containerBaseEnv({}),
+        stdin: "prompt via stdin",
+        files: [],
+      },
+      {
+        onEvent: (event) => {
+          if (event.t === "session") sessions.push(event.sessionId);
+        },
+      },
+      new AbortController().signal,
+      { parser: createCodexAdapter().parser(), timeoutMs: 30_000, container: spec },
+    );
+    expect(result.code).toBe(0);
+    expect(result.sawTurnEnd).toBe(true);
+    expect(result.groupStopped).toBe(true);
+    expect(sessions).toEqual(["container-session"]);
+  }, 30_000);
+  it("disables inherited Codex MCP servers using container-side names", async () => {
+    const spec = fixture();
+    const homeVolume = ensureCredentialVolume(spec.runtime, "test-codex-mcp");
+    const env = containerBaseEnv({}, "codex");
+    const container = { ...spec, homeVolume, network: false };
+    try {
+      const setup = await runCommand(
+        {
+          cmd: 'mkdir -p "$CODEX_HOME"; printf \'[mcp_servers.unselected]\\ncommand="false"\\n\' > "$CODEX_HOME/config.toml"',
+          shell: true,
+          cwd: spec.cwd,
+          env,
+          container,
+          timeoutMs: 30_000,
+        },
+        {},
+      );
+      expect(setup.exitCode).toBe(0);
+      const catalog = await runCommand(
+        {
+          cmd: "codex",
+          args: ["mcp", "list", "--json"],
+          cwd: spec.cwd,
+          env,
+          container,
+          timeoutMs: 30_000,
+        },
+        {},
+      );
+      expect(catalog.exitCode).toBe(0);
+      const known = JSON.parse(catalog.stdout) as { name: string }[];
+      expect(known.map((entry) => entry.name)).toContain("unselected");
+      const plan = createCodexAdapter().plan({
+        mode: "fresh",
+        prompt: "test",
+        cwd: spec.cwd,
+        execDir: spec.cwd,
+        env,
+        container: true,
+        permissions: { network: true, write: ["workspace"], extraReadDirs: [] },
+        limits: { timeoutMs: 30_000 },
+        mcp: { serverName: "devchestra", command: "node", args: ["shim.cjs"], env: {} },
+        knownMcp: known.map((entry) => ({ name: entry.name, scope: "global" as const })),
+      });
+      if (!plan.ok) throw plan.error;
+      const disabled = plan.value.args.filter(
+        (arg) => arg === "mcp_servers.unselected.enabled=false",
+      );
+      expect(disabled).toHaveLength(1);
+      const checked = await runCommand(
+        {
+          cmd: "codex",
+          args: ["mcp", "list", "--json", "-c", disabled[0] as string],
+          cwd: spec.cwd,
+          env,
+          container,
+          timeoutMs: 30_000,
+        },
+        {},
+      );
+      expect(checked.exitCode).toBe(0);
+      expect(JSON.parse(checked.stdout)[0].enabled).toBe(false);
+    } finally {
+      runtimeCommand(spec.runtime, ["volume", "rm", homeVolume]);
+    }
+  }, 60_000);
 });

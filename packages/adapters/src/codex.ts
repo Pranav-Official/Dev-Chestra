@@ -174,7 +174,7 @@ function planExtraMcp(req: RunRequest): ExtraMcpPlan {
     }
   }
 
-  for (const known of req.container ? [] : (req.knownMcp ?? [])) {
+  for (const known of req.knownMcp ?? []) {
     if (known.scope === "connector") continue; // covered by the apps gate below
     if (known.name === "devchestra") continue; // our own shim, always attached
     checkMcpName(known.name, "knownMcp[].name");
@@ -323,7 +323,6 @@ function plan(req: RunRequest, bin: string): Result<Invocation, DevChestraError>
     for (const dir of addDirs) checkDir(dir, "addDirs");
 
     const args = ["exec"];
-    if (req.container) args.push("-c", "mcp_servers={}");
     if (req.mode === "resume") {
       const session = req.sessionId;
       if (session === undefined || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(session)) {
