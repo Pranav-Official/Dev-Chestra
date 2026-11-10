@@ -280,3 +280,31 @@ export const providerStatics: Record<CliId, ProviderStatic> = {
   pi: piStatic,
   fake: fakeStatic,
 };
+
+/** Container homes are independent of host CLI configuration and databases. */
+export const containerProviders = {
+  "claude-code": {
+    bin: "claude",
+    login: ["auth", "login"],
+    credentials: [".claude/.credentials.json", ".claude.json"],
+    sessions: [".claude/projects"],
+  },
+  codex: {
+    bin: "codex",
+    login: ["login", "--device-auth"],
+    credentials: [".codex/auth.json", ".codex/config.toml"],
+    sessions: [".codex/sessions"],
+  },
+  pi: {
+    bin: "pi",
+    login: [],
+    credentials: [".pi/agent/auth.json", ".pi/agent/models.json", ".pi/agent/settings.json"],
+    sessions: [".pi/sessions"],
+  },
+  opencode: {
+    bin: "opencode",
+    login: ["auth", "login"],
+    credentials: [".local/share/opencode/auth.json", ".local/share/opencode/mcp-auth.json"],
+    sessions: [".local/share/opencode"],
+  },
+} as const;

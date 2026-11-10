@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { DevChestraError } from "@devchestra/core";
+import { wrapContainerInvocation } from "./container.js";
 import { isGroupAlive, killTree, spawnIdentity } from "./identity.js";
 import { boundTail, redacted, spawnFailure, waitSpawn } from "./spawn-util.js";
 import type { CommandHooks, CommandRequest, CommandResult } from "./types.js";
@@ -101,15 +102,35 @@ export async function runCommand(
     command.bin,
   ];
   if (req.shell !== true || nativeShell) args.push(...command.args);
-  const child = spawnOwned(process.execPath, args, {
-    cwd: req.cwd,
-    env: req.env,
-    detached: true,
-    stdio: ["pipe", "pipe", "pipe"],
-  });
+  const container =
+    req.container === undefined
+      ? undefined
+      : wrapContainerInvocation(
+          {
+            bin: req.shell ? "/bin/sh" : req.cmd,
+            args: req.shell ? ["-c", req.cmd] : (req.args ?? []),
+            cwd: req.cwd,
+            env: req.env,
+            files: [],
+          },
+          req.container,
+        );
+  const child = spawnOwned(
+    process.execPath,
+    container
+      ? ["-e", WRAPPER, "--", "argv", container.invocation.bin, ...container.invocation.args]
+      : args,
+    {
+      cwd: req.cwd,
+      env: container?.invocation.env ?? req.env,
+      detached: true,
+      stdio: ["pipe", "pipe", "pipe"],
+    },
+  );
   try {
     await waitSpawn(child);
   } catch (error) {
+    container?.cleanup();
     throw spawnFailure(error);
   }
   const pid = child.pid;
@@ -123,7 +144,10 @@ export async function runCommand(
     if (killedBy === null) killedBy = reason;
     if (killStarted) return;
     killStarted = true;
-    killCompletion = killTree(pid, { graceMs: DEFAULT_GRACE });
+    killCompletion = (async () => {
+      const stopped = (await container?.stop()) ?? true;
+      return (await killTree(pid, { graceMs: DEFAULT_GRACE })) && stopped;
+    })();
   };
   const timer = setTimeout(() => kill("timeout"), Math.max(1, req.timeoutMs));
   const onAbort = (): void => kill("cancel");
@@ -172,6 +196,7 @@ export async function runCommand(
     await closePromise;
     clearTimeout(timer);
     signal?.removeEventListener("abort", onAbort);
+    container?.cleanup();
     throw error;
   }
 
@@ -181,6 +206,8 @@ export async function runCommand(
   clearTimeout(timer);
   signal?.removeEventListener("abort", onAbort);
   if (isGroupAlive(pid)) await killTree(pid, { graceMs: 0 }).catch(() => undefined);
+  const containerStopped = (await container?.stop()) ?? true;
+  container?.cleanup();
   return {
     exitCode: code,
     signal: closeSignal,
@@ -191,6 +218,6 @@ export async function runCommand(
     stderr,
     stdoutBytes,
     stderrBytes,
-    groupStopped: !isGroupAlive(pid),
+    groupStopped: !isGroupAlive(pid) && containerStopped,
   };
 }

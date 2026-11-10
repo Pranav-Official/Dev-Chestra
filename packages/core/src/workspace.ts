@@ -5,7 +5,8 @@
 export type RunWorkspaceSelection =
   | { mode: "project" }
   | { mode: "existing-worktree"; path: string }
-  | { mode: "new-worktree" };
+  | { mode: "new-worktree" }
+  | { mode: "container"; includeUncommitted?: boolean };
 
 /** Frozen on the run at launch. projectRoot is registered project metadata. */
 export interface RunWorkspaceBinding {
@@ -23,6 +24,8 @@ function isPath(value: unknown): value is string {
 
 export function isRunWorkspaceSelection(value: unknown): value is RunWorkspaceSelection {
   if (!isRecord(value)) return false;
+  if (value.mode === "container")
+    return value.includeUncommitted === undefined || typeof value.includeUncommitted === "boolean";
   if (value.mode === "project" || value.mode === "new-worktree") return true;
   return value.mode === "existing-worktree" && isPath(value.path);
 }

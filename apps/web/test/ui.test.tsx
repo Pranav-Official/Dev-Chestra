@@ -80,7 +80,15 @@ describe("ReplayBar", () => {
   it("exposes an event-id slider and returns to live at the end", () => {
     const events = [event(10), event(20), event(30)];
     const onChange = vi.fn();
-    render(<ReplayBar events={events} replayAt={20} headEventId={30} onChange={onChange} />);
+    render(
+      <ReplayBar
+        events={events}
+        replayAt={20}
+        headEventId={30}
+        terminal={false}
+        onChange={onChange}
+      />,
+    );
     const slider = screen.getByTestId("replay-scrubber");
     expect(slider).toHaveAttribute("aria-valuetext", expect.stringContaining("Event 20 of 30"));
     fireEvent.change(slider, { target: { value: "0" } });

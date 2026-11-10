@@ -104,7 +104,9 @@ export async function runPolicyExec(input: RunExecInput): Promise<ExecOutcome> {
     return outcome;
   }
 
-  const resolved = resolveProgram(decision.argv[0] ?? "", shell.env.PATH);
+  const resolved = shell.container
+    ? (decision.argv[0] ?? null)
+    : resolveProgram(decision.argv[0] ?? "", shell.env.PATH);
   if (resolved === null) {
     const message = `program '${decision.argv[0]}' was not found as an executable on the sanitized PATH.`;
     emit({ kind: "tool_result", text: `not run: ${message}` });
@@ -116,6 +118,7 @@ export async function runPolicyExec(input: RunExecInput): Promise<ExecOutcome> {
     result = await runCommand(
       {
         cmd: resolved,
+        ...(shell.container ? { container: shell.container } : {}),
         args: decision.argv.slice(1),
         shell: false,
         cwd: shell.cwd,

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { statSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { type DevChestraError, ok, type Result } from "@devchestra/core";
@@ -413,7 +414,13 @@ function plan(req: RunRequest, bin: string): Result<Invocation, DevChestraError>
     const args = ["-p", "--mode", "json"];
     // Sessions persist under a node-stable dir so resume survives generation
     // exec dirs; the MCP home stays per-execDir because its token is per-run.
-    const sessionDir = join(resolve(req.execDir), "..", "pi-sessions");
+    const sessionDir = req.container
+      ? join(
+          req.env.HOME as string,
+          ".pi/sessions",
+          createHash("sha256").update(req.cwd).digest("hex").slice(0, 32),
+        )
+      : join(resolve(req.execDir), "..", "pi-sessions");
     args.push("--session-dir", sessionDir);
     if (req.mode === "resume") {
       const session = req.sessionId;
@@ -486,7 +493,9 @@ function plan(req: RunRequest, bin: string): Result<Invocation, DevChestraError>
       { path: mcpPath, content: `${JSON.stringify(mcp)}\n`, mode: 0o600 },
     ];
     for (const name of ["auth.json", "models.json", "settings.json"] as const) {
-      const target = canonicalFile(req.env, req.cwd, piHome, name);
+      const target = req.container
+        ? join(req.env.HOME as string, ".pi/agent", name)
+        : canonicalFile(req.env, req.cwd, piHome, name);
       if (target !== null) files.push({ path: join(piHome, name), symlink: target });
     }
     return ok({

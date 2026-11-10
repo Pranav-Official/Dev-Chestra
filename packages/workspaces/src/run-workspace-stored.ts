@@ -6,6 +6,7 @@ import {
   isRunWorkspaceSelection,
   type RunWorkspaceSelection,
 } from "@devchestra/core";
+import { validateContainerClone } from "./container-clone.js";
 import { repoFor } from "./run-workspace-catalog.js";
 import type { ValidatedRunWorkspace } from "./types.js";
 import {
@@ -158,6 +159,7 @@ export function validateStoredIdentity(stored: StoredRunWorkspace): ProjectRepo 
       step: "workspace_identity",
     });
   }
+  if (stored.selection.mode === "container") validateContainerClone(stored.dir);
   if (stored.selection.mode === "existing-worktree") {
     if (repo === null) throw conflict("Existing worktree has no Git identity");
     try {

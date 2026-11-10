@@ -331,11 +331,13 @@ function plan(req: RunRequest, bin: string): Result<Invocation, DevChestraError>
       args.push("resume", session);
     }
     args.push("--json");
-    if (req.mode === "fresh") args.push("--sandbox", mode, "--cd", req.cwd);
+    if (req.mode === "fresh")
+      args.push("--sandbox", req.container ? "danger-full-access" : mode, "--cd", req.cwd);
     args.push("--skip-git-repo-check");
     for (const dir of addDirs) args.push("--add-dir", dir);
     if (req.model !== undefined && req.model !== "") args.push(codexStatic.modelArg, req.model);
-    if (req.mode === "resume") args.push("-c", `sandbox_mode=${toml(mode)}`);
+    if (req.mode === "resume")
+      args.push("-c", `sandbox_mode=${toml(req.container ? "danger-full-access" : mode)}`);
     args.push("-c", `sandbox_workspace_write.network_access=${String(req.permissions.network)}`);
 
     if (req.mcp.serverName !== "devchestra") throw new Error("mcp.serverName must be devchestra");

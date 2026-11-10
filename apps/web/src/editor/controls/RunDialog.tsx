@@ -380,6 +380,11 @@ export function RunDialog({
                   used directly. Agents and shell commands can read and edit project files; changes
                   are live in your checkout and nothing is committed automatically.
                 </p>
+              ) : workspace.mode === "container" ? (
+                <p className="muted">
+                  Agents and commands run in containers against an isolated clone. Commits return to
+                  a run branch. Uncommitted edits remain in the clone for review.
+                </p>
               ) : workspace.mode === "new-worktree" ? (
                 <p>
                   A new Git worktree is created under DevChestra's data directory when this run

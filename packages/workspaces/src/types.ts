@@ -4,7 +4,8 @@ export type WorkspaceMode =
   | "worktree"
   | "project"
   | "existing-worktree"
-  | "new-worktree";
+  | "new-worktree"
+  | "container";
 export type FinalizeOutcome = "success" | "failed" | "cancelled";
 export type ProcessStopReason = "exited" | "killed" | "grace_timeout" | "crash";
 export interface AcquireScratchRequest {
@@ -91,7 +92,7 @@ export interface RunWorkspaceIdentity {
   readonly projectRoot: string;
   readonly selection: RunWorkspaceSelection;
   readonly dir: string;
-  readonly mode: "project" | "existing-worktree" | "new-worktree";
+  readonly mode: "project" | "existing-worktree" | "new-worktree" | "container";
   readonly baseSha: string | null;
   readonly git: boolean;
 }

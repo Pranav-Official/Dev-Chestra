@@ -104,7 +104,11 @@ export async function runHttpScenario(): Promise<HttpEvidence> {
     assert.notEqual(project.id, foreign.id);
 
     const empty = await listWorkflows(http, project.id);
-    assert.equal(empty.items.length, 0, "new project must have no managed workflows");
+    const seededCount = empty.items.length;
+    assert.ok(
+      empty.items.every((item) => !item.id.startsWith("qa-")),
+      "scenario workflow ids must be unused",
+    );
 
     const blankResult = await http.api(
       "POST",
@@ -149,7 +153,7 @@ export async function runHttpScenario(): Promise<HttpEvidence> {
     assert.equal(linear.text, created.text, "save response text must equal reloaded text");
 
     const list = await listWorkflows(http, project.id);
-    assert.equal(list.items.length, 2);
+    assert.equal(list.items.length, seededCount + 2);
     assert.ok(list.items.every((item) => /^[A-Fa-f0-9]{64}$/u.test(item.etag)));
 
     const firstSave = await saveWorkflow(http, project.id, linear.id, linear.workflow, linear.etag);
@@ -251,7 +255,11 @@ export async function runHttpScenario(): Promise<HttpEvidence> {
     );
 
     const bufferBefore = await listWorkflows(http, project.id);
-    assert.equal(bufferBefore.items.length, 3, "saving/validating must not create workflows");
+    assert.equal(
+      bufferBefore.items.length,
+      seededCount + 3,
+      "saving/validating must not create workflows",
+    );
     const runsBefore = await http.api("GET", `/api/runs?project=${encodeURIComponent(project.id)}`);
     const runsBeforeBody = runsBefore.body as { items?: unknown[] };
     assert.equal(runsBeforeBody.items?.length ?? 0, 0, "save/validate must not execute a run");

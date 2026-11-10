@@ -15,7 +15,8 @@ function hasExclusive(snapshot: unknown): boolean {
 
 function sharedDirectory(run: RunRecord): string | null {
   const binding = run.workspace;
-  if (binding?.selection.mode === "new-worktree") return null;
+  if (binding?.selection.mode === "new-worktree" || binding?.selection.mode === "container")
+    return null;
   const directory =
     binding?.selection.mode === "existing-worktree"
       ? binding.selection.path

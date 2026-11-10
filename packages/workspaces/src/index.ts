@@ -16,7 +16,8 @@ import { acquireWorktree, finalizeWorktree, releaseWorktree } from "./worktree.j
 const isRunWorkspace = (workspace: ScratchWorkspace): boolean =>
   workspace.mode === "project" ||
   workspace.mode === "existing-worktree" ||
-  workspace.mode === "new-worktree";
+  workspace.mode === "new-worktree" ||
+  workspace.mode === "container";
 
 export const acquireScratch = (request: AcquireScratchRequest) => {
   if (request.runWorkspace !== undefined) {

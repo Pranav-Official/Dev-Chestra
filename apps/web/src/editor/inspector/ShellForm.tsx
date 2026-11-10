@@ -174,13 +174,20 @@ export function ShellForm({
           </Field>
           <p className="inspector-footnote" data-testid="inspector-shell-effects-note" role="note">
             <TriangleAlert size={12} aria-hidden="true" /> Runs in the run&apos;s workspace with
-            real side effects. Not a sandbox.
+            real side effects. Container isolation applies only when selected at run start.
           </p>
         </div>
       </InspectorSection>
       <InspectorSection sectionKey="shell:execution" title="Options" defaultOpen={false}>
         <div className="inspector-stack">
           <ShellTimeout node={node} issues={issues} onPatch={onPatch} />
+          <CheckboxField
+            id="inspector-shell-github"
+            label="GitHub credential in container"
+            checked={node.credentials?.includes("github") ?? false}
+            onChange={(enabled) => onPatch({ credentials: enabled ? ["github"] : [] })}
+            help="Only for container runs. Uses the project's configured token for gh and HTTPS Git. Add an approval step before publishing."
+          />
           <CheckboxField
             id="inspector-shell-allow-failure"
             label="Allow failure"

@@ -281,7 +281,7 @@ export function capabilities(): unknown {
       "workflow",
       "end",
     ],
-    workspaceModes: ["project", "new-worktree", "existing-worktree"],
+    workspaceModes: ["project", "new-worktree", "existing-worktree", "container"],
     headlessServer: true,
     budgetEnforcement: false,
     schemaIsStructural: true,
@@ -639,7 +639,7 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
         }
       }
       const mode = value(flags, "workspace") ?? "project";
-      if (!["project", "new-worktree", "existing-worktree"].includes(mode))
+      if (!["project", "new-worktree", "existing-worktree", "container"].includes(mode))
         throw new AgentUsageError(
           `Invalid --workspace '${mode}': use project, new-worktree or existing-worktree`,
         );
@@ -648,7 +648,7 @@ export async function executeAgentCommands(argv: string[]): Promise<number> {
       const workspace =
         mode === "existing-worktree"
           ? ({ mode, path: required(value(flags, "worktree-path"), "--worktree-path") } as const)
-          : mode === "new-worktree"
+          : mode === "new-worktree" || mode === "container"
             ? ({ mode } as const)
             : ({ mode: "project" } as const);
       const key = value(flags, "idempotency-key");

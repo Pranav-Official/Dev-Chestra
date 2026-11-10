@@ -1,3 +1,7 @@
+import { chmodSync, mkdtempSync, rmSync } from "node:fs";
+import { createConnection, createServer, type Socket } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { GatewayPort, GatewayScope } from "@devchestra/engine";
 import {
   createAgentGateway,
@@ -26,9 +30,35 @@ export async function startGateway(store: Store): Promise<RunningGateway> {
   });
   const server = await startLoopbackServer(app);
   port = server.port;
+  const socketDir =
+    process.platform === "linux" ? mkdtempSync(join(tmpdir(), "dc-gw-")) : undefined;
+  const socketPath = socketDir ? join(socketDir, "gateway.sock") : undefined;
+  const connections = new Set<Socket>();
+  const socketServer = socketPath
+    ? createServer((client) => {
+        const upstream = createConnection({ host: "127.0.0.1", port });
+        for (const socket of [client, upstream]) {
+          connections.add(socket);
+          socket.once("close", () => connections.delete(socket));
+          socket.on("error", () => {
+            client.destroy();
+            upstream.destroy();
+          });
+        }
+        client.pipe(upstream).pipe(client);
+      })
+    : undefined;
+  if (socketServer && socketPath) {
+    await new Promise<void>((resolve, reject) => {
+      socketServer.once("error", reject);
+      socketServer.listen(socketPath, resolve);
+    });
+    chmodSync(socketPath, 0o600);
+  }
   return {
     port: {
       url: server.url,
+      ...(socketPath ? { socketPath } : {}),
       issue(scope: GatewayScope) {
         const token = tokens.issue({
           identity: scope.identity,
@@ -51,6 +81,9 @@ export async function startGateway(store: Store): Promise<RunningGateway> {
     },
     close: async (): Promise<void> => {
       tokens.clear();
+      for (const socket of connections) socket.destroy();
+      if (socketServer) await new Promise<void>((resolve) => socketServer.close(() => resolve()));
+      if (socketDir) rmSync(socketDir, { recursive: true, force: true });
       await server.close();
     },
   };

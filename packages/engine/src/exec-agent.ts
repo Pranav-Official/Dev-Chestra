@@ -1,3 +1,4 @@
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import {
   acquireFileLock,
@@ -105,8 +106,14 @@ export async function executeAgent(
     const agentCli = readCliId(node.raw.cli);
     const agentAdapter = ctx.deps.adapters.get(getProvider(agentCli).id);
     const credentialScope =
-      agentAdapter.id === "pi" ? piCredentialScope(ctx.baseEnv(agentCli), workspace.dir) : null;
+      agentAdapter.id === "pi"
+        ? workspace.mode === "container"
+          ? join(ctx.deps.dataDir, "sandbox", "pi-credential-lock")
+          : piCredentialScope(ctx.baseEnv(agentCli), workspace.dir)
+        : null;
     if (credentialScope !== null) {
+      if (workspace.mode === "container")
+        mkdirSync(credentialScope, { recursive: true, mode: 0o700 });
       try {
         releaseCredentialLock = await acquireFileLock(
           join(credentialScope, "auth.json.devchestra-lock"),

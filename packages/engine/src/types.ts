@@ -1,4 +1,10 @@
-import type { AdapterRegistry, CliId, ResolvedMcpServer, RunRequest } from "@devchestra/adapters";
+import type {
+  AdapterRegistry,
+  CliId,
+  ContainerExecution,
+  ResolvedMcpServer,
+  RunRequest,
+} from "@devchestra/adapters";
 import type {
   Clock,
   DevChestraError,
@@ -45,6 +51,7 @@ export interface GatewayToolEvent {
  * allowlisted child env (no provider credentials).
  */
 export interface GatewayShellScope {
+  readonly container?: ContainerExecution;
   readonly policy: ShellPolicy;
   readonly cwd: string;
   readonly env: Readonly<Record<string, string>>;
@@ -70,6 +77,7 @@ export interface IssuedToken {
 }
 
 export interface GatewayPort {
+  readonly socketPath?: string;
   readonly url: string;
   issue(scope: GatewayScope): IssuedToken;
 }

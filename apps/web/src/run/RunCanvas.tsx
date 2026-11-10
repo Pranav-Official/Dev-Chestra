@@ -13,7 +13,13 @@ import {
 } from "@xyflow/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "@xyflow/react/dist/style.css";
-import { deriveRouting, isTerminalRunStatus, type RunView } from "@devchestra/core";
+import {
+  deriveRouting,
+  isTerminalRunStatus,
+  loopTerminalOutcome,
+  type NodeKind,
+  type RunView,
+} from "@devchestra/core";
 import { type DecisionMode, type DecisionNode, decisionHandles } from "@devchestra/schema";
 import {
   Bot,
@@ -44,7 +50,7 @@ import { isUnresolvedExecution, unresolvedSummary } from "./staleExecution.js";
 
 interface SnapshotNode {
   id: string;
-  type: string;
+  type: NodeKind;
   name: string;
   cli?: string;
   model?: string;
@@ -77,9 +83,9 @@ export interface WorkflowSnapshot {
 export function toRoutingGraph(snapshot: WorkflowSnapshot): {
   nodes: {
     id: string;
-    type: string;
+    type: NodeKind;
     branches?: { id: string }[];
-    mode?: string;
+    mode?: "first" | "all";
     inputs?: string[];
   }[];
   edges: { id: string; from: string; to: string }[];
@@ -89,7 +95,7 @@ export function toRoutingGraph(snapshot: WorkflowSnapshot): {
       id: node.id,
       type: node.type,
       ...(node.branches === undefined ? {} : { branches: node.branches }),
-      ...(typeof node.mode === "string" ? { mode: node.mode } : {}),
+      ...(node.mode === "first" || node.mode === "all" ? { mode: node.mode } : {}),
       ...(Array.isArray(node.inputs) ? { inputs: node.inputs } : {}),
     })),
     edges: snapshot.graph.edges,
@@ -107,6 +113,7 @@ interface NodeData extends Record<string, unknown> {
   runStatus: string;
   selected: boolean;
   testId: string;
+  loopOutcome: "condition_met" | "iteration_limit" | null;
   gateBranch: string | null;
   gateEvaluated: { branch: string; matched: boolean; error?: string }[];
   joinActive: string[];
@@ -299,6 +306,11 @@ function WorkflowNode({ data }: NodeProps<Node<NodeData>>) {
             : ` · ${data.gateEvaluated
                 .map((entry) => `${entry.branch}:${entry.matched ? "true" : "false"}`)
                 .join(" ")}`}
+        </div>
+      ) : null}
+      {data.kind === "loop" && data.loopOutcome ? (
+        <div className="flow-node-route" data-testid={`run-loop-outcome-${String(data.id)}`}>
+          {data.loopOutcome === "condition_met" ? "success" : "exhausted"}
         </div>
       ) : null}
       {data.kind === "join" ? (
@@ -526,6 +538,7 @@ export function RunCanvas({
           runStatus: view.status,
           selected: selectedPath === node.id,
           testId: `run-node-${node.id}`,
+          loopOutcome: exec?.loop ? loopTerminalOutcome(exec.loop) : null,
           gateBranch: exec?.gateDecision?.branch ?? null,
           gateEvaluated: exec?.gateDecision?.evaluated ?? [],
           joinActive: exec?.joinResolution?.active ?? [],

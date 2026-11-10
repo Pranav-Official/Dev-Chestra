@@ -1,26 +1,26 @@
-import brandMark from "../../../../assets/images/base-logo.svg";
-import brandWordmark from "../../../../assets/images/base-logo-type.svg";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import {
   Activity,
+  Ban,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Circle,
+  Clock3,
   Folder,
   FolderGit2,
   GitBranch,
   Layers3,
   LoaderCircle,
-  CheckCircle2,
-  Circle,
-  Clock3,
   PauseCircle,
+  Settings,
   ShieldQuestion,
   TriangleAlert,
-  Ban,
-  Settings,
 } from "lucide-react";
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import brandMark from "../../../../assets/images/base-logo.svg";
+import brandWordmark from "../../../../assets/images/base-logo-type.svg";
 import { api, classifyError } from "../api/client.js";
 import { queryKeys, useBootstrap } from "../api/hooks.js";
 import type { RunSummary } from "../api/types.js";
@@ -40,12 +40,31 @@ interface WorkflowNav {
 function RunIndicator({ status }: { status: string }) {
   const label = statusLabel(status);
   const active = status === "running" || status === "validating";
-  const Icon = active ? LoaderCircle : status === "succeeded" ? CheckCircle2
-    : status === "paused" ? PauseCircle : status === "waiting_approval" ? ShieldQuestion
-    : status === "waiting_quota" || status === "queued" ? Clock3
-    : ["failed", "rejected", "error", "interrupted"].includes(status) ? TriangleAlert
-    : status === "cancelled" ? Ban : Circle;
-  return <span className={`nav-run-status nav-status-${status}`} role="img" aria-label={label} title={label}><Icon size={14} className={active ? "nav-status-spin" : undefined} aria-hidden="true" /></span>;
+  const Icon = active
+    ? LoaderCircle
+    : status === "succeeded"
+      ? CheckCircle2
+      : status === "paused"
+        ? PauseCircle
+        : status === "waiting_approval"
+          ? ShieldQuestion
+          : status === "waiting_quota" || status === "queued"
+            ? Clock3
+            : ["failed", "rejected", "error", "interrupted"].includes(status)
+              ? TriangleAlert
+              : status === "cancelled"
+                ? Ban
+                : Circle;
+  return (
+    <span
+      className={`nav-run-status nav-status-${status}`}
+      role="img"
+      aria-label={label}
+      title={label}
+    >
+      <Icon size={14} className={active ? "nav-status-spin" : undefined} aria-hidden="true" />
+    </span>
+  );
 }
 
 function SettingsLink() {
@@ -130,7 +149,10 @@ export function Sidebar() {
       const items: RunSummary[] = [];
       let cursor: string | undefined;
       do {
-        const page = await api.listRuns({ status: "running", limit: 100, ...(cursor ? { cursor } : {}) }, { signal });
+        const page = await api.listRuns(
+          { status: "running", limit: 100, ...(cursor ? { cursor } : {}) },
+          { signal },
+        );
         items.push(...page.items);
         cursor = page.nextCursor ?? undefined;
       } while (cursor);
@@ -154,7 +176,7 @@ export function Sidebar() {
   return (
     <aside className="sidebar" aria-label="Projects, workflows and runs">
       <div className="sidebar-top">
-        <div className="brand" aria-label="DevChestra">
+        <div className="brand" role="img" aria-label="DevChestra">
           <img className="brand-mark" src={brandMark} alt="" />
           <img className="brand-wordmark" src={brandWordmark} alt="" />
         </div>
@@ -171,14 +193,31 @@ export function Sidebar() {
       <nav className="sidebar-nav">
         {activeRuns.data && activeRuns.data.length > 0 ? (
           <section className="sidebar-active-runs" aria-label="Currently running">
-            <div className="nav-sec sidebar-active-heading">Currently running <span>{activeRuns.data.length}</span></div>
+            <div className="nav-sec sidebar-active-heading">
+              Currently running <span>{activeRuns.data.length}</span>
+            </div>
             {activeRuns.data.map((run) => {
               const runPath = `/p/${run.projectId}/r/${run.id}`;
-              const selected = location.pathname === runPath || location.pathname.startsWith(`${runPath}/`);
-              return <Link key={run.id} to={runPath} className={`sidebar-active-run${selected ? " active" : ""}`} aria-current={selected ? "page" : undefined}>
-                <LoaderCircle size={15} className="nav-status-spin" aria-hidden="true" />
-                <span className="sidebar-active-copy"><span className="sidebar-active-name">{run.workflowName ?? run.workflowId}</span><span className="sidebar-active-detail">{run.projectName} · Run #{run.runNumber}</span></span>
-              </Link>;
+              const selected =
+                location.pathname === runPath || location.pathname.startsWith(`${runPath}/`);
+              return (
+                <Link
+                  key={run.id}
+                  to={runPath}
+                  className={`sidebar-active-run${selected ? " active" : ""}`}
+                  aria-current={selected ? "page" : undefined}
+                >
+                  <LoaderCircle size={15} className="nav-status-spin" aria-hidden="true" />
+                  <span className="sidebar-active-copy">
+                    <span className="sidebar-active-name">
+                      {run.workflowName ?? run.workflowId}
+                    </span>
+                    <span className="sidebar-active-detail">
+                      {run.projectName} · Run #{run.runNumber}
+                    </span>
+                  </span>
+                </Link>
+              );
             })}
           </section>
         ) : null}
@@ -296,7 +335,9 @@ export function Sidebar() {
                           const editorPath = `/p/${project.id}/w/${workflow.id}`;
                           const historyPath = `/p/${project.id}/runs?workflow=${encodeURIComponent(workflow.id)}`;
                           const expanded = openWorkflows.has(key);
-                          const activeRuns = workflow.runs.filter((run) => run.status === "running" || run.status === "validating");
+                          const activeRuns = workflow.runs.filter(
+                            (run) => run.status === "running",
+                          );
                           const selected = workflow.managed
                             ? location.pathname === editorPath
                             : location.pathname + location.search === historyPath;
@@ -320,12 +361,30 @@ export function Sidebar() {
                                   aria-label={
                                     workflow.managed
                                       ? `Open workflow editor: ${workflow.name}${activeRuns.length ? ` — ${activeRuns.length} active ${activeRuns.length === 1 ? "run" : "runs"}` : ""}`
-                                      : activeRuns.length ? `${workflow.name} — ${activeRuns.length} active ${activeRuns.length === 1 ? "run" : "runs"}` : undefined
+                                      : activeRuns.length
+                                        ? `${workflow.name} — ${activeRuns.length} active ${activeRuns.length === 1 ? "run" : "runs"}`
+                                        : undefined
                                   }
                                 >
                                   <GitBranch size={13} aria-hidden="true" />
                                   <span className="nm">{workflow.name}</span>
-                                  {activeRuns.length > 0 ? <span className="nav-workflow-active" title={`${activeRuns.length} active ${activeRuns.length === 1 ? "run" : "runs"}`} aria-label={`${activeRuns.length} active ${activeRuns.length === 1 ? "run" : "runs"}`}><LoaderCircle size={14} className="nav-status-spin" aria-hidden="true" />{activeRuns.length > 1 ? <span>{activeRuns.length}</span> : null}</span> : null}
+                                  {activeRuns.length > 0 ? (
+                                    <span
+                                      className="nav-workflow-active"
+                                      role="status"
+                                      title={`${activeRuns.length} active ${activeRuns.length === 1 ? "run" : "runs"}`}
+                                      aria-label={`${activeRuns.length} active ${activeRuns.length === 1 ? "run" : "runs"}`}
+                                    >
+                                      <LoaderCircle
+                                        size={14}
+                                        className="nav-status-spin"
+                                        aria-hidden="true"
+                                      />
+                                      {activeRuns.length > 1 ? (
+                                        <span>{activeRuns.length}</span>
+                                      ) : null}
+                                    </span>
+                                  ) : null}
                                 </Link>
                                 <WorkspaceActions
                                   projectId={project.id}
@@ -349,7 +408,9 @@ export function Sidebar() {
                                       >
                                         <RunIndicator status={run.status} />
                                         <span className="nm">Run #{run.runNumber}</span>
-                                        <span className="nav-run-label">{statusLabel(run.status)}</span>
+                                        <span className="nav-run-label">
+                                          {statusLabel(run.status)}
+                                        </span>
                                       </Link>
                                       <WorkspaceActions projectId={project.id} run={run} />
                                     </div>

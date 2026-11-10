@@ -1,4 +1,13 @@
-import { buildChildEnv, type CliId } from "@devchestra/adapters";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import {
+  buildChildEnv,
+  type CliId,
+  type ContainerExecution,
+  ensureCredentialVolume,
+  prepareContainerRuntime,
+  recoverContainers,
+} from "@devchestra/adapters";
 import {
   type Clock,
   DevChestraError,
@@ -242,6 +251,8 @@ export class EngineContext {
         { details: { runId: run.id } },
       );
     }
+    if (requireExisting && binding.selection.mode === "container")
+      recoverContainers(this.deps.dataDir, run.id);
     const prepare = this.deps.workspaces.prepare;
     if (prepare === undefined) {
       throw new DevChestraError(
@@ -253,13 +264,84 @@ export class EngineContext {
     const result = await prepare({
       dataDir: this.deps.dataDir,
       projectId: run.project.id,
-      runId: run.id,
+      runId: binding.selection.mode === "container" ? this.containerRunId(run) : run.id,
       projectRoot: binding.projectRoot,
       selection: binding.selection,
-      ...(requireExisting ? { requireExisting: true } : {}),
+      ...(requireExisting ||
+      (binding.selection.mode === "container" && this.containerRunId(run) !== run.id)
+        ? { requireExisting: true }
+        : {}),
       signal,
     });
     if (!result.ok) throw result.error;
+    if (binding.selection.mode === "container") {
+      prepareContainerRuntime(
+        this.deps.dataDir,
+        join(this.deps.dataDir, "projects", run.project.id, "runs", this.containerRunId(run)),
+        requireExisting,
+        this.deps.env,
+      );
+    }
+  }
+
+  containerRunId(run: RunRecord): string {
+    let current = run;
+    const seen = new Set<string>();
+    while (current.workspace?.selection.mode === "container") {
+      if (seen.has(current.id))
+        throw new DevChestraError("E_CONFLICT", "Container run lineage contains a cycle");
+      seen.add(current.id);
+      const parent = this.store.workflowCalls.getParent(current.id);
+      const candidate = parent ? this.store.runs.get(parent.parentRunId) : null;
+      if (
+        candidate?.workspace?.selection.mode !== "container" ||
+        candidate.project.id !== run.project.id
+      )
+        break;
+      current = candidate;
+    }
+    return current.id;
+  }
+
+  containerExecution(
+    run: RunRecord,
+    workspace: ScratchWorkspace,
+    identity: ExecutionIdentity,
+    cli?: CliId,
+    execDir?: string,
+  ): ContainerExecution | undefined {
+    if (workspace.mode !== "container") return undefined;
+    const runtime = prepareContainerRuntime(
+      this.deps.dataDir,
+      join(this.deps.dataDir, "projects", run.project.id, "runs", this.containerRunId(run)),
+      true,
+    );
+    const mounts: NonNullable<ContainerExecution["mounts"]> = [];
+    if (cli) {
+      const socket = this.deps.gateway.socketPath;
+      if (!socket)
+        throw new DevChestraError("E_WORKSPACE", "Container agents require a Unix gateway socket");
+      const shim = join(dirname(this.deps.mcpShimEntry), "container-shim.cjs");
+      if (!existsSync(shim))
+        throw new DevChestraError(
+          "E_WORKSPACE",
+          "Bundled container MCP shim is missing; rebuild DevChestra",
+        );
+      mounts.push(
+        { source: dirname(socket), target: dirname(socket), readOnly: true },
+        { source: shim, target: "/run/devchestra/shim.cjs", readOnly: true },
+      );
+      if (execDir) mounts.push({ source: execDir, target: execDir });
+    }
+    return {
+      runtime,
+      dataDir: this.deps.dataDir,
+      runId: run.id,
+      executionId: `${identity.path}-a${identity.attempt}g${identity.generation}`,
+      cwd: workspace.dir,
+      mounts,
+      ...(cli ? { homeVolume: ensureCredentialVolume(runtime, cli) } : {}),
+    };
   }
 
   async acquire(
@@ -291,8 +373,11 @@ export class EngineContext {
     const result = await this.deps.workspaces.acquire({
       dataDir: this.deps.dataDir,
       projectId: run.project.id,
-      runId: run.id,
-      path,
+      runId: binding?.selection.mode === "container" ? this.containerRunId(run) : run.id,
+      path:
+        binding?.selection.mode === "container" && this.containerRunId(run) !== run.id
+          ? `child-${run.id.slice(-32).toLowerCase()}/${path}`
+          : path,
       attempt,
       generation,
       ...(binding === null ? { mode: workspaceModeFor(run, path) } : { runWorkspace: binding }),

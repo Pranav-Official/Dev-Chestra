@@ -176,6 +176,7 @@ const pollAgentPermissionsSchema = z.strictObject({
 const pollShellProbeSchema = z.strictObject({
   ...pollProbeBase,
   type: z.literal("shell"),
+  credentials: z.array(z.literal("github")).optional(),
   command: z.string(),
   timeoutMin: z.number().optional(),
   // Engine-owned: allowed through parse so validate can reject with E_POLL_PROBE
@@ -187,6 +188,7 @@ const pollShellProbeSchema = z.strictObject({
 const pollAgentProbeSchema = z.strictObject({
   ...pollProbeBase,
   type: z.literal("agent"),
+  credentials: z.array(z.literal("github")).optional(),
   // Structural parse allows fake everywhere (warning in validateWorkflow).
   // Run-time layers enforce the DEVCHESTRA_ALLOW_FAKE=1 test-only gate.
   cli: z.enum([...PROD_CLIS, "fake"]).optional(),
@@ -235,6 +237,7 @@ const startNodeSchema = z.strictObject({
 const agentNodeSchema = z.strictObject({
   ...nodeBase,
   type: z.literal("agent"),
+  credentials: z.array(z.literal("github")).optional(),
   // Structural parse allows fake everywhere (warning in validateWorkflow).
   // Run-time layers (CLI startup/run gates, adapter registry) enforce the
   // DEVCHESTRA_ALLOW_FAKE=1 test-only requirement; API DTO schemas keep their own
@@ -261,6 +264,7 @@ const agentNodeSchema = z.strictObject({
 const shellNodeSchema = z.strictObject({
   ...nodeBase,
   type: z.literal("shell"),
+  credentials: z.array(z.literal("github")).optional(),
   command: z.string(),
   workspace: workspaceSchema.optional(),
   timeoutMin: z.number().optional(),

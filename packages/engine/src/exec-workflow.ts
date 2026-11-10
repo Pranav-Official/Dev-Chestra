@@ -306,7 +306,8 @@ export async function executeWorkflow(
         const resolved = await prepare({
           dataDir: ctx.deps.dataDir,
           projectId: run.project.id,
-          runId: run.id as string,
+          runId:
+            binding.selection.mode === "container" ? ctx.containerRunId(run) : (run.id as string),
           projectRoot: binding.projectRoot,
           selection: binding.selection,
           requireExisting: true,

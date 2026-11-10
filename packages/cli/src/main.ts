@@ -14,6 +14,7 @@ import { detachStart } from "./detach.js";
 import { printDoctor, runDoctor } from "./doctor.js";
 import { acquireDataDirLock, DataDirLockedError, type LockHandle } from "./lock.js";
 import { exitCodeForError, safeError, writeSummary } from "./output.js";
+import { executeSandbox } from "./sandbox.js";
 import { runStatus, runStop } from "./server-commands.js";
 import { executeStart } from "./start.js";
 
@@ -25,6 +26,7 @@ function versionLine(): string {
 
 async function main(): Promise<number> {
   const argv = process.argv.slice(2);
+  if (argv[0] === "sandbox") return executeSandbox(argv.slice(1));
   if (argv[0] === "capabilities") {
     process.stdout.write(`${JSON.stringify(capabilities())}\n`);
     return 0;

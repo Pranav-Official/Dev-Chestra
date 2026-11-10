@@ -187,7 +187,7 @@ function mcpConfigContent(req: RunRequest): string {
   }
   // Exact selection: everything the CLI knows but the node did not select
   // stays off, so the merged user config cannot start it.
-  for (const known of req.knownMcp ?? []) {
+  for (const known of req.container ? [] : (req.knownMcp ?? [])) {
     if (known.name === req.mcp.serverName) continue; // our own shim, always on
     checkMcpName(known.name, "knownMcp[].name");
     if (!seen.has(known.name)) mcp[known.name] = { enabled: false };
@@ -255,7 +255,18 @@ function plan(
       cwd: req.cwd,
       // Env travels on every invocation, so resume re-attaches the MCP
       // server through the same inline config.
-      env: { ...req.env, ...req.mcp.env, OPENCODE_CONFIG_CONTENT: mcpConfigContent(req) },
+      env: {
+        ...req.env,
+        ...req.mcp.env,
+        ...(req.container
+          ? {
+              OPENCODE_DISABLE_PROJECT_CONFIG: "true",
+              OPENCODE_CONFIG_DIR: req.execDir,
+              XDG_CONFIG_HOME: req.execDir,
+            }
+          : {}),
+        OPENCODE_CONFIG_CONTENT: mcpConfigContent(req),
+      },
       stdin: req.prompt,
       files: [],
     });

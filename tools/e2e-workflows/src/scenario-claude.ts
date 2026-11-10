@@ -106,6 +106,8 @@ export async function runClaudeHttpScenario(): Promise<ClaudeHttpEvidence> {
     await http.health();
     await http.bootstrap(server.meta.token);
     const project = await registerProject(http, ws.projectDir);
+    // Bootstrap readiness probes precede the model API actions measured here.
+    await standin.resetLog();
     const base = `/api/projects/${encodeURIComponent(project.id)}/clis`;
 
     const cold = await http.api("GET", `${base}/claude-code/models`);

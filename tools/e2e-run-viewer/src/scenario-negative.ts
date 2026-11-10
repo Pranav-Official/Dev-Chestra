@@ -69,6 +69,7 @@ export async function runNegativeScenario(): Promise<NegativeEvidence> {
   };
   try {
     server = await startServer({
+      secure: true,
       cli: CLI,
       dataDir: ws.dataDir,
       cwd: ws.projectDir,
@@ -274,6 +275,7 @@ export async function runNegativeScenario(): Promise<NegativeEvidence> {
     record("cancel-supported", cancelled);
 
     otherServer = await startServer({
+      secure: true,
       cli: CLI,
       dataDir: other.dataDir,
       cwd: other.projectDir,

@@ -175,6 +175,13 @@ export function AgentTools({
         help="The CLI's built-in shell tool. Advisory only: DevChestra is not an OS sandbox."
       />
       <ShellPolicyEditor node={node} onPatch={onPatch} />
+      <CheckboxField
+        id="inspector-tools-github"
+        label="GitHub credential in container"
+        checked={node.credentials?.includes("github") ?? false}
+        onChange={(enabled) => onPatch({ credentials: enabled ? ["github"] : [] })}
+        help="Only for container runs. Gives this agent the project's configured GitHub token. Prefer a separate publish step after approval."
+      />
       <div className="inspector-tools-block">
         <div className="inspector-tools-head">
           <span className="inspector-tools-title">MCP servers</span>

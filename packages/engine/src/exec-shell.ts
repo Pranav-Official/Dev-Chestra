@@ -1,4 +1,4 @@
-import { runCommand } from "@devchestra/adapters";
+import { containerBaseEnv, resolveForgeCredentials, runCommand } from "@devchestra/adapters";
 import { DevChestraError, type Path } from "@devchestra/core";
 import type { RunRecord } from "@devchestra/store";
 import type { ScratchWorkspace } from "@devchestra/workspaces";
@@ -47,6 +47,7 @@ export async function executeShell(
   });
 
   let workspace: ScratchWorkspace | undefined;
+  const releaseCredentials: (() => void)[] = [];
   try {
     workspace = await ctx.acquire(
       run,
@@ -67,17 +68,41 @@ export async function executeShell(
       Math.max(1, Number(node.raw.timeoutMin ?? 1) * 60_000),
       Math.max(1, ctx.deps.maxNodeTimeoutMs ?? Number.MAX_SAFE_INTEGER),
     );
+    if (
+      workspace.mode !== "container" &&
+      Array.isArray(node.raw.credentials) &&
+      node.raw.credentials.length
+    )
+      throw new DevChestraError("E_VALIDATION", "Node credentials require a container workspace");
+    const forge =
+      workspace.mode === "container"
+        ? resolveForgeCredentials(ctx.deps.dataDir, run.project.path, node.raw.credentials)
+        : { env: {}, secrets: [] };
+    for (const secret of forge.secrets)
+      releaseCredentials.push(ctx.store.security.registerSecret(secret, "forge-token"));
     const result = await runCommand(
       {
         cmd: command,
         shell: true,
         cwd: workspace.dir,
-        env: ctx.baseEnv("fake"),
+        env:
+          workspace.mode === "container"
+            ? { ...containerBaseEnv(ctx.baseEnv("fake")), ...forge.env }
+            : ctx.baseEnv("fake"),
+        ...(workspace.mode === "container"
+          ? {
+              container: ctx.containerExecution(run, workspace, identity) as NonNullable<
+                ReturnType<typeof ctx.containerExecution>
+              >,
+            }
+          : {}),
         timeoutMs,
         maxStdoutBytes: TAIL_BYTES,
         maxStderrBytes: TAIL_BYTES,
       },
       {
+        redact: (text) =>
+          forge.secrets.reduce((value, secret) => value.split(secret).join("[redacted]"), text),
         generation: identity.generation,
         onSpawn: async (spawn) => {
           ctx.store.executions.recordSpawned({
@@ -215,6 +240,7 @@ export async function executeShell(
     }
     throw devchestra;
   } finally {
+    for (const release of releaseCredentials) release();
     if (workspace !== undefined) ctx.release(workspace);
   }
 }

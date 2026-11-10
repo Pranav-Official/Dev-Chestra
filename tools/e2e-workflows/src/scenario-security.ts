@@ -56,6 +56,7 @@ export async function runSecurityScenario(): Promise<SecurityEvidence> {
   const cases: SecurityEvidence["cases"] = [];
   try {
     server = await startServer({
+      secure: true,
       cli: CLI,
       dataDir: ws.dataDir,
       cwd: ws.projectDir,

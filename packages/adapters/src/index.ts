@@ -107,6 +107,10 @@ export function describeInvocation(
     files: inv.files.map((file) => file.path),
   };
 }
+
+export * from "./container.js";
+export { forgeCredentialFile, resolveForgeCredentials } from "./forge-credentials.js";
+export { containerProviders } from "./provider-config.js";
 export {
   findWindowsExecutable,
   isWindowsPrivatePath,
