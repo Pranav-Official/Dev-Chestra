@@ -33,6 +33,7 @@ export interface OwnedServer {
 }
 
 export interface StartServerOptions {
+  secure?: boolean;
   cli: string;
   dataDir: string;
   cwd: string;
@@ -87,6 +88,7 @@ export async function startServer(options: StartServerOptions): Promise<OwnedSer
     "0",
     "--no-open",
   ];
+  if (options.secure) args.push("--secure");
   if (options.fakeScript !== undefined) args.push("--fake-script", options.fakeScript);
   const child = spawn(process.execPath, args, {
     cwd: options.cwd,
