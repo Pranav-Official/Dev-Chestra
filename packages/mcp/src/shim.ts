@@ -48,6 +48,7 @@ const ToolCallParamsSchema = CallToolRequestSchema.shape.params
 const ToolCallRequestSchema = CallToolRequestSchema.extend({ params: ToolCallParamsSchema });
 
 export interface ShimOptions {
+  gatewaySocket?: string;
   gatewayUrl: string;
   execToken: string;
   toolset: "agent" | "supervisor";
@@ -95,6 +96,7 @@ export function readShimConfig(env: NodeJS.ProcessEnv = process.env): ShimOption
 
   const debug = env.DEVCHESTRA_MCP_DEBUG === "1";
   const options: ShimOptions = { gatewayUrl, execToken, toolset };
+  if (env.DEVCHESTRA_GATEWAY_SOCKET) options.gatewaySocket = env.DEVCHESTRA_GATEWAY_SOCKET;
   options.defaultTimeoutMs = parsePositiveInt(
     env.DEVCHESTRA_DEFAULT_TIMEOUT_MS,
     DEFAULT_TIMEOUT_MS,
@@ -143,6 +145,7 @@ function mapGatewayError(error: unknown, execToken: string): string {
 export async function createShimServer(options: ShimOptions): Promise<Server> {
   const client = await createAgentGatewayClient({
     gatewayUrl: options.gatewayUrl,
+    ...(options.gatewaySocket ? { gatewaySocket: options.gatewaySocket } : {}),
     token: options.execToken,
     toolset: options.toolset,
     ...(options.defaultTimeoutMs === undefined

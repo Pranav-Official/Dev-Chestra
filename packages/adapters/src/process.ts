@@ -1,4 +1,5 @@
 import { DevChestraError } from "@devchestra/core";
+import { wrapContainerInvocation } from "./container.js";
 import { isGroupAlive, killTree, spawnIdentity } from "./identity.js";
 import { finalizeInvocation, materializeInvocation } from "./invocation.js";
 import { boundTail, redacted, spawnFailure, waitSpawn, writeStdin } from "./spawn-util.js";
@@ -108,6 +109,10 @@ export async function runAgent(
 ): Promise<ExitInfo> {
   if (signal.aborted) throw new DevChestraError("E_CANCELLED", "Run was cancelled before spawn");
   await materializeInvocation(inv);
+  const sourceInvocation = inv;
+  const container =
+    opts.container === undefined ? undefined : wrapContainerInvocation(inv, opts.container);
+  if (container) inv = container.invocation;
 
   const startedAt = Date.now();
   const maxLine = opts.maxLineBytes ?? DEFAULT_MAX_LINE;
@@ -138,6 +143,7 @@ export async function runAgent(
   try {
     await waitSpawn(child);
   } catch (error) {
+    container?.cleanup();
     throw spawnFailure(error);
   }
   const pid = child.pid;
@@ -151,7 +157,10 @@ export async function runAgent(
     if (killedBy === null) killedBy = reason;
     if (killStarted) return;
     killStarted = true;
-    killCompletion = killTree(pid, { graceMs });
+    killCompletion = (async () => {
+      const stopped = (await container?.stop()) ?? true;
+      return (await killTree(pid, { graceMs })) && stopped;
+    })();
   };
 
   const armSilence = (): void => {
@@ -249,6 +258,7 @@ export async function runAgent(
     clearTimeout(armed);
     if (silenceTimer !== undefined) clearTimeout(silenceTimer);
     signal.removeEventListener("abort", onAbort);
+    container?.cleanup();
     throw error;
   }
 
@@ -267,8 +277,10 @@ export async function runAgent(
     // A hostile hook or parser must not hide the exit status.
   }
   if (isGroupAlive(pid)) await killTree(pid, { graceMs: 0 }).catch(() => undefined);
-  const groupStopped = !isGroupAlive(pid);
-  if (groupStopped) await finalizeInvocation(inv);
+  const containerStopped = (await container?.stop()) ?? true;
+  container?.cleanup();
+  const groupStopped = !isGroupAlive(pid) && containerStopped;
+  if (groupStopped) await finalizeInvocation(sourceInvocation);
 
   return {
     code,

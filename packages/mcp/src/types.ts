@@ -81,6 +81,7 @@ export interface LoopbackAddress {
 }
 
 export interface GatewayClientOptions {
+  gatewaySocket?: string;
   /** Base gateway URL, for example http://127.0.0.1:4310. */
   gatewayUrl: string;
   /** Exec bearer token. Only ever sent in the Authorization header. */

@@ -226,6 +226,7 @@ export interface AgentContext {
 }
 
 export interface AgentNode extends NodeBase {
+  credentials?: "github"[];
   type: "agent";
   /** Set `cli` (and optionally `model`) for a fixed provider, or `tier` to use this machine's mapping. Exactly one. */
   cli?: AgentCli;
@@ -246,6 +247,7 @@ export interface AgentNode extends NodeBase {
 }
 
 export interface ShellNode extends NodeBase {
+  credentials?: "github"[];
   type: "shell";
   command: string;
   /** Legacy per-node metadata; fresh runs use the run-level workspace choice. */
@@ -446,6 +448,7 @@ export interface NormalizedStartNode extends NormalizedNodeBase {
 }
 
 export interface NormalizedAgentNode extends NormalizedNodeBase {
+  credentials?: "github"[];
   type: "agent";
   /** Absent on a tiered node until the engine resolves it when a run starts. */
   cli?: AgentCli;
@@ -462,6 +465,7 @@ export interface NormalizedAgentNode extends NormalizedNodeBase {
 }
 
 export interface NormalizedShellNode extends NormalizedNodeBase {
+  credentials?: "github"[];
   type: "shell";
   command: string;
   workspace: NormalizedWorkspaceSpec;
@@ -653,7 +657,7 @@ export const SCHEMA_CAPABILITIES: Capabilities = {
   ],
   clis: [...PROD_CLIS],
   workspaces: ["scratch", "worktree"],
-  runWorkspaces: ["project", "existing-worktree", "new-worktree"],
+  runWorkspaces: ["project", "existing-worktree", "new-worktree", "container"],
   defaultRunWorkspace: "project",
   unsupported: [
     "node types other than start/agent/shell/gate/join/approval/decision/loop/foreach/workflow/end",

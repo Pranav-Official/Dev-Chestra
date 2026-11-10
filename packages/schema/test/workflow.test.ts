@@ -206,6 +206,7 @@ describe("parse and validate the P1 chain", () => {
       "project",
       "existing-worktree",
       "new-worktree",
+      "container",
     ]);
     expect(SCHEMA_CAPABILITIES.defaultRunWorkspace).toBe("project");
   });

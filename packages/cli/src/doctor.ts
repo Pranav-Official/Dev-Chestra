@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { detectContainerRuntime } from "@devchestra/adapters";
 import {
   createDecisionService,
   type DecisionService,
@@ -213,6 +214,21 @@ export async function runDoctor(
         },
   );
   checks.push(await checkDataDir(dataDir));
+  try {
+    const runtime = detectContainerRuntime(dataDir);
+    checks.push({
+      name: "container",
+      status: "pass",
+      message: `${runtime.bin}: sandbox image available`,
+    });
+  } catch (error) {
+    checks.push({
+      name: "container",
+      status: "warn",
+      message: error instanceof Error ? error.message : String(error),
+      fix: "Run devchestra sandbox build; container workspaces require Linux and a local runtime.",
+    });
+  }
   const inspection = await inspectDataDirLock(dataDir);
   if (inspection.locked) {
     checks.push(

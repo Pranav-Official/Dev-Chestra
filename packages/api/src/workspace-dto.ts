@@ -20,6 +20,7 @@ export const runWorkspaceSelectionSchema = z.discriminatedUnion("mode", [
   z.strictObject({ mode: z.literal("project") }),
   z.strictObject({ mode: z.literal("existing-worktree"), path: worktreePathSchema }),
   z.strictObject({ mode: z.literal("new-worktree") }),
+  z.strictObject({ mode: z.literal("container"), includeUncommitted: z.boolean().optional() }),
 ]) as unknown as z.ZodType<RunWorkspaceSelection>;
 
 export interface ProjectWorkspaceEntry {

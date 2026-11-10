@@ -232,6 +232,7 @@ function normalizeAgent(
     },
     context: { project: "none", workflow: "none" },
   };
+  if (node.credentials) out.credentials = [...new Set(node.credentials)].sort();
   if (node.model !== undefined) out.model = node.model;
   // Absent stays absent: only DevChestra's own server runs for the node.
   if (node.mcpServers !== undefined) {
@@ -251,6 +252,7 @@ function normalizeShell(node: ShellNode): NormalizedShellNode {
     supervise: "default",
     env: [],
     command: node.command,
+    ...(node.credentials ? { credentials: [...new Set(node.credentials)].sort() } : {}),
     workspace: normalizeWorkspace(node.workspace),
     timeoutMin: node.timeoutMin ?? SHELL_DEFAULT_TIMEOUT,
     allowFailure: node.allowFailure ?? false,

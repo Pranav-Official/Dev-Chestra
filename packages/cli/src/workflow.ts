@@ -133,11 +133,12 @@ export async function loadWorkflow(
  */
 export async function resolveRunWorkspace(
   projectRoot: string,
-  mode: "project" | "new-worktree" | "existing-worktree" | undefined,
+  mode: "project" | "new-worktree" | "existing-worktree" | "container" | undefined,
   worktreePath: string | undefined,
 ): Promise<RunWorkspaceSelection> {
   if (mode === undefined || mode === "project") return { mode: "project" };
-  if (mode === "new-worktree") return validateWorkspaceSelection(projectRoot, { mode });
+  if (mode === "new-worktree" || mode === "container")
+    return validateWorkspaceSelection(projectRoot, { mode });
   if (worktreePath === undefined || worktreePath === "") {
     throw new DevChestraError("E_VALIDATION", "An existing worktree requires --worktree-path.");
   }

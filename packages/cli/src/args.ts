@@ -23,7 +23,7 @@ export interface CliOptions {
   retryUncertainShell: boolean;
   /** Deprecated flags that were passed, so the entry point can print one notice. */
   deprecatedFlags?: string[];
-  workspaceMode?: "project" | "new-worktree" | "existing-worktree";
+  workspaceMode?: "project" | "new-worktree" | "existing-worktree" | "container";
   worktreePath?: string;
   fakeScript?: string;
   port?: number;
@@ -195,9 +195,12 @@ export function parseArgs(argv: string[]): CliOptions {
       if (
         taken.value !== "project" &&
         taken.value !== "new-worktree" &&
-        taken.value !== "existing-worktree"
+        taken.value !== "existing-worktree" &&
+        taken.value !== "container"
       ) {
-        throw new UsageError("--workspace must be project, new-worktree or existing-worktree.");
+        throw new UsageError(
+          "--workspace must be project, new-worktree, existing-worktree or container.",
+        );
       }
       options.workspaceMode = taken.value;
       index = taken.next;
@@ -348,7 +351,7 @@ Options:
   --no-open                   Start only: do not open the browser
   --print-url                 Start only: print the tokenised launch URL once
   --param k=v                 Run only: start parameter (repeatable; JSON parsed)
-  --workspace MODE            Run only: project (default), new-worktree or existing-worktree
+  --workspace MODE            Run only: project (default), new-worktree, existing-worktree or container
   --worktree-path <dir>       Run only: existing worktree of the project (with --workspace)
   --fake-script <file>        Test-only fake-agent JSON script (DEVCHESTRA_ALLOW_FAKE=1)
   --json                      NDJSON events plus a final summary

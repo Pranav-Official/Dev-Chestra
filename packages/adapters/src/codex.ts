@@ -174,7 +174,7 @@ function planExtraMcp(req: RunRequest): ExtraMcpPlan {
     }
   }
 
-  for (const known of req.knownMcp ?? []) {
+  for (const known of req.container ? [] : (req.knownMcp ?? [])) {
     if (known.scope === "connector") continue; // covered by the apps gate below
     if (known.name === "devchestra") continue; // our own shim, always attached
     checkMcpName(known.name, "knownMcp[].name");
@@ -323,6 +323,7 @@ function plan(req: RunRequest, bin: string): Result<Invocation, DevChestraError>
     for (const dir of addDirs) checkDir(dir, "addDirs");
 
     const args = ["exec"];
+    if (req.container) args.push("-c", "mcp_servers={}");
     if (req.mode === "resume") {
       const session = req.sessionId;
       if (session === undefined || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(session)) {
@@ -331,11 +332,13 @@ function plan(req: RunRequest, bin: string): Result<Invocation, DevChestraError>
       args.push("resume", session);
     }
     args.push("--json");
-    if (req.mode === "fresh") args.push("--sandbox", mode, "--cd", req.cwd);
+    if (req.mode === "fresh")
+      args.push("--sandbox", req.container ? "danger-full-access" : mode, "--cd", req.cwd);
     args.push("--skip-git-repo-check");
     for (const dir of addDirs) args.push("--add-dir", dir);
     if (req.model !== undefined && req.model !== "") args.push(codexStatic.modelArg, req.model);
-    if (req.mode === "resume") args.push("-c", `sandbox_mode=${toml(mode)}`);
+    if (req.mode === "resume")
+      args.push("-c", `sandbox_mode=${toml(req.container ? "danger-full-access" : mode)}`);
     args.push("-c", `sandbox_workspace_write.network_access=${String(req.permissions.network)}`);
 
     if (req.mcp.serverName !== "devchestra") throw new Error("mcp.serverName must be devchestra");

@@ -142,9 +142,11 @@ export async function validateRunWorkspace(
     if (repo === null) {
       throw validation("Worktree selections require a Git project", { projectRoot: root });
     }
-    if (selection.mode === "new-worktree") {
+    if (selection.mode === "container" && process.platform !== "linux")
+      throw validation("Container workspaces currently require Linux");
+    if (selection.mode === "new-worktree" || selection.mode === "container") {
       return ok({
-        selection: { mode: "new-worktree" },
+        selection,
         projectRoot: root,
         dir: null,
         git: true,

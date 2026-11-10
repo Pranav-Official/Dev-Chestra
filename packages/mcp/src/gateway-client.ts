@@ -1,6 +1,7 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { isRecord } from "@devchestra/core";
+import { socketFetch } from "./socket-fetch.js";
 import {
   type AgentCallResult,
   type AgentGatewayClient,
@@ -343,7 +344,8 @@ export async function createAgentGatewayClient(
     options.gatewayUrl,
     options.lookupAll ?? defaultLookupAll,
   );
-  const fetchImpl = options.fetchImpl ?? fetch;
+  const fetchImpl =
+    options.fetchImpl ?? (options.gatewaySocket ? socketFetch(options.gatewaySocket) : fetch);
   const defaultTimeoutMs = options.defaultTimeoutMs ?? DEFAULT_TIMEOUT_MS;
   const submitTimeoutMs = options.submitTimeoutMs ?? SUBMIT_TIMEOUT_MS;
   const maxRequestBytes = options.maxRequestBytes ?? DEFAULT_MAX_REQUEST_BYTES;

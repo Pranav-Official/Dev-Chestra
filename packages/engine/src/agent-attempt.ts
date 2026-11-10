@@ -3,10 +3,13 @@ import { join } from "node:path";
 import {
   type AdapterEvent,
   type AdapterRegistry,
+  containerBaseEnv,
   type FailureClass,
+  getProvider,
   killOrphan,
   type ResolvedMcpServer,
   type RunRequest,
+  resolveForgeCredentials,
   runAgent,
 } from "@devchestra/adapters";
 import {
@@ -229,6 +232,16 @@ export async function runSingleAttempt(
     loop.workspace = next;
   }
   const workspace = loop.workspace;
+  if (
+    workspace.mode !== "container" &&
+    Array.isArray(node.raw.credentials) &&
+    node.raw.credentials.length
+  )
+    throw new DevChestraError("E_VALIDATION", "Node credentials require a container workspace");
+  const forge =
+    workspace.mode === "container"
+      ? resolveForgeCredentials(ctx.deps.dataDir, run.project.path, node.raw.credentials)
+      : { env: {}, secrets: [] };
   const identity = loop.identity;
   const timeoutMs = Math.min(
     Math.max(1, Number((node.raw.limits as Record<string, unknown>)?.timeoutMin ?? 30) * 60_000),
@@ -260,7 +273,25 @@ export async function runSingleAttempt(
   const execRoot = realpathSync.native(ctx.deps.dataDir);
   // The exec scope pins the real workspace directory; resume re-mints it from the current workspace.
   const shellCwd = shellPolicy === undefined ? undefined : realpathSync.native(workspace.dir);
-  const shellEnv = shellPolicy === undefined ? undefined : ctx.baseEnv("fake");
+  const shellEnv =
+    shellPolicy === undefined
+      ? undefined
+      : workspace.mode === "container"
+        ? containerBaseEnv(
+            Object.fromEntries(
+              Object.entries(ctx.baseEnv("fake")).filter(([name]) =>
+                /^(LANG|LC_.*|TZ|TERM|CI)$/.test(name),
+              ),
+            ),
+          )
+        : ctx.baseEnv("fake");
+  const policyContainer =
+    shellPolicy === undefined ? undefined : ctx.containerExecution(run, workspace, identity);
+  if (policyContainer)
+    policyContainer.network = (node.raw.permissions as Record<string, unknown>).network === true;
+  if (policyContainer)
+    policyContainer.readOnlyWorkspace =
+      ((node.raw.permissions as Record<string, unknown>).write as unknown[]).length === 0;
   // The token must outlive a policy exec that started near the end of the run; the
   // policy deadline can exceed the node timeout.
   const shellDeadlineMs =
@@ -276,6 +307,7 @@ export async function runSingleAttempt(
       : {
           shell: {
             policy: shellPolicy,
+            ...(policyContainer ? { container: policyContainer } : {}),
             cwd: shellCwd,
             env: shellEnv,
             timeoutMs: (shellPolicy.timeoutSec ?? SHELL_DEFAULT_TIMEOUT_SEC) * 1000,
@@ -284,7 +316,7 @@ export async function runSingleAttempt(
               // Best-effort: a late call after the transcript closed must not throw into the gateway.
               try {
                 let text = event.text;
-                for (const secret of secretValues(ctx, issued.token))
+                for (const secret of [...secretValues(ctx, issued.token), ...forge.secrets])
                   text = text.split(secret).join("[redacted]");
                 transcript.write({ ts: new Date().toISOString(), kind: event.kind, text });
               } catch {
@@ -295,9 +327,13 @@ export async function runSingleAttempt(
         }),
   });
   const releaseSecret = ctx.store.security.registerSecret(issued.token, "exec-token");
+  const releaseForge = forge.secrets.map((secret) =>
+    ctx.store.security.registerSecret(secret, "forge-token"),
+  );
   const revoke = (): void => {
     issued.revoke();
     releaseSecret();
+    for (const release of releaseForge) release();
   };
   active.tokens.add(revoke);
 
@@ -327,7 +363,7 @@ export async function runSingleAttempt(
       path: node.id as Path,
       attempt: identity.attempt,
       generation: identity.generation,
-      secrets: secretValues(ctx, issued.token),
+      secrets: [...secretValues(ctx, issued.token), ...forge.secrets],
     });
   } catch (error) {
     active.tokens.delete(revoke);
@@ -424,7 +460,7 @@ export async function runSingleAttempt(
     },
     redact: (text: string) => {
       let value = text;
-      for (const secret of secretValues(ctx, issued.token))
+      for (const secret of [...secretValues(ctx, issued.token), ...forge.secrets])
         value = value.split(secret).join("[redacted]");
       return value;
     },
@@ -448,7 +484,18 @@ export async function runSingleAttempt(
       adapter.id === "fake" && loop.mode === "resume" && !existsSync(fakeCheckpoint as string)
         ? "fresh"
         : loop.mode;
-    const baseEnv = prepared.baseEnv;
+    const container = ctx.containerExecution(run, workspace, identity, adapter.id, execDir);
+    if (container)
+      container.readOnlyWorkspace =
+        ((node.raw.permissions as Record<string, unknown>).write as unknown[]).length === 0;
+    if (container && (node.raw.permissions as Record<string, unknown>).network !== true)
+      throw new DevChestraError(
+        "E_VALIDATION",
+        "Container agents require permissions.network=true until model-aware egress filtering is supported",
+      );
+    const baseEnv = container
+      ? { ...containerBaseEnv(prepared.baseEnv, adapter.id), ...forge.env }
+      : prepared.baseEnv;
     const request = {
       mode: effectiveMode,
       ...(effectiveMode === "resume" && loop.sessionId !== undefined
@@ -470,13 +517,16 @@ export async function runSingleAttempt(
       limits: { timeoutMs },
       mcp: {
         serverName: "devchestra" as const,
-        command: ctx.deps.nodeBin,
-        args: [ctx.deps.mcpShimEntry],
+        command: container ? "node" : ctx.deps.nodeBin,
+        args: [container ? "/run/devchestra/shim.cjs" : ctx.deps.mcpShimEntry],
         env: {
+          ...(container
+            ? { DEVCHESTRA_GATEWAY_SOCKET: ctx.deps.gateway.socketPath as string }
+            : {}),
           DEVCHESTRA_EXEC_TOKEN: issued.token,
           DEVCHESTRA_GATEWAY_URL: ctx.deps.gateway.url,
           DEVCHESTRA_TOOLSET: "agent",
-          DEVCHESTRA_MCP_SHIM_ENTRY: ctx.deps.mcpShimEntry,
+          DEVCHESTRA_MCP_SHIM_ENTRY: container ? "/run/devchestra/shim.cjs" : ctx.deps.mcpShimEntry,
           // Policy runs need a per-call deadline and response cap that cover the
           // policy timeout/output; the 30s/256KiB shim defaults would silently cut them off.
           ...(shellPolicy === undefined
@@ -497,19 +547,23 @@ export async function runSingleAttempt(
         },
       },
       execDir,
+      ...(container ? { container: true } : {}),
       env: baseEnv,
       ...(attached.extraMcp === undefined ? {} : { extraMcp: attached.extraMcp }),
       ...(attached.knownMcp === undefined ? {} : { knownMcp: attached.knownMcp }),
       ...(fakeCheckpoint === undefined ? {} : { cliOptions: { checkpoint: fakeCheckpoint } }),
     };
-    const planned = adapter.planAsync
-      ? await adapter.planAsync(request, active.abort.signal)
-      : adapter.plan(request);
+    const planned =
+      adapter.planAsync && !container
+        ? await adapter.planAsync(request, active.abort.signal)
+        : adapter.plan(request);
     if (!planned.ok) throw planned.error;
+    if (container) planned.value.bin = getProvider(adapter.id).defaultBin;
     let exit: Awaited<ReturnType<typeof runAgent>>;
     try {
       exit = await runAgent(planned.value, hooks, active.abort.signal, {
         parser: adapter.parser(),
+        ...(container ? { container } : {}),
         timeoutMs,
         graceMs: 5_000,
         generation: identity.generation,

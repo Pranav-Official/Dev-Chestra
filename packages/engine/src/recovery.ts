@@ -1,4 +1,4 @@
-import { killOrphan } from "@devchestra/adapters";
+import { killOrphan, recoverContainers } from "@devchestra/adapters";
 import {
   DevChestraError,
   type ExecutionIdentity,
@@ -12,6 +12,7 @@ import type { EngineContext } from "./context.js";
 type StopReason = "exited" | "killed" | "grace_timeout" | "crash";
 
 export async function recoverAll(ctx: EngineContext): Promise<void> {
+  recoverContainers(ctx.deps.dataDir);
   const blocked = new Set<string>();
   for (const process of ctx.store.processes.active()) {
     if (process.pid === null || process.pidStart === null || process.binary === null) continue;

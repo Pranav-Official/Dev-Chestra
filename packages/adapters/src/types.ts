@@ -1,5 +1,6 @@
 import type { DevChestraError, Result } from "@devchestra/core";
 import { isProdCliId, type ProdCliId, type ShellPolicy } from "@devchestra/schema";
+import type { ContainerExecution } from "./container-types.js";
 
 export type { ProdCliId };
 export { isProdCliId };
@@ -69,6 +70,7 @@ export interface ResolvedMcpServer {
 }
 
 export interface RunRequest {
+  container?: boolean;
   mode: "fresh" | "resume";
   sessionId?: string;
   prompt: string;
@@ -209,6 +211,7 @@ export interface TranscriptEntry {
 }
 
 export interface RunOpts {
+  container?: ContainerExecution;
   parser: StreamParser;
   timeoutMs: number;
   silenceMs?: number;
@@ -230,6 +233,7 @@ export interface RunHooks {
 }
 
 export interface CommandRequest {
+  container?: ContainerExecution;
   cmd: string;
   args?: string[];
   shell?: boolean;

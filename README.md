@@ -233,3 +233,5 @@ The monochrome provider icons are vendored from [LobeHub Icons](https://github.c
 ## License
 
 [MIT](LICENSE)
+
+Container workspaces run agent and shell nodes in local Docker or Podman containers against a standalone clone. See [container workspace setup, credentials, publishing and limitations](docs/container-workspaces.md).

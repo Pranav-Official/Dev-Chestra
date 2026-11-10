@@ -1,5 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { isAbsolute } from "node:path";
+import type { ContainerExecution } from "@devchestra/adapters";
 import type { ExecutionIdentity } from "@devchestra/core";
 import type { ShellPolicy } from "@devchestra/schema";
 import { DevChestraError } from "./errors.js";
@@ -22,6 +23,7 @@ export interface ExecToolEvent {
  * copied by reference and never passed through structuredClone.
  */
 export interface ExecShellScope {
+  container?: ContainerExecution;
   policy: ShellPolicy;
   /** Absolute, real workspace directory (exec runs here, fixed). */
   cwd: string;
@@ -115,6 +117,7 @@ function deepFreeze<T>(value: T): T {
 function cloneShell(shell: ExecShellScope): ExecShellScope {
   const copy: ExecShellScope = {
     policy: structuredClone(shell.policy),
+    ...(shell.container ? { container: structuredClone(shell.container) } : {}),
     cwd: shell.cwd,
     env: { ...shell.env },
     timeoutMs: shell.timeoutMs,

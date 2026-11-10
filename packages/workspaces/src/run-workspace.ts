@@ -9,6 +9,7 @@ import {
   type Result,
   type RunWorkspaceBinding,
 } from "@devchestra/core";
+import { fetchContainerClone, prepareContainerClone } from "./container-clone.js";
 import { validateRunWorkspace } from "./run-workspace-catalog.js";
 import {
   assertStored,
@@ -153,7 +154,18 @@ export async function acquireRunWorkspace(
     if (!acquired.ok) return acquired;
     base = acquired.value;
     const { runFile } = runLayout(base, executionPath);
-    const selectedDir = frozen.selection.mode === "new-worktree" ? base.dir : frozen.dir;
+    const selectedDir =
+      frozen.selection.mode === "container"
+        ? await prepareContainerClone(
+            path.dirname(runFile),
+            frozen.projectRoot,
+            frozen.baseSha as string,
+            frozen.selection,
+            request.signal,
+          )
+        : frozen.selection.mode === "new-worktree"
+          ? base.dir
+          : frozen.dir;
     if (selectedDir === null) {
       throw new DevChestraError("E_VALIDATION", "Run workspace directory is missing");
     }
@@ -256,6 +268,14 @@ export async function finalizeRunWorkspace(
     const stored = readRequired(record.runFile);
     assertStored(stored, record.stored);
     validateStoredIdentity(stored);
+    if (stored.selection.mode === "container") {
+      await fetchContainerClone(
+        path.dirname(record.runFile),
+        stored.projectRoot,
+        stored.dir,
+        workspace.runId,
+      );
+    }
     const result =
       record.base.mode === "worktree"
         ? await finalizeWorktree(record.base, request)
@@ -281,6 +301,20 @@ export async function removeRunWorkspace(
         "E_WORKSPACE",
         "Run workspace was not issued by DevChestra; reacquire",
       );
+    }
+    if (record.stored.selection.mode === "container") {
+      validateStoredIdentity(record.stored);
+      const expected = path.join(path.dirname(record.runFile), "clone");
+      if (record.stored.dir !== expected)
+        throw conflict("Container clone is not owned by this run");
+      await fetchContainerClone(
+        path.dirname(record.runFile),
+        record.stored.projectRoot,
+        expected,
+        workspace.runId,
+      );
+      fs.rmSync(expected, { recursive: true });
+      return ok({ dir: expected, removed: true, alreadyAbsent: false });
     }
     if (record.stored.selection.mode !== "new-worktree") {
       return ok({ dir: record.stored.dir, removed: false, alreadyAbsent: false });

@@ -1,5 +1,13 @@
 import type { ProjectWorkspaceEntry, RunWorkspaceSelection } from "@devchestra/api";
-import { FolderOpen, GitBranch, Loader2, PlusSquare, RefreshCw, TriangleAlert } from "lucide-react";
+import {
+  Box,
+  FolderOpen,
+  GitBranch,
+  Loader2,
+  PlusSquare,
+  RefreshCw,
+  TriangleAlert,
+} from "lucide-react";
 import type { ProjectWorkspacesState } from "./useProjectWorkspaces.js";
 
 function forEachWorktree(
@@ -56,7 +64,7 @@ export function RunWorkspaceChoice({
             <FolderOpen size={13} aria-hidden="true" /> Registered project root
           </b>
           <span className="muted"> · default{data === null ? "" : ` · ${data.projectRoot}`}</span>
-          <span className="editor-field-hint">
+          <span className="editor-field-hint" style={{ display: "block" }}>
             Runs directly in the project folder. Agents and shell commands can read and edit project
             files; changes are live in your checkout and nothing is committed automatically.
           </span>
@@ -80,7 +88,7 @@ export function RunWorkspaceChoice({
           <b>
             <GitBranch size={13} aria-hidden="true" /> Existing Git worktree
           </b>
-          <span className="editor-field-hint">
+          <span className="editor-field-hint" style={{ display: "block" }}>
             Use a worktree this project already has. Changes stay in that worktree, not the main
             checkout.
           </span>
@@ -119,12 +127,46 @@ export function RunWorkspaceChoice({
           <b>
             <PlusSquare size={13} aria-hidden="true" /> Create a new Git worktree
           </b>
-          <span className="editor-field-hint">
+          <span className="editor-field-hint" style={{ display: "block" }}>
             Created under DevChestra's data directory when the run starts, from the project's
             committed HEAD. Uncommitted and untracked project files are not present.
           </span>
         </span>
       </label>
+
+      <label className="row" style={{ gap: 8, alignItems: "flex-start" }}>
+        <input
+          type="radio"
+          name="run-workspace-mode"
+          value="container"
+          checked={selection.mode === "container"}
+          disabled={newDisabled}
+          onChange={() => onChange({ mode: "container" })}
+          data-testid="run-workspace-mode-container"
+        />
+        <span>
+          <b>
+            <Box size={13} aria-hidden="true" /> Container
+          </b>
+          <span className="editor-field-hint" style={{ display: "block" }}>
+            Run agents and commands in Docker or Podman against an isolated clone. Requires Linux
+            and a sandbox image. Committed results return to a run branch; other edits stay in the
+            clone.
+          </span>
+        </span>
+      </label>
+      {selection.mode === "container" ? (
+        <label className="row" style={{ gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={selection.includeUncommitted === true}
+            onChange={(event) =>
+              onChange({ mode: "container", includeUncommitted: event.currentTarget.checked })
+            }
+          />
+          Include uncommitted changes to tracked files
+        </label>
+      ) : null}
 
       <div className="editor-field-hint" data-testid="run-workspace-status" role="status">
         {loading ? (
