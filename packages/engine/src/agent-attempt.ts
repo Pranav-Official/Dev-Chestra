@@ -513,7 +513,24 @@ export async function runSingleAttempt(
         {},
         active.abort.signal,
       );
-      if (catalog.exitCode !== 0 || catalog.killedBy || !catalog.groupStopped)
+      if (catalog.groupStopped !== true) {
+        ctx.appendError(
+          run.id,
+          node.id,
+          new DevChestraError("E_WORKSPACE", "Container MCP preflight did not stop", {
+            details: { step: "group_still_alive", pid: catalog.pid },
+          }),
+        );
+        ctx.append(run.id, "", "run.paused", "engine", {
+          reason: "shutdown",
+          detail: "A container MCP preflight is still alive; restore the runtime before resuming",
+        });
+        throw new ProcessGroupAliveError("Container MCP preflight is still alive", {
+          step: "group_still_alive",
+          pid: catalog.pid,
+        });
+      }
+      if (catalog.exitCode !== 0 || catalog.killedBy)
         throw new DevChestraError(
           "E_VALIDATION",
           "Cannot inspect container Codex MCP configuration; no agent was started",

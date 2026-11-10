@@ -6,6 +6,7 @@ import {
   type ContainerExecution,
   ensureCredentialVolume,
   prepareContainerRuntime,
+  recoverContainers,
 } from "@devchestra/adapters";
 import {
   type Clock,
@@ -250,6 +251,8 @@ export class EngineContext {
         { details: { runId: run.id } },
       );
     }
+    if (requireExisting && binding.selection.mode === "container")
+      recoverContainers(this.deps.dataDir, run.id);
     const prepare = this.deps.workspaces.prepare;
     if (prepare === undefined) {
       throw new DevChestraError(

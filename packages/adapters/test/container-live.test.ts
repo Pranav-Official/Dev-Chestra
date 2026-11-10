@@ -169,7 +169,9 @@ describe.skipIf(!enabled)("live container execution", () => {
     const args = [...launch.invocation.args];
     args.splice(args.indexOf("run") + 1, 0, "--detach");
     const id = runtimeCommand(launch.invocation.bin, args);
-    recoverContainers(spec.dataDir);
+    recoverContainers(spec.dataDir, "unrelated-run");
+    expect(readdirSync(join(spec.dataDir, "sandbox/containers"))).toHaveLength(2);
+    recoverContainers(spec.dataDir, spec.runId);
     expect(readdirSync(join(spec.dataDir, "sandbox/containers"))).toEqual([]);
     expect(
       spawnSync(spec.runtime.bin, containerRuntimeArgs(spec.runtime, ["inspect", id]), {

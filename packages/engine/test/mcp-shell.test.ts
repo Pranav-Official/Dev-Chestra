@@ -5,11 +5,11 @@ import { DevChestraError, err, ok, type Path, type Result } from "@devchestra/co
 import { openStore, type Store } from "@devchestra/store";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ runAgent: vi.fn() }));
+const mocks = vi.hoisted(() => ({ runAgent: vi.fn(), runCommand: vi.fn() }));
 
 vi.mock("@devchestra/adapters", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@devchestra/adapters")>();
-  return { ...actual, runAgent: mocks.runAgent };
+  return { ...actual, runAgent: mocks.runAgent, runCommand: mocks.runCommand };
 });
 
 import type {
@@ -139,12 +139,14 @@ interface Harness {
 const cleanups: Array<() => void> = [];
 afterEach(() => {
   mocks.runAgent.mockReset();
+  mocks.runCommand.mockReset();
   for (const cleanup of cleanups.splice(0).reverse()) cleanup();
 });
 
 function setup(
   specs: AttemptSpec[],
   options: {
+    container?: boolean;
     agent?: Record<string, unknown>;
     limits?: Record<string, number>;
     resolver?: McpResolver;
@@ -175,7 +177,7 @@ function setup(
   let runAgentCalls = 0;
   let classifyCalls = 0;
   const stub = {
-    id: "fake" as const,
+    id: options.agent?.cli === "codex" ? ("codex" as const) : ("fake" as const),
     caps: {
       enforcesPermissions: "advisory" as const,
       structuredOutputFlag: false,
@@ -221,8 +223,8 @@ function setup(
     probe: async () => ({ ok: true, version: "test" }),
   };
   const registry: AdapterRegistry = {
-    ids: () => ["fake"],
-    has: (id: string) => id === "fake",
+    ids: () => [stub.id],
+    has: (id: string) => id === stub.id,
     get: () => stub as never,
   };
 
@@ -295,7 +297,7 @@ function setup(
         const dir = join(dataDir, "scratch", request.path as string);
         mkdirSync(dir, { recursive: true });
         return ok({
-          mode: "scratch",
+          mode: options.container ? "container" : "scratch",
           dataDir,
           projectId: request.projectId,
           runId: request.runId,
@@ -378,6 +380,43 @@ const SUCCESS: AttemptSpec[] = [
 ];
 
 describe("engine agent MCP servers and shell toggle", () => {
+  it("pauses without finalizing when a credential-bearing container preflight cannot stop", async () => {
+    const h = setup(SUCCESS, {
+      container: true,
+      agent: { cli: "codex", permissions: { network: true, write: ["workspace"] } },
+    });
+    vi.spyOn(h.ctx, "containerExecution").mockReturnValue({
+      runtime: {
+        version: 1,
+        bin: "podman",
+        endpoint: "local:/test",
+        image: `sha256:${"a".repeat(64)}`,
+        uid: 1000,
+        gid: 1000,
+        selinux: false,
+        owner: "a".repeat(20),
+      },
+      dataDir: h.ctx.deps.dataDir,
+      cwd: h.ctx.deps.dataDir,
+      runId: h.runId,
+      executionId: "a",
+    });
+    mocks.runCommand.mockResolvedValue({
+      exitCode: null,
+      killedBy: "timeout",
+      groupStopped: false,
+      pid: 123,
+      stdout: "",
+      stderr: "",
+    });
+    const { error } = await runAgent(h);
+    expect(error).toBeInstanceOf(Error);
+    expect(h.events("run.paused")).toHaveLength(1);
+    expect(h.events("node.workspace.finalized")).toHaveLength(0);
+    expect(h.runAgentCalls()).toBe(0);
+    expect(h.active.tokens.size).toBe(0);
+  });
+
   it("resolves the selection and passes extraMcp, knownMcp and shell to the adapter", async () => {
     const h = setup(SUCCESS, {
       agent: {

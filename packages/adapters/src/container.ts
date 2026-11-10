@@ -408,7 +408,7 @@ function stopContainer(runtime: ContainerRuntime, name: string): boolean {
     }).status === 0
   );
 }
-export function recoverContainers(dataDir: string): void {
+export function recoverContainers(dataDir: string, runId?: string): void {
   const registry = join(dataDir, "sandbox", "containers");
   if (!existsSync(registry)) return;
   for (const entry of readdirSync(registry)) {
@@ -420,6 +420,7 @@ export function recoverContainers(dataDir: string): void {
       !["podman", "docker"].includes(record.runtime?.bin)
     )
       fail("Invalid container recovery record");
+    if (runId !== undefined && record.runId !== runId) continue;
     if (!stopContainer(record.runtime, record.name))
       fail(`Unable to stop recorded container ${record.name}; recovery blocked`);
     unlinkSync(file);
